@@ -44,16 +44,16 @@ void Terminal::reset_option(Option option) {
     void operator()(const DECModeOption &option) {
       std::cout << "\x1b[?" << int(option) << 'l';
     }
-    void operator()(const ModifyKeyboardOption &option) {
+    void operator()(const ModifyKeyboardOption&) {
       std::cout << "\x1b[>0m";
     }
-    void operator()(const ModifyCursorKeysOption &option) {
+    void operator()(const ModifyCursorKeysOption&) {
       std::cout << "\x1b[>1m";
     }
-    void operator()(const ModifyFunctionKeysOption &option) {
+    void operator()(const ModifyFunctionKeysOption&) {
       std::cout << "\x1b[>2m";
     }
-    void operator()(const ModifyOtherKeysOption &option) {
+    void operator()(const ModifyOtherKeysOption&) {
       std::cout << "\x1b[>4m";
     }
   };

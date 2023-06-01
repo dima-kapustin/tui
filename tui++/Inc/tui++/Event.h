@@ -48,7 +48,7 @@ struct MouseEvent: InputEvent {
   };
 
   Type type;
-  Button button;
+  Button button = NO_BUTTON;
   int x, y;
 
   union {
