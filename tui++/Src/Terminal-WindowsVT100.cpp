@@ -1,8 +1,9 @@
+#ifdef _WIN32
+
 #ifndef UNICODE
 #error Must be compiled in UNICODE mode
 #endif
 
-#ifdef _WIN32
 
 #include <tui++/Terminal.h>
 

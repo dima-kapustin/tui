@@ -5,6 +5,7 @@
 
 #include <tui++/Dimension.h>
 #include <tui++/EventQueue.h>
+#include <variant>
 
 namespace tui {
 
