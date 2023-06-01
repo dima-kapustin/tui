@@ -8,7 +8,7 @@ void Terminal::InputParser::parse(Input &input) {
   while (input) {
     switch (this->state) {
     case State::INIT:
-      switch (input.consume()) {
+      switch (char c = input.consume()) {
       case '\x1b':
         this->state = State::ESC;
         parse_esc(input);
@@ -23,6 +23,10 @@ void Terminal::InputParser::parse(Input &input) {
         new_key_event(KeyEvent::VK_ENTER);
         break;
 
+      case '\t':
+        new_key_event(KeyEvent::VK_TAB);
+        break;
+
       case '\x7f':
         new_key_event(KeyEvent::VK_DELETE);
         break;
@@ -32,6 +36,7 @@ void Terminal::InputParser::parse(Input &input) {
         break;
 
       default:
+        new_key_event(KeyEvent::KeyCode(c));
         break;
       }
       break;
@@ -148,27 +153,38 @@ void Terminal::InputParser::parse_dcs(Input &input) {
 }
 
 void Terminal::InputParser::parse_csi(Input &input) {
-  switch (input.consume()) {
+  switch (input) {
   case 'A':
+    input.consume();
     new_key_event(KeyEvent::VK_UP);
     return;
   case 'B':
+    input.consume();
     new_key_event(KeyEvent::VK_DOWN);
     return;
   case 'C':
+    input.consume();
     new_key_event(KeyEvent::VK_RIGHT);
     return;
   case 'D':
+    input.consume();
     new_key_event(KeyEvent::VK_LEFT);
     return;
   case 'H':
+    input.consume();
     new_key_event(KeyEvent::VK_HOME);
     return;
   case 'F':
+    input.consume();
     new_key_event(KeyEvent::VK_END);
+    return;
+  case 'Z':
+    input.consume();
+    new_key_event(KeyEvent::VK_BACK_TAB);
     return;
 
   case '<':
+    input.consume();
     this->state = State::CSI_ARGS;
     this->csi_altered = true;
     parse_csi_args(input);
@@ -229,7 +245,7 @@ void Terminal::InputParser::parse_csi_selector(Input &input) {
   case '~':
     switch (this->csi_args[0]) {
     case 1:
-      //push_key_event(KeyEvent::VK_FIND);
+      //new_key_event(KeyEvent::VK_FIND);
       break;
     case 2:
       new_key_event(KeyEvent::VK_INSERT);
@@ -238,13 +254,13 @@ void Terminal::InputParser::parse_csi_selector(Input &input) {
       new_key_event(KeyEvent::VK_DELETE);
       break;
     case 4:
-      //push_key_event(KeyEvent::VK_SELECT);
+      //new_key_event(KeyEvent::VK_SELECT);
       break;
     case 5:
-      //push_key_event(KeyEvent::VK_PRIOR);
+      new_key_event(KeyEvent::VK_PAGE_UP);
       break;
     case 6:
-      //push_key_event(KeyEvent::VK_NEXT);
+      new_key_event(KeyEvent::VK_PAGE_DOWN);
       break;
     case 15:
       new_key_event(KeyEvent::VK_F5);
@@ -271,10 +287,10 @@ void Terminal::InputParser::parse_csi_selector(Input &input) {
       new_key_event(KeyEvent::VK_F12);
       break;
     case 28:
-      //push_key_event(KeyEvent::VK_HELP);
+      //new_key_event(KeyEvent::VK_HELP);
       break;
     case 29:
-      //push_key_event(KeyEvent::VK_MENU);
+      //new_key_event(KeyEvent::VK_MENU);
       break;
     }
     break;

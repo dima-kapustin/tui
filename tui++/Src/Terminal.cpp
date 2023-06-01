@@ -87,7 +87,7 @@ void Terminal::run_event_loop() {
     if (auto event = event_queue.pop(INPUT_TIMEOUT)) {
       switch (event->type) {
       case Event::KEY:
-        std::cout << "Key Pressed: " << (int) event->key.key_code << std::endl;
+        std::cout << "Key Pressed: " << to_string(event->key.key_code) << std::endl;
         break;
 
       case Event::MOUSE:

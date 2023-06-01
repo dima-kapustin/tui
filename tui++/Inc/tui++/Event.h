@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <functional>
 
 namespace tui {
 
@@ -62,32 +63,31 @@ struct MouseEvent: InputEvent {
 struct KeyEvent: InputEvent {
   enum KeyCode {
     VK_ESCAPE = '\x1b',
-    VK_TAB = '\t',
-
     VK_SPACE = ' ',
 
-    VK_BACK_TAB = 0xe006,
+    VK_TAB = '\t',
+    VK_BACK_TAB = 0xe000,
 
-    VK_DOWN = 0xe000,
-    VK_UP = 0xe001,
-    VK_LEFT = 0xe002,
-    VK_RIGHT = 0xe003,
-    VK_HOME = 0xe004,
-    VK_END = 0xe005,
-    VK_BACK_SPACE = 0xe006,
+    VK_DOWN = 0xe001,
+    VK_UP = 0xe002,
+    VK_LEFT = 0xe003,
+    VK_RIGHT = 0xe004,
+    VK_HOME = 0xe005,
+    VK_END = 0xe006,
+    VK_BACK_SPACE = 0xe007,
 
-    VK_F1 = 0xe007,
-    VK_F2 = 0xe008,
-    VK_F3 = 0xe009,
-    VK_F4 = 0xe00a,
-    VK_F5 = 0xe00b,
-    VK_F6 = 0xe00c,
-    VK_F7 = 0xe00d,
-    VK_F8 = 0xe00e,
-    VK_F9 = 0xe00f,
-    VK_F10 = 0xe010,
-    VK_F11 = 0xe011,
-    VK_F12 = 0xe012,
+    VK_F1 = 0xe008,
+    VK_F2 = 0xe009,
+    VK_F3 = 0xe00a,
+    VK_F4 = 0xe00b,
+    VK_F5 = 0xe00c,
+    VK_F6 = 0xe00d,
+    VK_F7 = 0xe00e,
+    VK_F8 = 0xe00f,
+    VK_F9 = 0xe010,
+    VK_F10 = 0xe011,
+    VK_F11 = 0xe012,
+    VK_F12 = 0xe013,
 
     VK_DELETE = 0xe01a,
     VK_INSERT = 0xe01b,
@@ -95,10 +95,62 @@ struct KeyEvent: InputEvent {
     VK_PAGE_UP = 0xe01d,
 
     VK_ENTER = 0xe01e,
+
+    VK_COMMA = ',',
+    VK_MINUS = '-',
+    VK_PERIOD = '.',
+    VK_SLASH = '/',
+
+    VK_0 = '0',
+    VK_1 = '1',
+    VK_2 = '2',
+    VK_3 = '3',
+    VK_4 = '4',
+    VK_5 = '5',
+    VK_6 = '6',
+    VK_7 = '7',
+    VK_8 = '8',
+    VK_9 = '9',
+
+    VK_SEMICOLON = ';',
+    VK_EQUALS = '=',
+
+    VK_A = 'A',
+    VK_B = 'B',
+    VK_C = 'C',
+    VK_D = 'D',
+    VK_E = 'E',
+    VK_F = 'F',
+    VK_G = 'G',
+    VK_H = 'H',
+    VK_I = 'I',
+    VK_J = 'J',
+    VK_K = 'K',
+    VK_L = 'L',
+    VK_M = 'M',
+    VK_N = 'N',
+    VK_O = 'O',
+    VK_P = 'P',
+    VK_Q = 'Q',
+    VK_R = 'R',
+    VK_S = 'S',
+    VK_T = 'T',
+    VK_U = 'U',
+    VK_V = 'V',
+    VK_W = 'W',
+    VK_X = 'X',
+    VK_Y = 'Y',
+    VK_Z = 'Z',
+    VK_OPEN_BRACKET = '[',
+    VK_CLOSE_BRACKET = ']',
+    VK_OPEN_PAREN = '(',
+    VK_CLOSE_PAREN = ')',
   };
 
   KeyCode key_code;
 };
+
+std::string to_string(KeyEvent::KeyCode key_code);
 
 struct InvocationEvent: BasicEvent {
   std::function<void()> target;
