@@ -48,14 +48,14 @@ static struct TerminalImpl {
   }
 
   void read_events(const std::chrono::milliseconds &timeout) {
-    if (not has_input(timeout)) {
-      Terminal::input_parser.timeout();
-    } else {
+    if (has_input(timeout)) {
       constexpr size_t BUFFER_SIZE = 256;
       char buffer[BUFFER_SIZE];
       if (auto size = ::read(fileno(stdin), buffer, BUFFER_SIZE)) {
         Terminal::input_parser.parse(buffer, size);
       }
+    } else {
+      Terminal::input_parser.timeout();
     }
   }
 } terminal_impl;
