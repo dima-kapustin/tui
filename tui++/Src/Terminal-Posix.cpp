@@ -35,7 +35,28 @@ static struct TerminalImpl {
 
     //::fcntl(STDIN_FILENO, F_GETFL, this->input_flags);
 
-    tcsetattr(STDIN_FILENO, TCSANOW, &this->terminal);
+    ::tcsetattr(STDIN_FILENO, TCSANOW, &this->terminal);
+  }
+
+  bool has_input(const std::chrono::microseconds &timeout) {
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(STDIN_FILENO, &fds);
+    timeval tv = {0, timeout.count()};
+    ::select(STDIN_FILENO + 1, &fds, nullptr, nullptr, &tv);
+    return FD_ISSET(STDIN_FILENO, &fds);
+  }
+
+  void read_events(const std::chrono::milliseconds &timeout) {
+    if (not has_input(timeout)) {
+      Terminal::input_parser.timeout();
+    } else {
+      constexpr size_t BUFFER_SIZE = 256;
+      char buffer[BUFFER_SIZE];
+      if (auto size = ::read(fileno(stdin), buffer, BUFFER_SIZE)) {
+        Terminal::input_parser.parse(buffer, size);
+      }
+    }
   }
 } terminal_impl;
 
@@ -48,7 +69,7 @@ Dimension Terminal::get_size() {
 }
 
 void Terminal::read_events() {
-  terminal_impl.read_events();
+  terminal_impl.read_events(INPUT_TIMEOUT);
 }
 
 #endif

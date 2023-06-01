@@ -7,6 +7,7 @@
 #include <tui++/Terminal.h>
 
 #include <locale>
+#include <cstring>
 #include <codecvt>
 #include <iostream>
 
@@ -67,8 +68,8 @@ static struct TerminalImpl {
     ::ReadConsoleInput(this->input_handle, records.data(), (DWORD) records.size(), &number_of_events);
     records.resize(number_of_events);
 
-    std::string buffer;
-    buffer.reserve(10);
+    char buffer[256];
+    size_t size = 0;
 
     for (auto &&record : records) {
       switch (record.EventType) {
@@ -78,7 +79,9 @@ static struct TerminalImpl {
           continue;
         }
 
-        buffer += this->converter.to_bytes(key_event.uChar.UnicodeChar);
+        auto bytes = this->converter.to_bytes(key_event.uChar.UnicodeChar);
+        std::memcpy(&buffer[size], bytes.c_str(), bytes.size());
+        size += bytes.size();
         break;
       }
       case WINDOW_BUFFER_SIZE_EVENT:
@@ -92,8 +95,8 @@ static struct TerminalImpl {
       }
     }
 
-    if (not buffer.empty()) {
-      Terminal::input_parser.parse(buffer);
+    if (size != 0) {
+      Terminal::input_parser.parse(buffer, size);
     }
   }
 

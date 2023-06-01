@@ -103,19 +103,21 @@ class Terminal {
     };
 
     class Input {
-      const std::string &input;
+      const char *input;
+      const size_t size;
+
       size_t pos;
 
     public:
-      Input(const std::string &input) :
-          input(input), pos(0) {
+      Input(const char *input, size_t size) :
+          input(input), size(size), pos(0) {
       }
 
       Input& operator=(const Input&) = delete;
 
     public:
       operator char() const {
-        return this->pos < this->input.size() ? this->input[this->pos] : 0;
+        return this->pos < this->size ? this->input[this->pos] : 0;
       }
 
       char consume() {
@@ -168,8 +170,8 @@ class Terminal {
     }
 
   public:
-    void parse(const std::string &seq) {
-      auto input = Input { seq };
+    void parse(const char *buffer, size_t size) {
+      auto input = Input { buffer, size };
       parse(input);
     }
 
