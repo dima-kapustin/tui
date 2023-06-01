@@ -188,21 +188,25 @@ void Terminal::new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers m
 }
 
 void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button, InputEvent::Modifiers modifiers, int x, int y) {
+  auto wheel_rotation = 0;
   auto adjusted_type = type;
-  if ((prev_mouse_event.type == type and prev_mouse_event.button == button) or button == MouseEvent::NO_BUTTON) {
-    if (prev_mouse_event.x == x and prev_mouse_event.y == y) {
-      return;
-    } else {
-      if (type == MouseEvent::MOUSE_PRESSED and button != MouseEvent::NO_BUTTON) {
-        adjusted_type = MouseEvent::MOUSE_DRAGGED;
+  if (type != MouseEvent::MOUSE_WHEEL) {
+    if ((prev_mouse_event.type == type and prev_mouse_event.button == button) or button == MouseEvent::NO_BUTTON) {
+      if (prev_mouse_event.x == x and prev_mouse_event.y == y) {
+        return;
       } else {
-        adjusted_type = MouseEvent::MOUSE_MOVED;
+        if (type == MouseEvent::MOUSE_PRESSED and button != MouseEvent::NO_BUTTON) {
+          adjusted_type = MouseEvent::MOUSE_DRAGGED;
+        } else {
+          adjusted_type = MouseEvent::MOUSE_MOVED;
+        }
       }
     }
+  } else {
+    wheel_rotation = button == 0 ? -1 : 1;
   }
 
-  int click_count = type == MouseEvent::MOUSE_WHEEL ? (button == 0 ? -1 : 1) : 0;
-  Terminal::event_queue.push(std::make_unique<Event>(adjusted_type, button, modifiers, x, y, click_count, false));
+  Terminal::event_queue.push(std::make_unique<Event>(adjusted_type, button, modifiers, x, y, wheel_rotation, false));
 
   if (adjusted_type == MouseEvent::MOUSE_PRESSED) {
     prev_mouse_press_time = Clock::now();
