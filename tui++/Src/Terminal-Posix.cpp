@@ -25,7 +25,7 @@ static struct TerminalImpl {
 
     ::tcsetattr(STDIN_FILENO, TCSANOW, &this->terminal);
 
-    std::signal();
+    std::signal(SIGWINCH, signal_handler);
 
     Terminal::init();
   }
@@ -36,6 +36,14 @@ static struct TerminalImpl {
     //::fcntl(STDIN_FILENO, F_GETFL, this->input_flags);
 
     ::tcsetattr(STDIN_FILENO, TCSANOW, &this->terminal);
+  }
+
+  static void signal_handler(int signal) {
+    switch(signal) {
+    case SIGWINCH:
+      Terminal::new_resize_event();
+      break;
+    }
   }
 
   bool has_input(const std::chrono::microseconds &timeout) {
