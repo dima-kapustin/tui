@@ -193,7 +193,7 @@ void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button,
     if (prev_mouse_event.x == x and prev_mouse_event.y == y) {
       return;
     } else {
-      if (type == MouseEvent::MOUSE_PRESSED) {
+      if (type == MouseEvent::MOUSE_PRESSED and button != MouseEvent::NO_BUTTON) {
         adjusted_type = MouseEvent::MOUSE_DRAGGED;
       } else {
         adjusted_type = MouseEvent::MOUSE_MOVED;
