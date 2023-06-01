@@ -189,7 +189,7 @@ void Terminal::new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers m
 
 void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button, InputEvent::Modifiers modifiers, int x, int y) {
   auto adjusted_type = type;
-  if (prev_mouse_event.type == type and (prev_mouse_event.button == button or button == MouseEvent::NO_BUTTON)) {
+  if ((prev_mouse_event.type == type and prev_mouse_event.button == button) or button == MouseEvent::NO_BUTTON) {
     if (prev_mouse_event.x == x and prev_mouse_event.y == y) {
       return;
     } else {
