@@ -2,8 +2,8 @@
 
 #include <tui++/Font.h>
 #include <tui++/Color.h>
-#include <tui++/Character.h>
 #include <tui++/Rectangle.h>
+#include <tui++/Characters.h>
 
 #include <memory>
 
@@ -18,7 +18,10 @@ struct Graphics {
     clip_rect(rect.x, rect.y, rect.width, rect.height);
   }
 
-  std::unique_ptr<Graphics> create(int x, int y, int width, int height);
+  virtual std::unique_ptr<Graphics> create(int x, int y, int width, int height) = 0;
+  std::unique_ptr<Graphics> create(const Rectangle &rect) {
+    return create(rect.x, rect.y, rect.width, rect.height);
+  }
 
   virtual void draw_char(int ch, int x, int y, int attributes) = 0;
 
@@ -32,7 +35,7 @@ struct Graphics {
    */
   virtual void draw_hline(int x, int y, int length, const std::string &chr) = 0;
   void draw_hline(int x, int y, int length) {
-    draw_hline(x, y, length, Character::HLINE);
+    draw_hline(x, y, length, BoxDrawing::HORIZONTAL_LIGHT);
   }
 
   virtual void draw_rect(int x, int y, int width, int height) = 0;
@@ -55,7 +58,7 @@ struct Graphics {
    * coordinate system and with the given length.
    */
   void draw_vline(int x, int y, int length) {
-    draw_vline(x, y, length, Character::VLINE);
+    draw_vline(x, y, length, BoxDrawing::VERTICAL_LIGHT);
   }
 
   virtual void fill_rect(int x, int y, int width, int height) = 0;
