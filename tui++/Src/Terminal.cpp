@@ -72,6 +72,8 @@ void Terminal::init() {
   set_option(DECModeOption::MOUSE_ANY_EVENT);
   set_option(DECModeOption::MOUSE_URXVT_EXT_MODE);
   set_option(DECModeOption::MOUSE_SGR_EXT_MODE);
+
+  flush();
 }
 
 void Terminal::deinit() {
@@ -79,6 +81,8 @@ void Terminal::deinit() {
   reset_option(DECModeOption::MOUSE_URXVT_EXT_MODE);
   reset_option(DECModeOption::MOUSE_ANY_EVENT);
   reset_option(DECModeOption::MOUSE_VT200);
+
+  flush();
 }
 
 void Terminal::run_event_loop() {
