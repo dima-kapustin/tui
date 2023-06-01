@@ -10,7 +10,7 @@
 
 static struct TerminalImpl {
   struct termios terminal;
-  int input_flags;
+  //int input_flags;
 
   TerminalImpl() {
     ::tcgetattr(STDIN_FILENO, &this->terminal);
@@ -20,8 +20,8 @@ static struct TerminalImpl {
     terminal.c_cc[VMIN] = 0;
     terminal.c_cc[VTIME] = 0;
 
-    // this->input_flags = ::fcntl(STDIN_FILENO, F_GETFL, 0);
-    // ::fcntl(STDIN_FILENO, F_SETFL, this->input_flags | O_NONBLOCK);
+    //this->input_flags = ::fcntl(STDIN_FILENO, F_GETFL, 0);
+    //::fcntl(STDIN_FILENO, F_SETFL, this->input_flags | O_NONBLOCK);
 
     ::tcsetattr(STDIN_FILENO, TCSANOW, &this->terminal);
 
