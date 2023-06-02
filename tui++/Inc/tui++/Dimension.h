@@ -12,6 +12,10 @@ struct Dimension {
   constexpr bool operator!=(const Dimension &other) const {
     return this->width != other.width or this->height != other.height;
   }
+
+  bool empty() const {
+    return not (this->width or this->height);
+  }
 };
 
 }

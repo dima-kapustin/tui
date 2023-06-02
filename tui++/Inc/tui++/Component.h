@@ -59,7 +59,7 @@ protected:
   Dimension size { };
 
   Dimension minimum_size { };
-  Dimension preferred_size { };
+  Property<Dimension> preferred_size { this, "preferred_size" };
 
   /**
    * A flag that is set to true when the container is laid out, and set to false when a component is added or removed from the container
@@ -102,6 +102,21 @@ private:
   void invalidate_if_valid() {
     if (is_valid()) {
       invalidate();
+    }
+  }
+
+  void validate_tree() {
+    if (not this->valid) {
+      do_layout();
+      for (auto &&c : this->components) {
+        if (not c->is_valid()) {
+          if (not is_window(c)) {
+            c->validate_tree();
+          } else {
+            c->validate();
+          }
+        }
+      }
     }
   }
 
@@ -208,6 +223,20 @@ protected:
     return false;
   }
 
+  /**
+   * Causes this container to lay out its components. Most programs should not call this method directly, but should invoke the
+   * <code>validate</code> method instead.
+   */
+  void do_layout() {
+    if (this->layout) {
+      this->layout->layout(shared_from_this());
+    } else if (has_children()) {
+      for (auto &&c : this->components) {
+        c->set_size(c->get_preferred_size());
+      }
+    }
+  }
+
 public:
   virtual ~Component() {
   }
@@ -283,6 +312,19 @@ public:
 
   int get_height() const {
     return this->size.height;
+  }
+
+  /**
+   * Gets the preferred size of this component.
+   *
+   * @return a dimension object indicating this component's preferred size
+   */
+  Dimension get_preferred_size() const {
+    return get_minimum_size();
+  }
+
+  Dimension get_minimum_size() const {
+    return this->minimum_size;
   }
 
   bool has_children() const {
@@ -485,6 +527,24 @@ public:
       this->layout = layout;
       invalidate();
     }
+  }
+
+  /**
+   * Sets the preferred size of this component to a constant value. Subsequent calls to <code>getPreferredSize</code> will always return
+   * this value. Setting the preferred size to <code>null</code> restores the default behavior.
+   */
+  void set_preferred_size(const Dimension &preferred_size) {
+    this->is_preferred_size_set = not preferred_size.empty();
+    this->preferred_size = preferred_size;
+  }
+
+  /**
+   * Ensures that this component is laid out correctly. This method is primarily intended to be used on instances of Container. The
+   * default implementation does nothing; it is overridden by Container.
+   */
+  void validate() {
+    validate_tree();
+    this->valid = true;
   }
 };
 
