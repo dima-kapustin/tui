@@ -9,7 +9,8 @@
 
 namespace tui {
 
-struct Graphics {
+class Graphics {
+public:
   virtual ~Graphics() {
   }
 
