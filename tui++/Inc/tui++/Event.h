@@ -9,7 +9,7 @@ namespace tui {
 class Component;
 
 struct BasicEvent {
-  Component *source;
+  std::shared_ptr<Component> source;
 };
 
 struct InputEvent: BasicEvent {
@@ -152,8 +152,19 @@ struct KeyEvent: InputEvent {
 
 std::string to_string(KeyEvent::KeyCode key_code);
 
-struct InvocationEvent: BasicEvent {
+struct InvocationEvent {
   std::function<void()> target;
+};
+
+struct FocusEvent: BasicEvent {
+  enum Type {
+    FOCUS_LOST,
+    FOCUS_GAINED
+  };
+
+  Type type;
+  bool temporary = false;
+  std::shared_ptr<Component> opposite;
 };
 
 class Event {
@@ -162,7 +173,8 @@ public:
     UNDEFINED,
     KEY,
     MOUSE,
-    INVOCATION
+    INVOCATION,
+    FOCUS
   };
 
   const Type type = UNDEFINED;
@@ -172,35 +184,40 @@ public:
     KeyEvent key;
     MouseEvent mouse;
     InvocationEvent invocation;
+    FocusEvent focus;
   };
 
-  Event(Type type) :
-      type(type) {
+  Event(const std::function<void()> &target) :
+      type(INVOCATION), invocation { target } {
   }
 
-  Event(KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers) :
-      type(Type::KEY) {
-    this->key.key_code = key_code;
-    this->key.modifiers = modifiers;
+  Event(const std::shared_ptr<Component> &source, KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers) :
+      type(Type::KEY), key { source, modifiers, key_code } {
   }
 
-  Event(MouseEvent::Type type, MouseEvent::Button button, InputEvent::Modifiers modifiers, int x, int y, int click_count_or_wheel_rotation, bool is_popup_trigger) :
-      type(Type::MOUSE) {
-    this->mouse.type = type;
-    this->mouse.button = button;
-    this->mouse.modifiers = modifiers;
-    this->mouse.x = x;
-    this->mouse.y = y;
-    this->mouse.click_count = click_count_or_wheel_rotation;
-    this->mouse.is_popup_trigger = is_popup_trigger;
+  Event(const std::shared_ptr<Component> &source, MouseEvent::Type type, MouseEvent::Button button, InputEvent::Modifiers modifiers, int x, int y, int click_count_or_wheel_rotation, bool is_popup_trigger) :
+      type(Type::MOUSE), mouse { source, modifiers, type, button, x, y, (unsigned) click_count_or_wheel_rotation, is_popup_trigger } {
+  }
+
+  Event(const std::shared_ptr<Component> &source, FocusEvent::Type type, bool temporary, const std::shared_ptr<Component> &opposite) :
+      type(Type::FOCUS), focus { source, type, temporary, opposite } {
   }
 
   ~Event() {
     switch (this->type) {
-    case INVOCATION:
-      this->invocation.target.~function();
+    case UNDEFINED:
       break;
-    default:
+    case KEY:
+      this->key.~KeyEvent();
+      break;
+    case MOUSE:
+      this->mouse.~MouseEvent();
+      break;
+    case INVOCATION:
+      this->invocation.~InvocationEvent();
+      break;
+    case FOCUS:
+      this->focus.~FocusEvent();
       break;
     }
   }
@@ -209,5 +226,7 @@ public:
     return this->type != UNDEFINED;
   }
 };
+
+std::ostream& operator<<(std::ostream &os, const Event &event);
 
 }

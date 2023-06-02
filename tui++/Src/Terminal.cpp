@@ -1,13 +1,15 @@
-#include <tui++/Terminal.h>
-
 #include <iostream>
+
+#include <tui++/Screen.h>
+#include <tui++/Terminal.h>
 
 namespace tui {
 
-bool Terminal::quit = false;
-EventQueue Terminal::event_queue;
+std::chrono::milliseconds Terminal::read_event_timeout { 20 };
+
 Terminal::InputParser Terminal::input_parser;
 std::vector<Terminal::Option> Terminal::set_options;
+
 MouseEvent Terminal::prev_mouse_event { };
 
 Terminal::Clock::time_point Terminal::prev_mouse_press_time;
@@ -85,96 +87,6 @@ void Terminal::deinit() {
   flush();
 }
 
-void Terminal::run_event_loop() {
-  while (not quit) {
-    read_events();
-    if (auto event = event_queue.pop(INPUT_TIMEOUT)) {
-      switch (event->type) {
-      case Event::KEY:
-        std::cout << "Key Pressed: " << to_string(event->key.key_code) << std::endl;
-        break;
-
-      case Event::MOUSE:
-        std::cout << "Mouse ";
-
-        if (event->mouse.type == MouseEvent::MOUSE_MOVED) {
-          std::cout << "Moved with ";
-        } else if (event->mouse.type == MouseEvent::MOUSE_DRAGGED) {
-          std::cout << "Dragged with ";
-        }
-
-        if (event->mouse.type != MouseEvent::MOUSE_WHEEL) {
-          switch (event->mouse.button) {
-          case MouseEvent::LEFT_BUTTON:
-            std::cout << "Left Button";
-            break;
-          case MouseEvent::MIDDLE_BUTTON:
-            std::cout << "Middle Button";
-            break;
-          case MouseEvent::RIGHT_BUTTON:
-            std::cout << "Right Button";
-            break;
-          case MouseEvent::NO_BUTTON:
-            std::cout << "No Button";
-            break;
-          }
-        }
-
-        switch (event->mouse.type) {
-        case MouseEvent::MOUSE_PRESSED:
-          std::cout << " Pressed";
-          break;
-        case MouseEvent::MOUSE_RELEASED:
-          std::cout << " Released";
-          break;
-        case MouseEvent::MOUSE_CLICKED:
-          if (event->mouse.click_count == 2) {
-            std::cout << " Double Clicked";
-          } else {
-            std::cout << " Clicked";
-          }
-          break;
-
-        case MouseEvent::MOUSE_WHEEL:
-          std::cout << " Wheel scrolled by " << event->mouse.weel_rotation;
-          break;
-
-        default:
-          break;
-        }
-
-        if (event->mouse.modifiers) {
-          std::cout << " with ";
-          if (event->mouse.modifiers & InputEvent::ALT_MASK) {
-            std::cout << "Alt";
-          }
-          if (event->mouse.modifiers & InputEvent::SHIFT_MASK) {
-            std::cout << "Shift";
-          }
-          if (event->mouse.modifiers & InputEvent::CTRL_MASK) {
-            std::cout << "Ctrl";
-          }
-          if (event->mouse.modifiers & InputEvent::META_MASK) {
-            std::cout << "Meta";
-          }
-        }
-
-        std::cout << " at " << event->mouse.x << "," << event->mouse.y << std::endl;
-        break;
-
-      case Event::INVOCATION:
-        std::cout << "Invocation Event" << std::endl;
-        break;
-
-      case Event::UNDEFINED:
-        std::cout << "UNDEFINED Event" << std::endl;
-        break;
-      }
-
-    }
-  }
-}
-
 void Terminal::flush() {
   std::cout << std::flush;
 }
@@ -184,7 +96,7 @@ void Terminal::new_resize_event() {
 }
 
 void Terminal::new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers) {
-  Terminal::event_queue.push(std::make_unique<Event>(key_code, modifiers));
+  Screen::post(std::make_unique<Event>(nullptr, key_code, modifiers));
 }
 
 void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button, InputEvent::Modifiers modifiers, int x, int y) {
@@ -206,17 +118,17 @@ void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button,
     wheel_rotation = button == 0 ? -1 : 1;
   }
 
-  Terminal::event_queue.push(std::make_unique<Event>(adjusted_type, button, modifiers, x, y, wheel_rotation, false));
+  Screen::post(std::make_unique<Event>(nullptr, adjusted_type, button, modifiers, x, y, wheel_rotation, false));
 
   if (adjusted_type == MouseEvent::MOUSE_PRESSED) {
     prev_mouse_press_time = Clock::now();
   } else if (adjusted_type == MouseEvent::MOUSE_RELEASED) {
     if (prev_mouse_event.button == button and (Clock::now() - prev_mouse_press_time) < mouse_click_detection_timeout) {
       if ((Clock::now() - prev_mouse_click_time) < mouse_double_click_detection_timeout) {
-        Terminal::event_queue.push(std::make_unique<Event>(MouseEvent::MOUSE_CLICKED, button, modifiers, x, y, 2, false));
+        Screen::post(std::make_unique<Event>(nullptr, MouseEvent::MOUSE_CLICKED, button, modifiers, x, y, 2, false));
         prev_mouse_click_time = { };
       } else {
-        Terminal::event_queue.push(std::make_unique<Event>(MouseEvent::MOUSE_CLICKED, button, modifiers, x, y, 1, false));
+        Screen::post(std::make_unique<Event>(nullptr, MouseEvent::MOUSE_CLICKED, button, modifiers, x, y, 1, false));
         prev_mouse_click_time = Clock::now();
       }
     }
@@ -228,5 +140,4 @@ void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button,
   prev_mouse_event.x = x;
   prev_mouse_event.y = y;
 }
-
 }

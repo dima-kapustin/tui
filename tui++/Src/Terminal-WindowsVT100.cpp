@@ -4,7 +4,6 @@
 #error Must be compiled in UNICODE mode
 #endif
 
-
 #include <tui++/Terminal.h>
 
 #include <locale>
@@ -120,7 +119,7 @@ Dimension Terminal::get_size() {
 }
 
 void Terminal::read_events() {
-  terminal_impl.read_events(INPUT_TIMEOUT);
+  terminal_impl.read_events(read_event_timeout);
 }
 
 }

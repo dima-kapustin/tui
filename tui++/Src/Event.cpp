@@ -82,4 +82,100 @@ std::string to_string(KeyEvent::KeyCode key_code) {
   return buf;
 }
 
+std::ostream& operator<<(std::ostream &os, const Event &event) {
+  switch (event.type) {
+  case Event::KEY:
+    os << "Key Pressed: " << to_string(event.key.key_code);
+    break;
+
+  case Event::MOUSE:
+    os << "Mouse ";
+
+    if (event.mouse.type == MouseEvent::MOUSE_MOVED) {
+      os << "Moved with ";
+    } else if (event.mouse.type == MouseEvent::MOUSE_DRAGGED) {
+      os << "Dragged with ";
+    }
+
+    if (event.mouse.type != MouseEvent::MOUSE_WHEEL) {
+      switch (event.mouse.button) {
+      case MouseEvent::LEFT_BUTTON:
+        os << "Left Button";
+        break;
+      case MouseEvent::MIDDLE_BUTTON:
+        os << "Middle Button";
+        break;
+      case MouseEvent::RIGHT_BUTTON:
+        os << "Right Button";
+        break;
+      case MouseEvent::NO_BUTTON:
+        os << "No Button";
+        break;
+      }
+    }
+
+    switch (event.mouse.type) {
+    case MouseEvent::MOUSE_PRESSED:
+      os << " Pressed";
+      break;
+    case MouseEvent::MOUSE_RELEASED:
+      os << " Released";
+      break;
+    case MouseEvent::MOUSE_CLICKED:
+      if (event.mouse.click_count == 2) {
+        os << " Double Clicked";
+      } else {
+        os << " Clicked";
+      }
+      break;
+
+    case MouseEvent::MOUSE_WHEEL:
+      os << " Wheel scrolled by " << event.mouse.weel_rotation;
+      break;
+
+    default:
+      break;
+    }
+
+    if (event.mouse.modifiers) {
+      os << " with ";
+      if (event.mouse.modifiers & InputEvent::ALT_MASK) {
+        os << "Alt";
+      }
+      if (event.mouse.modifiers & InputEvent::SHIFT_MASK) {
+        os << "Shift";
+      }
+      if (event.mouse.modifiers & InputEvent::CTRL_MASK) {
+        os << "Ctrl";
+      }
+      if (event.mouse.modifiers & InputEvent::META_MASK) {
+        os << "Meta";
+      }
+    }
+
+    os << " at " << event.mouse.x << "," << event.mouse.y;
+    break;
+
+  case Event::INVOCATION:
+    os << "Invocation";
+    break;
+
+  case Event::FOCUS:
+    switch (event.focus.type) {
+    case FocusEvent::FOCUS_GAINED:
+      os << "Focus Gained";
+      break;
+    case FocusEvent::FOCUS_LOST:
+      os << "Focus Lost";
+      break;
+    }
+    break;
+
+  case Event::UNDEFINED:
+    os << "UNDEFINED";
+    break;
+  }
+  return os;
+}
+
 }

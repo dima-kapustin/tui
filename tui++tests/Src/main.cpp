@@ -1,7 +1,7 @@
-#include <tui++/Terminal.h>
+#include <tui++/Screen.h>
 
 using namespace tui;
 
 int main(int argc, char* argv[]) {
-  Terminal::run_event_loop();
+  Screen::run_event_loop();
 }

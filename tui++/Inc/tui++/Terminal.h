@@ -1,15 +1,17 @@
 #pragma once
 
 #include <chrono>
+#include <variant>
 #include <functional>
 
+#include <tui++/Event.h>
 #include <tui++/Dimension.h>
-#include <tui++/EventQueue.h>
-#include <variant>
 
 namespace tui {
 
 class Terminal {
+  static std::chrono::milliseconds read_event_timeout;
+
   enum class DECModeOption {
     LINE_WRAP = 7,
     CURSOR = 25,
@@ -85,8 +87,6 @@ class Terminal {
   };
 
   using Option = std::variant<DECModeOption, ModifyKeyboardOption, ModifyCursorKeysOption, ModifyFunctionKeysOption, ModifyOtherKeysOption>;
-
-  constexpr static std::chrono::milliseconds INPUT_TIMEOUT { 50 };
 
   struct InputParser {
     enum class State {
@@ -192,8 +192,9 @@ class Terminal {
 
 private:
   static bool quit;
-  static EventQueue event_queue;
   static InputParser input_parser;
+
+  static std::vector<Option> set_options;
 
   static MouseEvent prev_mouse_event;
   static Clock::time_point prev_mouse_press_time;
@@ -201,8 +202,6 @@ private:
 
   static std::chrono::milliseconds mouse_click_detection_timeout;
   static std::chrono::milliseconds mouse_double_click_detection_timeout;
-
-  static std::vector<Option> set_options;
 
 private:
   static void set_option(Option option);
@@ -221,12 +220,10 @@ private:
 private:
   static void read_events();
 
+  friend class Screen;
+
 public:
   static Dimension get_size();
-
-  static void run_event_loop();
-
-  static void post(std::function<void()> fn);
 
   static void flush();
 };

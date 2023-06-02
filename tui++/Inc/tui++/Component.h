@@ -6,6 +6,8 @@
 #include <exception>
 
 #include <tui++/Point.h>
+#include <tui++/Border.h>
+#include <tui++/Insets.h>
 #include <tui++/Layout.h>
 #include <tui++/Dimension.h>
 #include <tui++/Rectangle.h>
@@ -15,7 +17,6 @@
 
 namespace tui {
 
-class Border;
 class Window;
 class Graphics;
 class Component;
@@ -227,13 +228,27 @@ protected:
    * Causes this container to lay out its components. Most programs should not call this method directly, but should invoke the
    * <code>validate</code> method instead.
    */
-  void do_layout() {
+  virtual void do_layout() {
     if (this->layout) {
       this->layout->layout(shared_from_this());
     } else if (has_children()) {
       for (auto &&c : this->components) {
         c->set_size(c->get_preferred_size());
       }
+    }
+  }
+
+  void paint_border(Graphics &g);
+
+  virtual void paint_children(Graphics &g);
+
+  /**
+   * Set this container's current keyboard focus. Called by the requestFocus() method of the contained component.
+   */
+  void set_focus(std::shared_ptr<Component> focus) {
+    this->focus_component = focus;
+    if (auto parent = get_parent()) {
+      parent->set_focus(shared_from_this());
     }
   }
 
@@ -266,6 +281,10 @@ public:
     invalidate();
   }
 
+  std::shared_ptr<Border> get_border() const {
+    return this->border;
+  }
+
   /**
    * Return a reference to the (non-container) component inside this Container that has the keyboard input focus (or would have it, if the
    * focus was inside this container). If no component inside the container has the focus, choose the first FocusTraversable component.
@@ -294,6 +313,14 @@ public:
     return this->focus_component.lock();
   }
 
+  Insets get_insets() const {
+    if (this->border) {
+      return this->border->get_border_insets(*this);
+    } else {
+      return {0, 0, 0, 0};
+    }
+  }
+
   std::shared_ptr<Component> get_parent() const {
     return this->parent.lock();
   }
@@ -306,13 +333,18 @@ public:
     return this->location.y;
   }
 
+  int get_height() const {
+    return this->size.height;
+  }
+
   int get_width() const {
     return this->size.width;
   }
 
-  int get_height() const {
-    return this->size.height;
-  }
+  /**
+   * Get the Window that contains this component.
+   */
+  std::shared_ptr<Window> get_window_ancestor() const;
 
   /**
    * Gets the preferred size of this component.
@@ -399,7 +431,10 @@ public:
     }
   }
 
-  virtual void paint(Graphics &g) = 0;
+  virtual void paint(Graphics &g) {
+    paint_border(g);
+    paint_children(g);
+  }
 
   /**
    * Causes this component to be repainted as soon as possible (this is done by posting a RepaintEvent onto the system queue).
@@ -463,6 +498,8 @@ public:
   void repaint(const Rectangle &rect) {
     repaint(rect.x, rect.y, rect.width, rect.height);
   }
+
+  void request_focus();
 
   void set_visible(bool visible) {
     if (visible) {

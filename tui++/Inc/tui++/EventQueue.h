@@ -11,18 +11,18 @@ namespace tui {
 
 class EventQueue {
   std::mutex mutex;
-  std::list<std::unique_ptr<Event>> queue;
+  std::list<std::shared_ptr<Event>> queue;
   std::condition_variable queue_cv;
 
 public:
-  void push(std::unique_ptr<Event> &&event) {
+  void push(const std::shared_ptr<Event> &event) {
     std::unique_lock lock(this->mutex);
-    this->queue.emplace_back(std::move(event));
+    this->queue.emplace_back(event);
     lock.unlock();
     this->queue_cv.notify_one();
   }
 
-  std::unique_ptr<Event> pop() {
+  std::shared_ptr<Event> pop() {
     std::unique_lock lock(this->mutex);
     this->queue_cv.wait(lock, [this] {
       return not this->queue.empty();
@@ -32,7 +32,7 @@ public:
     return event;
   }
 
-  std::unique_ptr<Event> pop(const std::chrono::milliseconds &timeout) {
+  std::shared_ptr<Event> pop(const std::chrono::milliseconds &timeout) {
     std::unique_lock lock(this->mutex);
     if (this->queue.empty() and not this->queue_cv.wait_for(lock, timeout, [this] {
       return not this->queue.empty();
