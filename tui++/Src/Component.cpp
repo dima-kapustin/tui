@@ -7,6 +7,8 @@
 
 namespace tui {
 
+std::mutex Component::tree_mutex;
+
 std::shared_ptr<Window> Component::get_window_ancestor() const {
   if (auto window = std::dynamic_pointer_cast<Window>(const_cast<Component*>(this)->shared_from_this())) {
     return window;

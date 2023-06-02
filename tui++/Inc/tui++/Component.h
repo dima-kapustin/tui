@@ -616,7 +616,7 @@ public:
  * Convert a point from a screen coordinates to a component's coordinate system
  */
 Point convert_point_from_screen(int x, int y, std::shared_ptr<Component> to);
-Point convert_point_from_screen(const Point &p, std::shared_ptr<Component> to) {
+inline Point convert_point_from_screen(const Point &p, std::shared_ptr<Component> to) {
   return convert_point_from_screen(p.x, p.y, to);
 }
 
@@ -624,7 +624,7 @@ Point convert_point_from_screen(const Point &p, std::shared_ptr<Component> to) {
  * Convert a point from a component's coordinate system to screen coordinates.
  */
 Point convert_point_to_screen(int x, int y, std::shared_ptr<Component> from);
-Point convert_point_to_screen(const Point &p, std::shared_ptr<Component> from) {
+inline Point convert_point_to_screen(const Point &p, std::shared_ptr<Component> from) {
   return convert_point_to_screen(p.x, p.y, from);
 }
 

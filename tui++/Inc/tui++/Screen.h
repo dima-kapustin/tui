@@ -2,6 +2,7 @@
 
 #include <mutex>
 
+#include <tui++/Point.h>
 #include <tui++/EventQueue.h>
 
 namespace tui {
@@ -28,6 +29,9 @@ public:
 
   static std::shared_ptr<Window> get_top_window();
   static std::shared_ptr<Component> get_component_at(int x, int y);
+  static std::shared_ptr<Component> get_component_at(const Point &p) {
+    return get_component_at(p.x, p.y);
+  }
 
   static std::shared_ptr<Event> get_last_focus_event() {
     return last_focus_event;

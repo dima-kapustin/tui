@@ -40,9 +40,11 @@ std::shared_ptr<Window> Screen::get_top_window() {
 }
 
 std::shared_ptr<Component> Screen::get_component_at(int x, int y) {
-  auto top_window = get_top_window();
-  auto component = top_window->get_child_at(x - top_window->get_x(), y - top_window->get_y());
-  return component ? component : top_window;
+  if (auto top_window = get_top_window()) {
+    auto component = top_window->get_child_at(x - top_window->get_x(), y - top_window->get_y());
+    return component ? component : top_window;
+  }
+  return {};
 }
 
 void Screen::add_window(const std::shared_ptr<Window> &window) {

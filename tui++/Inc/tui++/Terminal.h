@@ -99,7 +99,7 @@ class Terminal {
       DCS, // ESC P Device Control String
       OSC, // ESC ] Operating System Command
       CSI, // ESC [ Control Sequence Introducer
-      CSI_ARGS,
+      CSI_PARAMS,
       CSI_SELECTOR
     };
 
@@ -131,7 +131,7 @@ class Terminal {
   private:
     State state = State::INIT;
 
-    std::vector<unsigned> csi_args;
+    std::vector<unsigned> csi_params;
     bool csi_altered = false;
 
   private:
@@ -141,31 +141,31 @@ class Terminal {
     void parse_ss3(Input &input);
     void parse_dcs(Input &input);
     void parse_csi(Input &input);
-    void parse_csi_args(Input &input);
+    void parse_csi_params(Input &input);
     void parse_csi_selector(Input &input);
     void parse_osc(Input &input);
 
   private:
     void reset_csi() {
-      this->csi_args.resize(1);
-      this->csi_args[0] = 0;
+      this->csi_params.resize(1);
+      this->csi_params[0] = 0;
       this->csi_altered = false;
     }
 
   private:
-    void new_key_event(KeyEvent::KeyCode key_code) {
-      Terminal::new_key_event(key_code, { });
+    void new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers = InputEvent::NONE_MASK) {
+      Terminal::new_key_event(key_code, modifiers);
       reset();
     }
 
     void new_mouse_event(bool pressed) {
-      auto button = this->csi_args[0] & 3;
-      auto type = this->csi_args[0] & 64 ? MouseEvent::MOUSE_WHEEL : (pressed ? MouseEvent::MOUSE_PRESSED : MouseEvent::MOUSE_RELEASED);
-      int modifiers = this->csi_args[0] & 4 ? InputEvent::Modifiers::SHIFT_MASK : InputEvent::Modifiers::NONE;
-      modifiers |= this->csi_args[0] & 8 ? InputEvent::Modifiers::META_MASK : InputEvent::Modifiers::NONE;
-      modifiers |= this->csi_args[0] & 16 ? InputEvent::Modifiers::CTRL_MASK : InputEvent::Modifiers::NONE;
-      int x = this->csi_args[1];
-      int y = this->csi_args[2];
+      auto button = this->csi_params[0] & 3;
+      auto type = this->csi_params[0] & 64 ? MouseEvent::MOUSE_WHEEL : (pressed ? MouseEvent::MOUSE_PRESSED : MouseEvent::MOUSE_RELEASED);
+      int modifiers = this->csi_params[0] & 4 ? InputEvent::Modifiers::SHIFT_MASK : InputEvent::Modifiers::NONE_MASK;
+      modifiers |= this->csi_params[0] & 8 ? InputEvent::Modifiers::META_MASK : InputEvent::Modifiers::NONE_MASK;
+      modifiers |= this->csi_params[0] & 16 ? InputEvent::Modifiers::CTRL_MASK : InputEvent::Modifiers::NONE_MASK;
+      int x = this->csi_params[1];
+      int y = this->csi_params[2];
       Terminal::new_mouse_event(type, MouseEvent::Button(button), InputEvent::Modifiers(modifiers), x, y);
       reset();
     }
@@ -178,13 +178,6 @@ class Terminal {
 
     void reset() {
       this->state = State::INIT;
-    }
-
-    void timeout() {
-      if (this->state == State::ESC) {
-        Terminal::new_key_event(KeyEvent::VK_ESCAPE, { });
-      }
-      reset();
     }
   };
 

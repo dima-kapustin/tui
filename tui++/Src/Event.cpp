@@ -20,22 +20,22 @@ std::string to_string(KeyEvent::KeyCode key_code) {
   } else {
     switch (key_code) {
     case KeyEvent::VK_DOWN:
-      buf += "VK_DOWN"sv;
+      buf += "Down"sv;
       break;
     case KeyEvent::VK_UP:
-      buf += "VK_UP"sv;
+      buf += "Up"sv;
       break;
     case KeyEvent::VK_LEFT:
-      buf += "VK_LEFT"sv;
+      buf += "Left"sv;
       break;
     case KeyEvent::VK_RIGHT:
-      buf += "VK_RIGHT"sv;
+      buf += "Right"sv;
       break;
     case KeyEvent::VK_HOME:
-      buf += "VK_HOME"sv;
+      buf += "Home"sv;
       break;
     case KeyEvent::VK_BACK_SPACE:
-      buf += "VK_BACK_SPACE"sv;
+      buf += "BackSpace"sv;
       break;
     case KeyEvent::VK_F1:
     case KeyEvent::VK_F2:
@@ -50,32 +50,32 @@ std::string to_string(KeyEvent::KeyCode key_code) {
     case KeyEvent::VK_F11:
     case KeyEvent::VK_F12: {
       auto c = 1 + key_code - KeyEvent::VK_F1;
-      buf += std::format("VK_F{}", c);
+      buf += std::format("F{}", c);
       break;
     }
     case KeyEvent::VK_DELETE:
-      buf += "VK_DELETE"sv;
+      buf += "Delete"sv;
       break;
     case KeyEvent::VK_INSERT:
-      buf += "VK_INSERT"sv;
+      buf += "Insert"sv;
       break;
     case KeyEvent::VK_PAGE_DOWN:
-      buf += "VK_PAGE_DOWN"sv;
+      buf += "PageDown"sv;
       break;
     case KeyEvent::VK_PAGE_UP:
-      buf += "VK_PAGE_UP"sv;
+      buf += "PageUp"sv;
       break;
     case KeyEvent::VK_ENTER:
-      buf += "VK_ENTER"sv;
+      buf += "Enter"sv;
       break;
     case KeyEvent::VK_BACK_TAB:
-      buf += "VK_BACK_TAB"sv;
+      buf += "BackTab"sv;
       break;
     case KeyEvent::VK_END:
-      buf += "VK_END"sv;
+      buf += "End"sv;
       break;
     default:
-      buf += "UNKNOWN"sv;
+      buf += "?"sv;
     }
   }
 
@@ -85,7 +85,17 @@ std::string to_string(KeyEvent::KeyCode key_code) {
 std::ostream& operator<<(std::ostream &os, const Event &event) {
   switch (event.type) {
   case Event::KEY:
-    os << "Key Pressed: " << to_string(event.key.key_code);
+    os << "Key Pressed: ";
+    if (event.key.modifiers & KeyEvent::ALT_MASK) {
+      os << "Alt+";
+    }
+    if (event.key.modifiers & KeyEvent::SHIFT_MASK) {
+      os << "Shift+";
+    }
+    if (event.key.modifiers & KeyEvent::CTRL_MASK) {
+      os << "Ctrl+";
+    }
+    os << to_string(event.key.key_code);
     break;
 
   case Event::MOUSE:

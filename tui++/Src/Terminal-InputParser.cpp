@@ -60,8 +60,8 @@ void Terminal::InputParser::parse(Input &input) {
     case State::CSI:
       parse_csi(input);
       break;
-    case State::CSI_ARGS:
-      parse_csi_args(input);
+    case State::CSI_PARAMS:
+      parse_csi_params(input);
       break;
     case State::CSI_SELECTOR:
       parse_csi_selector(input);
@@ -74,7 +74,7 @@ void Terminal::InputParser::parse(Input &input) {
 }
 
 void Terminal::InputParser::parse_esc(Input &input) {
-  switch (input.consume()) {
+  switch (char c = input.consume()) {
   case 'O':
     this->state = State::SS3;
     parse_ss3(input);
@@ -94,6 +94,12 @@ void Terminal::InputParser::parse_esc(Input &input) {
     break;
   case '\x1b':
     new_key_event(KeyEvent::VK_ESCAPE);
+    break;
+
+  default:
+    if (c >= 0x40 and c <= 0x7E) {
+      new_key_event(KeyEvent::KeyCode(c), InputEvent::ALT_MASK);
+    }
     break;
   }
 }
@@ -185,19 +191,19 @@ void Terminal::InputParser::parse_csi(Input &input) {
 
   case '<':
     input.consume();
-    this->state = State::CSI_ARGS;
+    this->state = State::CSI_PARAMS;
     this->csi_altered = true;
-    parse_csi_args(input);
+    parse_csi_params(input);
     break;
 
   default:
-    this->state = State::CSI_ARGS;
-    parse_csi_args(input);
+    this->state = State::CSI_PARAMS;
+    parse_csi_params(input);
     break;
   }
 }
 
-void Terminal::InputParser::parse_csi_args(Input &input) {
+void Terminal::InputParser::parse_csi_params(Input &input) {
   switch (input) {
   case '0':
   case '1':
@@ -210,7 +216,7 @@ void Terminal::InputParser::parse_csi_args(Input &input) {
   case '8':
   case '9':
     do {
-      this->csi_args.back() = this->csi_args.back() * 10 + (input.consume() - '0');
+      this->csi_params.back() = this->csi_params.back() * 10 + (input.consume() - '0');
     } while (std::isdigit(input));
 
     if (input != ';') {
@@ -221,7 +227,7 @@ void Terminal::InputParser::parse_csi_args(Input &input) {
     [[fallthrough]];
   case ';':
     input.consume();
-    this->csi_args.emplace_back(0);
+    this->csi_params.emplace_back(0);
     break;
 
   default:
@@ -229,6 +235,53 @@ void Terminal::InputParser::parse_csi_args(Input &input) {
     parse_csi_selector(input);
     break;
   }
+}
+
+constexpr InputEvent::Modifiers operator|(InputEvent::Modifiers a, InputEvent::Modifiers b) {
+  return InputEvent::Modifiers(std::underlying_type_t<InputEvent::Modifiers>(a) | std::underlying_type_t<InputEvent::Modifiers>(b));
+}
+
+static InputEvent::Modifiers parse_modifiers(const std::vector<unsigned> &args) {
+  if (args.size() < 2) {
+    return InputEvent::Modifiers::NONE_MASK;
+  }
+
+  using Modifiers = InputEvent::Modifiers;
+
+  switch (args[1]) {
+  case 2:
+    return Modifiers::SHIFT_MASK;
+  case 3:
+    return Modifiers::ALT_MASK;
+  case 4:
+    return Modifiers::SHIFT_MASK | Modifiers::ALT_MASK;
+  case 5:
+    return Modifiers::CTRL_MASK;
+  case 6:
+    return Modifiers::SHIFT_MASK | Modifiers::CTRL_MASK;
+  case 7:
+    return Modifiers::CTRL_MASK | Modifiers::ALT_MASK;
+  case 8:
+    return Modifiers::SHIFT_MASK | Modifiers::CTRL_MASK | Modifiers::ALT_MASK;
+  case 9:
+    return Modifiers::META_MASK;
+  case 10:
+    return Modifiers::SHIFT_MASK | Modifiers::META_MASK;
+  case 11:
+    return Modifiers::ALT_MASK | Modifiers::META_MASK;
+  case 12:
+    return Modifiers::SHIFT_MASK | Modifiers::ALT_MASK | Modifiers::META_MASK;
+  case 13:
+    return Modifiers::CTRL_MASK | Modifiers::META_MASK;
+  case 14:
+    return Modifiers::SHIFT_MASK | Modifiers::CTRL_MASK | Modifiers::META_MASK;
+  case 15:
+    return Modifiers::CTRL_MASK | Modifiers::ALT_MASK | Modifiers::META_MASK;
+  case 16:
+    return Modifiers::SHIFT_MASK | Modifiers::CTRL_MASK | Modifiers::ALT_MASK | Modifiers::META_MASK;
+  }
+
+  return InputEvent::Modifiers::NONE_MASK;
 }
 
 void Terminal::InputParser::parse_csi_selector(Input &input) {
@@ -239,11 +292,23 @@ void Terminal::InputParser::parse_csi_selector(Input &input) {
   case 'm':
     new_mouse_event(false);
     break;
+  case 'A':
+    new_key_event(KeyEvent::VK_UP, parse_modifiers(this->csi_params));
+    break;
+  case 'B':
+    new_key_event(KeyEvent::VK_DOWN, parse_modifiers(this->csi_params));
+    break;
+  case 'C':
+    new_key_event(KeyEvent::VK_RIGHT, parse_modifiers(this->csi_params));
+    break;
+  case 'D':
+    new_key_event(KeyEvent::VK_LEFT, parse_modifiers(this->csi_params));
+    break;
   case 'R':
     break;
 
   case '~':
-    switch (this->csi_args[0]) {
+    switch (this->csi_params[0]) {
     case 1:
       //new_key_event(KeyEvent::VK_FIND);
       break;

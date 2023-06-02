@@ -15,12 +15,12 @@ public:
   /**
    * Returns the insets of the border.
    */
-  Insets get_border_insets(const Component &component);
+  virtual Insets get_border_insets(const Component &component) = 0;
 
   /**
    * Paints the border for the specified component with the specified position and size.
    */
-  void paint_border(const Component &component, Graphics &g, int x, int y, int width, int height);
+  virtual void paint_border(const Component &component, Graphics &g, int x, int y, int width, int height) = 0;
 };
 
 }

@@ -55,7 +55,6 @@ static struct TerminalImpl {
 
   void read_events(const std::chrono::milliseconds &timeout) {
     if (::WaitForSingleObject(this->input_handle, timeout.count()) == WAIT_TIMEOUT) {
-      Terminal::input_parser.timeout();
       return;
     }
 
@@ -79,9 +78,11 @@ static struct TerminalImpl {
           continue;
         }
 
-        auto bytes = this->converter.to_bytes(key_event.uChar.UnicodeChar);
-        std::memcpy(&buffer[size], bytes.c_str(), bytes.size());
-        size += bytes.size();
+        if (key_event.uChar.UnicodeChar) {
+          auto bytes = this->converter.to_bytes(key_event.uChar.UnicodeChar);
+          std::memcpy(&buffer[size], bytes.c_str(), bytes.size());
+          size += bytes.size();
+        }
         break;
       }
       case WINDOW_BUFFER_SIZE_EVENT:

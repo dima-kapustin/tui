@@ -119,8 +119,12 @@ void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button,
     wheel_rotation = button == 0 ? -1 : 1;
   }
 
-  auto component = Screen::get_component_at(x, y);
-  auto p = convert_point_from_screen( { x, y }, component);
+  auto p = Point { x, y };
+
+  auto component = Screen::get_component_at(p);
+  if (component) {
+    p = convert_point_from_screen(p, component);
+  }
 
   Screen::post(std::make_unique<Event>(component, adjusted_type, button, modifiers, p.x, p.y, wheel_rotation, false));
 

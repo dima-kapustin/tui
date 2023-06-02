@@ -14,7 +14,7 @@ struct BasicEvent {
 
 struct InputEvent: BasicEvent {
   enum Modifiers {
-    NONE = 0,
+    NONE_MASK = 0,
     /** The shift key modifier constant */
     SHIFT_MASK = 1 << 0,
 
