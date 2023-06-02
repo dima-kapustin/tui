@@ -16,6 +16,10 @@ struct Dimension {
   bool empty() const {
     return not (this->width or this->height);
   }
+
+  constexpr operator bool() const {
+    return not empty();
+  }
 };
 
 }

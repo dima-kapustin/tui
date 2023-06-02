@@ -72,6 +72,11 @@ struct Rectangle: Point, Dimension {
   }
 
   // Intersection
+  constexpr Rectangle get_intersection(int x, int y, int width, int height) const {
+    Rectangle other { x, y, width, height };
+    return *this | other;
+  }
+
   constexpr Rectangle& operator&=(const Rectangle &other) {
     auto tx1 = this->x;
     auto ty1 = this->y;
@@ -111,6 +116,11 @@ struct Rectangle: Point, Dimension {
   }
 
   // Union
+  constexpr Rectangle get_union(int x, int y, int width, int height) const {
+    Rectangle other { x, y, width, height };
+    return *this | other;
+  }
+
   constexpr Rectangle& operator|=(const Rectangle &other) {
     auto x1 = std::min(this->x, other.x);
     auto x2 = std::max(this->x + this->width, other.x + other.width);
@@ -128,6 +138,13 @@ struct Rectangle: Point, Dimension {
     auto result = *this;
     result |= other;
     return result;
+  }
+
+  void set_bounds(int x, int y, int width, int height) {
+    this->x = x;
+    this->y = y;
+    this->width = width;
+    this->height = height;
   }
 
   constexpr void translate(int dx, int dy) {

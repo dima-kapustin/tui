@@ -252,6 +252,21 @@ protected:
     }
   }
 
+  std::shared_ptr<Component> get_child_at(int x, int y, bool visible_only) {
+    for (auto &&c : this->components) {
+      auto cx = c->get_x();
+      auto cy = c->get_y();
+
+      if ((not visible_only or c->is_visible()) and c->contains(x - cx, y - cy)) {
+        if (c->has_children()) {
+          return c->get_child_at(x - cx, y - cy, visible_only);
+        }
+        return c;
+      }
+    }
+    return {};
+  }
+
 public:
   virtual ~Component() {
   }
@@ -281,8 +296,20 @@ public:
     invalidate();
   }
 
+  bool contains(int x, int y) const {
+    return (x >= 0 and x < get_width() and y >= 0 and y < get_height());
+  }
+
+  bool contains(const Point &p) const {
+    return contains(p.x, p.y);
+  }
+
   std::shared_ptr<Border> get_border() const {
     return this->border;
+  }
+
+  std::shared_ptr<Component> get_child_at(int x, int y) {
+    return get_child_at(x, y, false);
   }
 
   /**
@@ -584,6 +611,22 @@ public:
     this->valid = true;
   }
 };
+
+/**
+ * Convert a point from a screen coordinates to a component's coordinate system
+ */
+Point convert_point_from_screen(int x, int y, std::shared_ptr<Component> to);
+Point convert_point_from_screen(const Point &p, std::shared_ptr<Component> to) {
+  return convert_point_from_screen(p.x, p.y, to);
+}
+
+/**
+ * Convert a point from a component's coordinate system to screen coordinates.
+ */
+Point convert_point_to_screen(int x, int y, std::shared_ptr<Component> from);
+Point convert_point_to_screen(const Point &p, std::shared_ptr<Component> from) {
+  return convert_point_to_screen(p.x, p.y, from);
+}
 
 }
 

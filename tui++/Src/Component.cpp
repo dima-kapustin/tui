@@ -83,4 +83,27 @@ void Component::request_focus() {
   }
 }
 
+/**
+ * Convert a point from a screen coordinates to a component's coordinate system
+ */
+Point convert_point_from_screen(int x, int y, std::shared_ptr<Component> to) {
+  do {
+    x -= to->get_x();
+    y -= to->get_y();
+    to = to->get_parent();
+  } while (to);
+  return {x, y};
+}
+
+/**
+ * Convert a point from a component's coordinate system to screen coordinates.
+ */
+Point convert_point_to_screen(int x, int y, std::shared_ptr<Component> from) {
+  while (from) {
+    x += from->get_x();
+    y += from->get_y();
+    from = from->get_parent();
+  }
+  return {x, y};
+}
 }

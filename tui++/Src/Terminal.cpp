@@ -2,6 +2,7 @@
 
 #include <tui++/Screen.h>
 #include <tui++/Terminal.h>
+#include <tui++/Component.h>
 
 namespace tui {
 
@@ -118,17 +119,20 @@ void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button,
     wheel_rotation = button == 0 ? -1 : 1;
   }
 
-  Screen::post(std::make_unique<Event>(nullptr, adjusted_type, button, modifiers, x, y, wheel_rotation, false));
+  auto component = Screen::get_component_at(x, y);
+  auto p = convert_point_from_screen( { x, y }, component);
+
+  Screen::post(std::make_unique<Event>(component, adjusted_type, button, modifiers, p.x, p.y, wheel_rotation, false));
 
   if (adjusted_type == MouseEvent::MOUSE_PRESSED) {
     prev_mouse_press_time = Clock::now();
   } else if (adjusted_type == MouseEvent::MOUSE_RELEASED) {
     if (prev_mouse_event.button == button and (Clock::now() - prev_mouse_press_time) < mouse_click_detection_timeout) {
       if ((Clock::now() - prev_mouse_click_time) < mouse_double_click_detection_timeout) {
-        Screen::post(std::make_unique<Event>(nullptr, MouseEvent::MOUSE_CLICKED, button, modifiers, x, y, 2, false));
+        Screen::post(std::make_unique<Event>(component, MouseEvent::MOUSE_CLICKED, button, modifiers, p.x, p.y, 2, false));
         prev_mouse_click_time = { };
       } else {
-        Screen::post(std::make_unique<Event>(nullptr, MouseEvent::MOUSE_CLICKED, button, modifiers, x, y, 1, false));
+        Screen::post(std::make_unique<Event>(component, MouseEvent::MOUSE_CLICKED, button, modifiers, p.x, p.y, 1, false));
         prev_mouse_click_time = Clock::now();
       }
     }

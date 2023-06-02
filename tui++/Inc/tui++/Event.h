@@ -221,10 +221,6 @@ public:
       break;
     }
   }
-
-  operator bool() const {
-    return this->type != UNDEFINED;
-  }
 };
 
 std::ostream& operator<<(std::ostream &os, const Event &event);

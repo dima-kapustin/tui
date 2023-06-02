@@ -169,6 +169,7 @@ std::ostream& operator<<(std::ostream &os, const Event &event) {
       os << "Focus Lost";
       break;
     }
+    os << (event.focus.temporary ? " temporary" : "");
     break;
 
   case Event::UNDEFINED:

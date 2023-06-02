@@ -13,7 +13,7 @@ public:
     ITALIC = 2
   };
 
-  const Style style = PLAIN;
+  Style style = PLAIN;
 };
 
 }
