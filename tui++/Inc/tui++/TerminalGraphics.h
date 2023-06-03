@@ -4,20 +4,20 @@
 
 namespace tui {
 
-class WindowGraphics: public Graphics {
+class TerminalGraphics: public Graphics {
   Color foreground_color;
   Color background_color;
   Font font;
-  int attributes = 0;
+  Attributes attributes = Attributes::NONE;
   Rectangle clip;
   int dx, dy;
 
 private:
-  WindowGraphics() {
-    WindowGraphics( { }, 0, 0);
+  TerminalGraphics() {
+    TerminalGraphics( { }, 0, 0);
   }
 
-  WindowGraphics(const Rectangle &clip_rect, int dx, int dy) :
+  TerminalGraphics(const Rectangle &clip_rect, int dx, int dy) :
       clip(clip_rect), dx(dx), dy(dy) {
   }
 
@@ -33,15 +33,15 @@ public:
 
   std::unique_ptr<Graphics> create(int x, int y, int width, int height) override;
 
-  void draw_char(int ch, int x, int y, int attributes) override;
+  void draw_char(Char ch, int x, int y, Attributes attributes) override;
 
-  void draw_hline(int x, int y, int length, const std::string &chr) override;
+  void draw_hline(int x, int y, int length, Char ch) override;
 
   void draw_rect(int x, int y, int width, int height) override;
 
-  void draw_string(const std::string &str, int x, int y, int attributes) override;
+  void draw_string(const std::string &str, int x, int y, Attributes attributes) override;
 
-  void draw_vline(int x, int y, int length, const std::string &chr) override;
+  void draw_vline(int x, int y, int length, Char ch) override;
 
   void fill_rect(int x, int y, int width, int height) override;
 

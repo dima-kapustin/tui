@@ -1,8 +1,8 @@
-#include <tui++/WindowGraphics.h>
+#include <tui++/TerminalGraphics.h>
 
 namespace tui {
 
-void WindowGraphics::clip_rect(int x, int y, int width, int height) {
+void TerminalGraphics::clip_rect(int x, int y, int width, int height) {
   int left = x + this->dx;
   int top = y + this->dy;
   int right = left + width;
@@ -19,25 +19,25 @@ void WindowGraphics::clip_rect(int x, int y, int width, int height) {
   this->clip.set_bounds(clip_left, clip_top, clip_width, clip_height);
 }
 
-std::unique_ptr<Graphics> WindowGraphics::create() {
-  return std::unique_ptr<Graphics> { new WindowGraphics(this->clip, this->dx, this->dx) };
+std::unique_ptr<Graphics> TerminalGraphics::create() {
+  return std::unique_ptr<Graphics> { new TerminalGraphics(this->clip, this->dx, this->dx) };
 }
 
-std::unique_ptr<Graphics> WindowGraphics::create(int x, int y, int width, int height) {
+std::unique_ptr<Graphics> TerminalGraphics::create(int x, int y, int width, int height) {
   auto g = create();
   g->translate(x, y);
   g->clip_rect(0, 0, width, height);
   return g;
 }
 
-void WindowGraphics::draw_char(int ch, int x, int y, int attributes) {
+void TerminalGraphics::draw_char(Char ch, int x, int y, Attributes attributes) {
   if (this->clip.contains(x + this->dx, y + this->dy)) {
 //    Toolkit.getDefaultToolkit().setCursor(x + this->dx, y + this->dy);
 //    Toolkit.getDefaultToolkit().drawChar(ch, attributes | this->attributes, getCursesColors());
   }
 }
 
-void WindowGraphics::draw_hline(int x, int y, int length, const std::string &chr) {
+void TerminalGraphics::draw_hline(int x, int y, int length, Char ch) {
   if (auto rect = this->clip.get_intersection(x + this->dx, y + this->dy, length, 1)) {
 //    Toolkit.getDefaultToolkit().setCursor(rect.x, rect.y);
 //    for (int i = 0; i < rect.width; ++i) {
@@ -46,7 +46,7 @@ void WindowGraphics::draw_hline(int x, int y, int length, const std::string &chr
   }
 }
 
-void WindowGraphics::draw_rect(int x, int y, int width, int height) {
+void TerminalGraphics::draw_rect(int x, int y, int width, int height) {
   int left = x + this->dx, top = y + this->dy;
   int right = left + width, bottom = top + height;
   int clip_left = this->clip.x;
@@ -110,7 +110,7 @@ void WindowGraphics::draw_rect(int x, int y, int width, int height) {
   }
 }
 
-void WindowGraphics::draw_string(const std::string &str, int x, int y, int attributes) {
+void TerminalGraphics::draw_string(const std::string &str, int x, int y, Attributes attributes) {
   x += this->dx;
   y += this->dy;
   if (auto rect = this->clip.get_intersection(x, y, str.length(), 1)) {
@@ -119,7 +119,7 @@ void WindowGraphics::draw_string(const std::string &str, int x, int y, int attri
   }
 }
 
-void WindowGraphics::draw_vline(int x, int y, int length, const std::string &chr) {
+void TerminalGraphics::draw_vline(int x, int y, int length, Char ch) {
   if (auto rect = this->clip.get_intersection(x + this->dx, y + this->dy, 1, length)) {
 //    for (int i = 0; i < rect.height; ++i) {
 //      Toolkit.getDefaultToolkit().setCursor(rect.x, rect.y + i);
@@ -128,7 +128,7 @@ void WindowGraphics::draw_vline(int x, int y, int length, const std::string &chr
   }
 }
 
-void WindowGraphics::fill_rect(int x, int y, int width, int height) {
+void TerminalGraphics::fill_rect(int x, int y, int width, int height) {
   if (auto rect = this->clip.get_intersection(x + this->dx, y + this->dy, width, height)) {
 //    for (int j = rect.y, bottom = rect.y + rect.height; j < bottom; j++) {
 //      Toolkit.getDefaultToolkit().setCursor(rect.x, j);
@@ -139,68 +139,68 @@ void WindowGraphics::fill_rect(int x, int y, int width, int height) {
   }
 }
 
-Rectangle WindowGraphics::get_clip_rect() const {
+Rectangle TerminalGraphics::get_clip_rect() const {
   auto clip_rect = this->clip;
   clip_rect.translate(-this->dx, -this->dy);
   return clip_rect;
 }
 
-Color WindowGraphics::get_foreground_color() const {
+Color TerminalGraphics::get_foreground_color() const {
   return this->foreground_color;
 }
 
-Color WindowGraphics::get_background_color() const {
+Color TerminalGraphics::get_background_color() const {
   return this->background_color;
 }
 
-Font WindowGraphics::get_font() const {
+Font TerminalGraphics::get_font() const {
   return this->font;
 }
 
-void WindowGraphics::reset(const Rectangle &clip) {
+void TerminalGraphics::reset(const Rectangle &clip) {
   this->foreground_color = { };
   this->background_color = { };
   this->font = { };
-  this->attributes = 0;
+  this->attributes = Attributes::NONE;
   this->clip = clip;
   this->dx = this->dy = 0;
 }
 
-void WindowGraphics::set_clip_rect(const Rectangle &rect) {
+void TerminalGraphics::set_clip_rect(const Rectangle &rect) {
   this->clip = rect;
   this->clip.translate(this->dx, this->dy);
 }
 
-void WindowGraphics::set_foreground_color(const Color &color) {
+void TerminalGraphics::set_foreground_color(const Color &color) {
   this->foreground_color = color;
 }
 
-void WindowGraphics::set_background_color(const Color &color) {
+void TerminalGraphics::set_background_color(const Color &color) {
   this->background_color = color;
 }
 
-void WindowGraphics::set_font(const Font &font) {
+void TerminalGraphics::set_font(const Font &font) {
   this->font = font;
   update_attributes();
 }
 
-void WindowGraphics::translate(int dx, int dy) {
+void TerminalGraphics::translate(int dx, int dy) {
   this->dx += dx;
   this->dy += dy;
 }
 
-void WindowGraphics::update_attributes() {
-  this->attributes = 0;
-//  if (this->font != null) {
-//    int style = this->font.getStyle();
-//    if ((style & Font.BOLD) != 0) {
-//      this->attributes |= Toolkit.A_BOLD;
-//    }
-//  }
-//  if (this->color != null) {
-//    if (this->color.foreground.isBright() || this->color.background.isBright()) {
-//      this->attributes |= Toolkit.A_BOLD;
-//    }
+void TerminalGraphics::update_attributes() {
+  this->attributes = Attributes::NONE;
+  if (this->font.get_style() & Font::BOLD) {
+    this->attributes |= Attribute::BOLD;
+  }
+
+  if (this->font.get_style() & Font::ITALIC) {
+    this->attributes |= Attribute::ITALIC;
+  }
+
+//  if (this->foreground_color.is_bright() or this->background_color.is_bright()) {
+//    this->attributes |= Attribute::BOLD;
 //  }
 }
 

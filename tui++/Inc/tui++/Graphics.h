@@ -1,9 +1,10 @@
 #pragma once
 
+#include <tui++/Char.h>
 #include <tui++/Font.h>
 #include <tui++/Color.h>
 #include <tui++/Rectangle.h>
-#include <tui++/Characters.h>
+#include <tui++/Attributes.h>
 
 #include <memory>
 
@@ -24,17 +25,17 @@ public:
     return create(rect.x, rect.y, rect.width, rect.height);
   }
 
-  virtual void draw_char(int ch, int x, int y, int attributes) = 0;
+  virtual void draw_char(Char ch, int x, int y, Attributes attributes) = 0;
 
-  void draw_char(int ch, int x, int y) {
-    draw_char(ch, x, y, 0);
+  void draw_char(Char ch, int x, int y) {
+    draw_char(ch, x, y, Attributes::NONE);
   }
 
   /**
    * Draws a horizontal line, using the current color, starting at the given point <code>(x1,&nbsp;y1)</code> in this graphics context's
    * coordinate system, with the given length and character.
    */
-  virtual void draw_hline(int x, int y, int length, const std::string &chr) = 0;
+  virtual void draw_hline(int x, int y, int length, Char ch) = 0;
   void draw_hline(int x, int y, int length) {
     draw_hline(x, y, length, BoxDrawing::HORIZONTAL_LIGHT);
   }
@@ -45,15 +46,15 @@ public:
   }
 
   void draw_string(const std::string &str, int x, int y) {
-    draw_string(str, x, y, 0);
+    draw_string(str, x, y, Attributes::NONE);
   }
-  virtual void draw_string(const std::string &str, int x, int y, int attributes) = 0;
+  virtual void draw_string(const std::string &str, int x, int y, Attributes attributes) = 0;
 
   /**
    * Draws a vertical line, using the current color, starting at the given point <code>(x1,&nbsp;y1)</code> in this graphics context's
    * coordinate system, with the given length and character.
    */
-  virtual void draw_vline(int x, int y, int length, const std::string &chr) = 0;
+  virtual void draw_vline(int x, int y, int length, Char ch) = 0;
   /**
    * Draws a vertical line, using the current color, starting at the given point <code>(x1,&nbsp;y1)</code> in this graphics context's
    * coordinate system and with the given length.

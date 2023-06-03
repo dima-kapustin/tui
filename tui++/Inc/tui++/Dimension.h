@@ -13,7 +13,7 @@ struct Dimension {
     return this->width != other.width or this->height != other.height;
   }
 
-  bool empty() const {
+  constexpr bool empty() const {
     return not (this->width or this->height);
   }
 

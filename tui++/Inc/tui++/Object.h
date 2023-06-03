@@ -33,7 +33,7 @@ protected:
   }
 
 protected:
-  constexpr PropertyBase(Object *object, const std::string_view &name);
+  PropertyBase(Object *object, const std::string_view &name);
 
 public:
   void add_change_listener(const PropertyChangeListener &listener) const {
@@ -78,7 +78,7 @@ public:
   }
 };
 
-constexpr PropertyBase::PropertyBase(Object *object, const std::string_view &name) :
+inline PropertyBase::PropertyBase(Object *object, const std::string_view &name) :
     object(object), name(name) {
   this->object->add_property(this);
 }

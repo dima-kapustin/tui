@@ -1,5 +1,7 @@
 #pragma once
 
+#include <tui++/EnumMask.h>
+
 namespace tui {
 
 /**
@@ -7,13 +9,21 @@ namespace tui {
  */
 class Font {
 public:
-  enum Style {
+  enum StyleFlags {
     PLAIN = 0,
     BOLD = 1,
     ITALIC = 2
   };
 
+  using Style = EnumMask<StyleFlags>;
+
+private:
   Style style = PLAIN;
+
+public:
+  Style get_style() const {
+    return this->style;
+  }
 };
 
 }
