@@ -25,8 +25,6 @@ static struct TerminalImpl {
   HANDLE input_handle, output_handle;
   DWORD input_mode, output_mode;
 
-  std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> converter;
-
   TerminalImpl() {
     // Enable VT processing on stdout and stdin
     this->output_handle = ::GetStdHandle(STD_OUTPUT_HANDLE);
@@ -52,56 +50,56 @@ static struct TerminalImpl {
     ::SetConsoleMode(this->output_handle, this->output_mode);
     ::SetConsoleMode(this->input_handle, this->input_mode);
   }
+} terminal_impl;
 
-  void read_events(const std::chrono::milliseconds &timeout) {
-    if (::WaitForSingleObject(this->input_handle, timeout.count()) == WAIT_TIMEOUT) {
-      return;
-    }
+static std::vector<INPUT_RECORD> input_records { 16 };
+static std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
 
-    DWORD number_of_events = 0;
-    if (not ::GetNumberOfConsoleInputEvents(this->input_handle, &number_of_events) or number_of_events == 0) {
-      return;
-    }
+bool Terminal::InputReader::read_terminal_input(const std::chrono::milliseconds &timeout) {
+  if (::WaitForSingleObject(terminal_impl.input_handle, timeout.count()) == WAIT_TIMEOUT) {
+    return false;
+  }
 
-    std::vector<INPUT_RECORD> records { number_of_events };
-    ::ReadConsoleInput(this->input_handle, records.data(), (DWORD) records.size(), &number_of_events);
-    records.resize(number_of_events);
+  DWORD number_of_events = 0;
+  if (not ::GetNumberOfConsoleInputEvents(terminal_impl.input_handle, &number_of_events) or number_of_events == 0) {
+    return false;
+  }
 
-    char buffer[256];
-    size_t size = 0;
+  input_records.resize(number_of_events);
+  ::ReadConsoleInput(terminal_impl.input_handle, input_records.data(), input_records.size(), &number_of_events);
+  input_records.resize(number_of_events);
 
-    for (auto &&record : records) {
-      switch (record.EventType) {
-      case KEY_EVENT: {
-        const auto &key_event = record.Event.KeyEvent;
-        if (not key_event.bKeyDown) { // ignore KEY UP events
-          continue;
-        }
+  auto write_pos = this->write_pos;
 
-        if (key_event.uChar.UnicodeChar) {
-          auto bytes = this->converter.to_bytes(key_event.uChar.UnicodeChar);
-          std::memcpy(&buffer[size], bytes.c_str(), bytes.size());
-          size += bytes.size();
-        }
-        break;
+  for (auto &&record : input_records) {
+    switch (record.EventType) {
+    case KEY_EVENT: {
+      const auto &key_event = record.Event.KeyEvent;
+      if (not key_event.bKeyDown) { // ignore KEY UP events
+        continue;
       }
-      case WINDOW_BUFFER_SIZE_EVENT:
-        Terminal::new_resize_event();
-        break;
-      case MENU_EVENT:
-      case FOCUS_EVENT:
-      case MOUSE_EVENT:
-        // TODO(mauve): Implement later.
-        break;
-      }
-    }
 
-    if (size != 0) {
-      Terminal::input_parser.parse(buffer, size);
+      if (key_event.uChar.UnicodeChar) {
+        auto bytes = converter.to_bytes(key_event.uChar.UnicodeChar);
+        for (auto &&c : bytes) {
+          put(c);
+        }
+      }
+      break;
+    }
+    case WINDOW_BUFFER_SIZE_EVENT:
+      Terminal::new_resize_event();
+      break;
+    case MENU_EVENT:
+    case FOCUS_EVENT:
+    case MOUSE_EVENT:
+      // TODO(mauve): Implement later.
+      break;
     }
   }
 
-} terminal_impl;
+  return write_pos != this->write_pos;
+}
 
 static Dimension get_default_size() {
   // The terminal size in VT100 was 80x24. It is still used nowadays by
@@ -117,10 +115,6 @@ Dimension Terminal::get_size() {
   }
 
   return get_default_size();
-}
-
-void Terminal::read_events() {
-  terminal_impl.read_events(read_event_timeout);
 }
 
 }

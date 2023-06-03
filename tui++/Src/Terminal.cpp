@@ -8,7 +8,7 @@ using namespace std::string_view_literals;
 
 namespace tui {
 
-std::chrono::milliseconds Terminal::read_event_timeout { 20 };
+std::chrono::milliseconds Terminal::read_terminal_input_timeout { 20 };
 
 Terminal::InputParser Terminal::input_parser;
 std::vector<Terminal::Option> Terminal::set_options;
@@ -169,4 +169,5 @@ void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button,
   prev_mouse_event.x = x;
   prev_mouse_event.y = y;
 }
+
 }

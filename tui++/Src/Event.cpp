@@ -6,6 +6,8 @@ using namespace std::string_view_literals;
 
 namespace tui {
 
+std::string u32_to_mb(char32_t c);
+
 std::string to_string(KeyEvent::KeyCode key_code) {
   std::string buf;
   buf.reserve(128);
@@ -75,7 +77,7 @@ std::string to_string(KeyEvent::KeyCode key_code) {
       buf += "End"sv;
       break;
     default:
-      buf += "?"sv;
+      buf += u32_to_mb(key_code);
     }
   }
 

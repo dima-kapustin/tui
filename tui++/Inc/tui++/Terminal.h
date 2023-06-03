@@ -10,7 +10,7 @@
 namespace tui {
 
 class Terminal {
-  static std::chrono::milliseconds read_event_timeout;
+  static std::chrono::milliseconds read_terminal_input_timeout;
 
   enum class DECModeOption {
     LINE_WRAP = 7,
@@ -89,6 +89,52 @@ class Terminal {
 
   using Option = std::variant<DECModeOption, ModifyKeyboardOption, ModifyCursorKeysOption, ModifyFunctionKeysOption, ModifyOtherKeysOption>;
 
+  class InputReader {
+    constexpr static size_t BUFFER_SIZE = 256;
+    char buffer[BUFFER_SIZE];
+    size_t read_pos = 0, write_pos = 0;
+
+  private:
+    void put(char c) {
+      this->buffer[this->write_pos] = c;
+      this->write_pos = (this->write_pos + 1) % BUFFER_SIZE;
+    }
+
+    bool read_terminal_input(const std::chrono::milliseconds &timeout);
+
+    char read_char(const std::chrono::milliseconds &timeout) {
+      if (timeout != std::chrono::milliseconds::zero()) {
+        if (not read_terminal_input(timeout)) {
+          return 0;
+        }
+      } else {
+        return 0;
+      }
+      return this->buffer[this->read_pos];
+    }
+
+  public:
+    char get() {
+      return get(std::chrono::milliseconds::zero());
+    }
+
+    char get(const std::chrono::milliseconds &timeout) {
+      if (this->read_pos != this->write_pos) {
+        return this->buffer[this->read_pos];
+      }
+      return read_char(timeout);
+    }
+
+    char consume() {
+      if (this->read_pos != this->write_pos) {
+        auto pos = this->read_pos;
+        this->read_pos = (this->read_pos + 1) % BUFFER_SIZE;
+        return this->buffer[pos];
+      }
+      return 0;
+    }
+  };
+
   struct InputParser {
     enum class State {
       INIT,
@@ -107,60 +153,26 @@ class Terminal {
       UTF8
     };
 
-    class Input {
-      const char *input;
-      const size_t size;
-
-      size_t pos;
-
-    public:
-      Input(const char *input, size_t size) :
-          input(input), size(size), pos(0) {
-      }
-
-      Input& operator=(const Input&) = delete;
-
-    public:
-      operator char() const {
-        return this->pos < this->size ? this->input[this->pos] : 0;
-      }
-
-      char consume() {
-        char c = *this;
-        this->pos += 1;
-        return c;
-      }
-    };
+    InputReader reader;
 
   private:
-    State state = State::INIT;
-
     std::vector<unsigned> csi_params;
     bool csi_altered = false;
 
   private:
-    void parse(Input &input);
-    void parse_esc(Input &input);
+    void parse_esc();
 
-    void parse_ss3(Input &input);
-    void parse_dcs(Input &input);
-    void parse_csi(Input &input);
-    void parse_csi_params(Input &input);
-    void parse_csi_selector(Input &input);
-    void parse_osc(Input &input);
-    void parse_utf8(Input &input);
-
-  private:
-    void reset_csi() {
-      this->csi_params.resize(1);
-      this->csi_params[0] = 0;
-      this->csi_altered = false;
-    }
+    void parse_ss3();
+    void parse_dcs();
+    void parse_csi();
+    void parse_csi_params();
+    void parse_csi_selector();
+    void parse_osc();
+    void parse_utf8(char first_byte);
 
   private:
     void new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers = InputEvent::NONE_MASK) {
       Terminal::new_key_event(key_code, modifiers);
-      reset();
     }
 
     void new_mouse_event(bool pressed) {
@@ -172,18 +184,26 @@ class Terminal {
       int x = this->csi_params[1];
       int y = this->csi_params[2];
       Terminal::new_mouse_event(type, MouseEvent::Button(button), InputEvent::Modifiers(modifiers), x, y);
-      reset();
+    }
+
+    char get() {
+      return this->reader.get();
+    }
+
+    char consume() {
+      return this->reader.consume();
+    }
+
+    char consume(const std::chrono::milliseconds &timeout) {
+      if (auto c = this->reader.get(timeout)) {
+        this->reader.consume();
+        return c;
+      }
+      return 0;
     }
 
   public:
-    void parse(const char *buffer, size_t size) {
-      auto input = Input { buffer, size };
-      parse(input);
-    }
-
-    void reset() {
-      this->state = State::INIT;
-    }
+    void parse_event();
   };
 
   using Clock = std::chrono::steady_clock;
@@ -216,7 +236,9 @@ private:
   friend struct InputParser;
 
 private:
-  static void read_events();
+  static void read_events() {
+    input_parser.parse_event();
+  }
 
   friend class Screen;
 

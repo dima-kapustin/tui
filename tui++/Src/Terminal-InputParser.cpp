@@ -6,85 +6,43 @@ char32_t mb_to_u32(std::array<char, 4> bytes);
 
 constexpr char STRING_TERMINATOR = '\\';
 
-void Terminal::InputParser::parse(Input &input) {
-  while (input) {
-    switch (this->state) {
-    case State::INIT:
-      switch (input) {
-      case '\x1b':
-        input.consume();
-        this->state = State::ESC;
-        parse_esc(input);
-        break;
+void Terminal::InputParser::parse_event() {
+  switch (char c = consume(read_terminal_input_timeout)) {
+  case '\x1b':
+    parse_esc();
+    break;
 
-      case '\x8':
-        input.consume();
-        new_key_event(KeyEvent::VK_BACK_SPACE);
-        break;
+  case '\x8':
+    new_key_event(KeyEvent::VK_BACK_SPACE);
+    break;
 
-      case '\r':
-      case '\n':
-        input.consume();
-        new_key_event(KeyEvent::VK_ENTER);
-        break;
+  case '\r':
+  case '\n':
+    new_key_event(KeyEvent::VK_ENTER);
+    break;
 
-      case '\t':
-        input.consume();
-        new_key_event(KeyEvent::VK_TAB);
-        break;
+  case '\t':
+    new_key_event(KeyEvent::VK_TAB);
+    break;
 
-      case '\x7f':
-        input.consume();
-        new_key_event(KeyEvent::VK_BACK_SPACE);
-        break;
+  case '\x7f':
+    new_key_event(KeyEvent::VK_BACK_SPACE);
+    break;
 
-      case ' ':
-        input.consume();
-        new_key_event(KeyEvent::VK_SPACE);
-        break;
+  case ' ':
+    new_key_event(KeyEvent::VK_SPACE);
+    break;
 
-      default:
-        parse_utf8(input);
-        break;
-      }
-      break;
+  case 0:
+    break;
 
-    case State::SKIP:
-      if (input.consume() == '\x1b') {
-        this->state = State::ESC;
-        parse_esc(input);
-      }
-      break;
-
-    case State::ESC:
-      parse_esc(input);
-      break;
-    case State::SS3:
-      parse_ss3(input);
-      break;
-    case State::DCS:
-      parse_dcs(input);
-      break;
-    case State::CSI:
-      parse_csi(input);
-      break;
-    case State::CSI_PARAMS:
-      parse_csi_params(input);
-      break;
-    case State::CSI_SELECTOR:
-      parse_csi_selector(input);
-      break;
-    case State::OSC:
-      parse_osc(input);
-      break;
-    case State::UTF8:
-      parse_utf8(input);
-      break;
-    }
+  default:
+    parse_utf8(c);
+    break;
   }
 }
 
-void Terminal::InputParser::parse_utf8(Input &input) {
+void Terminal::InputParser::parse_utf8(char first_byte) {
   // utf8 initial bytes
   constexpr uint8_t mask_1 = 0b11000000;
   constexpr uint8_t mask_2 = 0b11100000;
@@ -94,59 +52,55 @@ void Terminal::InputParser::parse_utf8(Input &input) {
     return (value & mask) == mask;
   };
 
-  std::array<char, 4> utf8 = { input.consume() };
-  size_t byte_count = matches(utf8[0], mask_1);
-  byte_count += matches(utf8[0], mask_2);
-  byte_count += matches(utf8[0], mask_3);
-  for (size_t i = 1; i < byte_count; ++i) {
-    utf8[i] = input.consume();
+  size_t bytes_left_to_read = matches(first_byte, mask_1);
+  bytes_left_to_read += matches(first_byte, mask_2);
+  bytes_left_to_read += matches(first_byte, mask_3);
+
+  std::array<char, 4> utf8 = { first_byte };
+  for (size_t i = 1; i <= bytes_left_to_read; ++i) {
+    utf8[i] = consume();
   }
   new_key_event(KeyEvent::KeyCode(mb_to_u32(utf8)));
 }
 
-void Terminal::InputParser::parse_esc(Input &input) {
-  if (input) {
-    switch (char c = input.consume()) {
-    case 'O':
-      this->state = State::SS3;
-      parse_ss3(input);
-      break;
-    case 'P':
-      this->state = State::DCS;
-      parse_dcs(input);
-      break;
-    case '[':
-      this->state = State::CSI;
-      reset_csi();
-      parse_csi(input);
-      break;
-    case ']':
-      this->state = State::OSC;
-      parse_osc(input);
-      break;
-    case '\x1b':
-      new_key_event(KeyEvent::VK_ESCAPE);
-      break;
+void Terminal::InputParser::parse_esc() {
+  switch (char c = consume()) {
+  case 'O':
+    parse_ss3();
+    break;
+  case 'P':
+    parse_dcs();
+    break;
+  case '[':
+    parse_csi();
+    break;
+  case ']':
+    parse_osc();
+    break;
 
-    default:
-      if (c >= 0x40 and c <= 0x7E) {
-        new_key_event(KeyEvent::KeyCode(c), InputEvent::ALT_MASK);
-      }
-      break;
-    }
-  } else {
+  case '\x1b':
     new_key_event(KeyEvent::VK_ESCAPE);
+    parse_esc();
+    break;
+
+  case 0:
+    new_key_event(KeyEvent::VK_ESCAPE);
+    break;
+
+  default:
+    if (c >= 0x40 and c <= 0x7E) {
+      new_key_event(KeyEvent::KeyCode(c), InputEvent::ALT_MASK);
+    }
+    break;
   }
 }
 
-void Terminal::InputParser::parse_ss3(Input &input) {
-  switch (input.consume()) {
+void Terminal::InputParser::parse_ss3() {
+  switch (consume()) {
   case '\x1b': // new esc sequence ?
-    reset();
-    parse_esc(input);
+    parse_esc();
     break;
   case STRING_TERMINATOR:
-    reset();
     break;
   case 'A':
     new_key_event(KeyEvent::VK_UP);
@@ -181,95 +135,98 @@ void Terminal::InputParser::parse_ss3(Input &input) {
   }
 }
 
-void Terminal::InputParser::parse_dcs(Input &input) {
-  switch (input.consume()) {
+void Terminal::InputParser::parse_dcs() {
+  switch (consume()) {
   case '\x1b': // new esc sequence ?
-    reset();
-    parse_esc(input);
+    parse_esc();
     break;
   case STRING_TERMINATOR:
-    reset();
     break;
   }
 }
 
-void Terminal::InputParser::parse_csi(Input &input) {
-  switch (input) {
+void Terminal::InputParser::parse_csi() {
+  switch (get()) {
   case 'A':
-    input.consume();
+    consume();
     new_key_event(KeyEvent::VK_UP);
     return;
   case 'B':
-    input.consume();
+    consume();
     new_key_event(KeyEvent::VK_DOWN);
     return;
   case 'C':
-    input.consume();
+    consume();
     new_key_event(KeyEvent::VK_RIGHT);
     return;
   case 'D':
-    input.consume();
+    consume();
     new_key_event(KeyEvent::VK_LEFT);
     return;
   case 'H':
-    input.consume();
+    consume();
     new_key_event(KeyEvent::VK_HOME);
     return;
   case 'F':
-    input.consume();
+    consume();
     new_key_event(KeyEvent::VK_END);
     return;
   case 'Z':
-    input.consume();
+    consume();
     new_key_event(KeyEvent::VK_BACK_TAB);
     return;
 
   case '<':
-    input.consume();
-    this->state = State::CSI_PARAMS;
+    consume();
     this->csi_altered = true;
-    parse_csi_params(input);
+    parse_csi_params();
     break;
 
   default:
-    this->state = State::CSI_PARAMS;
-    parse_csi_params(input);
+    this->csi_altered = false;
+    parse_csi_params();
     break;
   }
 }
 
-void Terminal::InputParser::parse_csi_params(Input &input) {
-  switch (input) {
-  case '0':
-  case '1':
-  case '2':
-  case '3':
-  case '4':
-  case '5':
-  case '6':
-  case '7':
-  case '8':
-  case '9':
-    do {
-      this->csi_params.back() = this->csi_params.back() * 10 + (input.consume() - '0');
-    } while (std::isdigit(input));
+void Terminal::InputParser::parse_csi_params() {
+  this->csi_params.resize(1);
+  this->csi_params[0] = 0;
 
-    if (input != ';') {
-      this->state = State::CSI_SELECTOR;
-      parse_csi_selector(input);
+  do {
+    switch (char c = get()) {
+    case 0:
+      return;
+
+    case '0':
+    case '1':
+    case '2':
+    case '3':
+    case '4':
+    case '5':
+    case '6':
+    case '7':
+    case '8':
+    case '9':
+      do {
+        this->csi_params.back() = this->csi_params.back() * 10 + (consume() - '0');
+      } while (std::isdigit(c = get()));
+
+      if (c != ';') {
+        parse_csi_selector();
+        return;
+      }
+      [[fallthrough]];
+    case ';':
+      consume();
+      this->csi_params.emplace_back(0);
       break;
-    }
-    [[fallthrough]];
-  case ';':
-    input.consume();
-    this->csi_params.emplace_back(0);
-    break;
 
-  default:
-    this->state = State::CSI_SELECTOR;
-    parse_csi_selector(input);
-    break;
-  }
+    default:
+      parse_csi_selector();
+      return;
+    }
+  } while (true);
 }
 
 constexpr InputEvent::Modifiers operator|(InputEvent::Modifiers a, InputEvent::Modifiers b) {
@@ -319,8 +276,8 @@ static InputEvent::Modifiers parse_modifiers(const std::vector<unsigned> &args) 
   return InputEvent::Modifiers::NONE_MASK;
 }
 
-void Terminal::InputParser::parse_csi_selector(Input &input) {
-  switch (input.consume()) {
+void Terminal::InputParser::parse_csi_selector() {
+  switch (consume()) {
   case 'M':
     new_mouse_event(true);
     break;
@@ -396,21 +353,16 @@ void Terminal::InputParser::parse_csi_selector(Input &input) {
     break;
 
   default:
-    this->state = State::SKIP;
     break;
   }
-
-  reset_csi();
 }
 
-void Terminal::InputParser::parse_osc(Input &input) {
-  switch (input.consume()) {
+void Terminal::InputParser::parse_osc() {
+  switch (consume()) {
   case '\x1b': // new esc sequence ?
-    reset();
-    parse_esc(input);
+    parse_esc();
     break;
   case STRING_TERMINATOR:
-    reset();
     break;
   }
 }
