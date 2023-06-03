@@ -56,7 +56,7 @@ static bool is_stdin_empty(const std::chrono::microseconds &timeout) {
 }
 
 bool Terminal::InputReader::read_terminal_input(const std::chrono::milliseconds &timeout) {
-  if (timeout.count() and terminal_impl.is_stdin_empty(timeout)) {
+  if (timeout.count() and /*terminal_impl.*/is_stdin_empty(timeout)) {
     return false;
   }
   char byte;
