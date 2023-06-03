@@ -59,7 +59,7 @@ static struct TerminalImpl {
       char buffer[BUFFER_SIZE];
       size_t size = 0;
       while (not is_stdin_empty(timeout)) {
-        if (::read(fileno(stdin), buffer[size], 1) != 1) {
+        if (::read(fileno(stdin), &buffer[size], 1) != 1) {
             // TODO report error
           break;
         }
