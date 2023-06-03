@@ -102,36 +102,29 @@ class Terminal {
 
     bool read_terminal_input(const std::chrono::milliseconds &timeout);
 
-    char read_char(const std::chrono::milliseconds &timeout) {
-      if (timeout != std::chrono::milliseconds::zero()) {
-        if (not read_terminal_input(timeout)) {
-          return 0;
-        }
-      } else {
-        return 0;
-      }
-      return this->buffer[this->read_pos];
-    }
-
   public:
     char get() {
       return get(std::chrono::milliseconds::zero());
     }
 
     char get(const std::chrono::milliseconds &timeout) {
-      if (this->read_pos != this->write_pos) {
-        return this->buffer[this->read_pos];
+      if (this->read_pos == this->write_pos) {
+        if (not read_terminal_input(timeout)) {
+            return 0;
+        }
       }
-      return read_char(timeout);
+      return this->buffer[this->read_pos];
     }
 
     char consume() {
-      if (this->read_pos != this->write_pos) {
-        auto pos = this->read_pos;
-        this->read_pos = (this->read_pos + 1) % BUFFER_SIZE;
-        return this->buffer[pos];
+      if (this->read_pos == this->write_pos) {
+        if(not read_terminal_input(std::chrono::milliseconds::zero())) {
+          return 0;
+        }
       }
-      return 0;
+      auto pos = this->read_pos;
+      this->read_pos = (this->read_pos + 1) % BUFFER_SIZE;
+      return this->buffer[pos];
     }
   };
 
