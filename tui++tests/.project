@@ -3,6 +3,7 @@
 	<name>tui++tests</name>
 	<comment></comment>
 	<projects>
+		<project>tui++</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>

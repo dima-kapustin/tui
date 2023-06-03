@@ -4,6 +4,8 @@
 #include <tui++/Terminal.h>
 #include <tui++/Component.h>
 
+using namespace std::string_view_literals;
+
 namespace tui {
 
 std::chrono::milliseconds Terminal::read_event_timeout { 20 };
@@ -75,11 +77,13 @@ void Terminal::init() {
   set_option(DECModeOption::MOUSE_ANY_EVENT);
   set_option(DECModeOption::MOUSE_URXVT_EXT_MODE);
   set_option(DECModeOption::MOUSE_SGR_EXT_MODE);
+  set_option(DECModeOption::USE_ALTERNATE_SCREEN_BUFFER);
 
   flush();
 }
 
 void Terminal::deinit() {
+  reset_option(DECModeOption::USE_ALTERNATE_SCREEN_BUFFER);
   reset_option(DECModeOption::MOUSE_SGR_EXT_MODE);
   reset_option(DECModeOption::MOUSE_URXVT_EXT_MODE);
   reset_option(DECModeOption::MOUSE_ANY_EVENT);
@@ -90,6 +94,24 @@ void Terminal::deinit() {
 
 void Terminal::flush() {
   std::cout << std::flush;
+}
+
+template<typename P, typename ...Params>
+static void write_ocs(const P &param, const Params &... params) {
+  std::cout << "\x1b]"sv << param;
+
+  [[maybe_unused]] auto add_param = [](const auto &param) {
+    std::cout << ';' << param;
+  };
+
+  (add_param(params),...);
+  // https://learn.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences:
+  // BEL (0x7) may be used instead as the terminator, but the longer form is preferred.
+  std::cout << "\x1b\\"sv;
+}
+
+void Terminal::set_title(const std::string &title) {
+  write_ocs('0', title);
 }
 
 void Terminal::new_resize_event() {

@@ -28,7 +28,8 @@ class Terminal {
     MOUSE_URXVT_EXT_MODE = 1015,
     MOUSE_PIXEL_POSITION_MODE = 1016,
 
-    ALTERNATE_SCREEN = 1049
+    // The alternate buffer is exactly the dimensions of the window, without any scrollback region.
+    USE_ALTERNATE_SCREEN_BUFFER = 1049
   };
 
   // Normally xterm makes a special case regarding modifiers (shift, control, etc.)
@@ -219,6 +220,8 @@ public:
   static Dimension get_size();
 
   static void flush();
+
+  static void set_title(const std::string &title);
 };
 
 }
