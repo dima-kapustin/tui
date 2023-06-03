@@ -1,5 +1,6 @@
 #include <chrono>
 #include <iostream>
+#include <stdexcept>
 
 #include <tui++/Screen.h>
 #include <tui++/Window.h>

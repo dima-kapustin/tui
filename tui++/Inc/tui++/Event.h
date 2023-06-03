@@ -61,7 +61,7 @@ struct MouseEvent: InputEvent {
 };
 
 struct KeyEvent: InputEvent {
-  enum KeyCode {
+  enum KeyCode : char32_t {
     VK_ESCAPE = '\x1b',
     VK_SPACE = ' ',
 

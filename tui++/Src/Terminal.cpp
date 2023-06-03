@@ -21,6 +21,20 @@ Terminal::Clock::time_point Terminal::prev_mouse_click_time;
 std::chrono::milliseconds Terminal::mouse_click_detection_timeout { 400 };
 std::chrono::milliseconds Terminal::mouse_double_click_detection_timeout { 500 };
 
+template<typename P, typename ...Params>
+static void write_ocs(const P &param, const Params &... params) {
+  std::cout << "\x1b]"sv << param;
+
+  [[maybe_unused]] auto add_param = [](const auto &param) {
+    std::cout << ';' << param;
+  };
+
+  (add_param(params),...);
+  // https://learn.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences:
+  // BEL (0x7) may be used instead as the terminator, but the longer form is preferred.
+  std::cout << "\x1b\\"sv;
+}
+
 void Terminal::set_option(Option option) {
   struct SetOption {
     void operator()(const DECModeOption &option) {
@@ -71,43 +85,28 @@ void Terminal::reset_option(Option option) {
 }
 
 void Terminal::init() {
+  set_option(DECModeOption::USE_ALTERNATE_SCREEN_BUFFER);
   reset_option(DECModeOption::LINE_WRAP);
-
   set_option(DECModeOption::MOUSE_VT200);
   set_option(DECModeOption::MOUSE_ANY_EVENT);
   set_option(DECModeOption::MOUSE_URXVT_EXT_MODE);
   set_option(DECModeOption::MOUSE_SGR_EXT_MODE);
-  set_option(DECModeOption::USE_ALTERNATE_SCREEN_BUFFER);
 
   flush();
 }
 
 void Terminal::deinit() {
-  reset_option(DECModeOption::USE_ALTERNATE_SCREEN_BUFFER);
   reset_option(DECModeOption::MOUSE_SGR_EXT_MODE);
   reset_option(DECModeOption::MOUSE_URXVT_EXT_MODE);
   reset_option(DECModeOption::MOUSE_ANY_EVENT);
   reset_option(DECModeOption::MOUSE_VT200);
+  reset_option(DECModeOption::USE_ALTERNATE_SCREEN_BUFFER);
 
   flush();
 }
 
 void Terminal::flush() {
   std::cout << std::flush;
-}
-
-template<typename P, typename ...Params>
-static void write_ocs(const P &param, const Params &... params) {
-  std::cout << "\x1b]"sv << param;
-
-  [[maybe_unused]] auto add_param = [](const auto &param) {
-    std::cout << ';' << param;
-  };
-
-  (add_param(params),...);
-  // https://learn.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences:
-  // BEL (0x7) may be used instead as the terminator, but the longer form is preferred.
-  std::cout << "\x1b\\"sv;
 }
 
 void Terminal::set_title(const std::string &title) {

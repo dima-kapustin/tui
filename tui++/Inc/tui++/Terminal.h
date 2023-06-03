@@ -99,9 +99,12 @@ class Terminal {
       SS3, // ESC O Single Shift Select of G3 Character Set
       DCS, // ESC P Device Control String
       OSC, // ESC ] Operating System Command
+
       CSI, // ESC [ Control Sequence Introducer
       CSI_PARAMS,
-      CSI_SELECTOR
+      CSI_SELECTOR,
+
+      UTF8
     };
 
     class Input {
@@ -145,6 +148,7 @@ class Terminal {
     void parse_csi_params(Input &input);
     void parse_csi_selector(Input &input);
     void parse_osc(Input &input);
+    void parse_utf8(Input &input);
 
   private:
     void reset_csi() {

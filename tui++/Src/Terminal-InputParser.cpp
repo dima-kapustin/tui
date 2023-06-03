@@ -2,41 +2,49 @@
 
 namespace tui {
 
+char32_t mb_to_u32(std::array<char, 4> bytes);
+
 constexpr char STRING_TERMINATOR = '\\';
 
 void Terminal::InputParser::parse(Input &input) {
   while (input) {
     switch (this->state) {
     case State::INIT:
-      switch (char c = input.consume()) {
+      switch (input) {
       case '\x1b':
+        input.consume();
         this->state = State::ESC;
         parse_esc(input);
         break;
 
       case '\x8':
+        input.consume();
         new_key_event(KeyEvent::VK_BACK_SPACE);
         break;
 
       case '\r':
       case '\n':
+        input.consume();
         new_key_event(KeyEvent::VK_ENTER);
         break;
 
       case '\t':
+        input.consume();
         new_key_event(KeyEvent::VK_TAB);
         break;
 
       case '\x7f':
-        new_key_event(KeyEvent::VK_DELETE);
+        input.consume();
+        new_key_event(KeyEvent::VK_BACK_SPACE);
         break;
 
       case ' ':
+        input.consume();
         new_key_event(KeyEvent::VK_SPACE);
         break;
 
       default:
-        new_key_event(KeyEvent::KeyCode(c));
+        parse_utf8(input);
         break;
       }
       break;
@@ -69,38 +77,65 @@ void Terminal::InputParser::parse(Input &input) {
     case State::OSC:
       parse_osc(input);
       break;
+    case State::UTF8:
+      parse_utf8(input);
+      break;
     }
   }
 }
 
-void Terminal::InputParser::parse_esc(Input &input) {
-  switch (char c = input.consume()) {
-  case 'O':
-    this->state = State::SS3;
-    parse_ss3(input);
-    break;
-  case 'P':
-    this->state = State::DCS;
-    parse_dcs(input);
-    break;
-  case '[':
-    this->state = State::CSI;
-    reset_csi();
-    parse_csi(input);
-    break;
-  case ']':
-    this->state = State::OSC;
-    parse_osc(input);
-    break;
-  case '\x1b':
-    new_key_event(KeyEvent::VK_ESCAPE);
-    break;
+void Terminal::InputParser::parse_utf8(Input &input) {
+  // utf8 initial bytes
+  constexpr uint8_t mask_1 = 0b11000000;
+  constexpr uint8_t mask_2 = 0b11100000;
+  constexpr uint8_t mask_3 = 0b11110000;
 
-  default:
-    if (c >= 0x40 and c <= 0x7E) {
-      new_key_event(KeyEvent::KeyCode(c), InputEvent::ALT_MASK);
+  auto matches = [](char value, char mask) -> bool {
+    return (value & mask) == mask;
+  };
+
+  std::array<char, 4> utf8 = { input.consume() };
+  size_t byte_count = matches(utf8[0], mask_1);
+  byte_count += matches(utf8[0], mask_2);
+  byte_count += matches(utf8[0], mask_3);
+  for (size_t i = 1; i < byte_count; ++i) {
+    utf8[i] = input.consume();
+  }
+  new_key_event(KeyEvent::KeyCode(mb_to_u32(utf8)));
+}
+
+void Terminal::InputParser::parse_esc(Input &input) {
+  if (input) {
+    switch (char c = input.consume()) {
+    case 'O':
+      this->state = State::SS3;
+      parse_ss3(input);
+      break;
+    case 'P':
+      this->state = State::DCS;
+      parse_dcs(input);
+      break;
+    case '[':
+      this->state = State::CSI;
+      reset_csi();
+      parse_csi(input);
+      break;
+    case ']':
+      this->state = State::OSC;
+      parse_osc(input);
+      break;
+    case '\x1b':
+      new_key_event(KeyEvent::VK_ESCAPE);
+      break;
+
+    default:
+      if (c >= 0x40 and c <= 0x7E) {
+        new_key_event(KeyEvent::KeyCode(c), InputEvent::ALT_MASK);
+      }
+      break;
     }
-    break;
+  } else {
+    new_key_event(KeyEvent::VK_ESCAPE);
   }
 }
 
