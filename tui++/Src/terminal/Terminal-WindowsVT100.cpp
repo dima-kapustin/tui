@@ -4,8 +4,8 @@
 #error Must be compiled in UNICODE mode
 #endif
 
-#include <tui++/Terminal.h>
-#include <tui++/TerminalScreen.h>
+#include <tui++/terminal/Terminal.h>
+#include <tui++/terminal/TerminalScreen.h>
 
 #include <locale>
 #include <cstring>
@@ -20,7 +20,7 @@
 
 #include <windows.h>
 
-namespace tui {
+namespace tui::terminal {
 
 class TerminalImpl {
   Terminal &terminal;

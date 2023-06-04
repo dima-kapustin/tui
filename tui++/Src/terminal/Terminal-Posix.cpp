@@ -8,10 +8,10 @@
 #include <termios.h>
 #include <unistd.h>
 
-#include <tui++/Terminal.h>
-#include <tui++/TerminalScreen.h>
+#include <tui++/terminal/Terminal.h>
+#include <tui++/terminal/TerminalScreen.h>
 
-namespace tui {
+namespace tui::terminal {
 
 static struct TerminalImpl {
   struct termios terminal;

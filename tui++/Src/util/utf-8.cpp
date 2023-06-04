@@ -8,7 +8,7 @@
 #    include <cuchar>
 #endif
 
-namespace tui {
+namespace tui::util {
 
 char32_t mb_to_u32(std::array<char, 4> bytes) {
   auto result = char32_t { };

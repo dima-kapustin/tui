@@ -6,9 +6,9 @@
 
 #include <tui++/Event.h>
 #include <tui++/Dimension.h>
-#include <tui++/TerminalScreen.h>
+#include <tui++/terminal/TerminalScreen.h>
 
-namespace tui {
+namespace tui::terminal {
 
 class TerminalImpl;
 

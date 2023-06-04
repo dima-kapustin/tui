@@ -1,10 +1,9 @@
-#include <tui++/TerminalScreen.h>
-
-#include <tui++/Terminal.h>
+#include <tui++/terminal/Terminal.h>
+#include <tui++/terminal/TerminalScreen.h>
 
 #include <iostream>
 
-namespace tui {
+namespace tui::terminal {
 
 constexpr std::chrono::milliseconds WAIT_EVENT_TIMEOUT { 30 };
 

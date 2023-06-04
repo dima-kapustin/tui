@@ -2,7 +2,7 @@
 
 #include <tui++/Graphics.h>
 
-namespace tui {
+namespace tui::terminal {
 
 class TerminalGraphics: public Graphics {
   Color foreground_color;

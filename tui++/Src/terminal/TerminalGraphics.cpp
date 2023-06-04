@@ -1,6 +1,6 @@
-#include <tui++/TerminalGraphics.h>
+#include <tui++/terminal/TerminalGraphics.h>
 
-namespace tui {
+namespace tui::terminal {
 
 void TerminalGraphics::clip_rect(int x, int y, int width, int height) {
   int left = x + this->dx;

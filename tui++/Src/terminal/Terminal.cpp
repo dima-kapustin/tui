@@ -1,12 +1,12 @@
 #include <iostream>
 
-#include <tui++/Terminal.h>
 #include <tui++/Component.h>
-#include <tui++/Screen.h>
+
+#include <tui++/terminal/Terminal.h>
 
 using namespace std::string_view_literals;
 
-namespace tui {
+namespace tui::terminal {
 
 template<typename P, typename ...Params>
 static void write_ocs(const P &param, const Params &... params) {

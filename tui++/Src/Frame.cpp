@@ -1,5 +1,4 @@
 #include <tui++/Frame.h>
-#include <tui++/Terminal.h>
 
 namespace tui {
 

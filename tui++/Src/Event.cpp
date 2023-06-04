@@ -1,12 +1,11 @@
 #include <tui++/Event.h>
+#include <tui++/util/utf-8.h>
 
 #include <format>
 
 using namespace std::string_view_literals;
 
 namespace tui {
-
-std::string u32_to_mb(char32_t c);
 
 std::string to_string(KeyEvent::KeyCode key_code) {
   std::string buf;
@@ -77,7 +76,7 @@ std::string to_string(KeyEvent::KeyCode key_code) {
       buf += "End"sv;
       break;
     default:
-      buf += u32_to_mb(key_code);
+      buf += util::u32_to_mb(key_code);
     }
   }
 

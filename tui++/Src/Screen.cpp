@@ -3,7 +3,6 @@
 #include <stdexcept>
 
 #include <tui++/Window.h>
-#include <tui++/Terminal.h>
 
 namespace tui {
 

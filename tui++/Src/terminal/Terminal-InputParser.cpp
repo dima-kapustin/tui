@@ -1,8 +1,8 @@
-#include <tui++/Terminal.h>
+#include <tui++/terminal/Terminal.h>
 
-namespace tui {
+#include <tui++/util/utf-8.h>
 
-char32_t mb_to_u32(std::array<char, 4> bytes);
+namespace tui::terminal {
 
 constexpr char STRING_TERMINATOR = '\\';
 
@@ -60,7 +60,7 @@ void Terminal::InputParser::parse_utf8(char first_byte) {
   for (size_t i = 1; i <= bytes_left_to_read; ++i) {
     utf8[i] = consume();
   }
-  new_key_event(KeyEvent::KeyCode(mb_to_u32(utf8)));
+  new_key_event(KeyEvent::KeyCode(util::mb_to_u32(utf8)));
 }
 
 void Terminal::InputParser::parse_esc() {

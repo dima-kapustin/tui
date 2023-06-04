@@ -1,7 +1,8 @@
 #include <tui++/Screen.h>
-#include <tui++/Terminal.h>
+#include <tui++/terminal/Terminal.h>
 
 using namespace tui;
+using namespace tui::terminal;
 
 void test_EnumMask();
 

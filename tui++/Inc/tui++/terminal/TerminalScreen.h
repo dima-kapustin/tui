@@ -2,7 +2,7 @@
 
 #include <tui++/Screen.h>
 
-namespace tui {
+namespace tui::terminal {
 
 class Terminal;
 
