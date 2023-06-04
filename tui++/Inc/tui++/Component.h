@@ -17,9 +17,11 @@
 
 namespace tui {
 
+class Screen;
 class Window;
 class Graphics;
 class Component;
+class EventQueue;
 
 template<typename T>
 constexpr bool is_component_v = std::is_base_of_v<Component, T>;
@@ -266,6 +268,11 @@ protected:
     }
     return {};
   }
+
+  virtual Screen* get_screen() const;
+
+  std::shared_ptr<Window> get_top_window() const;
+  EventQueue& get_event_queue() const;
 
 public:
   virtual ~Component() {

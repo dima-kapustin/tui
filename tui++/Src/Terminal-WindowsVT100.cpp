@@ -5,6 +5,7 @@
 #endif
 
 #include <tui++/Terminal.h>
+#include <tui++/TerminalScreen.h>
 
 #include <locale>
 #include <cstring>
@@ -21,11 +22,18 @@
 
 namespace tui {
 
-static struct TerminalImpl {
+class TerminalImpl {
+  Terminal &terminal;
+
   HANDLE input_handle, output_handle;
   DWORD input_mode, output_mode;
 
-  TerminalImpl() {
+  std::vector<INPUT_RECORD> input_records { 16 };
+  std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
+
+public:
+  TerminalImpl(Terminal &terminal) :
+      terminal(terminal) {
     // Enable VT processing on stdout and stdin
     this->output_handle = ::GetStdHandle(STD_OUTPUT_HANDLE);
     this->input_handle = ::GetStdHandle(STD_INPUT_HANDLE);
@@ -40,65 +48,71 @@ static struct TerminalImpl {
 
     ::SetConsoleOutputCP(CP_UTF8);
     ::SetConsoleCP(CP_UTF8);
+  }
 
-    Terminal::init();
+  bool read_input(const std::chrono::milliseconds &timeout, Terminal::InputBuffer &into) {
+    if (::WaitForSingleObject(this->input_handle, timeout.count()) == WAIT_TIMEOUT) {
+      return false;
+    }
+
+    DWORD number_of_events = 0;
+    if (not ::GetNumberOfConsoleInputEvents(this->input_handle, &number_of_events) or number_of_events == 0) {
+      return false;
+    }
+
+    this->input_records.resize(number_of_events);
+    ::ReadConsoleInput(this->input_handle, this->input_records.data(), this->input_records.size(), &number_of_events);
+    this->input_records.resize(number_of_events);
+
+    auto was_available = into.get_available();
+
+    for (auto &&record : input_records) {
+      switch (record.EventType) {
+      case KEY_EVENT: {
+        const auto &key_event = record.Event.KeyEvent;
+        if (not key_event.bKeyDown) { // ignore KEY UP events
+          continue;
+        }
+
+        if (key_event.uChar.UnicodeChar) {
+          auto bytes = converter.to_bytes(key_event.uChar.UnicodeChar);
+          for (auto &&c : bytes) {
+            into.put(c);
+          }
+        }
+        break;
+      }
+      case WINDOW_BUFFER_SIZE_EVENT:
+        this->terminal.new_resize_event();
+        break;
+      case MENU_EVENT:
+      case FOCUS_EVENT:
+      case MOUSE_EVENT:
+        // TODO(mauve): Implement later.
+        break;
+      }
+    }
+
+    return was_available != into.get_available();
   }
 
   ~TerminalImpl() {
-    Terminal::deinit();
-
     ::SetConsoleMode(this->output_handle, this->output_mode);
     ::SetConsoleMode(this->input_handle, this->input_mode);
   }
-} terminal_impl;
+};
 
-static std::vector<INPUT_RECORD> input_records { 16 };
-static std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
+Terminal::Terminal() :
+    impl(std::make_unique<TerminalImpl>(*this)) {
+  init();
+}
 
-bool Terminal::InputReader::read_terminal_input(const std::chrono::milliseconds &timeout) {
-  if (::WaitForSingleObject(terminal_impl.input_handle, timeout.count()) == WAIT_TIMEOUT) {
-    return false;
-  }
+Terminal::~Terminal() {
+  deinit();
+}
 
-  DWORD number_of_events = 0;
-  if (not ::GetNumberOfConsoleInputEvents(terminal_impl.input_handle, &number_of_events) or number_of_events == 0) {
-    return false;
-  }
-
-  input_records.resize(number_of_events);
-  ::ReadConsoleInput(terminal_impl.input_handle, input_records.data(), input_records.size(), &number_of_events);
-  input_records.resize(number_of_events);
-
-  auto write_pos = this->write_pos;
-
-  for (auto &&record : input_records) {
-    switch (record.EventType) {
-    case KEY_EVENT: {
-      const auto &key_event = record.Event.KeyEvent;
-      if (not key_event.bKeyDown) { // ignore KEY UP events
-        continue;
-      }
-
-      if (key_event.uChar.UnicodeChar) {
-        auto bytes = converter.to_bytes(key_event.uChar.UnicodeChar);
-        for (auto &&c : bytes) {
-          put(c);
-        }
-      }
-      break;
-    }
-    case WINDOW_BUFFER_SIZE_EVENT:
-      Terminal::new_resize_event();
-      break;
-    case MENU_EVENT:
-    case FOCUS_EVENT:
-    case MOUSE_EVENT:
-      // TODO(mauve): Implement later.
-      break;
-    }
-  }
-
-  return write_pos != this->write_pos;
+bool Terminal::read_input(const std::chrono::milliseconds &timeout, InputBuffer &into) {
+  return this->impl->read_input(timeout, into);
 }
 
 static Dimension get_default_size() {

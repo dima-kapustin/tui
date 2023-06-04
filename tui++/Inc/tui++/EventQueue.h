@@ -14,10 +14,24 @@ class EventQueue {
   std::list<std::shared_ptr<Event>> queue;
   std::condition_variable queue_cv;
 
+  std::shared_ptr<Event> last_focus_event;
+
+public:
+  EventQueue() = default;
+
+  EventQueue(const EventQueue&) = delete;
+  EventQueue(EventQueue&&) = delete;
+
+  EventQueue& operator=(const EventQueue&) = delete;
+  EventQueue& operator=(EventQueue&&) = delete;
+
 public:
   void push(const std::shared_ptr<Event> &event) {
     std::unique_lock lock(this->mutex);
     this->queue.emplace_back(event);
+    if (event->type == Event::FOCUS) {
+      this->last_focus_event = event;
+    }
     lock.unlock();
     this->queue_cv.notify_one();
   }
@@ -46,6 +60,10 @@ public:
 
   bool empty() const {
     return this->queue.empty();
+  }
+
+  std::shared_ptr<Event> get_last_focus_event() const {
+    return last_focus_event;
   }
 };
 

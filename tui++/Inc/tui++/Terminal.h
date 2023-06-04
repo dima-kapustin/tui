@@ -6,12 +6,13 @@
 
 #include <tui++/Event.h>
 #include <tui++/Dimension.h>
+#include <tui++/TerminalScreen.h>
 
 namespace tui {
 
-class Terminal {
-  static std::chrono::milliseconds read_terminal_input_timeout;
+class TerminalImpl;
 
+class Terminal {
   enum class DECModeOption {
     LINE_WRAP = 7,
     CURSOR = 25,
@@ -89,20 +90,36 @@ class Terminal {
 
   using Option = std::variant<DECModeOption, ModifyKeyboardOption, ModifyCursorKeysOption, ModifyFunctionKeysOption, ModifyOtherKeysOption>;
 
-  class InputReader {
+  class InputBuffer {
+  protected:
     constexpr static size_t BUFFER_SIZE = 256;
     char buffer[BUFFER_SIZE];
     size_t read_pos = 0, write_pos = 0;
 
-  private:
+  public:
     void put(char c) {
       this->buffer[this->write_pos] = c;
       this->write_pos = (this->write_pos + 1) % BUFFER_SIZE;
     }
 
-    bool read_terminal_input(const std::chrono::milliseconds &timeout);
+    auto get_available() const {
+      return (this->write_pos - this->read_pos) % BUFFER_SIZE;
+    }
+  };
+
+  class InputReader: public InputBuffer {
+    Terminal &terminal;
+
+  private:
+    bool read_terminal_input(const std::chrono::milliseconds &timeout) {
+      return this->terminal.read_input(timeout, *this);
+    }
 
   public:
+    InputReader(Terminal &terminal) :
+        terminal(terminal) {
+    }
+
     char get() {
       return get(std::chrono::milliseconds::zero());
     }
@@ -110,7 +127,7 @@ class Terminal {
     char get(const std::chrono::milliseconds &timeout) {
       if (this->read_pos == this->write_pos) {
         if (not read_terminal_input(timeout)) {
-            return 0;
+          return 0;
         }
       }
       return this->buffer[this->read_pos];
@@ -118,7 +135,7 @@ class Terminal {
 
     char consume() {
       if (this->read_pos == this->write_pos) {
-        if(not read_terminal_input(std::chrono::milliseconds::zero())) {
+        if (not read_terminal_input(std::chrono::milliseconds::zero())) {
           return 0;
         }
       }
@@ -128,27 +145,9 @@ class Terminal {
     }
   };
 
-  struct InputParser {
-    enum class State {
-      INIT,
-      SKIP,
-
-      ESC,
-
-      SS3, // ESC O Single Shift Select of G3 Character Set
-      DCS, // ESC P Device Control String
-      OSC, // ESC ] Operating System Command
-
-      CSI, // ESC [ Control Sequence Introducer
-      CSI_PARAMS,
-      CSI_SELECTOR,
-
-      UTF8
-    };
-
+  class InputParser {
+    Terminal &terminal;
     InputReader reader;
-
-  private:
     std::vector<unsigned> csi_params;
     bool csi_altered = false;
 
@@ -165,7 +164,7 @@ class Terminal {
 
   private:
     void new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers = InputEvent::NONE_MASK) {
-      Terminal::new_key_event(key_code, modifiers);
+      this->terminal.new_key_event(key_code, modifiers);
     }
 
     void new_mouse_event(bool pressed) {
@@ -176,7 +175,7 @@ class Terminal {
       modifiers |= this->csi_params[0] & 16 ? InputEvent::Modifiers::CTRL_MASK : InputEvent::Modifiers::NONE_MASK;
       int x = this->csi_params[1];
       int y = this->csi_params[2];
-      Terminal::new_mouse_event(type, MouseEvent::Button(button), InputEvent::Modifiers(modifiers), x, y);
+      this->terminal.new_mouse_event(type, MouseEvent::Button(button), InputEvent::Modifiers(modifiers), x, y);
     }
 
     char get() {
@@ -196,51 +195,69 @@ class Terminal {
     }
 
   public:
+    InputParser(Terminal &terminal) :
+        terminal(terminal), reader(terminal) {
+    }
+
     void parse_event();
   };
 
   using Clock = std::chrono::steady_clock;
 
 private:
-  static bool quit;
-  static InputParser input_parser;
+  bool quit;
 
-  static std::vector<Option> set_options;
+  std::vector<Option> set_options;
 
-  static MouseEvent prev_mouse_event;
-  static Clock::time_point prev_mouse_press_time;
-  static Clock::time_point prev_mouse_click_time;
+  MouseEvent prev_mouse_event { };
+  Clock::time_point prev_mouse_press_time;
+  Clock::time_point prev_mouse_click_time;
 
-  static std::chrono::milliseconds mouse_click_detection_timeout;
-  static std::chrono::milliseconds mouse_double_click_detection_timeout;
+  std::chrono::milliseconds read_input_timeout { 20 };
+  std::chrono::milliseconds mouse_click_detection_timeout { 400 };
+  std::chrono::milliseconds mouse_double_click_detection_timeout { 500 };
 
-private:
-  static void set_option(Option option);
-  static void reset_option(Option option);
+  std::unique_ptr<TerminalImpl> impl;
 
-  static void init();
-  static void deinit();
-
-  static void new_resize_event();
-  static void new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers);
-  static void new_mouse_event(MouseEvent::Type type, MouseEvent::Button button, InputEvent::Modifiers modifiers, int x, int y);
-
-  friend struct TerminalImpl;
-  friend struct InputParser;
+  TerminalScreen screen { *this };
+  InputParser input_parser { *this };
 
 private:
-  static void read_events() {
-    input_parser.parse_event();
+  void set_option(Option option);
+  void reset_option(Option option);
+
+  void init();
+  void deinit();
+
+  void new_resize_event();
+  void new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers);
+  void new_mouse_event(MouseEvent::Type type, MouseEvent::Button button, InputEvent::Modifiers modifiers, int x, int y);
+
+  friend class TerminalImpl;
+  friend class InputParser;
+
+private:
+  bool read_input(const std::chrono::milliseconds &timeout, InputBuffer &into);
+
+  void read_events() {
+    this->input_parser.parse_event();
   }
 
-  friend class Screen;
+  friend class TerminalScreen;
 
 public:
-  static Dimension get_size();
+  Terminal();
+  ~Terminal();
 
-  static void flush();
+  Dimension get_size();
 
-  static void set_title(const std::string &title);
+  void flush();
+
+  void set_title(const std::string &title);
+
+  void run_event_loop() {
+    this->screen.run_event_loop();
+  }
 };
 
 }

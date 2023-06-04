@@ -198,10 +198,6 @@ void TerminalGraphics::update_attributes() {
   if (this->font.get_style() & Font::ITALIC) {
     this->attributes |= Attribute::ITALIC;
   }
-
-//  if (this->foreground_color.is_bright() or this->background_color.is_bright()) {
-//    this->attributes |= Attribute::BOLD;
-//  }
 }
 
 }

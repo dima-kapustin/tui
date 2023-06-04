@@ -1,8 +1,10 @@
 #pragma once
 
 #include <mutex>
+#include <vector>
 
 #include <tui++/Point.h>
+#include <tui++/Dimension.h>
 #include <tui++/EventQueue.h>
 
 namespace tui {
@@ -10,32 +12,42 @@ namespace tui {
 class Window;
 
 class Screen {
-  static bool quit;
-  static EventQueue event_queue;
-  static std::shared_ptr<Event> last_focus_event;
-  static std::vector<std::shared_ptr<Window>> windows;
-  static std::mutex mutex;
+protected:
+  bool quit = false;
+  EventQueue event_queue;
+
+  std::mutex windows_mutex;
+  std::vector<std::shared_ptr<Window>> windows;
 
 private:
-  static void add_window(const std::shared_ptr<Window> &window);
-  static void remove_window(const std::shared_ptr<Window> &window);
+  void add_window(const std::shared_ptr<Window> &window);
+  void remove_window(const std::shared_ptr<Window> &window);
 
   friend class Window;
+
+protected:
+  Screen() = default;
+
 public:
-  static void run_event_loop();
+  EventQueue& get_event_queue() {
+    return this->event_queue;
+  }
 
-  static void post(const std::shared_ptr<Event> &event);
-  static void post(std::function<void()> fn);
+  virtual void run_event_loop() = 0;
+  virtual Dimension get_size() const = 0;
 
-  static std::shared_ptr<Window> get_top_window();
-  static std::shared_ptr<Component> get_component_at(int x, int y);
-  static std::shared_ptr<Component> get_component_at(const Point &p) {
+  void post(const std::shared_ptr<Event> &event);
+  void post(std::function<void()> fn) {
+    post(std::make_shared<Event>(fn));
+  }
+
+  std::shared_ptr<Window> get_top_window();
+  std::shared_ptr<Component> get_component_at(int x, int y);
+  std::shared_ptr<Component> get_component_at(const Point &p) {
     return get_component_at(p.x, p.y);
   }
 
-  static std::shared_ptr<Event> get_last_focus_event() {
-    return last_focus_event;
-  }
+  void refresh();
 };
 
 }

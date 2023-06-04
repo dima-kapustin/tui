@@ -5,10 +5,11 @@ using namespace tui;
 
 void test_EnumMask();
 
-int main(int argc, char* argv[]) {
-  Terminal::set_title("Welcome to tui++");
+int main(int argc, char *argv[]) {
+  Terminal terminal;
+  terminal.set_title("Welcome to tui++");
 
   //test_EnumMask();
 
-  Screen::run_event_loop();
+  terminal.run_event_loop();
 }

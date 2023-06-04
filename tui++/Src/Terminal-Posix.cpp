@@ -4,10 +4,12 @@
 
 #include <sys/ioctl.h>
 #include <sys/select.h>
+
 #include <termios.h>
 #include <unistd.h>
 
 #include <tui++/Terminal.h>
+#include <tui++/TerminalScreen.h>
 
 namespace tui {
 
@@ -15,6 +17,7 @@ static struct TerminalImpl {
   struct termios terminal;
   //int input_flags;
 
+public:
   TerminalImpl() {
     ::tcgetattr(STDIN_FILENO, &this->terminal);
     terminal.c_lflag &= ~(ICANON|ECHO);
@@ -25,13 +28,30 @@ static struct TerminalImpl {
     //::fcntl(STDIN_FILENO, F_SETFL, this->input_flags | O_NONBLOCK);
 
     std::signal(SIGWINCH, signal_handler);
+  }
 
-    Terminal::init();
+  bool is_stdin_empty(const std::chrono::microseconds &timeout) {
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(STDIN_FILENO, &fds);
+    timeval tv = {0, timeout.count()};
+    ::select(STDIN_FILENO + 1, &fds, nullptr, nullptr, &tv);
+    return not FD_ISSET(STDIN_FILENO, &fds);
+  }
+
+  bool read_input(const std::chrono::milliseconds &timeout) {
+    if (timeout.count() and is_stdin_empty(timeout)) {
+      return false;
+    }
+    char byte;
+    if (::read(fileno(stdin), &byte, 1) == 1) {
+      put(byte);
+      return true;
+    }
+    return false;
   }
 
   ~TerminalImpl() {
-    Terminal::deinit();
-
     //::fcntl(STDIN_FILENO, F_GETFL, this->input_flags);
 
     ::tcsetattr(STDIN_FILENO, TCSANOW, &this->terminal);
@@ -44,27 +64,19 @@ static struct TerminalImpl {
         break;
     }
   }
-} terminal_impl;
+};
 
-static bool is_stdin_empty(const std::chrono::microseconds &timeout) {
-  fd_set fds;
-  FD_ZERO(&fds);
-  FD_SET(STDIN_FILENO, &fds);
-  timeval tv = {0, timeout.count()};
-  ::select(STDIN_FILENO + 1, &fds, nullptr, nullptr, &tv);
-  return not FD_ISSET(STDIN_FILENO, &fds);
+Terminal::Terminal() :
+    impl(std::make_unique<TerminalImpl>(*this)) {
+  init();
 }
 
-bool Terminal::InputReader::read_terminal_input(const std::chrono::milliseconds &timeout) {
-  if (timeout.count() and is_stdin_empty(timeout)) {
-    return false;
-  }
-  char byte;
-  if (::read(fileno(stdin), &byte, 1) == 1) {
-    put(byte);
-    return true;
-  }
-  return false;
+Terminal::~Terminal() {
+  deinit();
+}
+
+bool Terminal::read_input(const std::chrono::milliseconds &timeout, InputBuffer &into) {
+  return this->impl->read_input(timeout, into);
 }
 
 Dimension Terminal::get_size() {

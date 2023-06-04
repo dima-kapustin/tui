@@ -11,25 +11,27 @@ struct ColorIndex {
   unsigned value;
 };
 
-constexpr ColorIndex BLACK { 0 };
-constexpr ColorIndex RED { 1 };
-constexpr ColorIndex GREEN { 2 };
-constexpr ColorIndex YELLOW { 3 };
-constexpr ColorIndex BLUE { 4 };
-constexpr ColorIndex MAGENTA { 5 };
-constexpr ColorIndex CYAN { 6 };
-constexpr ColorIndex WHITE { 7 };
-constexpr ColorIndex BRIGHT_BLACK { 8 };
-constexpr ColorIndex BRIGHT_RED { 9 };
-constexpr ColorIndex BRIGHT_GREEN { 10 };
-constexpr ColorIndex BRIGHT_YELLOW { 11 };
-constexpr ColorIndex BRIGHT_BLUE { 12 };
-constexpr ColorIndex BRIGHT_MAGENTA { 13 };
-constexpr ColorIndex BRIGHT_CYAN { 14 };
-constexpr ColorIndex BRIGHT_WHITE { 15 };
+constexpr ColorIndex BLACK_COLOR { 0 };
+constexpr ColorIndex RED_COLOR { 1 };
+constexpr ColorIndex GREEN_COLOR { 2 };
+constexpr ColorIndex YELLOW_COLOR { 3 };
+constexpr ColorIndex BLUE_COLOR { 4 };
+constexpr ColorIndex MAGENTA_COLOR { 5 };
+constexpr ColorIndex CYAN_COLOR { 6 };
+constexpr ColorIndex WHITE_COLOR { 7 };
+constexpr ColorIndex BRIGHT_BLACK_COLOR { 8 };
+constexpr ColorIndex BRIGHT_RED_COLOR { 9 };
+constexpr ColorIndex BRIGHT_GREEN_COLOR { 10 };
+constexpr ColorIndex BRIGHT_YELLOW_COLOR { 11 };
+constexpr ColorIndex BRIGHT_BLUE_COLOR { 12 };
+constexpr ColorIndex BRIGHT_MAGENTA_COLOR { 13 };
+constexpr ColorIndex BRIGHT_CYAN_COLOR { 14 };
+constexpr ColorIndex BRIGHT_WHITE_COLOR { 15 };
 
 struct DefaultColor {
 };
+
+constexpr DefaultColor DEFAULT_COLOR;
 
 struct RGB {
   uint32_t red :8;

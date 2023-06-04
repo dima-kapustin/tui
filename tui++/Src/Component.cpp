@@ -51,28 +51,30 @@ void Component::request_focus() {
 
     auto ancestor = get_window_ancestor();
     assert(ancestor != nullptr);        // "Cannot request_focus before the component is added to a window");
-
     auto ancestor_current_focus = ancestor->get_focus_component();
-    auto top_window = Screen::get_top_window();
+
+    auto top_window = get_top_window();
     auto top_window_current_focus = top_window->get_focus_component();
 
     if (ancestor_current_focus != shared_from_this() or (top_window_current_focus == shared_from_this() and not this->was_focus_owner)) {
       this->was_focus_owner = true;
 
-      if (auto lastEvt = Screen::get_last_focus_event()) {
-        ancestor_current_focus = lastEvt->focus.source;
+      auto &event_queue = get_event_queue();
+
+      if (auto last_focus_event = event_queue.get_last_focus_event()) {
+        ancestor_current_focus = last_focus_event->focus.source;
         if (ancestor_current_focus and ancestor_current_focus->get_window_ancestor() and ancestor_current_focus->get_window_ancestor()->is_enabled() and ancestor_current_focus->get_window_ancestor() != ancestor) {
           temporary = true;
         } else {
           temporary = false;
         }
 
-        Screen::post(std::make_shared<Event>(ancestor_current_focus, FocusEvent::FOCUS_LOST, temporary, shared_from_this()));
+        event_queue.push(std::make_shared<Event>(ancestor_current_focus, FocusEvent::FOCUS_LOST, temporary, shared_from_this()));
       } else {
         ancestor_current_focus = nullptr;
       }
 
-      Screen::post(std::make_shared<Event>(shared_from_this(), FocusEvent::FOCUS_GAINED, temporary, ancestor_current_focus));
+      event_queue.push(std::make_shared<Event>(shared_from_this(), FocusEvent::FOCUS_GAINED, temporary, ancestor_current_focus));
 
       if (auto parent = get_parent()) {
         parent->set_focus(shared_from_this());
@@ -83,6 +85,18 @@ void Component::request_focus() {
   } else {
     focus_component->request_focus();
   }
+}
+
+Screen* Component::get_screen() const {
+  return get_window_ancestor()->get_screen();
+}
+
+std::shared_ptr<Window> Component::get_top_window() const {
+  return get_screen()->get_top_window();
+}
+
+EventQueue& Component::get_event_queue() const {
+  return get_screen()->get_event_queue();
 }
 
 /**
@@ -108,4 +122,5 @@ Point convert_point_to_screen(int x, int y, std::shared_ptr<Component> from) {
   }
   return {x, y};
 }
+
 }

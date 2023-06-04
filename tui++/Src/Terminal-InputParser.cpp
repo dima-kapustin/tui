@@ -7,7 +7,7 @@ char32_t mb_to_u32(std::array<char, 4> bytes);
 constexpr char STRING_TERMINATOR = '\\';
 
 void Terminal::InputParser::parse_event() {
-  switch (char c = consume(read_terminal_input_timeout)) {
+  switch (char c = consume(this->terminal.read_input_timeout)) {
   case '\x1b':
     parse_esc();
     break;

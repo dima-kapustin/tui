@@ -1,25 +1,12 @@
 #include <iostream>
 
-#include <tui++/Screen.h>
 #include <tui++/Terminal.h>
 #include <tui++/Component.h>
+#include <tui++/Screen.h>
 
 using namespace std::string_view_literals;
 
 namespace tui {
-
-std::chrono::milliseconds Terminal::read_terminal_input_timeout { 20 };
-
-Terminal::InputParser Terminal::input_parser;
-std::vector<Terminal::Option> Terminal::set_options;
-
-MouseEvent Terminal::prev_mouse_event { };
-
-Terminal::Clock::time_point Terminal::prev_mouse_press_time;
-Terminal::Clock::time_point Terminal::prev_mouse_click_time;
-
-std::chrono::milliseconds Terminal::mouse_click_detection_timeout { 400 };
-std::chrono::milliseconds Terminal::mouse_double_click_detection_timeout { 500 };
 
 template<typename P, typename ...Params>
 static void write_ocs(const P &param, const Params &... params) {
@@ -118,7 +105,7 @@ void Terminal::new_resize_event() {
 }
 
 void Terminal::new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers) {
-  Screen::post(std::make_unique<Event>(nullptr, key_code, modifiers));
+  this->screen.post(std::make_unique<Event>(nullptr, key_code, modifiers));
 }
 
 void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button, InputEvent::Modifiers modifiers, int x, int y) {
@@ -142,22 +129,22 @@ void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button,
 
   auto p = Point { x, y };
 
-  auto component = Screen::get_component_at(p);
+  auto component = this->screen.get_component_at(p);
   if (component) {
     p = convert_point_from_screen(p, component);
   }
 
-  Screen::post(std::make_unique<Event>(component, adjusted_type, button, modifiers, p.x, p.y, wheel_rotation, false));
+  this->screen.post(std::make_unique<Event>(component, adjusted_type, button, modifiers, p.x, p.y, wheel_rotation, false));
 
   if (adjusted_type == MouseEvent::MOUSE_PRESSED) {
     prev_mouse_press_time = Clock::now();
   } else if (adjusted_type == MouseEvent::MOUSE_RELEASED) {
     if (prev_mouse_event.button == button and (Clock::now() - prev_mouse_press_time) < mouse_click_detection_timeout) {
       if ((Clock::now() - prev_mouse_click_time) < mouse_double_click_detection_timeout) {
-        Screen::post(std::make_unique<Event>(component, MouseEvent::MOUSE_CLICKED, button, modifiers, p.x, p.y, 2, false));
+        this->screen.post(std::make_unique<Event>(component, MouseEvent::MOUSE_CLICKED, button, modifiers, p.x, p.y, 2, false));
         prev_mouse_click_time = { };
       } else {
-        Screen::post(std::make_unique<Event>(component, MouseEvent::MOUSE_CLICKED, button, modifiers, p.x, p.y, 1, false));
+        this->screen.post(std::make_unique<Event>(component, MouseEvent::MOUSE_CLICKED, button, modifiers, p.x, p.y, 1, false));
         prev_mouse_click_time = Clock::now();
       }
     }
