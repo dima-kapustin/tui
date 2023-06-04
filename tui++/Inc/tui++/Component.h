@@ -378,7 +378,7 @@ public:
   /**
    * Get the Window that contains this component.
    */
-  std::shared_ptr<Window> get_window_ancestor() const;
+  std::shared_ptr<Window> get_window_ancestor() const noexcept(false);
 
   /**
    * Gets the preferred size of this component.

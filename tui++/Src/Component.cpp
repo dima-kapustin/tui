@@ -19,7 +19,7 @@ std::shared_ptr<Window> Component::get_window_ancestor() const {
       return window;
     }
   }
-  return {};
+  throw std::runtime_error("No window ancestor");
 }
 
 void Component::paint_border(Graphics &g) {
@@ -46,11 +46,8 @@ void Component::request_focus() {
   if (auto focus_component = get_focus_component(); not focus_component or not has_children()) {
     auto temporary = false;
 
-    // generate the FOCUS_GAINED only if the component does not
-    // already have the focus
-
+    // generate the FOCUS_GAINED only if the component does not already have the focus
     auto ancestor = get_window_ancestor();
-    assert(ancestor != nullptr);        // "Cannot request_focus before the component is added to a window");
     auto ancestor_current_focus = ancestor->get_focus_component();
 
     auto top_window = get_top_window();
