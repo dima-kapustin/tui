@@ -20,7 +20,7 @@ void TerminalGraphics::clip_rect(int x, int y, int width, int height) {
 }
 
 std::unique_ptr<Graphics> TerminalGraphics::create() {
-  return std::unique_ptr<Graphics> { new TerminalGraphics(this->clip, this->dx, this->dx) };
+  return std::unique_ptr<Graphics> { new TerminalGraphics(this->screen, this->clip, this->dx, this->dx) };
 }
 
 std::unique_ptr<Graphics> TerminalGraphics::create(int x, int y, int width, int height) {
@@ -30,19 +30,17 @@ std::unique_ptr<Graphics> TerminalGraphics::create(int x, int y, int width, int 
   return g;
 }
 
-void TerminalGraphics::draw_char(Char ch, int x, int y, Attributes attributes) {
+void TerminalGraphics::draw_char(Char ch, int x, int y, const Attributes &attributes) {
   if (this->clip.contains(x + this->dx, y + this->dy)) {
-//    Toolkit.getDefaultToolkit().setCursor(x + this->dx, y + this->dy);
-//    Toolkit.getDefaultToolkit().drawChar(ch, attributes | this->attributes, getCursesColors());
+    this->screen.draw_char(ch, x + this->dx, y + this->dy, this->foreground_color, this->background_color, this->attributes | attributes);
   }
 }
 
-void TerminalGraphics::draw_hline(int x, int y, int length, Char ch) {
+void TerminalGraphics::draw_hline(int x, int y, int length, Char ch, const Attributes &attributes) {
   if (auto rect = this->clip.get_intersection(x + this->dx, y + this->dy, length, 1)) {
-//    Toolkit.getDefaultToolkit().setCursor(rect.x, rect.y);
-//    for (int i = 0; i < rect.width; ++i) {
-//      Toolkit.getDefaultToolkit().drawChar(chr, this->attributes, getCursesColors());
-//    }
+    for (int x = rect.get_left(), right = rect.get_right(); x < right; ++x) {
+      this->screen.draw_char(ch, x, rect.y, this->foreground_color, this->background_color, this->attributes | attributes);
+    }
   }
 }
 
@@ -110,7 +108,7 @@ void TerminalGraphics::draw_rect(int x, int y, int width, int height) {
   }
 }
 
-void TerminalGraphics::draw_string(const std::string &str, int x, int y, Attributes attributes) {
+void TerminalGraphics::draw_string(const std::string &str, int x, int y, const Attributes &attributes) {
   x += this->dx;
   y += this->dy;
   if (auto rect = this->clip.get_intersection(x, y, str.length(), 1)) {
@@ -119,12 +117,11 @@ void TerminalGraphics::draw_string(const std::string &str, int x, int y, Attribu
   }
 }
 
-void TerminalGraphics::draw_vline(int x, int y, int length, Char ch) {
+void TerminalGraphics::draw_vline(int x, int y, int length, Char ch, const Attributes &attributes) {
   if (auto rect = this->clip.get_intersection(x + this->dx, y + this->dy, 1, length)) {
-//    for (int i = 0; i < rect.height; ++i) {
-//      Toolkit.getDefaultToolkit().setCursor(rect.x, rect.y + i);
-//      Toolkit.getDefaultToolkit().drawChar(chr, this->attributes, getCursesColors());
-//    }
+    for (int y = rect.get_top(), bottom = rect.get_bottom(); y < bottom; ++y) {
+      this->screen.draw_char(ch, rect.x, y, this->foreground_color, this->background_color, this->attributes | attributes);
+    }
   }
 }
 

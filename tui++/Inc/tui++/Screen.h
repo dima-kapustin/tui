@@ -10,6 +10,7 @@
 namespace tui {
 
 class Window;
+class Graphics;
 
 class Screen {
 protected:
@@ -18,6 +19,8 @@ protected:
 
   std::mutex windows_mutex;
   std::vector<std::shared_ptr<Window>> windows;
+
+  Dimension size;
 
 private:
   void add_window(const std::shared_ptr<Window> &window);
@@ -28,13 +31,26 @@ private:
 protected:
   Screen() = default;
 
+  void paint(Graphics &g);
+
 public:
   EventQueue& get_event_queue() {
     return this->event_queue;
   }
 
   virtual void run_event_loop() = 0;
-  virtual Dimension get_size() const = 0;
+
+  int get_width() const {
+    return this->size.width;
+  }
+
+  int get_height() const {
+    return this->size.height;
+  }
+
+  const Dimension& get_size() const {
+    return this->size;
+  }
 
   void post(const std::shared_ptr<Event> &event);
   void post(std::function<void()> fn) {
@@ -47,7 +63,7 @@ public:
     return get_component_at(p.x, p.y);
   }
 
-  void refresh();
+  virtual void refresh() = 0;
 };
 
 }

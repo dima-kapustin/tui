@@ -71,6 +71,22 @@ struct Rectangle: Point, Dimension {
     return this->x != other.x or this->y != other.y or this->width != other.width or this->height != other.height;
   }
 
+  constexpr int get_left() const {
+    return this->x;
+  }
+
+  constexpr int get_top() const {
+    return this->y;
+  }
+
+  constexpr int get_right() const {
+    return this->x + this->width;
+  }
+
+  constexpr int get_bottom() const {
+    return this->y + this->height;
+  }
+
   // Intersection
   constexpr Rectangle get_intersection(int x, int y, int width, int height) const {
     Rectangle other { x, y, width, height };
@@ -153,7 +169,7 @@ struct Rectangle: Point, Dimension {
   }
 
   constexpr operator BoundingBox() const {
-    return {this->x, this->x + this->width, this->y, this->y + this->height};
+    return {get_left(), get_right(), get_top(), get_bottom()};
   }
 };
 

@@ -1,25 +1,33 @@
 #pragma once
 
 #include <tui++/Graphics.h>
+#include <tui++/terminal/TerminalScreen.h>
 
 namespace tui::terminal {
 
+class TerminalScreen;
+
 class TerminalGraphics: public Graphics {
+  TerminalScreen &screen;
+
+  Font font;
+  int dx, dy;
+  Rectangle clip;
+
   Color foreground_color;
   Color background_color;
-  Font font;
   Attributes attributes = Attributes::NONE;
-  Rectangle clip;
-  int dx, dy;
 
 private:
-  TerminalGraphics() {
-    TerminalGraphics( { }, 0, 0);
+  TerminalGraphics(TerminalScreen &screen) :
+      TerminalGraphics(screen, Rectangle { 0, 0, screen.get_width(), screen.get_height() }, 0, 0) {
   }
 
-  TerminalGraphics(const Rectangle &clip_rect, int dx, int dy) :
-      clip(clip_rect), dx(dx), dy(dy) {
+  TerminalGraphics(TerminalScreen &screen, const Rectangle &clip_rect, int dx, int dy) :
+      screen(screen), dx(dx), dy(dy), clip(clip_rect) {
   }
+
+  friend class TerminalScreen;
 
 private:
   void reset(const Rectangle &r);
@@ -33,15 +41,15 @@ public:
 
   std::unique_ptr<Graphics> create(int x, int y, int width, int height) override;
 
-  void draw_char(Char ch, int x, int y, Attributes attributes) override;
+  void draw_char(Char ch, int x, int y, const Attributes &attributes) override;
 
-  void draw_hline(int x, int y, int length, Char ch) override;
+  void draw_hline(int x, int y, int length, Char ch, const Attributes &attributes) override;
 
   void draw_rect(int x, int y, int width, int height) override;
 
-  void draw_string(const std::string &str, int x, int y, Attributes attributes) override;
+  void draw_string(const std::string &str, int x, int y, const Attributes &attributes) override;
 
-  void draw_vline(int x, int y, int length, Char ch) override;
+  void draw_vline(int x, int y, int length, Char ch, const Attributes &attributes) override;
 
   void fill_rect(int x, int y, int width, int height) override;
 

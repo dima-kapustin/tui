@@ -6,6 +6,10 @@
 
 namespace tui {
 
+void Screen::paint(Graphics &g) {
+
+}
+
 void Screen::post(const std::shared_ptr<Event> &event) {
   this->event_queue.push(event);
 }
@@ -38,10 +42,6 @@ void Screen::remove_window(const std::shared_ptr<Window> &window) {
   } else {
     throw std::runtime_error("unknown window");
   }
-}
-
-void Screen::refresh() {
-
 }
 
 }

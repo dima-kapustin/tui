@@ -1,5 +1,6 @@
 #include <tui++/terminal/Terminal.h>
 #include <tui++/terminal/TerminalScreen.h>
+#include <tui++/terminal/TerminalGraphics.h>
 
 #include <iostream>
 
@@ -16,8 +17,18 @@ void TerminalScreen::run_event_loop() {
   }
 }
 
-Dimension TerminalScreen::get_size() const {
-  return this->terminal.get_size();
+void TerminalScreen::refresh() {
+  auto size = this->size;
+  this->size = this->terminal.get_size();
+  if (size != this->size) {
+    this->chars.resize(this->size.height);
+    for (auto &&row : this->chars) {
+      row.resize(this->size.width);
+    }
+  }
+
+  auto g = TerminalGraphics { *this };
+  paint(g);
 }
 
 }
