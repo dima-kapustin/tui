@@ -74,7 +74,7 @@ public:
   }
 
   constexpr EnumMask& operator|=(const EnumMask &other) {
-    this->flags |= UT(other.flags);
+    this->flags |= other.flags;
     return *this;
   }
 
@@ -85,7 +85,7 @@ public:
   }
 
   constexpr EnumMask operator~() const {
-    return {~UT(this->flags)};
+    return {E(~this->flags)};
   }
 
   constexpr EnumMask operator&=(E other) {
@@ -99,8 +99,8 @@ public:
     return result;
   }
 
-  constexpr EnumMask operator&=(const EnumMask &other) const {
-    this->flags &= UT(other.flags);
+  constexpr EnumMask operator&=(const EnumMask &other) {
+    this->flags &= other.flags;
     return *this;
   }
 
@@ -122,7 +122,7 @@ public:
     return this->flags == UT(other);
   }
 
-  constexpr bool operator!=(const EnumMask &other) const {
+  constexpr bool operator!=(const EnumMask &other) {
     return this->flags != other.flags;
   }
 

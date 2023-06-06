@@ -9,6 +9,14 @@ namespace tui {
 
 struct ColorIndex {
   unsigned value;
+
+  constexpr bool operator==(const ColorIndex &other) const {
+    return this->value == other.value;
+  }
+
+  constexpr bool operator!=(const ColorIndex &other) const {
+    return this->value != other.value;
+  }
 };
 
 constexpr ColorIndex BLACK_COLOR { 0 };
@@ -29,6 +37,13 @@ constexpr ColorIndex BRIGHT_CYAN_COLOR { 14 };
 constexpr ColorIndex BRIGHT_WHITE_COLOR { 15 };
 
 struct DefaultColor {
+  constexpr bool operator==(const DefaultColor&) const {
+    return true;
+  }
+
+  constexpr bool operator!=(const DefaultColor&) const {
+    return false;
+  }
 };
 
 constexpr DefaultColor DEFAULT_COLOR;
@@ -120,9 +135,14 @@ constexpr HSL rgb_to_hsl(RGB x) {
 }
 
 struct TrueColor {
-  uint32_t red :8;
-  uint32_t green :8;
-  uint32_t blue :8;
+  union {
+    struct {
+      uint32_t red :8;
+      uint32_t green :8;
+      uint32_t blue :8;
+    };
+    uint32_t value;
+  };
 
   constexpr TrueColor(RGB x) :
       red { x.red }, green { x.green }, blue { x.blue } {
@@ -131,6 +151,15 @@ struct TrueColor {
   constexpr TrueColor(HSL x) :
       TrueColor { hsl_to_rgb(x) } {
   }
+
+  constexpr bool operator==(const TrueColor &other) const {
+    return this->value == other.value;
+  }
+
+  constexpr bool operator!=(const TrueColor &other) const {
+    return this->value != other.value;
+  }
+
 };
 
 using Color = std::variant<ColorIndex, DefaultColor, TrueColor>;

@@ -110,26 +110,24 @@ void TerminalGraphics::draw_rect(int x, int y, int width, int height) {
 }
 
 void TerminalGraphics::draw_string(const std::string &str, int x, int y, const Attributes &attributes) {
-  if (auto rect = this->clip.get_intersection(x + this->dx, y + this->dy, str.length(), 1)) {
-    auto x = 0, right = rect.get_right();
+  if (auto rect = this->clip.get_intersection(x + this->dx, y + this->dy, util::glyph_width(str), 1)) {
+    auto right = rect.get_right();
     for (auto &&glyph : util::to_glyphs(str, rect.x)) {
       auto glyph_width = (int) util::glyph_width(glyph);
       if ((x + glyph_width) >= rect.x) {
         draw_char( { glyph }, x, y, attributes);
-        x += glyph_width;
-        if (x >= right) {
-          break;
-        }
+      }
+      x += glyph_width;
+      if (x >= right) {
+        break;
       }
     }
-//    Toolkit.getDefaultToolkit().setCursor(rect.x, rect.y);
-//    Toolkit.getDefaultToolkit().drawString(str.substring(rect.x - x, rect.x - x + rect.width), attributes | this->attributes, getCursesColors());
   }
 }
 
 void TerminalGraphics::draw_vline(int x, int y, int length, Char ch, const Attributes &attributes) {
   if (auto rect = this->clip.get_intersection(x + this->dx, y + this->dy, 1, length)) {
-    for (int y = rect.get_top(), bottom = rect.get_bottom(); y < bottom; ++y) {
+    for (auto y = rect.get_top(), bottom = rect.get_bottom(); y < bottom; ++y) {
       this->screen.draw_char(ch, rect.x, y, this->foreground_color, this->background_color, this->attributes | attributes);
     }
   }
@@ -137,12 +135,11 @@ void TerminalGraphics::draw_vline(int x, int y, int length, Char ch, const Attri
 
 void TerminalGraphics::fill_rect(int x, int y, int width, int height) {
   if (auto rect = this->clip.get_intersection(x + this->dx, y + this->dy, width, height)) {
-//    for (int j = rect.y, bottom = rect.y + rect.height; j < bottom; j++) {
-//      Toolkit.getDefaultToolkit().setCursor(rect.x, j);
-//      for (int i = rect.x, right = rect.x + rect.width; i < right; i++) {
-//        Toolkit.getDefaultToolkit().drawChar(' ', this->attributes, getCursesColors());
-//      }
-//    }
+    for (auto j = rect.get_top(), bottom = rect.get_bottom(); j < bottom; j++) {
+      for (auto i = rect.get_left(), right = rect.get_right(); i < right; i++) {
+        this->screen.draw_char(' ', i, j, this->foreground_color, this->background_color, this->attributes);
+      }
+    }
   }
 }
 

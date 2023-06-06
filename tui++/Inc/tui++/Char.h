@@ -13,6 +13,11 @@ struct Char {
   constexpr Char(const Char&) = default;
   constexpr Char(Char&&) = default;
 
+  constexpr Char(char ch) :
+      utf8 { } {
+    *this = ch;
+  }
+
   constexpr Char(const char *s) :
       utf8 { } {
     *this = s;
@@ -30,6 +35,12 @@ struct Char {
 
   constexpr Char& operator=(const Char&) = default;
   constexpr Char& operator=(Char&&) = default;
+
+  constexpr Char& operator=(char ch) {
+    this->utf8[0] = ch;
+    this->utf8[1] = 0;
+    return *this;
+  }
 
   constexpr Char& operator=(const char *s) {
     auto length = std::min(MAX_MB_CHAR_LEN, std::char_traits<char>::length(s));
@@ -52,6 +63,11 @@ struct Char {
     return *this;
   }
 };
+
+inline std::ostream& operator<<(std::ostream &os, const Char &ch) {
+  os << ch.utf8;
+  return os;
+}
 
 }
 
