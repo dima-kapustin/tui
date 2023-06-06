@@ -136,6 +136,8 @@ static void escape_foreground_color(std::ostream &os, const Color &color) {
   std::visit(SetForegroundColor { os }, color);
 }
 
+TerminalScreen::CharView TerminalScreen::EMPTY_CHAR_VIEW;
+
 void TerminalScreen::run_event_loop() {
   while (not this->quit) {
     this->terminal.read_events();
@@ -160,6 +162,7 @@ void TerminalScreen::refresh() {
     this->chars.resize(this->size.height);
     for (auto &&row : this->chars) {
       row.resize(this->size.width);
+      std::fill(row.begin(), row.end(), EMPTY_CHAR_VIEW);
     }
   }
 
@@ -173,8 +176,7 @@ std::string TerminalScreen::to_string() const {
   buffer.reserve(4 * get_width() * get_height() + get_height());
   std::ostringstream os(buffer);
 
-  const auto default_cv = CharView { { ' ' } };
-  const auto *prev_cv = &default_cv;
+  const auto *prev_cv = &EMPTY_CHAR_VIEW;
 
   auto escape_attrs_and_colors = [&](const CharView &cv) {
     auto reset = prev_cv->attributes & ~cv.attributes;
@@ -195,7 +197,7 @@ std::string TerminalScreen::to_string() const {
 
   for (auto y = 0; y < get_height(); ++y) {
     if (y) {
-      escape_attrs_and_colors(default_cv);
+      escape_attrs_and_colors(EMPTY_CHAR_VIEW);
       os << "\r\n";
     }
 
@@ -209,7 +211,7 @@ std::string TerminalScreen::to_string() const {
     }
   }
 
-  escape_attrs_and_colors(default_cv);
+  escape_attrs_and_colors(EMPTY_CHAR_VIEW);
 
   return os.str();
 }
@@ -217,7 +219,7 @@ std::string TerminalScreen::to_string() const {
 void TerminalScreen::clear() {
   for (auto &line : this->chars) {
     for (auto &cell : line) {
-      cell = { };
+      cell = EMPTY_CHAR_VIEW;
     }
   }
 }

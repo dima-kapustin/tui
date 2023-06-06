@@ -16,14 +16,25 @@ class GlyphIterator {
   const char *utf8;
   std::size_t utf8_size;
   std::size_t utf8_index;
+  std::size_t glyph_width = 0;
 
 private:
+  size_t next_glyph_width() const {
+    return glyph_next(this->utf8, this->utf8_size, this->utf8_index) - this->utf8_index;
+  }
+
   void next() {
-    this->utf8_index = glyph_next(this->utf8, this->utf8_size, this->utf8_index);
+    if (this->glyph_width) {
+      this->utf8_index += this->glyph_width;
+      this->glyph_width = 0;
+    } else {
+      this->utf8_index = glyph_next(this->utf8, this->utf8_size, this->utf8_index);
+    }
   }
 
   void prev() {
-    this->utf8_index = glyph_prev(this->utf8, this->utf8_size, this->utf8_index);
+    this->glyph_width = this->utf8_index - glyph_prev(this->utf8, this->utf8_size, this->utf8_index);
+    this->utf8_index -= this->glyph_width;
   }
 
   friend constexpr GlyphIterator begin(const GlyphIterator &i);
@@ -73,8 +84,10 @@ public:
   }
 
   const std::string_view operator*() const {
-    auto width = glyph_width(this->utf8 + this->utf8_index, this->utf8_size - this->utf8_index);
-    return {this->utf8 + this->utf8_index, width};
+    if (not this->glyph_width) {
+      const_cast<GlyphIterator*>(this)->glyph_width = next_glyph_width();
+    }
+    return {this->utf8 + this->utf8_index, this->glyph_width};
   }
 };
 

@@ -20,7 +20,7 @@ class TerminalScreen: public Screen {
   Terminal &terminal;
 
   struct CharView {
-    Char ch { };
+    Char ch = ' ';
     Attributes attributes = Attributes::NONE;
     Color foreground_color = DEFAULT_COLOR;
     Color background_color = DEFAULT_COLOR;
@@ -33,6 +33,8 @@ class TerminalScreen: public Screen {
       return get_width() == 2;
     }
   };
+
+  static CharView EMPTY_CHAR_VIEW;
 
   std::vector</* rows */std::vector</* columns */CharView>> chars;
 
