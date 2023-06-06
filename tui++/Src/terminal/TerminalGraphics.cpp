@@ -1,3 +1,4 @@
+#include <tui++/util/GlyphIterator.h>
 #include <tui++/terminal/TerminalGraphics.h>
 
 namespace tui::terminal {
@@ -110,6 +111,17 @@ void TerminalGraphics::draw_rect(int x, int y, int width, int height) {
 
 void TerminalGraphics::draw_string(const std::string &str, int x, int y, const Attributes &attributes) {
   if (auto rect = this->clip.get_intersection(x + this->dx, y + this->dy, str.length(), 1)) {
+    auto x = 0, right = rect.get_right();
+    for (auto &&glyph : util::to_glyphs(str, rect.x)) {
+      auto glyph_width = (int) util::glyph_width(glyph);
+      if ((x + glyph_width) >= rect.x) {
+        draw_char( { glyph }, x, y, attributes);
+        x += glyph_width;
+        if (x >= right) {
+          break;
+        }
+      }
+    }
 //    Toolkit.getDefaultToolkit().setCursor(rect.x, rect.y);
 //    Toolkit.getDefaultToolkit().drawString(str.substring(rect.x - x, rect.x - x + rect.width), attributes | this->attributes, getCursesColors());
   }

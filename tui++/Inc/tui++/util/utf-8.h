@@ -11,7 +11,10 @@ u8string u32_to_mb(char32_t c);
 
 std::size_t glyph_width(const char *utf8, std::size_t size);
 inline std::size_t glyph_width(const std::string &utf8) {
-  return glyph_width(utf8.c_str(), utf8.size());
+  return glyph_width(utf8.data(), utf8.size());
+}
+inline std::size_t glyph_width(const std::string_view &utf8) {
+  return glyph_width(utf8.data(), utf8.size());
 }
 
 std::size_t glyph_next(const char *utf8, std::size_t size, std::size_t index);
