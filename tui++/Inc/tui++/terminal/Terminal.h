@@ -252,7 +252,7 @@ public:
   Dimension get_size();
 
   void move_cursor_to(int line, int column);
-  void move_cursor_right(int columns);
+  void move_cursor_by(int lines, int columns);
 
   void print(const std::string &s);
 

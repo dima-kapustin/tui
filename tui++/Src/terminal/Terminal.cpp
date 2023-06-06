@@ -94,12 +94,20 @@ void Terminal::deinit() {
 
 void Terminal::move_cursor_to(int line, int column) {
   std::cout << "\x1b[" << line << ';' << column << 'H';
-  flush();
 }
 
-void Terminal::move_cursor_right(int columns) {
-  std::cout << "\x1b[" << columns << 'C';
-  flush();
+void Terminal::move_cursor_by(int lines, int columns) {
+  if (lines > 0) {
+    std::cout << "\x1b[" << lines << 'B';
+  } else if (lines < 0) {
+    std::cout << "\x1b[" << -lines << 'A';
+  }
+
+  if (columns > 0) {
+    std::cout << "\x1b[" << columns << 'C';
+  } else if (columns < 0) {
+    std::cout << "\x1b[" << -columns << 'D';
+  }
 }
 
 void Terminal::print(const std::string &s) {
