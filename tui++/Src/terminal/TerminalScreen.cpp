@@ -163,7 +163,7 @@ std::string TerminalScreen::to_string() const {
   const auto default_cv = CharView { { ' ' } };
   const auto *prev_cv = &default_cv;
 
-  auto apply_attrs_and_colors = [&](const CharView &cv) {
+  auto escape_attrs_and_colors = [&](const CharView &cv) {
     auto reset = prev_cv->attributes & ~cv.attributes;
     auto set = ~prev_cv->attributes & cv.attributes;
 
@@ -182,21 +182,21 @@ std::string TerminalScreen::to_string() const {
 
   for (auto y = 0; y < get_height(); ++y) {
     if (y) {
-      apply_attrs_and_colors(default_cv);
+      escape_attrs_and_colors(default_cv);
       os << "\r\n";
     }
 
     auto skip = false;
     for (auto &&cv : this->chars[y]) {
       if (not skip) {
-        apply_attrs_and_colors(cv);
+        escape_attrs_and_colors(cv);
         os << cv.ch;
       }
       skip = cv.is_wide();
     }
   }
 
-  apply_attrs_and_colors(default_cv);
+  escape_attrs_and_colors(default_cv);
 
   return os.str();
 }
