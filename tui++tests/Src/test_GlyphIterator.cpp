@@ -7,7 +7,7 @@ using namespace std::string_literals;
 
 void test_GlyphIterator() {
   auto utf8 = "测试"s;
-  auto glyphs = GlyphIterator<const std::string> { utf8 };
+  auto glyphs = GlyphIterator { utf8.data(), utf8.size() };
 
   ++glyphs;
   ++glyphs;
@@ -17,5 +17,5 @@ void test_GlyphIterator() {
   --glyphs;
   --glyphs;
 
-  assert(glyphs == begin(GlyphIterator<const std::string> { utf8 }));
+  assert(glyphs == begin(GlyphIterator { utf8.data(), utf8.size() }));
 }

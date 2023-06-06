@@ -6,59 +6,48 @@
 
 namespace tui::util {
 
-template<typename T, typename Enable = void>
 class GlyphIterator;
 
-template<typename T>
-constexpr GlyphIterator<T> begin(const GlyphIterator<T> &i);
+constexpr GlyphIterator begin(const GlyphIterator &i);
 
-template<typename T>
-constexpr GlyphIterator<T> end(const GlyphIterator<T> &i);
+constexpr GlyphIterator end(const GlyphIterator &i);
 
-template<>
-class GlyphIterator<const std::string> {
-protected:
-  const std::string &utf8;
+class GlyphIterator {
+  const char *utf8;
+  std::size_t utf8_size;
   std::size_t utf8_index;
 
-protected:
+private:
   void next() {
-    this->utf8_index = glyph_next(this->utf8.data(), this->utf8.size(), this->utf8_index);
+    this->utf8_index = glyph_next(this->utf8, this->utf8_size, this->utf8_index);
   }
 
   void prev() {
-    this->utf8_index = glyph_prev(this->utf8.data(), this->utf8.size(), this->utf8_index);
+    this->utf8_index = glyph_prev(this->utf8, this->utf8_size, this->utf8_index);
   }
 
-private:
-  template<typename T>
-  friend constexpr GlyphIterator<T> begin(const GlyphIterator<T> &i);
+  friend constexpr GlyphIterator begin(const GlyphIterator &i);
 
-  template<typename T>
-  friend constexpr GlyphIterator<T> end(const GlyphIterator<T> &i);
+  friend constexpr GlyphIterator end(const GlyphIterator &i);
 
 public:
-  GlyphIterator(const std::string &utf8) :
-      utf8(utf8), utf8_index(0) {
+  constexpr GlyphIterator(const char *utf8, size_t size, size_t index = 0) :
+      utf8(utf8), utf8_size(size), utf8_index(index) {
   }
 
-  GlyphIterator(const std::string &utf8, size_t index) :
-      utf8(utf8), utf8_index(index) {
-  }
-
-  GlyphIterator(const GlyphIterator&) = default;
-  GlyphIterator(GlyphIterator&&) = default;
+  constexpr GlyphIterator(const GlyphIterator&) = default;
+  constexpr GlyphIterator(GlyphIterator&&) = default;
 
   GlyphIterator& operator=(const GlyphIterator&) = delete;
   GlyphIterator& operator=(GlyphIterator&&) = delete;
 
 public:
   constexpr bool operator==(const GlyphIterator &other) const {
-    return this->utf8_index == other.utf8_index and &this->utf8 == &other.utf8;
+    return this->utf8_index == other.utf8_index and this->utf8 == other.utf8;
   }
 
   constexpr bool operator!=(const GlyphIterator &other) const {
-    return this->utf8_index != other.utf8_index or &this->utf8 != &other.utf8;
+    return this->utf8_index != other.utf8_index or this->utf8 != other.utf8;
   }
 
   GlyphIterator& operator++() {
@@ -69,7 +58,7 @@ public:
   GlyphIterator operator++(int) {
     auto utf8_index = this->utf8_index;
     next();
-    return {this->utf8, utf8_index};
+    return {this->utf8, this->utf8_size, utf8_index};
   }
 
   GlyphIterator& operator--() {
@@ -80,54 +69,33 @@ public:
   GlyphIterator operator--(int) {
     auto utf8_index = this->utf8_index;
     prev();
-    return {this->utf8, utf8_index};
+    return {this->utf8, this->utf8_size, utf8_index};
+  }
+
+  const std::string_view operator*() const {
+    auto width = glyph_width(this->utf8 + this->utf8_index, this->utf8_size - this->utf8_index);
+    return {this->utf8 + this->utf8_index, width};
   }
 };
 
-template<>
-class GlyphIterator<std::string> : public GlyphIterator<const std::string> {
-  using base = GlyphIterator<const std::string>;
-
-public:
-  GlyphIterator(std::string &utf8) :
-      base(utf8) {
-  }
-
-  GlyphIterator(const std::string &utf8, size_t index) :
-      base(utf8, index) {
-  }
-
-  GlyphIterator& operator++() {
-    base::operator ++();
-    return *this;
-  }
-
-  GlyphIterator operator++(int) {
-    auto utf8_index = this->utf8_index;
-    next();
-    return {const_cast<std::string&>(this->utf8), utf8_index};
-  }
-
-  GlyphIterator& operator--() {
-    base::operator --();
-    return *this;
-  }
-
-  GlyphIterator operator--(int) {
-    auto utf8_index = this->utf8_index;
-    prev();
-    return {const_cast<std::string&>(this->utf8), utf8_index};
-  }
-};
-
-template<typename T>
-constexpr GlyphIterator<T> begin(const GlyphIterator<T> &i) {
+constexpr GlyphIterator begin(const GlyphIterator &i) {
   return i;
 }
 
-template<typename T>
-constexpr GlyphIterator<T> end(const GlyphIterator<T> &i) {
-  return {i.utf8, i.utf8.size()};
+constexpr GlyphIterator end(const GlyphIterator &i) {
+  return {const_cast<char*>(i.utf8), i.utf8_size, i.utf8_size};
+}
+
+constexpr GlyphIterator glyphs(const char *utf8, std::size_t size, std::size_t index = 0) {
+  return {utf8, size, index};
+}
+
+constexpr GlyphIterator glyphs(const std::string &utf8, std::size_t index = 0) {
+  return glyphs(utf8.data(), utf8.size(), index);
+}
+
+constexpr GlyphIterator glyphs(const std::string_view &utf8, std::size_t index = 0) {
+  return glyphs(utf8.data(), utf8.size(), index);
 }
 
 }

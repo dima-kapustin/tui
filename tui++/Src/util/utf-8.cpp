@@ -1492,7 +1492,7 @@ std::size_t glyph_width(const char *utf8, std::size_t size) {
   auto index = std::size_t { 0 };
   while (index < size) {
     auto cp = char32_t { };
-    auto cp_len = mb_to_u32(&utf8[index], size - index, &cp);
+    auto cp_len = mb_to_u32(utf8 + index, size - index, &cp);
     if (cp_len < 0) {
       index += 1;
       continue;
@@ -1509,7 +1509,7 @@ std::size_t glyph_width(const char *utf8, std::size_t size) {
 std::size_t glyph_next(const char *utf8, std::size_t size, std::size_t index) {
   while (index < size) {
     auto cp = char32_t { };
-    auto cp_len = mb_to_u32(&utf8[index], size - index, &cp);
+    auto cp_len = mb_to_u32(utf8 + index, size - index, &cp);
     if (cp_len < 0) {
       index += 1;
     } else {
