@@ -37,15 +37,15 @@ public:
 
   std::unique_ptr<Graphics> create(int x, int y, int width, int height) override;
 
-  void draw_char(Char ch, int x, int y, const Attributes &attributes) override;
+  void draw_char(Char ch, int x, int y, const Attributes &attributes = Attributes::NONE) override;
 
-  void draw_hline(int x, int y, int length, Char ch, const Attributes &attributes) override;
+  void draw_hline(int x, int y, int length, Char ch, const Attributes &attributes = Attributes::NONE) override;
 
   void draw_rect(int x, int y, int width, int height) override;
 
-  void draw_string(const std::string &str, int x, int y, const Attributes &attributes) override;
+  void draw_string(const std::string &str, int x, int y, const Attributes &attributes = Attributes::NONE) override;
 
-  void draw_vline(int x, int y, int length, Char ch, const Attributes &attributes) override;
+  void draw_vline(int x, int y, int length, Char ch, const Attributes &attributes = Attributes::NONE) override;
 
   void fill_rect(int x, int y, int width, int height) override;
 
@@ -62,6 +62,10 @@ public:
   void set_font(const Font &font) override;
 
   void translate(int dx, int dy) override;
+
+  void flush() {
+    this->screen.flush();
+  }
 };
 
 }

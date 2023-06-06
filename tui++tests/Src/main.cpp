@@ -1,4 +1,5 @@
 #include <tui++/terminal/Terminal.h>
+#include <tui++/terminal/TerminalGraphics.h>
 
 using namespace tui;
 using namespace tui::terminal;
@@ -15,7 +16,12 @@ int main(int argc, char *argv[]) {
   Terminal terminal;
   terminal.set_title("Welcome to tui++");
 
-  auto g = terminal.get_graphics();
+  terminal.post([&terminal] {
+    auto g = terminal.get_graphics();
+    g->set_foreground_color(GREEN_COLOR);
+    g->draw_string("Привет, мир!", 1, 1);
+    g->flush();
+  });
 
   terminal.run_event_loop();
 }

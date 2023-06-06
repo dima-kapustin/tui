@@ -11,11 +11,11 @@ namespace tui::terminal {
 constexpr std::chrono::milliseconds WAIT_EVENT_TIMEOUT { 30 };
 
 static void escape_attrs(std::ostream &os, const Attributes &reset, const Attributes &set) {
-  os << "\x1B[";
-
-  auto pos = os.tellp();
+  auto reset_pos = os.tellp();
   for (auto &&attr : reset) {
-    if (pos != os.tellp()) {
+    if (reset_pos == os.tellp()) {
+      os << "\x1B[";
+    } else {
       os << ';';
     }
     switch (attr) {
@@ -49,8 +49,11 @@ static void escape_attrs(std::ostream &os, const Attributes &reset, const Attrib
     }
   }
 
+  auto set_pos = os.tellp();
   for (auto &&attr : set) {
-    if (pos != os.tellp()) {
+    if (reset_pos == os.tellp()) {
+      os << "\x1B[";
+    } else if (set_pos != os.tellp()) {
       os << ';';
     }
     switch (attr) {
@@ -90,7 +93,9 @@ static void escape_attrs(std::ostream &os, const Attributes &reset, const Attrib
     }
   }
 
-  os << 'm';
+  if (reset_pos != os.tellp()) {
+    os << 'm';
+  }
 }
 
 static void escape_background_color(std::ostream &os, const Color &color) {
@@ -136,6 +141,14 @@ void TerminalScreen::run_event_loop() {
     this->terminal.read_events();
     if (auto event = this->event_queue.pop(WAIT_EVENT_TIMEOUT)) {
       std::cout << *event << std::endl;
+      switch (event->type) {
+      case Event::INVOCATION:
+        event->invocation.target();
+        break;
+
+      default:
+        break;
+      }
     }
   }
 }
@@ -199,6 +212,14 @@ std::string TerminalScreen::to_string() const {
   escape_attrs_and_colors(default_cv);
 
   return os.str();
+}
+
+void TerminalScreen::clear() {
+  for (auto &line : this->chars) {
+    for (auto &cell : line) {
+      cell = { };
+    }
+  }
 }
 
 void TerminalScreen::flush() const {

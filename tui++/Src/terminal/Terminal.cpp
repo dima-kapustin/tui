@@ -125,7 +125,7 @@ void Terminal::set_title(const std::string &title) {
 }
 
 void Terminal::new_resize_event() {
-  std::cout << "Resize Event" << std::endl;
+  this->screen.refresh();
 }
 
 void Terminal::new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers) {

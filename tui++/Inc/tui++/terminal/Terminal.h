@@ -265,6 +265,10 @@ public:
   void run_event_loop() {
     this->screen.run_event_loop();
   }
+
+  void post(std::function<void()> fn) {
+    this->screen.post(std::move(fn));
+  }
 };
 
 }

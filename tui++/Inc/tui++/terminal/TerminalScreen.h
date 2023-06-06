@@ -60,6 +60,7 @@ public:
   virtual void refresh();
 
   std::string to_string() const;
+  void clear();
   void flush() const;
 };
 
