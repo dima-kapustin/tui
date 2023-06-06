@@ -203,6 +203,7 @@ std::string TerminalScreen::to_string() const {
 
 void TerminalScreen::flush() const {
   std::cout << to_string();
+  this->terminal.flush();
 }
 
 }
