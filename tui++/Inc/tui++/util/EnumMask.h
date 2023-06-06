@@ -2,7 +2,7 @@
 
 #include <type_traits>
 
-namespace tui {
+namespace tui::util {
 
 template<typename E, std::enable_if_t<std::is_enum_v<E>, bool> = true>
 class EnumMask {
@@ -142,11 +142,11 @@ public:
 }
 
 template<typename E, std::enable_if_t<std::is_enum_v<E>, bool> = true>
-constexpr tui::EnumMask<E> operator|(E a, E b) {
+constexpr tui::util::EnumMask<E> operator|(E a, E b) {
   return {E(std::underlying_type_t<E>(a) | std::underlying_type_t<E>(b))};
 }
 
 template<typename E, std::enable_if_t<std::is_enum_v<E>, bool> = true>
-constexpr tui::EnumMask<E> operator&(E a, E b) {
+constexpr tui::util::EnumMask<E> operator&(E a, E b) {
   return {E(std::underlying_type_t<E>(a) & std::underlying_type_t<E>(b))};
 }

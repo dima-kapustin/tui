@@ -1,6 +1,6 @@
 #pragma once
 
-#include <tui++/EnumMask.h>
+#include <tui++/util/EnumMask.h>
 
 namespace tui {
 
@@ -15,7 +15,7 @@ public:
     ITALIC = 2
   };
 
-  using Style = EnumMask<StyleFlags>;
+  using Style = util::EnumMask<StyleFlags>;
 
 private:
   Style style = PLAIN;
