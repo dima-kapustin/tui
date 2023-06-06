@@ -27,17 +27,13 @@ public:
 
   virtual void draw_char(Char ch, int x, int y, const Attributes &attributes = Attributes::NONE) = 0;
 
-  void draw_char(Char ch, int x, int y) {
-    draw_char(ch, x, y, Attributes::NONE);
-  }
-
   /**
    * Draws a horizontal line, using the current color, starting at the given point <code>(x1,&nbsp;y1)</code> in this graphics context's
    * coordinate system, with the given length and character.
    */
   virtual void draw_hline(int x, int y, int length, Char ch, const Attributes &attributes = Attributes::NONE) = 0;
-  void draw_hline(int x, int y, int length) {
-    draw_hline(x, y, length, BoxDrawing::HORIZONTAL_LIGHT);
+  void draw_hline(int x, int y, int length, const Attributes &attributes = Attributes::NONE) {
+    draw_hline(x, y, length, BoxDrawing::HORIZONTAL_LIGHT, attributes);
   }
 
   virtual void draw_rect(int x, int y, int width, int height) = 0;
@@ -45,9 +41,6 @@ public:
     draw_rect(rect.x, rect.y, rect.width, rect.height);
   }
 
-  void draw_string(const std::string &str, int x, int y) {
-    draw_string(str, x, y, Attributes::NONE);
-  }
   virtual void draw_string(const std::string &str, int x, int y, const Attributes &attributes = Attributes::NONE) = 0;
 
   /**
@@ -59,8 +52,8 @@ public:
    * Draws a vertical line, using the current color, starting at the given point <code>(x1,&nbsp;y1)</code> in this graphics context's
    * coordinate system and with the given length.
    */
-  void draw_vline(int x, int y, int length) {
-    draw_vline(x, y, length, BoxDrawing::VERTICAL_LIGHT);
+  void draw_vline(int x, int y, int length, const Attributes &attributes = Attributes::NONE) {
+    draw_vline(x, y, length, BoxDrawing::VERTICAL_LIGHT, attributes);
   }
 
   virtual void fill_rect(int x, int y, int width, int height) = 0;
