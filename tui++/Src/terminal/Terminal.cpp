@@ -92,12 +92,27 @@ void Terminal::deinit() {
   flush();
 }
 
+void Terminal::move_cursor_to(int line, int column) {
+  std::cout << "\x1b[" << line << ';' << column << 'H';
+  flush();
+}
+
+void Terminal::move_cursor_right(int columns) {
+  std::cout << "\x1b[" << columns << 'C';
+  flush();
+}
+
+void Terminal::print(const std::string &s) {
+  std::cout << s;
+}
+
 void Terminal::flush() {
   std::cout << std::flush;
 }
 
 void Terminal::set_title(const std::string &title) {
   write_ocs('0', title);
+  flush();
 }
 
 void Terminal::new_resize_event() {

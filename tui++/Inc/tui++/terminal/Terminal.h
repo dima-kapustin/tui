@@ -251,9 +251,14 @@ public:
 
   Dimension get_size();
 
-  void flush();
+  void move_cursor_to(int line, int column);
+  void move_cursor_right(int columns);
+
+  void print(const std::string &s);
 
   void set_title(const std::string &title);
+
+  void flush();
 
   void run_event_loop() {
     this->screen.run_event_loop();
