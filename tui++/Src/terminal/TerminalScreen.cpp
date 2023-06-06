@@ -10,7 +10,7 @@ namespace tui::terminal {
 
 constexpr std::chrono::milliseconds WAIT_EVENT_TIMEOUT { 30 };
 
-void escape_attrs(std::ostream &os, const Attributes &reset, const Attributes &set) {
+static void escape_attrs(std::ostream &os, const Attributes &reset, const Attributes &set) {
   os << "\x1B[";
 
   auto pos = os.tellp();
@@ -93,26 +93,7 @@ void escape_attrs(std::ostream &os, const Attributes &reset, const Attributes &s
   os << 'm';
 }
 
-void escape_foreground_color(std::ostream &os, const Color &color) {
-  struct SetForegroundColor {
-    std::ostream &os;
-
-    void operator()(const DefaultColor&) {
-      this->os << "\x1b[39m";
-    }
-
-    void operator()(const ColorIndex &c) {
-      this->os << "\x1b[38;5;" << c.value << 'm';
-    }
-
-    void operator()(const TrueColor &c) {
-      this->os << "\x1b[38;2;" << c.red << ';' << c.green << ';' << c.blue << 'm';
-    }
-  };
-  std::visit(SetForegroundColor { os }, color);
-}
-
-void escape_background_color(std::ostream &os, const Color &color) {
+static void escape_background_color(std::ostream &os, const Color &color) {
   struct SetBackgroundColor {
     std::ostream &os;
 
@@ -129,6 +110,25 @@ void escape_background_color(std::ostream &os, const Color &color) {
     }
   };
   std::visit(SetBackgroundColor { os }, color);
+}
+
+static void escape_foreground_color(std::ostream &os, const Color &color) {
+  struct SetForegroundColor {
+    std::ostream &os;
+
+    void operator()(const DefaultColor&) {
+      this->os << "\x1b[39m";
+    }
+
+    void operator()(const ColorIndex &c) {
+      this->os << "\x1b[38;5;" << c.value << 'm';
+    }
+
+    void operator()(const TrueColor &c) {
+      this->os << "\x1b[38;2;" << c.red << ';' << c.green << ';' << c.blue << 'm';
+    }
+  };
+  std::visit(SetForegroundColor { os }, color);
 }
 
 void TerminalScreen::run_event_loop() {
