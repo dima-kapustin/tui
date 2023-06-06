@@ -86,16 +86,16 @@ constexpr GlyphIterator end(const GlyphIterator &i) {
   return {const_cast<char*>(i.utf8), i.utf8_size, i.utf8_size};
 }
 
-constexpr GlyphIterator glyphs(const char *utf8, std::size_t size, std::size_t index = 0) {
+constexpr GlyphIterator to_glyphs(const char *utf8, std::size_t size, std::size_t index = 0) {
   return {utf8, size, index};
 }
 
-constexpr GlyphIterator glyphs(const std::string &utf8, std::size_t index = 0) {
-  return glyphs(utf8.data(), utf8.size(), index);
+constexpr GlyphIterator to_glyphs(const std::string &utf8, std::size_t index = 0) {
+  return to_glyphs(utf8.data(), utf8.size(), index);
 }
 
-constexpr GlyphIterator glyphs(const std::string_view &utf8, std::size_t index = 0) {
-  return glyphs(utf8.data(), utf8.size(), index);
+constexpr GlyphIterator to_glyphs(const std::string_view &utf8, std::size_t index = 0) {
+  return to_glyphs(utf8.data(), utf8.size(), index);
 }
 
 }
