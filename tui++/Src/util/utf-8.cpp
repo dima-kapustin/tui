@@ -1489,21 +1489,59 @@ int codepoint_width(char32_t cp) {
 
 std::size_t glyph_width(const char *utf8, std::size_t size) {
   auto width = std::size_t { 0 };
-  auto utf8_index = std::size_t { 0 };
-  while (utf8_index < size) {
+  auto index = std::size_t { 0 };
+  while (index < size) {
     auto cp = char32_t { };
-    auto cp_len = mb_to_u32(&utf8[utf8_index], size - utf8_index, &cp);
+    auto cp_len = mb_to_u32(&utf8[index], size - index, &cp);
     if (cp_len < 0) {
-      utf8_index += 1;
+      index += 1;
       continue;
     } else if (unicode::is_full_width(cp)) {
       width += 2;
     } else if (not (unicode::is_control(cp) or unicode::is_combining(cp))) {
       width += 1;
     }
-    utf8_index += cp_len;
+    index += cp_len;
   }
   return width;
+}
+
+std::size_t glyph_next(const char *utf8, std::size_t size, std::size_t index) {
+  while (index < size) {
+    auto cp = char32_t { };
+    auto cp_len = mb_to_u32(&utf8[index], size - index, &cp);
+    if (cp_len < 0) {
+      index += 1;
+    } else {
+      index += cp_len;
+      if (not (unicode::is_control(cp) or unicode::is_combining(cp))) {
+        break;
+      }
+    }
+  }
+  return index;
+}
+
+std::size_t glyph_prev(const char *utf8, std::size_t size, std::size_t index) {
+  while (true) {
+    if (index == 0) {
+      return 0;
+    }
+
+    index -= 1;
+
+    auto cp = char32_t { };
+    auto cp_len = mb_to_u32(&utf8[index], size - index, &cp);
+    if (cp_len < 0) {
+      index -= 1;
+    } else {
+      index -= cp_len;
+      if (not (unicode::is_control(cp) or unicode::is_combining(cp))) {
+        break;
+      }
+    }
+  }
+  return index;
 }
 
 }
