@@ -5,8 +5,6 @@
 
 namespace tui::terminal {
 
-class TerminalScreen;
-
 class TerminalGraphics: public Graphics {
   TerminalScreen &screen;
 
@@ -18,7 +16,7 @@ class TerminalGraphics: public Graphics {
   Color background_color;
   Attributes attributes = Attributes::NONE;
 
-private:
+public:
   TerminalGraphics(TerminalScreen &screen) :
       TerminalGraphics(screen, Rectangle { 0, 0, screen.get_width(), screen.get_height() }, 0, 0) {
   }
@@ -26,8 +24,6 @@ private:
   TerminalGraphics(TerminalScreen &screen, const Rectangle &clip_rect, int dx, int dy) :
       screen(screen), dx(dx), dy(dy), clip(clip_rect) {
   }
-
-  friend class TerminalScreen;
 
 private:
   void reset(const Rectangle &r);

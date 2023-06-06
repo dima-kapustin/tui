@@ -1,8 +1,8 @@
-#include <tui++/EnumMask.h>
+#include <tui++/util/EnumMask.h>
 
-#include <iostream>
+#include <cassert>
 
-using namespace tui;
+using namespace tui::util;
 
 enum class Flag {
   A = 1,
@@ -13,21 +13,12 @@ enum class Flag {
 using Flags = EnumMask<Flag>;
 
 void test_EnumMask() {
-  auto flags = Flag::A | Flag::C;
+  auto a = Flag::A | Flag::C;
 
-  for (auto &&flag : flags) {
-    switch (flag) {
-    case Flag::A:
-      std::cout << "A";
-      break;
-    case Flag::B:
-      std::cout << "B";
-      break;
-    case Flag::C:
-      std::cout << "C";
-      break;
-    }
+  Flags b = Flags::NONE;
+  for (auto &&flag : a) {
+    b |= flag;
   }
 
-  std::cout << std::endl;
+  assert(a == b);
 }

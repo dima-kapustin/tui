@@ -11,6 +11,7 @@
 namespace tui::terminal {
 
 class TerminalImpl;
+class TerminalGraphics;
 
 class Terminal {
   enum class DECModeOption {
@@ -250,6 +251,7 @@ public:
   ~Terminal();
 
   Dimension get_size();
+  std::shared_ptr<TerminalGraphics> get_graphics();
 
   void move_cursor_to(int line, int column);
   void move_cursor_by(int lines, int columns);

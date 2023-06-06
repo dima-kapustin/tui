@@ -3,6 +3,7 @@
 #include <tui++/Component.h>
 
 #include <tui++/terminal/Terminal.h>
+#include <tui++/terminal/TerminalGraphics.h>
 
 using namespace std::string_view_literals;
 
@@ -178,6 +179,10 @@ void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button,
   prev_mouse_event.modifiers = modifiers;
   prev_mouse_event.x = x;
   prev_mouse_event.y = y;
+}
+
+std::shared_ptr<TerminalGraphics> Terminal::get_graphics() {
+  return std::make_shared<TerminalGraphics>(this->screen);
 }
 
 }
