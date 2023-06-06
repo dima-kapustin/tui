@@ -58,7 +58,7 @@ void TerminalGraphics::draw_rect(int x, int y, int width, int height) {
   int min_bottom = std::min(bottom, clip_bottom);
 
   // If the top of the box is outside the clipping rectangle, don't bother to draw the clipTop.
-  if (top >= clip_top && top < clip_bottom) {
+  if (top >= clip_top and top < clip_bottom) {
 //    Toolkit.getDefaultToolkit().setCursor(max_left, top);
     if (left == max_left) {
       // upper left corner
@@ -75,7 +75,7 @@ void TerminalGraphics::draw_rect(int x, int y, int width, int height) {
   }
 
   // If the bottom of the box is outside the clipping rectangle, don't bother
-  if (bottom >= clip_top && bottom <= clip_bottom) {
+  if (bottom >= clip_top and bottom <= clip_bottom) {
 //    Toolkit.getDefaultToolkit().setCursor(max_left, bottom - 1);
     if (left == max_left) {
       // lower left corner
@@ -92,7 +92,7 @@ void TerminalGraphics::draw_rect(int x, int y, int width, int height) {
   }
 
   // If the left side of the box is outside the clipping rectangle, don't bother.
-  if (left >= clip_left && left < clip_right) {
+  if (left >= clip_left and left < clip_right) {
     for (int i = max_top + 1; i < min_bottom - 1; i++) {
 //      Toolkit.getDefaultToolkit().setCursor(left, i);
 //      Toolkit.getDefaultToolkit().drawChar(Toolkit.ACS_VLINE, this->attributes, getCursesColors());
@@ -100,7 +100,7 @@ void TerminalGraphics::draw_rect(int x, int y, int width, int height) {
   }
   //
   // If the right side of the box is outside the clipping rectangle, don't bother.
-  if (right >= clip_left && right <= clip_right) {
+  if (right >= clip_left and right <= clip_right) {
     for (int i = max_top + 1; i < min_bottom - 1; i++) {
 //      Toolkit.getDefaultToolkit().setCursor(right - 1, i);
 //      Toolkit.getDefaultToolkit().drawChar(Toolkit.ACS_VLINE, this->attributes, getCursesColors());
@@ -109,9 +109,7 @@ void TerminalGraphics::draw_rect(int x, int y, int width, int height) {
 }
 
 void TerminalGraphics::draw_string(const std::string &str, int x, int y, const Attributes &attributes) {
-  x += this->dx;
-  y += this->dy;
-  if (auto rect = this->clip.get_intersection(x, y, str.length(), 1)) {
+  if (auto rect = this->clip.get_intersection(x + this->dx, y + this->dy, str.length(), 1)) {
 //    Toolkit.getDefaultToolkit().setCursor(rect.x, rect.y);
 //    Toolkit.getDefaultToolkit().drawString(str.substring(rect.x - x, rect.x - x + rect.width), attributes | this->attributes, getCursesColors());
   }
