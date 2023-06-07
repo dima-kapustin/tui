@@ -12,6 +12,8 @@ class TerminalGraphics: public Graphics {
   int dx, dy;
   Rectangle clip;
 
+  Stroke stroke = Stroke::LIGHT;
+
   Color foreground_color;
   Color background_color;
   Attributes attributes = Attributes::NONE;
@@ -60,6 +62,9 @@ public:
 
   Font get_font() const override;
   void set_font(const Font &font) override;
+
+  Stroke get_stroke() const override;
+  void set_stroke(Stroke stroke) override;
 
   void translate(int dx, int dy) override;
 

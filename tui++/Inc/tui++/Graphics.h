@@ -3,6 +3,7 @@
 #include <tui++/Char.h>
 #include <tui++/Font.h>
 #include <tui++/Color.h>
+#include <tui++/Stroke.h>
 #include <tui++/Rectangle.h>
 #include <tui++/Attributes.h>
 
@@ -15,14 +16,14 @@ public:
   virtual ~Graphics() {
   }
 
-  virtual void clip_rect(int x, int y, int width, int height) = 0;
-  void clip_rect(const Rectangle &rect) {
-    clip_rect(rect.x, rect.y, rect.width, rect.height);
-  }
-
   virtual std::unique_ptr<Graphics> create(int x, int y, int width, int height) = 0;
   std::unique_ptr<Graphics> create(const Rectangle &rect) {
     return create(rect.x, rect.y, rect.width, rect.height);
+  }
+
+  virtual void clip_rect(int x, int y, int width, int height) = 0;
+  void clip_rect(const Rectangle &rect) {
+    clip_rect(rect.x, rect.y, rect.width, rect.height);
   }
 
   virtual void draw_char(Char ch, int x, int y, const Attributes &attributes = Attributes::NONE) = 0;
@@ -72,6 +73,9 @@ public:
 
   virtual Font get_font() const = 0;
   virtual void set_font(const Font &font) = 0;
+
+  virtual Stroke get_stroke() const = 0;
+  virtual void set_stroke(Stroke stroke) = 0;
 
   virtual void translate(int dx, int dy) = 0;
 };

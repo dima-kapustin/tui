@@ -225,6 +225,7 @@ void TerminalScreen::clear() {
 }
 
 void TerminalScreen::flush() const {
+  this->terminal.move_cursor_to(1, 1);
   this->terminal.print(to_string());
   this->terminal.flush();
 }

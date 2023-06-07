@@ -73,8 +73,25 @@ inline std::ostream& operator<<(std::ostream &os, const Char &ch) {
 
 namespace tui::BoxDrawing {
 
+constexpr Char DOWN_AND_RIGHT_LIGHT { "┌" };
+constexpr Char DOWN_AND_RIGHT_HEAVY { "┏" };
+constexpr Char DOWN_AND_RIGHT_DOUBLE { "╔" };
+constexpr Char DOWN_AND_RIGHT_ARC { "╭" };
+constexpr Char DOWN_AND_LEFT_LIGHT { "┐" };
+constexpr Char DOWN_AND_LEFT_HEAVY { "┓" };
+constexpr Char DOWN_AND_LEFT_DOUBLE { "╗" };
+constexpr Char DOWN_AND_LEFT_ARC { "╮" };
+constexpr Char UP_AND_RIGHT_LIGHT { "└" };
+constexpr Char UP_AND_RIGHT_HEAVY { "┗" };
+constexpr Char UP_AND_RIGHT_DOUBLE { "╚" };
+constexpr Char UP_AND_RIGHT_ARC { "╰" };
+constexpr Char UP_AND_LEFT_LIGHT { "┘" };
+constexpr Char UP_AND_LEFT_HEAVY { "┛" };
+constexpr Char UP_AND_LEFT_DOUBLE { "╝" };
+constexpr Char UP_AND_LEFT_ARC { "╯" };
 constexpr Char VERTICAL_LIGHT { "│" };
 constexpr Char VERTICAL_HEAVY { "┃" };
+constexpr Char VERTICAL_DOUBLE { "║" };
 constexpr Char VERTICAL_LIGHT_DOUBLE_DASH { "╎" };
 constexpr Char VERTICAL_HEAVY_DOUBLE_DASH { "╏" };
 constexpr Char VERTICAL_LIGHT_TRIPLE_DASH { "┆" };
@@ -84,11 +101,12 @@ constexpr Char VERTICAL_HEAVY_QUADRUPLE_DASH { "┋" };
 
 constexpr Char HORIZONTAL_LIGHT { "─" };
 constexpr Char HORIZONTAL_HEAVY { "━" };
+constexpr Char HORIZONTAL_DOUBLE { "═" };
 constexpr Char HORIZONTAL_LIGHT_DOUBLE_DASH { "╌" };
 constexpr Char HORIZONTAL_HEAVY_DOUBLE_DASH { "╍" };
 constexpr Char HORIZONTAL_LIGHT_TRIPLE_DASH { "┄" };
 constexpr Char HORIZONTAL_HEAVY_TRIPLE_DASH { "┅" };
 constexpr Char HORIZONTAL_LIGHT_QUADRUPLE_DASH { "┈" };
 constexpr Char HORIZONTAL_HEAVY_QUADRUPLE_DASH { "┉" };
-}
 
+}
