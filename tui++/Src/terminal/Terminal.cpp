@@ -80,6 +80,8 @@ void Terminal::init() {
   set_option(DECModeOption::MOUSE_URXVT_EXT_MODE);
   set_option(DECModeOption::MOUSE_SGR_EXT_MODE);
 
+  hide_cursor();
+
   flush();
 }
 
