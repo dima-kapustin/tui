@@ -4,6 +4,9 @@ project(${TARGET_NAME})
 
 
 add_executable(${PROJECT_NAME}
+  Src/test_utf-8.cpp
+  Src/test_EnumMask.cpp
+  Src/test_GlyphIterator.cpp
   Src/main.cpp
 )
 
