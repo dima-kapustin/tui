@@ -1,8 +1,6 @@
 #include <tui++/terminal/Terminal.h>
 #include <tui++/terminal/TerminalGraphics.h>
 
-#include <clocale>
-
 using namespace tui;
 using namespace tui::terminal;
 
@@ -11,14 +9,13 @@ void test_EnumMask();
 void test_GlyphIterator();
 
 int main(int argc, char *argv[]) {
-  std::setlocale(LC_ALL, "C.UTF-8");
-
   test_utf8();
   test_EnumMask();
   test_GlyphIterator();
 
   Terminal terminal;
   terminal.set_title("Welcome to tui++");
+  terminal.flush();
 
   terminal.post([&terminal] {
     auto g = terminal.get_graphics();

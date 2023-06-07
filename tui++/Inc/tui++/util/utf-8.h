@@ -6,8 +6,8 @@ namespace tui::util {
 
 using u8string = std::string;
 
-char32_t mb_to_u32(const char *utf8, std::size_t size);
-u8string u32_to_mb(char32_t c);
+char32_t mb_to_c32(const char *utf8, std::size_t size);
+u8string c32_to_mb(char32_t c);
 
 std::size_t glyph_width(const char *utf8, std::size_t size);
 inline std::size_t glyph_width(const std::string &utf8) {

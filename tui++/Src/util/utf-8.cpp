@@ -15,43 +15,137 @@
 
 namespace tui::util {
 
-int mb_to_u32(const char *utf8, std::size_t size, char32_t *cp) {
-  auto mb_state = std::mbstate_t { };
-#ifdef __APPLE__
-  static_assert(sizeof(wchar_t) == sizeof(char32_t));
-  static_assert(alignof(wchar_t) == alignof(char32_t));
-  return (int) std::mbrtowc(reinterpret_cast<wchar_t*>(cp), utf8, size, &mb_state);
-#else
-  return (int) std::mbrtoc32(cp, utf8, size, &mb_state);
-#endif
+int mb_to_c32(const char *utf8, std::size_t size, char32_t *c32) {
+  if (size == 0 or *utf8 == 0) {
+    return 0;
+  }
+
+  auto const c0 = utf8[0];
+
+  // 1 byte code point
+  if ((c0 & 0b1000'0000) == 0b0000'0000) {
+    *c32 = c0 & 0b0111'1111;
+    return 1;
+  }
+
+  // 2 byte code point
+  if ((c0 & 0b1110'0000) == 0b1100'0000) {
+    if (size >= 2) {
+      auto const c1 = utf8[1];
+      auto c = char32_t { 0 };
+      c += c0 & 0b0001'1111;
+      c <<= 6;
+      c += c1 & 0b0011'1111;
+      *c32 = c;
+      return 2;
+    } else {
+      return -2; // incomplete
+    }
+  }
+
+  // 3 byte code point
+  if ((c0 & 0b1111'0000) == 0b1110'0000) {
+    if (size >= 3) {
+      auto const c1 = utf8[1];
+      auto const c2 = utf8[2];
+      auto c = char32_t { 0 };
+      c += c0 & 0b0000'1111;
+      c <<= 6;
+      c += c1 & 0b0011'1111;
+      c <<= 6;
+      c += c2 & 0b0011'1111;
+      *c32 = c;
+      return 3;
+    } else {
+      return -2; // incomplete
+    }
+  }
+
+  // 4 byte string.
+  if ((c0 & 0b1111'1000) == 0b1111'0000) {
+    if (size >= 4) {
+      auto const c1 = utf8[1];
+      auto const c2 = utf8[2];
+      auto const c3 = utf8[3];
+      auto c = char32_t { 0 };
+      c += c0 & 0b0000'0111;
+      c <<= 6;
+      c += c1 & 0b0011'1111;
+      c <<= 6;
+      c += c2 & 0b0011'1111;
+      c <<= 6;
+      c += c3 & 0b0011'1111;
+      *c32 = c;
+      return 4;
+    } else {
+      return -2;
+    }
+  }
+
+  return -1;
 }
 
-char32_t mb_to_u32(const char *utf8, std::size_t size) {
-  auto cp = char32_t { };
-  auto len = mb_to_u32(utf8, size, &cp);
+char32_t mb_to_c32(const char *utf8, std::size_t size) {
+  auto c32 = char32_t { };
+  auto len = mb_to_c32(utf8, size, &c32);
   if (len == -1) {
     throw std::runtime_error { "Illegal byte sequence" };
   } else if (len == -2) {
     throw std::runtime_error { "Incomplete byte sequence" };
   }
-  return cp;
+  return c32;
 }
 
-u8string u32_to_mb(char32_t c) {
-  auto result = std::array<char, 4> { };
-  auto mb_state = std::mbstate_t { };
+u8string c32_to_mb(char32_t c) {
+  u8string mb;
+  mb.reserve(5);
 
-#ifdef __APPLE__
-  static_assert(sizeof(wchar_t) == sizeof(char32_t));
-  static_assert(alignof(wchar_t) == alignof(char32_t));
-  auto count = std::wcrtomb(result.data(), wchar_t(c), &mb_state);
-#else
-  auto count = std::c32rtomb(result.data(), c, &mb_state);
-#endif
-  if (count == size_t(-1)) {
-    throw std::runtime_error { "Illegal byte sequence" };
+  // 1 byte UTF8
+  if (c <= 0b000'0000'0111'1111) {
+    auto const b1 = c;
+    mb += u8string::value_type(b1);
+    return mb;
   }
-  return {result.data(), count};
+
+  // 2 bytes UTF8
+  if (c <= 0b000'0111'1111'1111) {
+    auto const b2 = c & 0b111111;
+    c >>= 6;
+    auto const b1 = c;
+    mb += u8string::value_type(0b11000000 + b1);
+    mb += u8string::value_type(0b10000000 + b2);
+    return mb;
+  }
+
+  // 3 bytes UTF8
+  if (c <= 0b1111'1111'1111'1111) {
+    auto const b3 = c & 0b111111;
+    c >>= 6;
+    auto const b2 = c & 0b111111;
+    c >>= 6;
+    auto const b1 = c;
+    mb += u8string::value_type(0b11100000 + b1);
+    mb += u8string::value_type(0b10000000 + b2);
+    mb += u8string::value_type(0b10000000 + b3);
+    return mb;
+  }
+
+  // 4 bytes UTF8
+  if (c <= 0b1'0000'1111'1111'1111'1111) {
+    auto const b4 = c & 0b111111;
+    c >>= 6;
+    auto const b3 = c & 0b111111;
+    c >>= 6;
+    auto const b2 = c & 0b111111;
+    c >>= 6;
+    auto const b1 = c;
+    mb += u8string::value_type(0b11110000 + b1);
+    mb += u8string::value_type(0b10000000 + b2);
+    mb += u8string::value_type(0b10000000 + b3);
+    mb += u8string::value_type(0b10000000 + b4);
+    return mb;
+  }
+  return mb;
 }
 
 namespace unicode {
@@ -1493,7 +1587,7 @@ std::size_t glyph_width(const char *utf8, std::size_t size) {
   auto index = std::size_t { 0 };
   while (index < size) {
     auto cp = char32_t { };
-    auto cp_len = mb_to_u32(utf8 + index, size - index, &cp);
+    auto cp_len = mb_to_c32(utf8 + index, size - index, &cp);
     if (cp_len < 0) {
       index += 1;
       continue;
@@ -1510,7 +1604,7 @@ std::size_t glyph_width(const char *utf8, std::size_t size) {
 std::size_t glyph_next(const char *utf8, std::size_t size, std::size_t index) {
   while (index < size) {
     auto cp = char32_t { };
-    auto cp_len = mb_to_u32(utf8 + index, size - index, &cp);
+    auto cp_len = mb_to_c32(utf8 + index, size - index, &cp);
     if (cp_len < 0) {
       index += 1;
     } else {
@@ -1532,7 +1626,7 @@ std::size_t glyph_prev(const char *utf8, std::size_t size, std::size_t index) {
     index -= 1;
 
     auto cp = char32_t { };
-    auto cp_len = mb_to_u32(&utf8[index], size - index, &cp);
+    auto cp_len = mb_to_c32(&utf8[index], size - index, &cp);
     if (cp_len < 0) {
       index -= 1;
     } else {

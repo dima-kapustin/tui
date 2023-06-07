@@ -76,7 +76,7 @@ std::string to_string(KeyEvent::KeyCode key_code) {
       buf += "End"sv;
       break;
     default:
-      buf += util::u32_to_mb(key_code);
+      buf += util::c32_to_mb(key_code);
     }
   }
 
