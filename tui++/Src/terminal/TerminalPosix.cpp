@@ -13,16 +13,22 @@
 
 namespace tui::terminal {
 
-static struct TerminalImpl {
-  struct termios terminal;
+struct TerminalImpl {
+  static inline TerminalImpl *impl = nullptr;
+  Terminal &terminal;
+
+  struct ::termios termios;
   //int input_flags;
 
 public:
-  TerminalImpl() {
-    ::tcgetattr(STDIN_FILENO, &this->terminal);
-    terminal.c_lflag &= ~(ICANON|ECHO|ICRNL);
-    terminal.c_cc[VMIN] = 1;
-    ::tcsetattr(STDIN_FILENO, TCSAFLUSH, &this->terminal);
+  TerminalImpl(Terminal &terminal) :
+      terminal(terminal) {
+    impl = this;
+
+    ::tcgetattr(STDIN_FILENO, &this->termios);
+    termios.c_lflag &= ~(ICANON|ECHO|ICRNL);
+    termios.c_cc[VMIN] = 1;
+    ::tcsetattr(STDIN_FILENO, TCSAFLUSH, &this->termios);
 
     //this->input_flags = ::fcntl(STDIN_FILENO, F_GETFL, 0);
     //::fcntl(STDIN_FILENO, F_SETFL, this->input_flags | O_NONBLOCK);
@@ -39,13 +45,13 @@ public:
     return not FD_ISSET(STDIN_FILENO, &fds);
   }
 
-  bool read_input(const std::chrono::milliseconds &timeout) {
+  bool read_input(const std::chrono::milliseconds &timeout, Terminal::InputBuffer &into) {
     if (timeout.count() and is_stdin_empty(timeout)) {
       return false;
     }
     char byte;
     if (::read(fileno(stdin), &byte, 1) == 1) {
-      put(byte);
+      into.put(byte);
       return true;
     }
     return false;
@@ -54,13 +60,13 @@ public:
   ~TerminalImpl() {
     //::fcntl(STDIN_FILENO, F_GETFL, this->input_flags);
 
-    ::tcsetattr(STDIN_FILENO, TCSANOW, &this->terminal);
+    ::tcsetattr(STDIN_FILENO, TCSANOW, &this->termios);
   }
 
   static void signal_handler(int signal) {
     switch(signal) {
     case SIGWINCH:
-        Terminal::new_resize_event();
+        impl->terminal.new_resize_event();
         break;
     }
   }

@@ -2,6 +2,7 @@
 #include <bitset>
 #include <string>
 #include <cassert>
+#include <cstdint>
 #include <stdexcept>
 
 #include <tui++/util/utf-8.h>
