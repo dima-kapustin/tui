@@ -3,9 +3,13 @@ get_filename_component(TARGET_NAME ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 project(${TARGET_NAME})
 
 
-add_executable(${PROJECT_NAME}
-  Src/main.cpp
+
+
+file(GLOB_RECURSE SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/Src/*.cpp"
 )
+
+add_executable(${PROJECT_NAME} ${SOURCES})
 
 target_link_libraries(${PROJECT_NAME}
     tui++
