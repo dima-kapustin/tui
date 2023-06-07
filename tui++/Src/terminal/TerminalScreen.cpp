@@ -195,7 +195,7 @@ std::string TerminalScreen::to_string() const {
     prev_cv = &cv;
   };
 
-  for (auto y = 0; y < get_height(); ++y) {
+  for (auto y = 0; y < this->chars.size(); ++y) {
     if (y) {
       escape_attrs_and_colors(EMPTY_CHAR_VIEW);
       os << "\r\n";
