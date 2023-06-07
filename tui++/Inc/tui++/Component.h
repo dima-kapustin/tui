@@ -6,7 +6,9 @@
 #include <exception>
 
 #include <tui++/Point.h>
+#include <tui++/Color.h>
 #include <tui++/Border.h>
+#include <tui++/Cursor.h>
 #include <tui++/Insets.h>
 #include <tui++/Layout.h>
 #include <tui++/Dimension.h>
@@ -47,10 +49,6 @@ protected:
 
   struct {
     int was_focus_owner :1 = false;
-    int is_foreground_set :1 = false;
-    int is_background_set :1 = false;
-    int is_minimum_size_set :1 = false;
-    int is_preferred_size_set :1 = false;
   };
 
   float alignment_x = LEFT_ALIGNMENT;
@@ -62,7 +60,7 @@ protected:
   Dimension size { };
 
   Dimension minimum_size { };
-  Property<Dimension> preferred_size { this, "preferred_size" };
+  Property<std::optional<Dimension>> preferred_size { this, "preferred_size" };
 
   /**
    * A flag that is set to true when the container is laid out, and set to false when a component is added or removed from the container
@@ -72,6 +70,9 @@ protected:
 
   Property<bool> enabled { this, "enabled" };
   Property<bool> visible { this, "visible" };
+  Property<std::optional<Cursor>> cursor { this, "cursor" };
+  Property<std::optional<Color>> background_color { this, "background_color" };
+  Property<std::optional<Color>> foreground_color { this, "foreground_color" };
 
 public:
   constexpr static float TOP_ALIGNMENT = 0;
@@ -378,7 +379,7 @@ public:
   /**
    * Get the Window that contains this component.
    */
-  std::shared_ptr<Window> get_window_ancestor() const noexcept(false);
+  std::shared_ptr<Window> get_window_ancestor() const noexcept (false);
 
   /**
    * Gets the preferred size of this component.
@@ -605,7 +606,6 @@ public:
    * this value. Setting the preferred size to <code>null</code> restores the default behavior.
    */
   void set_preferred_size(const Dimension &preferred_size) {
-    this->is_preferred_size_set = not preferred_size.empty();
     this->preferred_size = preferred_size;
   }
 
@@ -616,6 +616,45 @@ public:
   void validate() {
     validate_tree();
     this->valid = true;
+  }
+
+  std::optional<Color> get_background_color() const {
+    if (not this->background_color.has_vlaue()) {
+      if (auto parent = get_parent()) {
+        return parent->get_background_color();
+      }
+    }
+    return this->background_color;
+  }
+
+  void set_background_color(std::optional<Color> color) {
+    this->background_color = color;
+  }
+
+  std::optional<Color> get_foreground_color() const {
+    if (not this->foreground_color.has_vlaue()) {
+      if (auto parent = get_parent()) {
+        return parent->get_foreground_color();
+      }
+    }
+    return this->foreground_color;
+  }
+
+  void set_foreground_color(std::optional<Color> color) {
+    this->foreground_color = color;
+  }
+
+  std::optional<Cursor> get_cursor() const {
+    if (not this->cursor.has_vlaue()) {
+      if (auto parent = get_parent()) {
+        return parent->get_cursor();
+      }
+    }
+    return this->cursor;
+  }
+
+  void set_cursor(const std::optional<Cursor> &cursor) {
+    this->cursor = cursor;
   }
 };
 

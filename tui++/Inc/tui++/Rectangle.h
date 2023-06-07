@@ -90,7 +90,7 @@ struct Rectangle: Point, Dimension {
   // Intersection
   constexpr Rectangle get_intersection(int x, int y, int width, int height) const {
     Rectangle other { x, y, width, height };
-    return *this | other;
+    return *this & other;
   }
 
   constexpr Rectangle& operator&=(const Rectangle &other) {

@@ -3,13 +3,14 @@
 #include <tui++/Component.h>
 
 #include <tui++/terminal/Terminal.h>
+#include <tui++/terminal/TerminalGraphics.h>
 
 using namespace std::string_view_literals;
 
 namespace tui::terminal {
 
 template<typename P, typename ...Params>
-static void write_ocs(const P &param, const Params &... params) {
+static void print_ocs(const P &param, const Params &... params) {
   std::cout << "\x1b]"sv << param;
 
   [[maybe_unused]] auto add_param = [](const auto &param) {
@@ -79,6 +80,8 @@ void Terminal::init() {
   set_option(DECModeOption::MOUSE_URXVT_EXT_MODE);
   set_option(DECModeOption::MOUSE_SGR_EXT_MODE);
 
+  hide_cursor();
+
   flush();
 }
 
@@ -92,16 +95,44 @@ void Terminal::deinit() {
   flush();
 }
 
+void Terminal::hide_cursor() {
+  reset_option(DECModeOption::CURSOR);
+}
+
+void Terminal::show_cursor(Cursor cursor) {
+  set_option(DECModeOption::CURSOR);
+  std::cout << "\x1b[" << int(cursor) << " q";
+}
+
+void Terminal::move_cursor_to(int line, int column) {
+  std::cout << "\x1b[" << line << ';' << column << 'H';
+}
+
+void Terminal::move_cursor_by(int lines, int columns) {
+  if (lines > 0) {
+    std::cout << "\x1b[" << lines << 'B';
+  } else if (lines < 0) {
+    std::cout << "\x1b[" << -lines << 'A';
+  }
+
+  if (columns > 0) {
+    std::cout << "\x1b[" << columns << 'C';
+  } else if (columns < 0) {
+    std::cout << "\x1b[" << -columns << 'D';
+  }
+}
+
 void Terminal::flush() {
   std::cout << std::flush;
 }
 
 void Terminal::set_title(const std::string &title) {
-  write_ocs('0', title);
+  print_ocs('0', title);
+  flush();
 }
 
 void Terminal::new_resize_event() {
-  std::cout << "Resize Event" << std::endl;
+  this->screen.refresh();
 }
 
 void Terminal::new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers) {
@@ -155,6 +186,10 @@ void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button,
   prev_mouse_event.modifiers = modifiers;
   prev_mouse_event.x = x;
   prev_mouse_event.y = y;
+}
+
+std::shared_ptr<TerminalGraphics> Terminal::get_graphics() {
+  return std::make_shared<TerminalGraphics>(this->screen);
 }
 
 }

@@ -15,8 +15,8 @@ void Screen::post(const std::shared_ptr<Event> &event) {
 }
 
 std::shared_ptr<Window> Screen::get_top_window() {
-  std::unique_lock lock(windows_mutex);
-  return windows.empty() ? nullptr : windows.back();
+  std::unique_lock lock(this->windows_mutex);
+  return this->windows.empty() ? nullptr : this->windows.back();
 }
 
 std::shared_ptr<Component> Screen::get_component_at(int x, int y) {

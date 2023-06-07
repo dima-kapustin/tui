@@ -1,6 +1,72 @@
+#include <tui++/util/GlyphIterator.h>
 #include <tui++/terminal/TerminalGraphics.h>
 
+#include <iostream>
+
 namespace tui::terminal {
+
+struct BoxCharacters {
+  Char top_left;
+  Char top;
+  Char top_right;
+  Char right;
+  Char bottom_right;
+  Char bottom;
+  Char bottom_left;
+  Char left;
+};
+
+static const BoxCharacters LIGHT_BOX = //
+    { .top_left = BoxDrawing::DOWN_AND_RIGHT_LIGHT, //
+      .top = BoxDrawing::HORIZONTAL_LIGHT, //
+      .top_right = BoxDrawing::DOWN_AND_LEFT_LIGHT, //
+      .right = BoxDrawing::VERTICAL_LIGHT, //
+      .bottom_right = BoxDrawing::UP_AND_LEFT_LIGHT, //
+      .bottom = BoxDrawing::HORIZONTAL_LIGHT, //
+      .bottom_left = BoxDrawing::UP_AND_RIGHT_LIGHT, //
+      .left = BoxDrawing::VERTICAL_LIGHT };
+
+static const BoxCharacters HEAVY_BOX = //
+    { .top_left = BoxDrawing::DOWN_AND_RIGHT_HEAVY, //
+      .top = BoxDrawing::HORIZONTAL_HEAVY, //
+      .top_right = BoxDrawing::DOWN_AND_LEFT_HEAVY, //
+      .right = BoxDrawing::VERTICAL_HEAVY, //
+      .bottom_right = BoxDrawing::UP_AND_LEFT_HEAVY, //
+      .bottom = BoxDrawing::HORIZONTAL_HEAVY, //
+      .bottom_left = BoxDrawing::UP_AND_RIGHT_HEAVY, //
+      .left = BoxDrawing::VERTICAL_HEAVY };
+
+static const BoxCharacters DOUBLE_BOX = //
+    { .top_left = BoxDrawing::DOWN_AND_RIGHT_DOUBLE, //
+      .top = BoxDrawing::HORIZONTAL_DOUBLE, //
+      .top_right = BoxDrawing::DOWN_AND_LEFT_DOUBLE, //
+      .right = BoxDrawing::VERTICAL_DOUBLE, //
+      .bottom_right = BoxDrawing::UP_AND_LEFT_DOUBLE, //
+      .bottom = BoxDrawing::HORIZONTAL_DOUBLE, //
+      .bottom_left = BoxDrawing::UP_AND_RIGHT_DOUBLE, //
+      .left = BoxDrawing::VERTICAL_DOUBLE };
+
+static const BoxCharacters ROUNDED_LIGHT_BOX = //
+    { .top_left = BoxDrawing::DOWN_AND_RIGHT_ARC, //
+      .top = BoxDrawing::HORIZONTAL_LIGHT, //
+      .top_right = BoxDrawing::DOWN_AND_LEFT_ARC, //
+      .right = BoxDrawing::VERTICAL_LIGHT, //
+      .bottom_right = BoxDrawing::UP_AND_LEFT_ARC, //
+      .bottom = BoxDrawing::HORIZONTAL_LIGHT, //
+      .bottom_left = BoxDrawing::UP_AND_RIGHT_ARC, //
+      .left = BoxDrawing::VERTICAL_LIGHT };
+
+static const BoxCharacters& get_box_chars(Stroke stroke) {
+  switch (stroke) {
+  default:
+  case Stroke::LIGHT:
+    return LIGHT_BOX;
+  case Stroke::HEAVY:
+    return HEAVY_BOX;
+  case Stroke::DOUBLE:
+    return DOUBLE_BOX;
+  }
+}
 
 void TerminalGraphics::clip_rect(int x, int y, int width, int height) {
   int left = x + this->dx;
@@ -57,69 +123,74 @@ void TerminalGraphics::draw_rect(int x, int y, int width, int height) {
   int max_top = std::max(top, clip_top);
   int min_bottom = std::min(bottom, clip_bottom);
 
+  auto &chars = get_box_chars(this->stroke);
+
   // If the top of the box is outside the clipping rectangle, don't bother to draw the clipTop.
-  if (top >= clip_top && top < clip_bottom) {
-//    Toolkit.getDefaultToolkit().setCursor(max_left, top);
+  if (top >= clip_top and top < clip_bottom) {
     if (left == max_left) {
-      // upper left corner
-//      Toolkit.getDefaultToolkit().drawChar(Toolkit.ACS_ULCORNER, this->attributes, getCursesColors());
+      // top left corner
+      this->screen.draw_char(chars.top_left, left, top, this->foreground_color, this->background_color, this->attributes | attributes);
     }
     for (int i = max_left + 1; i < min_right - 1; i++) {
       // top horizontal line
-//      Toolkit.getDefaultToolkit().drawChar(Toolkit.ACS_HLINE, this->attributes, getCursesColors());
+      this->screen.draw_char(chars.top, i, top, this->foreground_color, this->background_color, this->attributes | attributes);
     }
     if (right == min_right) {
-      // upper left corner
-//      Toolkit.getDefaultToolkit().drawChar(Toolkit.ACS_URCORNER, this->attributes, getCursesColors());
+      // top right corner
+      this->screen.draw_char(chars.top_right, right - 1, top, this->foreground_color, this->background_color, this->attributes | attributes);
     }
   }
 
   // If the bottom of the box is outside the clipping rectangle, don't bother
-  if (bottom >= clip_top && bottom <= clip_bottom) {
-//    Toolkit.getDefaultToolkit().setCursor(max_left, bottom - 1);
+  if (bottom >= clip_top and bottom <= clip_bottom) {
     if (left == max_left) {
-      // lower left corner
-//      Toolkit.getDefaultToolkit().drawChar(Toolkit.ACS_LLCORNER, this->attributes, getCursesColors());
+      // bottom left corner
+      this->screen.draw_char(chars.bottom_left, left, bottom - 1, this->foreground_color, this->background_color, this->attributes | attributes);
     }
     for (int i = max_left + 1; i < min_right - 1; i++) {
       // bottom horizontal line
-//      Toolkit.getDefaultToolkit().drawChar(Toolkit.ACS_HLINE, this->attributes, getCursesColors());
+      this->screen.draw_char(chars.bottom, i, bottom - 1, this->foreground_color, this->background_color, this->attributes | attributes);
     }
     if (right == min_right) {
-      // lower left corner
-//      Toolkit.getDefaultToolkit().drawChar(Toolkit.ACS_LRCORNER, this->attributes, getCursesColors());
+      // bottom right corner
+      this->screen.draw_char(chars.bottom_right, right - 1, bottom - 1, this->foreground_color, this->background_color, this->attributes | attributes);
     }
   }
 
   // If the left side of the box is outside the clipping rectangle, don't bother.
-  if (left >= clip_left && left < clip_right) {
+  if (left >= clip_left and left < clip_right) {
     for (int i = max_top + 1; i < min_bottom - 1; i++) {
-//      Toolkit.getDefaultToolkit().setCursor(left, i);
-//      Toolkit.getDefaultToolkit().drawChar(Toolkit.ACS_VLINE, this->attributes, getCursesColors());
+      this->screen.draw_char(chars.left, left, i, this->foreground_color, this->background_color, this->attributes | attributes);
     }
   }
   //
   // If the right side of the box is outside the clipping rectangle, don't bother.
-  if (right >= clip_left && right <= clip_right) {
+  if (right >= clip_left and right <= clip_right) {
     for (int i = max_top + 1; i < min_bottom - 1; i++) {
-//      Toolkit.getDefaultToolkit().setCursor(right - 1, i);
-//      Toolkit.getDefaultToolkit().drawChar(Toolkit.ACS_VLINE, this->attributes, getCursesColors());
+      this->screen.draw_char(chars.right, right - 1, i, this->foreground_color, this->background_color, this->attributes | attributes);
     }
   }
 }
 
 void TerminalGraphics::draw_string(const std::string &str, int x, int y, const Attributes &attributes) {
-  x += this->dx;
-  y += this->dy;
-  if (auto rect = this->clip.get_intersection(x, y, str.length(), 1)) {
-//    Toolkit.getDefaultToolkit().setCursor(rect.x, rect.y);
-//    Toolkit.getDefaultToolkit().drawString(str.substring(rect.x - x, rect.x - x + rect.width), attributes | this->attributes, getCursesColors());
+  if (auto rect = this->clip.get_intersection(x + this->dx, y + this->dy, util::glyph_width(str), 1)) {
+    auto right = rect.get_right();
+    for (auto &&glyph : util::to_glyphs(str)) {
+      auto glyph_width = (int) util::glyph_width(glyph);
+      if ((x + glyph_width) >= rect.x) {
+        this->screen.draw_char( { glyph }, x, y, this->foreground_color, this->background_color, this->attributes | attributes);
+      }
+      x += glyph_width;
+      if (x >= right) {
+        break;
+      }
+    }
   }
 }
 
 void TerminalGraphics::draw_vline(int x, int y, int length, Char ch, const Attributes &attributes) {
   if (auto rect = this->clip.get_intersection(x + this->dx, y + this->dy, 1, length)) {
-    for (int y = rect.get_top(), bottom = rect.get_bottom(); y < bottom; ++y) {
+    for (auto y = rect.get_top(), bottom = rect.get_bottom(); y < bottom; ++y) {
       this->screen.draw_char(ch, rect.x, y, this->foreground_color, this->background_color, this->attributes | attributes);
     }
   }
@@ -127,12 +198,11 @@ void TerminalGraphics::draw_vline(int x, int y, int length, Char ch, const Attri
 
 void TerminalGraphics::fill_rect(int x, int y, int width, int height) {
   if (auto rect = this->clip.get_intersection(x + this->dx, y + this->dy, width, height)) {
-//    for (int j = rect.y, bottom = rect.y + rect.height; j < bottom; j++) {
-//      Toolkit.getDefaultToolkit().setCursor(rect.x, j);
-//      for (int i = rect.x, right = rect.x + rect.width; i < right; i++) {
-//        Toolkit.getDefaultToolkit().drawChar(' ', this->attributes, getCursesColors());
-//      }
-//    }
+    for (auto j = rect.get_top(), bottom = rect.get_bottom(); j < bottom; j++) {
+      for (auto i = rect.get_left(), right = rect.get_right(); i < right; i++) {
+        this->screen.draw_char(' ', i, j, this->foreground_color, this->background_color, this->attributes);
+      }
+    }
   }
 }
 
@@ -179,6 +249,14 @@ void TerminalGraphics::set_background_color(const Color &color) {
 void TerminalGraphics::set_font(const Font &font) {
   this->font = font;
   update_attributes();
+}
+
+Stroke TerminalGraphics::get_stroke() const {
+  return this->stroke;
+}
+
+void TerminalGraphics::set_stroke(Stroke stroke) {
+  this->stroke = stroke;
 }
 
 void TerminalGraphics::translate(int dx, int dy) {

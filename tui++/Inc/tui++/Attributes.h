@@ -1,6 +1,6 @@
 #pragma once
 
-#include <tui++/EnumMask.h>
+#include <tui++/util/EnumMask.h>
 
 namespace tui {
 
@@ -18,6 +18,6 @@ enum class Attribute {
   DOUBLE_UNDERLINE = 1 << 9,
 };
 
-using Attributes = EnumMask<Attribute>;
+using Attributes = util::EnumMask<Attribute>;
 
 }

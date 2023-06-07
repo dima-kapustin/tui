@@ -7,6 +7,8 @@
 #include <tui++/Screen.h>
 #include <tui++/Attributes.h>
 
+#include <tui++/util/utf-8.h>
+
 namespace tui::terminal {
 
 class Terminal;
@@ -18,11 +20,21 @@ class TerminalScreen: public Screen {
   Terminal &terminal;
 
   struct CharView {
-    Char ch { };
+    Char ch = ' ';
     Attributes attributes = Attributes::NONE;
     Color foreground_color = DEFAULT_COLOR;
     Color background_color = DEFAULT_COLOR;
+
+    const size_t get_width() const {
+      return util::glyph_width(this->ch.utf8, std::char_traits<char>::length(this->ch.utf8));
+    }
+
+    const bool is_wide() const {
+      return get_width() == 2;
+    }
   };
+
+  static CharView EMPTY_CHAR_VIEW;
 
   std::vector</* rows */std::vector</* columns */CharView>> chars;
 
@@ -43,10 +55,15 @@ private:
   }
 
   friend class TerminalGraphics;
+
 public:
   virtual void run_event_loop() override;
 
   virtual void refresh();
+
+  std::string to_string() const;
+  void clear();
+  void flush() const;
 };
 
 }

@@ -2,15 +2,18 @@
 
 #include <chrono>
 #include <variant>
+#include <iostream>
 #include <functional>
 
 #include <tui++/Event.h>
+#include <tui++/Cursor.h>
 #include <tui++/Dimension.h>
 #include <tui++/terminal/TerminalScreen.h>
 
 namespace tui::terminal {
 
 class TerminalImpl;
+class TerminalGraphics;
 
 class Terminal {
   enum class DECModeOption {
@@ -250,13 +253,29 @@ public:
   ~Terminal();
 
   Dimension get_size();
+  std::shared_ptr<TerminalGraphics> get_graphics();
 
-  void flush();
+  void hide_cursor();
+  void show_cursor(Cursor cursor = Cursor::DEFAULT);
+
+  void move_cursor_to(int line, int column);
+  void move_cursor_by(int lines, int columns);
+
+  template<typename ...Args>
+  void print(Args &&... args) {
+    (std::cout << ... << args);
+  }
 
   void set_title(const std::string &title);
 
+  void flush();
+
   void run_event_loop() {
     this->screen.run_event_loop();
+  }
+
+  void post(std::function<void()> fn) {
+    this->screen.post(std::move(fn));
   }
 };
 

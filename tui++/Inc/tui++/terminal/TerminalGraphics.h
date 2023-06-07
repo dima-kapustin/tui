@@ -5,8 +5,6 @@
 
 namespace tui::terminal {
 
-class TerminalScreen;
-
 class TerminalGraphics: public Graphics {
   TerminalScreen &screen;
 
@@ -14,11 +12,13 @@ class TerminalGraphics: public Graphics {
   int dx, dy;
   Rectangle clip;
 
+  Stroke stroke = Stroke::LIGHT;
+
   Color foreground_color;
   Color background_color;
   Attributes attributes = Attributes::NONE;
 
-private:
+public:
   TerminalGraphics(TerminalScreen &screen) :
       TerminalGraphics(screen, Rectangle { 0, 0, screen.get_width(), screen.get_height() }, 0, 0) {
   }
@@ -26,8 +26,6 @@ private:
   TerminalGraphics(TerminalScreen &screen, const Rectangle &clip_rect, int dx, int dy) :
       screen(screen), dx(dx), dy(dy), clip(clip_rect) {
   }
-
-  friend class TerminalScreen;
 
 private:
   void reset(const Rectangle &r);
@@ -41,15 +39,15 @@ public:
 
   std::unique_ptr<Graphics> create(int x, int y, int width, int height) override;
 
-  void draw_char(Char ch, int x, int y, const Attributes &attributes) override;
+  void draw_char(Char ch, int x, int y, const Attributes &attributes = Attributes::NONE) override;
 
-  void draw_hline(int x, int y, int length, Char ch, const Attributes &attributes) override;
+  void draw_hline(int x, int y, int length, Char ch, const Attributes &attributes = Attributes::NONE) override;
 
   void draw_rect(int x, int y, int width, int height) override;
 
-  void draw_string(const std::string &str, int x, int y, const Attributes &attributes) override;
+  void draw_string(const std::string &str, int x, int y, const Attributes &attributes = Attributes::NONE) override;
 
-  void draw_vline(int x, int y, int length, Char ch, const Attributes &attributes) override;
+  void draw_vline(int x, int y, int length, Char ch, const Attributes &attributes = Attributes::NONE) override;
 
   void fill_rect(int x, int y, int width, int height) override;
 
@@ -65,7 +63,14 @@ public:
   Font get_font() const override;
   void set_font(const Font &font) override;
 
+  Stroke get_stroke() const override;
+  void set_stroke(Stroke stroke) override;
+
   void translate(int dx, int dy) override;
+
+  void flush() {
+    this->screen.flush();
+  }
 };
 
 }

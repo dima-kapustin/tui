@@ -20,7 +20,7 @@ protected:
   std::mutex windows_mutex;
   std::vector<std::shared_ptr<Window>> windows;
 
-  Dimension size;
+  Dimension size { };
 
 private:
   void add_window(const std::shared_ptr<Window> &window);

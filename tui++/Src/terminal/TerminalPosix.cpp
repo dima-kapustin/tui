@@ -20,7 +20,7 @@ static struct TerminalImpl {
 public:
   TerminalImpl() {
     ::tcgetattr(STDIN_FILENO, &this->terminal);
-    terminal.c_lflag &= ~(ICANON|ECHO);
+    terminal.c_lflag &= ~(ICANON|ECHO|ICRNL);
     terminal.c_cc[VMIN] = 1;
     ::tcsetattr(STDIN_FILENO, TCSAFLUSH, &this->terminal);
 
