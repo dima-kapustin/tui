@@ -5,6 +5,7 @@
 #include <ranges>
 #include <cassert>
 #include <variant>
+#include <concepts>
 #include <algorithm>
 #include <functional>
 #include <string_view>
@@ -83,8 +84,22 @@ inline PropertyBase::PropertyBase(Object *object, const std::string_view &name) 
   this->object->add_property(this);
 }
 
+template<typename T, typename = void>
+struct is_optional: std::false_type {
+};
+
 template<typename T>
-class Property: public PropertyBase {
+struct is_optional<std::optional<T> > : std::true_type {
+};
+
+template<typename T>
+constexpr bool is_optional_v = is_optional<T>::value;
+
+template<typename T, typename = void>
+class Property;
+
+template<typename T>
+class Property<T, std::enable_if_t<not is_optional_v<T>>> : public PropertyBase {
   T value;
 
 private:
@@ -97,8 +112,8 @@ private:
   }
 
 public:
-  constexpr Property(Object *object, const std::string_view &name) :
-      PropertyBase(object, name) {
+  constexpr Property(Object *object, const std::string_view &name, const T &default_value = T()) :
+      PropertyBase(object, name), value(default_value) {
   }
 
 public:
@@ -116,6 +131,58 @@ public:
 
   Property& operator=(const T &value) {
     set_value(value);
+    return *this;
+  }
+};
+
+template<typename T>
+class Property<T, std::enable_if_t<is_optional_v<T>>> : public PropertyBase {
+  using value_type = typename T::value_type;
+
+  std::optional<value_type> value;
+
+private:
+  void set_optional_value(const std::optional<value_type> &value) {
+    if (this->value != value) {
+      auto old_value = this->value;
+      this->value = value;
+      fire_change_event(old_value, this->value);
+    }
+  }
+
+public:
+  constexpr Property(Object *object, const std::string_view &name, const std::optional<value_type> &default_value = std::nullopt) :
+      PropertyBase(object, name), value(default_value) {
+  }
+
+public:
+  PropertyValue get_value() const {
+    return this->value.has_value() ? this->value.value() : std::nullopt;
+  }
+
+  void set_value(const PropertyValue &value) {
+    if (value.has_value()) {
+      set_optional_value(std::nullopt);
+    } else {
+      set_optional_value(*std::any_cast<value_type*>(&value));
+    }
+  }
+
+  bool has_vlaue() const {
+    return this->value.has_value();
+  }
+
+  operator const T&() const {
+    return this->value;
+  }
+
+  Property& operator=(const std::optional<value_type> &value) {
+    set_optional_value(value);
+    return *this;
+  }
+
+  Property& operator=(const value_type &value) {
+    set_optional_value(value);
     return *this;
   }
 };

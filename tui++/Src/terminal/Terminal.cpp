@@ -10,7 +10,7 @@ using namespace std::string_view_literals;
 namespace tui::terminal {
 
 template<typename P, typename ...Params>
-static void write_ocs(const P &param, const Params &... params) {
+static void print_ocs(const P &param, const Params &... params) {
   std::cout << "\x1b]"sv << param;
 
   [[maybe_unused]] auto add_param = [](const auto &param) {
@@ -93,6 +93,15 @@ void Terminal::deinit() {
   flush();
 }
 
+void Terminal::hide_cursor() {
+  reset_option(DECModeOption::CURSOR);
+}
+
+void Terminal::show_cursor(Cursor cursor) {
+  set_option(DECModeOption::CURSOR);
+  std::cout << "\x1b[" << int(cursor) << " q";
+}
+
 void Terminal::move_cursor_to(int line, int column) {
   std::cout << "\x1b[" << line << ';' << column << 'H';
 }
@@ -111,16 +120,12 @@ void Terminal::move_cursor_by(int lines, int columns) {
   }
 }
 
-void Terminal::print(const std::string &s) {
-  std::cout << s;
-}
-
 void Terminal::flush() {
   std::cout << std::flush;
 }
 
 void Terminal::set_title(const std::string &title) {
-  write_ocs('0', title);
+  print_ocs('0', title);
   flush();
 }
 

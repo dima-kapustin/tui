@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
   terminal.post([&terminal] {
     auto g = terminal.get_graphics();
     g->set_foreground_color(GREEN_COLOR);
-    g->draw_string("Привет, мир!", 1, 1);
+    g->draw_string("Привет, мир!", 1, 1, Attribute::STANDOUT);
     g->flush();
   });
 

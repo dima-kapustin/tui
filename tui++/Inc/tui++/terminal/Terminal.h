@@ -2,9 +2,11 @@
 
 #include <chrono>
 #include <variant>
+#include <iostream>
 #include <functional>
 
 #include <tui++/Event.h>
+#include <tui++/Cursor.h>
 #include <tui++/Dimension.h>
 #include <tui++/terminal/TerminalScreen.h>
 
@@ -253,10 +255,16 @@ public:
   Dimension get_size();
   std::shared_ptr<TerminalGraphics> get_graphics();
 
+  void hide_cursor();
+  void show_cursor(Cursor cursor = Cursor::DEFAULT);
+
   void move_cursor_to(int line, int column);
   void move_cursor_by(int lines, int columns);
 
-  void print(const std::string &s);
+  template<typename ...Args>
+  void print(Args &&... args) {
+    (std::cout << ... << args);
+  }
 
   void set_title(const std::string &title);
 
