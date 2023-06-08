@@ -61,9 +61,11 @@ public:
     this->code = 0;
   }
 
+public:
   constexpr Char& operator=(const Char&) = default;
   constexpr Char& operator=(Char&&) = default;
 
+public:
   constexpr operator std::string_view() const {
     return {this->bytes, this->len};
   }
