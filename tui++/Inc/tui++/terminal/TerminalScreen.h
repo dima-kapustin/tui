@@ -26,7 +26,7 @@ class TerminalScreen: public Screen {
     Color background_color = DEFAULT_COLOR;
 
     const size_t get_width() const {
-      return util::glyph_width(this->ch.utf8, std::char_traits<char>::length(this->ch.utf8));
+      return util::glyph_width(this->ch);
     }
 
     const bool is_wide() const {

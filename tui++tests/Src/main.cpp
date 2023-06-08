@@ -5,11 +5,13 @@ using namespace tui;
 using namespace tui::terminal;
 
 void test_utf8();
+void test_Char();
 void test_EnumMask();
 void test_GlyphIterator();
 
 int main(int argc, char *argv[]) {
   test_utf8();
+  test_Char();
   test_EnumMask();
   test_GlyphIterator();
 
