@@ -36,23 +36,28 @@ class TerminalScreen: public Screen {
 
   static CharView EMPTY_CHAR_VIEW;
 
-  std::vector</* rows */std::vector</* columns */CharView>> chars;
+  std::vector</* rows */std::vector</* columns */CharView>> view;
 
 private:
   TerminalScreen(Terminal &terminal) noexcept :
       terminal(terminal) {
+    resize_view();
   }
+
+  void terminal_resized();
 
   friend class Terminal;
 
 private:
   void draw_char(Char ch, int x, int y, const Color &foreground_color, const Color &background_color, const Attributes &attributes) {
-    auto &char_view = this->chars[y][x];
+    auto &char_view = this->view[y][x];
     char_view.ch = ch;
     char_view.attributes = attributes;
     char_view.foreground_color = foreground_color;
     char_view.background_color = background_color;
   }
+
+  void resize_view();
 
   friend class TerminalGraphics;
 

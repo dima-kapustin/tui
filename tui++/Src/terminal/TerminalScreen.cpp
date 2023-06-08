@@ -155,17 +155,24 @@ void TerminalScreen::run_event_loop() {
   }
 }
 
-void TerminalScreen::refresh() {
+void TerminalScreen::resize_view() {
   auto size = this->size;
   this->size = this->terminal.get_size();
   if (size != this->size) {
-    this->chars.resize(this->size.height);
-    for (auto &&row : this->chars) {
+    this->view.resize(this->size.height);
+    for (auto &&row : this->view) {
       row.resize(this->size.width);
       std::fill(row.begin(), row.end(), EMPTY_CHAR_VIEW);
     }
   }
+}
 
+void TerminalScreen::terminal_resized() {
+  resize_view();
+}
+
+void TerminalScreen::refresh() {
+  resize_view();
   auto g = TerminalGraphics { *this };
   paint(g);
   flush();
@@ -195,14 +202,14 @@ std::string TerminalScreen::to_string() const {
     prev_cv = &cv;
   };
 
-  for (auto y = 0; y < this->chars.size(); ++y) {
+  for (auto y = 0U; y < this->view.size(); ++y) {
     if (y) {
       escape_attrs_and_colors(EMPTY_CHAR_VIEW);
       os << "\r\n";
     }
 
     auto skip = false;
-    for (auto &&cv : this->chars[y]) {
+    for (auto &&cv : this->view[y]) {
       if (not skip) {
         escape_attrs_and_colors(cv);
         os << cv.ch;
@@ -217,7 +224,7 @@ std::string TerminalScreen::to_string() const {
 }
 
 void TerminalScreen::clear() {
-  for (auto &line : this->chars) {
+  for (auto &line : this->view) {
     for (auto &cell : line) {
       cell = EMPTY_CHAR_VIEW;
     }
