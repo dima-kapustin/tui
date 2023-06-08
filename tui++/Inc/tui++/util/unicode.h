@@ -1,154 +1,9 @@
-#include <array>
+#pragma once
+
 #include <bitset>
-#include <string>
-#include <cassert>
 #include <cstdint>
-#include <stdexcept>
 
-#include <tui++/util/utf-8.h>
-
-#ifdef __APPLE__
-#    include <cwchar>
-#else
-#    include <cuchar>
-#endif
-
-namespace tui::util {
-
-int mb_to_c32(const char *utf8, std::size_t size, char32_t *c32) {
-  if (size == 0 or *utf8 == 0) {
-    return 0;
-  }
-
-  auto const c0 = utf8[0];
-
-  // 1 byte code point
-  if ((c0 & 0b1000'0000) == 0b0000'0000) {
-    *c32 = c0 & 0b0111'1111;
-    return 1;
-  }
-
-  // 2 byte code point
-  if ((c0 & 0b1110'0000) == 0b1100'0000) {
-    if (size >= 2) {
-      auto const c1 = utf8[1];
-      auto c = char32_t { 0 };
-      c += c0 & 0b0001'1111;
-      c <<= 6;
-      c += c1 & 0b0011'1111;
-      *c32 = c;
-      return 2;
-    } else {
-      return -2; // incomplete
-    }
-  }
-
-  // 3 byte code point
-  if ((c0 & 0b1111'0000) == 0b1110'0000) {
-    if (size >= 3) {
-      auto const c1 = utf8[1];
-      auto const c2 = utf8[2];
-      auto c = char32_t { 0 };
-      c += c0 & 0b0000'1111;
-      c <<= 6;
-      c += c1 & 0b0011'1111;
-      c <<= 6;
-      c += c2 & 0b0011'1111;
-      *c32 = c;
-      return 3;
-    } else {
-      return -2; // incomplete
-    }
-  }
-
-  // 4 byte string.
-  if ((c0 & 0b1111'1000) == 0b1111'0000) {
-    if (size >= 4) {
-      auto const c1 = utf8[1];
-      auto const c2 = utf8[2];
-      auto const c3 = utf8[3];
-      auto c = char32_t { 0 };
-      c += c0 & 0b0000'0111;
-      c <<= 6;
-      c += c1 & 0b0011'1111;
-      c <<= 6;
-      c += c2 & 0b0011'1111;
-      c <<= 6;
-      c += c3 & 0b0011'1111;
-      *c32 = c;
-      return 4;
-    } else {
-      return -2;
-    }
-  }
-
-  return -1;
-}
-
-char32_t mb_to_c32(const char *utf8, std::size_t size) {
-  auto c32 = char32_t { };
-  auto len = mb_to_c32(utf8, size, &c32);
-  if (len == -1) {
-    throw std::runtime_error { "Illegal byte sequence" };
-  } else if (len == -2) {
-    throw std::runtime_error { "Incomplete byte sequence" };
-  }
-  return c32;
-}
-
-u8string c32_to_mb(char32_t c) {
-  u8string mb;
-  mb.reserve(5);
-
-  // 1 byte UTF8
-  if (c <= 0b000'0000'0111'1111) {
-    auto const b1 = c;
-    mb += u8string::value_type(b1);
-    return mb;
-  }
-
-  // 2 bytes UTF8
-  if (c <= 0b000'0111'1111'1111) {
-    auto const b2 = c & 0b111111;
-    c >>= 6;
-    auto const b1 = c;
-    mb += u8string::value_type(0b11000000 + b1);
-    mb += u8string::value_type(0b10000000 + b2);
-    return mb;
-  }
-
-  // 3 bytes UTF8
-  if (c <= 0b1111'1111'1111'1111) {
-    auto const b3 = c & 0b111111;
-    c >>= 6;
-    auto const b2 = c & 0b111111;
-    c >>= 6;
-    auto const b1 = c;
-    mb += u8string::value_type(0b11100000 + b1);
-    mb += u8string::value_type(0b10000000 + b2);
-    mb += u8string::value_type(0b10000000 + b3);
-    return mb;
-  }
-
-  // 4 bytes UTF8
-  if (c <= 0b1'0000'1111'1111'1111'1111) {
-    auto const b4 = c & 0b111111;
-    c >>= 6;
-    auto const b3 = c & 0b111111;
-    c >>= 6;
-    auto const b2 = c & 0b111111;
-    c >>= 6;
-    auto const b1 = c;
-    mb += u8string::value_type(0b11110000 + b1);
-    mb += u8string::value_type(0b10000000 + b2);
-    mb += u8string::value_type(0b10000000 + b3);
-    mb += u8string::value_type(0b10000000 + b4);
-    return mb;
-  }
-  return mb;
-}
-
-namespace unicode {
+namespace tui::util::unicode {
 
 constexpr char32_t MAX_UNICODE_CHAR = 0x1F'FFFF;
 constexpr size_t UNICODE_CHAR_COUNT = MAX_UNICODE_CHAR + 1;
@@ -179,19 +34,18 @@ enum class WordBreak : uint8_t {
   ZWJ,
 };
 
-class WordBreakMap {
-  WordBreak map[UNICODE_CHAR_COUNT];
+constexpr class WordBreakMap {
+  WordBreak map[UNICODE_CHAR_COUNT] = { };
 public:
-  WordBreakMap(std::initializer_list<std::pair<CodePointInterval, WordBreak>> list) {
+  constexpr WordBreakMap(std::initializer_list<std::pair<CodePointInterval, WordBreak>> list) {
     for (auto&& [interval, word_break] : list) {
-      assert(interval.from <= interval.to);
       for (auto ch = interval.from; ch <= interval.to; ++ch) {
         this->map[ch] = word_break;
       }
     }
   }
 
-  WordBreak operator[](char32_t cp) const {
+  constexpr WordBreak operator[](char32_t cp) const {
     if (cp < std::size(this->map)) {
       return this->map[cp];
     }
@@ -1489,19 +1343,18 @@ public:
       { { 0xE0100, 0xE01EF }, WordBreak::Extend }, //
     };
 
-class FullWidthMap {
+constexpr class FullWidthMap {
   std::bitset<UNICODE_CHAR_COUNT> map { };
 public:
-  FullWidthMap(std::initializer_list<CodePointInterval> list) {
+  constexpr FullWidthMap(std::initializer_list<CodePointInterval> list) {
     for (auto &&interval : list) {
-      assert(interval.from <= interval.to);
       for (auto ch = interval.from; ch <= interval.to; ++ch) {
         this->map[ch] = true;
       }
     }
   }
 
-  bool operator[](char32_t cp) const {
+  constexpr bool operator[](char32_t cp) const {
     if (cp < std::size(this->map)) {
       return this->map[cp];
     }
@@ -1549,7 +1402,7 @@ public:
       { 0x1FAB0, 0x1FAB6 }, { 0x1FAC0, 0x1FAC2 }, { 0x1FAD0, 0x1FAD6 }, //
       { 0x20000, 0x2FFFD }, { 0x30000, 0x3FFFD }, };
 
-bool is_control(char32_t cp) {
+constexpr bool is_control(char32_t cp) {
   if (cp == 0) {
     return true;
   } else if (cp < 32) {
@@ -1560,15 +1413,15 @@ bool is_control(char32_t cp) {
   return false;
 }
 
-bool is_combining(char32_t cp) {
+constexpr bool is_combining(char32_t cp) {
   return word_break_map[cp] == WordBreak::Extend;
 }
 
-bool is_full_width(char32_t cp) {
+constexpr bool is_full_width(char32_t cp) {
   return full_width_map[cp];
 }
 
-int codepoint_width(char32_t cp) {
+constexpr int glyph_width(char32_t cp) {
   if (is_control(cp)) {
     return -1;
   } else if (is_combining(cp)) {
@@ -1578,65 +1431,6 @@ int codepoint_width(char32_t cp) {
   } else {
     return 1;
   }
-}
-
-}
-
-std::size_t glyph_width(const char *utf8, std::size_t size) {
-  auto width = std::size_t { 0 };
-  auto index = std::size_t { 0 };
-  while (index < size) {
-    auto cp = char32_t { };
-    auto cp_len = mb_to_c32(utf8 + index, size - index, &cp);
-    if (cp_len < 0) {
-      index += 1;
-      continue;
-    } else if (unicode::is_full_width(cp)) {
-      width += 2;
-    } else if (not (unicode::is_control(cp) or unicode::is_combining(cp))) {
-      width += 1;
-    }
-    index += cp_len;
-  }
-  return width;
-}
-
-std::size_t glyph_next(const char *utf8, std::size_t size, std::size_t index) {
-  while (index < size) {
-    auto cp = char32_t { };
-    auto cp_len = mb_to_c32(utf8 + index, size - index, &cp);
-    if (cp_len < 0) {
-      index += 1;
-    } else {
-      index += cp_len;
-      if (not (unicode::is_control(cp) or unicode::is_combining(cp))) {
-        break;
-      }
-    }
-  }
-  return index;
-}
-
-std::size_t glyph_prev(const char *utf8, std::size_t size, std::size_t index) {
-  while (true) {
-    if (index == 0) {
-      return 0;
-    }
-
-    index -= 1;
-
-    auto cp = char32_t { };
-    auto cp_len = mb_to_c32(&utf8[index], size - index, &cp);
-    if (cp_len < 0) {
-      index -= 1;
-    } else {
-      index -= cp_len;
-      if (not (unicode::is_control(cp) or unicode::is_combining(cp))) {
-        break;
-      }
-    }
-  }
-  return index;
 }
 
 }

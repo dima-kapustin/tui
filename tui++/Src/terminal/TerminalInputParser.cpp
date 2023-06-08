@@ -60,7 +60,15 @@ void Terminal::InputParser::parse_utf8(char first_byte) {
   for (size_t i = 1; i <= bytes_left_to_read; ++i) {
     utf8[i] = consume();
   }
-  new_key_event(KeyEvent::KeyCode(util::mb_to_c32(utf8.data(), std::size(utf8))));
+
+  auto cp = char32_t { };
+  if (auto cp_size = util::mb_to_c32(utf8.data(), std::size(utf8), &cp); cp_size > 0) {
+    new_key_event(KeyEvent::KeyCode(cp));
+  } else if (cp_size == -1) {
+    // TODO report eror: "Illegal byte sequence"
+  } else if (cp_size == -2) {
+    // TODO report eror: "Incomplete byte sequence"
+  }
 }
 
 void Terminal::InputParser::parse_esc() {

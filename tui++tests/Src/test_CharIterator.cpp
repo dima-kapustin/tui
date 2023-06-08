@@ -1,13 +1,13 @@
-#include <tui++/util/GlyphIterator.h>
+#include <tui++/CharIterator.h>
 
 #include <cassert>
 
-using namespace tui::util;
+using namespace tui;
 using namespace std::string_literals;
 
-void test_GlyphIterator() {
+void test_CharIterator() {
   auto utf8 = "测试"s;
-  auto glyphs = to_glyphs(utf8);
+  auto glyphs = to_chars(utf8);
 
   ++glyphs;
   ++glyphs;
@@ -17,5 +17,5 @@ void test_GlyphIterator() {
   --glyphs;
   --glyphs;
 
-  assert(glyphs == to_glyphs(utf8));
+  assert(glyphs == to_chars(utf8));
 }

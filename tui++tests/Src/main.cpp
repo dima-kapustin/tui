@@ -7,13 +7,13 @@ using namespace tui::terminal;
 void test_utf8();
 void test_Char();
 void test_EnumMask();
-void test_GlyphIterator();
+void test_CharIterator();
 
 int main(int argc, char *argv[]) {
   test_utf8();
   test_Char();
   test_EnumMask();
-  test_GlyphIterator();
+  test_CharIterator();
 
   Terminal terminal;
   terminal.set_title("Welcome to tui++");

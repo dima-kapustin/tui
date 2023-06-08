@@ -1,4 +1,4 @@
-#include <tui++/util/GlyphIterator.h>
+#include <tui++/CharIterator.h>
 #include <tui++/terminal/TerminalGraphics.h>
 
 #include <iostream>
@@ -175,10 +175,10 @@ void TerminalGraphics::draw_rect(int x, int y, int width, int height) {
 void TerminalGraphics::draw_string(const std::string &str, int x, int y, const Attributes &attributes) {
   if (auto rect = this->clip.get_intersection(x + this->dx, y + this->dy, util::glyph_width(str), 1)) {
     auto right = rect.get_right();
-    for (auto &&glyph : util::to_glyphs(str)) {
-      auto glyph_width = (int) util::glyph_width(glyph);
+    for (auto &&ch : to_chars(str)) {
+      auto glyph_width = ch.glyph_width();
       if ((x + glyph_width) >= rect.x) {
-        this->screen.draw_char( { glyph }, x, y, this->foreground_color, this->background_color, this->attributes | attributes);
+        this->screen.draw_char(ch, x, y, this->foreground_color, this->background_color, this->attributes | attributes);
       }
       x += glyph_width;
       if (x >= right) {
