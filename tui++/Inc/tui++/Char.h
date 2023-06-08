@@ -8,22 +8,18 @@ namespace tui {
 
 // UTF-8 mutibyte character
 class Char {
-  constexpr static size_t MAX_MB_CHAR_LEN = 4;
+  constexpr static size_t MAX_BYTE_LEN = 4;
 
   union {
     struct {
       struct {
-        uint32_t code :29;
-        uint32_t len :3;
+        uint32_t code :30;
+        uint32_t len :2;
       };
-      char bytes[4]; // utf-8
+      char bytes[MAX_BYTE_LEN]; // utf-8
     };
     uint64_t u64;
   };
-
-  friend std::ostream& operator<<(std::ostream &os, const Char &c) {
-    return os << std::string_view { c.bytes, c.len };
-  }
 
 public:
   constexpr Char() = default;
@@ -33,31 +29,31 @@ public:
   constexpr Char(char c) :
       bytes { } {
     this->bytes[0] = c;
-    this->len = 1;
+    this->len = 0;
     this->code = 0;
   }
 
   constexpr Char(const char *s) :
       bytes { } {
-    auto length = std::min(MAX_MB_CHAR_LEN, std::char_traits<char>::length(s));
+    auto length = std::min(MAX_BYTE_LEN, std::char_traits<char>::length(s));
     std::char_traits<char>::copy(this->bytes, s, length);
-    this->len = length;
+    this->len = length - 1;
     this->code = 0;
   }
 
   constexpr Char(const std::string &s) :
       bytes { } {
-    auto length = std::min(MAX_MB_CHAR_LEN, s.length());
+    auto length = std::min(MAX_BYTE_LEN, s.length());
     std::char_traits<char>::copy(this->bytes, s.data(), length);
-    this->len = length;
+    this->len = length - 1;
     this->code = 0;
   }
 
   constexpr Char(const std::string_view &s) :
       bytes { } {
-    auto length = std::min(MAX_MB_CHAR_LEN, s.length());
+    auto length = std::min(MAX_BYTE_LEN, s.length());
     std::char_traits<char>::copy(this->bytes, s.data(), length);
-    this->len = length;
+    this->len = length - 1;
     this->code = 0;
   }
 
@@ -67,7 +63,16 @@ public:
 
 public:
   constexpr operator std::string_view() const {
-    return {this->bytes, this->len};
+    return {this->bytes, size_t(this->len) + 1};
+  }
+
+  constexpr int compare(const Char &other) const {
+    auto length = std::min(size_t(this->len), size_t(other.len)) + 1;
+    return std::char_traits<char>::compare(this->bytes, other.bytes, length);
+  }
+
+  constexpr bool operator<(const Char &other) const {
+    return compare(other) < 0;
   }
 
   constexpr bool operator==(const Char &other) const {
@@ -80,6 +85,10 @@ public:
 };
 
 static_assert(sizeof(Char) == 8);
+
+constexpr std::ostream& operator<<(std::ostream &os, const Char &c) {
+  return os << std::string_view(c);
+}
 
 }
 
