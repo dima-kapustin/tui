@@ -45,22 +45,22 @@ protected:
    * The component inside this Component that currently has the input focus (or, if the input focus is
    * currently outside this Component, the component to which focus will return if and when this Component regains focus).
    */
-  std::weak_ptr<Component> focus_component;
+  mutable std::weak_ptr<Component> focus_component;
 
   struct {
     int was_focus_owner :1 = false;
   };
 
-  float alignment_x = LEFT_ALIGNMENT;
-  float alignment_y = TOP_ALIGNMENT;
+  float alignment_x = CENTER_ALIGNMENT;
+  float alignment_y = CENTER_ALIGNMENT;
 
   ComponentOrientation orientation = ComponentOrientation::UNKNOWN;
 
   Point location { };
   Dimension size { };
 
-  Dimension minimum_size { };
-  Property<std::optional<Dimension>> preferred_size { this, "preferred_size" };
+  mutable std::optional<Dimension> minimum_size;
+  mutable Property<std::optional<Dimension>> preferred_size { this, "preferred_size" };
 
   /**
    * A flag that is set to true when the container is laid out, and set to false when a component is added or removed from the container
@@ -243,7 +243,7 @@ protected:
 
   void paint_border(Graphics &g);
 
-  virtual void paint_children(Graphics &g);
+  virtual void paint_components(Graphics &g);
 
   /**
    * Set this container's current keyboard focus. Called by the requestFocus() method of the contained component.
@@ -255,14 +255,14 @@ protected:
     }
   }
 
-  std::shared_ptr<Component> get_child_at(int x, int y, bool visible_only) {
+  std::shared_ptr<Component> get_component_at(int x, int y, bool visible_only) const {
     for (auto &&c : this->components) {
       auto cx = c->get_x();
       auto cy = c->get_y();
 
       if ((not visible_only or c->is_visible()) and c->contains(x - cx, y - cy)) {
         if (c->has_children()) {
-          return c->get_child_at(x - cx, y - cy, visible_only);
+          return c->get_component_at(x - cx, y - cy, visible_only);
         }
         return c;
       }
@@ -316,19 +316,34 @@ public:
     return this->border;
   }
 
-  std::shared_ptr<Component> get_child_at(int x, int y) {
-    return get_child_at(x, y, false);
+  std::shared_ptr<Component> get_component_at(int x, int y) const {
+    return get_component_at(x, y, false);
+  }
+
+  std::shared_ptr<Component> get_component_at(const Point &p) const {
+    return get_component_at(p.x, p.y);
+  }
+
+  int get_component_index(const std::shared_ptr<const Component> &component) const {
+    return get_component_index(component.get());
+  }
+
+  int get_component_index(const Component *component) const {
+    for (size_t index = 0; index != this->components.size(); ++index) {
+      if (this->components[index].get() == component) {
+        return index;
+      }
+    }
+    return -1;
   }
 
   /**
    * Return a reference to the (non-container) component inside this Container that has the keyboard input focus (or would have it, if the
    * focus was inside this container). If no component inside the container has the focus, choose the first FocusTraversable component.
    *
-   * @return the Component in this container that would have the focus; never null.
-   * @throws IllegalComponentStateException
-   *             if there is no focus-traversable component in this container.
+   * @return the Component in this container that would have the focus; never nullptr.
    */
-  std::shared_ptr<Component> get_focus_component() {
+  std::shared_ptr<Component> get_focus_component() const {
     if (not this->focus_component.lock() and has_children()) {
       for (auto &&c : this->components) {
         if (c->is_focusable()) {
@@ -387,11 +402,47 @@ public:
    * @return a dimension object indicating this component's preferred size
    */
   Dimension get_preferred_size() const {
-    return get_minimum_size();
+    if (not this->valid and not this->preferred_size.has_vlaue()) {
+      std::unique_lock lock(tree_mutex);
+      if (this->layout) {
+        this->preferred_size = this->layout->get_preferred_layout_size(shared_from_this());
+      } else {
+        this->preferred_size = this->minimum_size;
+      }
+    }
+    return this->preferred_size.value_or(Dimension { });
   }
 
   Dimension get_minimum_size() const {
-    return this->minimum_size;
+    if (not this->layout) {
+      return this->size;
+    } else if (not this->valid or not this->minimum_size.has_value()) {
+      this->minimum_size = this->layout->get_minimum_layout_size(shared_from_this());
+    }
+    return this->minimum_size.value_or(Dimension { });
+  }
+
+  float get_alignment_x() const {
+    if (this->layout) {
+      std::unique_lock lock(tree_mutex);
+      return this->layout->get_layout_alignment_x(shared_from_this());
+    } else {
+      return this->alignment_x;
+    }
+  }
+
+  /**
+   * Returns the alignment along the y axis. This specifies how the component would like to be aligned relative to other components. The
+   * value should be a number between 0 and 1 where 0 represents alignment along the origin, 1 is aligned the furthest away from the
+   * origin, 0.5 is centered, etc.
+   */
+  float get_alignment_y() {
+    if (this->layout) {
+      std::unique_lock lock(tree_mutex);
+      return this->layout->get_layout_alignment_y(shared_from_this());
+    } else {
+      return this->alignment_y;
+    }
   }
 
   bool has_children() const {
@@ -468,7 +519,7 @@ public:
 
   virtual void paint(Graphics &g) {
     paint_border(g);
-    paint_children(g);
+    paint_components(g);
   }
 
   /**

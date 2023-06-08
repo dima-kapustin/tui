@@ -139,25 +139,25 @@ template<typename T>
 class Property<T, std::enable_if_t<is_optional_v<T>>> : public PropertyBase {
   using value_type = typename T::value_type;
 
-  std::optional<value_type> value;
+  std::optional<value_type> optional;
 
 private:
   void set_optional_value(const std::optional<value_type> &value) {
-    if (this->value != value) {
-      auto old_value = this->value;
-      this->value = value;
-      fire_change_event(old_value, this->value);
+    if (this->optional != value) {
+      auto old_value = this->optional;
+      this->optional = value;
+      fire_change_event(old_value, this->optional);
     }
   }
 
 public:
   constexpr Property(Object *object, const std::string_view &name, const std::optional<value_type> &default_value = std::nullopt) :
-      PropertyBase(object, name), value(default_value) {
+      PropertyBase(object, name), optional(default_value) {
   }
 
 public:
   PropertyValue get_value() const {
-    return this->value.has_value() ? this->value.value() : std::nullopt;
+    return this->optional.has_value() ? this->optional.value() : std::nullopt;
   }
 
   void set_value(const PropertyValue &value) {
@@ -169,11 +169,27 @@ public:
   }
 
   bool has_vlaue() const {
-    return this->value.has_value();
+    return this->optional.has_value();
+  }
+
+  value_type& value() {
+    return this->optional.value();
+  }
+
+  const value_type& value() const {
+    return this->optional.value();
+  }
+
+  value_type value_or(const value_type &v) const {
+    return this->optional.value_or(v);
+  }
+
+  value_type value_or(value_type &&v) const {
+    return this->optional.value_or(std::move(v));
   }
 
   operator const T&() const {
-    return this->value;
+    return this->optional;
   }
 
   Property& operator=(const std::optional<value_type> &value) {

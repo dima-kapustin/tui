@@ -13,7 +13,7 @@ class Window: public Component {
   std::shared_ptr<Window> owner;
 
 protected:
-  void paint_children(Graphics &g) override;
+  void paint_components(Graphics &g) override;
 
 public:
   Window(Screen &screen) :

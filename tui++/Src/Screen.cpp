@@ -21,7 +21,7 @@ std::shared_ptr<Window> Screen::get_top_window() {
 
 std::shared_ptr<Component> Screen::get_component_at(int x, int y) {
   if (auto top_window = get_top_window()) {
-    auto component = top_window->get_child_at(x - top_window->get_x(), y - top_window->get_y());
+    auto component = top_window->get_component_at(x - top_window->get_x(), y - top_window->get_y());
     return component ? component : top_window;
   }
   return {};

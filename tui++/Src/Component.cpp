@@ -28,7 +28,7 @@ void Component::paint_border(Graphics &g) {
   }
 }
 
-void Component::paint_children(Graphics &g) {
+void Component::paint_components(Graphics &g) {
   for (auto &&c : this->components) {
     if (c->is_visible()) {
       int x = c->get_x(), y = c->get_y();
