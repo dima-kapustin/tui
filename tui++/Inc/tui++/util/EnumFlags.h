@@ -5,7 +5,7 @@
 namespace tui::util {
 
 template<typename E, std::enable_if_t<std::is_enum_v<E>, bool> = true>
-class EnumMask {
+class EnumFlags {
   using UT = std::underlying_type_t<E>;
 
   UT flags;
@@ -22,7 +22,7 @@ public:
         bitset(bitset) {
     }
 
-    friend class EnumMask;
+    friend class EnumFlags;
   public:
     constexpr const_iterator() :
         bitset(0) {
@@ -49,62 +49,62 @@ public:
   };
 
 public:
-  constexpr EnumMask() :
+  constexpr EnumFlags() :
       flags { 0 } {
   }
 
-  constexpr EnumMask(E e) :
+  constexpr EnumFlags(E e) :
       flags { UT(e) } {
   }
 
-  constexpr EnumMask(const EnumMask &other) = default;
+  constexpr EnumFlags(const EnumFlags &other) = default;
 
-  constexpr EnumMask& operator=(const EnumMask &other) = default;
+  constexpr EnumFlags& operator=(const EnumFlags &other) = default;
 
 public:
-  constexpr EnumMask& operator|=(E other) {
+  constexpr EnumFlags& operator|=(E other) {
     this->flags |= UT(other);
     return *this;
   }
 
-  constexpr EnumMask operator|(E other) const {
+  constexpr EnumFlags operator|(E other) const {
     auto result = *this;
     result |= other;
     return result;
   }
 
-  constexpr EnumMask& operator|=(const EnumMask &other) {
+  constexpr EnumFlags& operator|=(const EnumFlags &other) {
     this->flags |= other.flags;
     return *this;
   }
 
-  constexpr EnumMask operator|(const EnumMask &other) const {
+  constexpr EnumFlags operator|(const EnumFlags &other) const {
     auto result = *this;
     result |= other;
     return result;
   }
 
-  constexpr EnumMask operator~() const {
+  constexpr EnumFlags operator~() const {
     return {E(~this->flags)};
   }
 
-  constexpr EnumMask operator&=(E other) {
+  constexpr EnumFlags operator&=(E other) {
     this->flags &= UT(other);
     return *this;
   }
 
-  constexpr EnumMask operator&(E other) const {
+  constexpr EnumFlags operator&(E other) const {
     auto result = *this;
     result &= other;
     return result;
   }
 
-  constexpr EnumMask operator&=(const EnumMask &other) {
+  constexpr EnumFlags operator&=(const EnumFlags &other) {
     this->flags &= other.flags;
     return *this;
   }
 
-  constexpr EnumMask operator&(const EnumMask &other) const {
+  constexpr EnumFlags operator&(const EnumFlags &other) const {
     auto result = *this;
     result &= other;
     return result;
@@ -114,7 +114,7 @@ public:
     return bool(this->flags);
   }
 
-  constexpr bool operator==(const EnumMask &other) const {
+  constexpr bool operator==(const EnumFlags &other) const {
     return this->flags == other.flags;
   }
 
@@ -122,7 +122,7 @@ public:
     return this->flags == UT(other);
   }
 
-  constexpr bool operator!=(const EnumMask &other) {
+  constexpr bool operator!=(const EnumFlags &other) {
     return this->flags != other.flags;
   }
 
@@ -142,11 +142,11 @@ public:
 }
 
 template<typename E, std::enable_if_t<std::is_enum_v<E>, bool> = true>
-constexpr tui::util::EnumMask<E> operator|(E a, E b) {
+constexpr tui::util::EnumFlags<E> operator|(E a, E b) {
   return {E(std::underlying_type_t<E>(a) | std::underlying_type_t<E>(b))};
 }
 
 template<typename E, std::enable_if_t<std::is_enum_v<E>, bool> = true>
-constexpr tui::util::EnumMask<E> operator&(E a, E b) {
+constexpr tui::util::EnumFlags<E> operator&(E a, E b) {
   return {E(std::underlying_type_t<E>(a) & std::underlying_type_t<E>(b))};
 }

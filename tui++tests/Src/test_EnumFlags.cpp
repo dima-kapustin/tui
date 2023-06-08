@@ -1,5 +1,4 @@
-#include <tui++/util/EnumMask.h>
-
+#include <tui++/util/EnumFlags.h>
 #include <cassert>
 
 using namespace tui::util;
@@ -10,7 +9,7 @@ enum class Flag {
   C = 32,
 };
 
-using Flags = EnumMask<Flag>;
+using Flags = EnumFlags<Flag>;
 
 void test_EnumMask() {
   auto a = Flag::A | Flag::C;

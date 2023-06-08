@@ -1,9 +1,10 @@
 #pragma once
 
 #include <tui++/Graphics.h>
-#include <tui++/terminal/TerminalScreen.h>
 
 namespace tui::terminal {
+
+class TerminalScreen;
 
 class TerminalGraphics: public Graphics {
   TerminalScreen &screen;
@@ -19,13 +20,8 @@ class TerminalGraphics: public Graphics {
   Attributes attributes = Attributes::NONE;
 
 public:
-  TerminalGraphics(TerminalScreen &screen) :
-      TerminalGraphics(screen, Rectangle { 0, 0, screen.get_width(), screen.get_height() }, 0, 0) {
-  }
-
-  TerminalGraphics(TerminalScreen &screen, const Rectangle &clip_rect, int dx, int dy) :
-      screen(screen), dx(dx), dy(dy), clip(clip_rect) {
-  }
+  TerminalGraphics(TerminalScreen &screen);
+  TerminalGraphics(TerminalScreen &screen, const Rectangle &clip_rect, int dx, int dy);
 
 private:
   void reset(const Rectangle &r);
@@ -39,15 +35,17 @@ public:
 
   std::unique_ptr<Graphics> create(int x, int y, int width, int height) override;
 
-  void draw_char(Char ch, int x, int y, const Attributes &attributes = Attributes::NONE) override;
+  void draw_char(const Char &c, int x, int y, const Attributes &attributes = Attributes::NONE) override;
 
-  void draw_hline(int x, int y, int length, Char ch, const Attributes &attributes = Attributes::NONE) override;
+  void draw_hline(int x, int y, int length, const Attributes &attributes = Attributes::NONE) override;
 
   void draw_rect(int x, int y, int width, int height) override;
 
+  void draw_rounded_rect(int x, int y, int width, int height) override;
+
   void draw_string(const std::string &str, int x, int y, const Attributes &attributes = Attributes::NONE) override;
 
-  void draw_vline(int x, int y, int length, Char ch, const Attributes &attributes = Attributes::NONE) override;
+  void draw_vline(int x, int y, int length, const Attributes &attributes = Attributes::NONE) override;
 
   void fill_rect(int x, int y, int width, int height) override;
 
@@ -68,9 +66,7 @@ public:
 
   void translate(int dx, int dy) override;
 
-  void flush() {
-    this->screen.flush();
-  }
+  void flush();
 };
 
 }

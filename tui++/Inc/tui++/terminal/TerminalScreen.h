@@ -49,19 +49,19 @@ private:
   friend class Terminal;
 
 private:
-  void draw_char(Char ch, int x, int y, const Color &foreground_color, const Color &background_color, const Attributes &attributes) {
-    auto &char_view = this->view[y][x];
-    char_view.ch = ch;
-    char_view.attributes = attributes;
-    char_view.foreground_color = foreground_color;
-    char_view.background_color = background_color;
-  }
-
   void resize_view();
 
   friend class TerminalGraphics;
 
 public:
+  void draw_char(Char ch, int x, int y, const Color &foreground_color, const Color &background_color, const Attributes &attributes) {
+    auto &cv = this->view[y][x];
+    cv.ch = ch;
+    cv.attributes = attributes;
+    cv.foreground_color = foreground_color;
+    cv.background_color = background_color;
+  }
+
   virtual void run_event_loop() override;
 
   virtual void refresh();

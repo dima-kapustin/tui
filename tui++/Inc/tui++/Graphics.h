@@ -1,6 +1,5 @@
 #pragma once
 
-#include <tui++/Char.h>
 #include <tui++/Font.h>
 #include <tui++/Color.h>
 #include <tui++/Stroke.h>
@@ -10,6 +9,8 @@
 #include <memory>
 
 namespace tui {
+
+class Char;
 
 class Graphics {
 public:
@@ -26,36 +27,22 @@ public:
     clip_rect(rect.x, rect.y, rect.width, rect.height);
   }
 
-  virtual void draw_char(Char ch, int x, int y, const Attributes &attributes = Attributes::NONE) = 0;
+  virtual void draw_char(const Char &c, int x, int y, const Attributes &attributes = Attributes::NONE) = 0;
 
-  /**
-   * Draws a horizontal line, using the current color, starting at the given point <code>(x1,&nbsp;y1)</code> in this graphics context's
-   * coordinate system, with the given length and character.
-   */
-  virtual void draw_hline(int x, int y, int length, Char ch, const Attributes &attributes = Attributes::NONE) = 0;
-  void draw_hline(int x, int y, int length, const Attributes &attributes = Attributes::NONE) {
-    draw_hline(x, y, length, BoxDrawing::HORIZONTAL_LIGHT, attributes);
-  }
+  virtual void draw_hline(int x, int y, int length, const Attributes &attributes = Attributes::NONE) = 0;
 
   virtual void draw_rect(int x, int y, int width, int height) = 0;
   void draw_rect(const Rectangle &rect) {
     draw_rect(rect.x, rect.y, rect.width, rect.height);
   }
+  virtual void draw_rounded_rect(int x, int y, int width, int height) = 0;
+  void draw_rounded_rect(const Rectangle &rect) {
+    draw_rounded_rect(rect.x, rect.y, rect.width, rect.height);
+  }
 
   virtual void draw_string(const std::string &str, int x, int y, const Attributes &attributes = Attributes::NONE) = 0;
 
-  /**
-   * Draws a vertical line, using the current color, starting at the given point <code>(x1,&nbsp;y1)</code> in this graphics context's
-   * coordinate system, with the given length and character.
-   */
-  virtual void draw_vline(int x, int y, int length, Char ch, const Attributes &attributes = Attributes::NONE) = 0;
-  /**
-   * Draws a vertical line, using the current color, starting at the given point <code>(x1,&nbsp;y1)</code> in this graphics context's
-   * coordinate system and with the given length.
-   */
-  void draw_vline(int x, int y, int length, const Attributes &attributes = Attributes::NONE) {
-    draw_vline(x, y, length, BoxDrawing::VERTICAL_LIGHT, attributes);
-  }
+  virtual void draw_vline(int x, int y, int length, const Attributes &attributes = Attributes::NONE) = 0;
 
   virtual void fill_rect(int x, int y, int width, int height) = 0;
   void fill_rect(const Rectangle &rect) {
