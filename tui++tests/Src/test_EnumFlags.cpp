@@ -12,7 +12,7 @@ enum class Flag {
 using Flags = EnumFlags<Flag>;
 
 void test_EnumMask() {
-  auto a = Flag::A | Flag::C;
+  constexpr auto a = Flag::A | Flag::C;
 
   Flags b = Flags::NONE;
   for (auto &&flag : a) {

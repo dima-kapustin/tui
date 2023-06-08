@@ -7,6 +7,27 @@ namespace tui::terminal {
 class TerminalScreen;
 
 class TerminalGraphics: public Graphics {
+  struct BoxCharacters {
+    const Char &top_left;
+    const Char &top;
+    const Char &top_right;
+    const Char &right;
+    const Char &bottom_right;
+    const Char &bottom;
+    const Char &bottom_left;
+    const Char &left;
+    const Char &horizontal;
+    const Char &vertical;
+  };
+
+  static BoxCharacters LIGHT_BOX;
+  static BoxCharacters HEAVY_BOX;
+  static BoxCharacters DOUBLE_BOX;
+  static BoxCharacters ROUNDED_LIGHT_BOX;
+
+  static const BoxCharacters& get_box_chars(Stroke stroke);
+
+private:
   TerminalScreen &screen;
 
   Font font;
@@ -27,6 +48,8 @@ private:
   void reset(const Rectangle &r);
 
   void update_attributes();
+
+  void draw_rect(int x, int y, int width, int height, const BoxCharacters &chars);
 
 public:
   void clip_rect(int x, int y, int width, int height) override;

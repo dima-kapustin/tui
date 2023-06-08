@@ -109,8 +109,7 @@ public:
   }
 
   constexpr int compare(const Char &other) const {
-    auto length = std::min(size_t(this->len), size_t(other.len)) + 1;
-    return std::char_traits<char>::compare(this->bytes, other.bytes, length);
+    return int(this->code - other.code);
   }
 
   constexpr bool operator<(const Char &other) const {
@@ -118,11 +117,11 @@ public:
   }
 
   constexpr bool operator==(const Char &other) const {
-    return this->u64 == other.u64;
+    return this->code == other.code;
   }
 
   constexpr bool operator!=(const Char &other) const {
-    return this->u64 != other.u64;
+    return this->code != other.code;
   }
 
   constexpr size_t byte_length() const {

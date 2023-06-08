@@ -38,12 +38,12 @@ public:
       return this->bitset != other.bitset;
     }
 
-    const_iterator& operator++() {
+    constexpr const_iterator& operator++() {
       this->bitset ^= (this->bitset & -this->bitset);
       return *this;
     }
 
-    E operator*() const {
+    constexpr E operator*() const {
       return E(UT(1) << __builtin_ctzl(this->bitset));
     }
   };
@@ -130,11 +130,11 @@ public:
     return this->flags != UT(other);
   }
 
-  const_iterator begin() const {
+  constexpr const_iterator begin() const {
     return {this->flags};
   }
 
-  const_iterator end() const {
+  constexpr const_iterator end() const {
     return {};
   }
 };

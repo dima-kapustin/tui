@@ -6,20 +6,7 @@
 
 namespace tui::terminal {
 
-struct BoxCharacters {
-  const Char &top_left;
-  const Char &top;
-  const Char &top_right;
-  const Char &right;
-  const Char &bottom_right;
-  const Char &bottom;
-  const Char &bottom_left;
-  const Char &left;
-  const Char &horizontal;
-  const Char &vertical;
-};
-
-static BoxCharacters LIGHT_BOX = //
+TerminalGraphics::BoxCharacters TerminalGraphics::LIGHT_BOX = //
     { .top_left = BoxDrawing::DOWN_AND_RIGHT_LIGHT, //
       .top = BoxDrawing::HORIZONTAL_LIGHT, //
       .top_right = BoxDrawing::DOWN_AND_LEFT_LIGHT, //
@@ -31,7 +18,7 @@ static BoxCharacters LIGHT_BOX = //
       .horizontal = BoxDrawing::HORIZONTAL_LIGHT, //
       .vertical = BoxDrawing::VERTICAL_LIGHT };
 
-static BoxCharacters HEAVY_BOX = //
+TerminalGraphics::BoxCharacters TerminalGraphics::HEAVY_BOX = //
     { .top_left = BoxDrawing::DOWN_AND_RIGHT_HEAVY, //
       .top = BoxDrawing::HORIZONTAL_HEAVY, //
       .top_right = BoxDrawing::DOWN_AND_LEFT_HEAVY, //
@@ -43,7 +30,7 @@ static BoxCharacters HEAVY_BOX = //
       .horizontal = BoxDrawing::HORIZONTAL_HEAVY, //
       .vertical = BoxDrawing::VERTICAL_HEAVY };
 
-static BoxCharacters DOUBLE_BOX = //
+TerminalGraphics::BoxCharacters TerminalGraphics::DOUBLE_BOX = //
     { .top_left = BoxDrawing::DOWN_AND_RIGHT_DOUBLE, //
       .top = BoxDrawing::HORIZONTAL_DOUBLE, //
       .top_right = BoxDrawing::DOWN_AND_LEFT_DOUBLE, //
@@ -55,7 +42,7 @@ static BoxCharacters DOUBLE_BOX = //
       .horizontal = BoxDrawing::HORIZONTAL_DOUBLE, //
       .vertical = BoxDrawing::VERTICAL_DOUBLE };
 
-static BoxCharacters ROUNDED_LIGHT_BOX = //
+TerminalGraphics::BoxCharacters TerminalGraphics::ROUNDED_LIGHT_BOX = //
     { .top_left = BoxDrawing::DOWN_AND_RIGHT_ARC, //
       .top = BoxDrawing::HORIZONTAL_LIGHT, //
       .top_right = BoxDrawing::DOWN_AND_LEFT_ARC, //
@@ -67,7 +54,15 @@ static BoxCharacters ROUNDED_LIGHT_BOX = //
       .horizontal = BoxDrawing::HORIZONTAL_LIGHT, //
       .vertical = BoxDrawing::VERTICAL_LIGHT };
 
-static const BoxCharacters& get_chars(Stroke stroke) {
+TerminalGraphics::TerminalGraphics(TerminalScreen &screen) :
+    TerminalGraphics(screen, Rectangle { 0, 0, screen.get_width(), screen.get_height() }, 0, 0) {
+}
+
+TerminalGraphics::TerminalGraphics(TerminalScreen &screen, const Rectangle &clip_rect, int dx, int dy) :
+    screen(screen), dx(dx), dy(dy), clip(clip_rect) {
+}
+
+const TerminalGraphics::BoxCharacters& TerminalGraphics::get_box_chars(Stroke stroke) {
   switch (stroke) {
   default:
   case Stroke::LIGHT:
@@ -79,13 +74,13 @@ static const BoxCharacters& get_chars(Stroke stroke) {
   }
 }
 
-static void draw_rect(TerminalScreen &screen, const Rectangle &clip, int x, int y, int width, int height, const Color &foreground_color, const Color &background_color, const Attributes &attributes, const BoxCharacters &chars) {
-  int left = x, top = y;
+void TerminalGraphics::draw_rect(int x, int y, int width, int height, const BoxCharacters &chars) {
+  int left = x + this->dx, top = y + this->dy;
   int right = left + width, bottom = top + height;
-  int clip_left = clip.x;
-  int clip_top = clip.y;
-  int clip_right = clip_left + clip.width;
-  int clip_bottom = clip_top + clip.height;
+  int clip_left = this->clip.x;
+  int clip_top = this->clip.y;
+  int clip_right = clip_left + this->clip.width;
+  int clip_bottom = clip_top + this->clip.height;
 
   int max_left = std::max(left, clip_left);
   int min_right = std::min(right, clip_right);
@@ -96,15 +91,15 @@ static void draw_rect(TerminalScreen &screen, const Rectangle &clip, int x, int 
   if (top >= clip_top and top < clip_bottom) {
     if (left == max_left) {
       // top left corner
-      screen.draw_char(chars.top_left, left, top, foreground_color, background_color, attributes);
+      this->screen.draw_char(chars.top_left, left, top, this->foreground_color, this->background_color, this->attributes);
     }
     for (int i = max_left + 1; i < min_right - 1; i++) {
       // top horizontal line
-      screen.draw_char(chars.top, i, top, foreground_color, background_color, attributes);
+      this->screen.draw_char(chars.top, i, top, this->foreground_color, this->background_color, this->attributes);
     }
     if (right == min_right) {
       // top right corner
-      screen.draw_char(chars.top_right, right - 1, top, foreground_color, background_color, attributes);
+      this->screen.draw_char(chars.top_right, right - 1, top, this->foreground_color, this->background_color, this->attributes);
     }
   }
 
@@ -112,39 +107,31 @@ static void draw_rect(TerminalScreen &screen, const Rectangle &clip, int x, int 
   if (bottom >= clip_top and bottom <= clip_bottom) {
     if (left == max_left) {
       // bottom left corner
-      screen.draw_char(chars.bottom_left, left, bottom - 1, foreground_color, background_color, attributes);
+      this->screen.draw_char(chars.bottom_left, left, bottom - 1, this->foreground_color, this->background_color, this->attributes);
     }
     for (int i = max_left + 1; i < min_right - 1; i++) {
       // bottom horizontal line
-      screen.draw_char(chars.bottom, i, bottom - 1, foreground_color, background_color, attributes);
+      this->screen.draw_char(chars.bottom, i, bottom - 1, this->foreground_color, this->background_color, this->attributes);
     }
     if (right == min_right) {
       // bottom right corner
-      screen.draw_char(chars.bottom_right, right - 1, bottom - 1, foreground_color, background_color, attributes);
+      this->screen.draw_char(chars.bottom_right, right - 1, bottom - 1, this->foreground_color, this->background_color, this->attributes);
     }
   }
 
   // If the left side of the box is outside the clipping rectangle, don't bother.
   if (left >= clip_left and left < clip_right) {
     for (int i = max_top + 1; i < min_bottom - 1; i++) {
-      screen.draw_char(chars.left, left, i, foreground_color, background_color, attributes);
+      this->screen.draw_char(chars.left, left, i, this->foreground_color, this->background_color, this->attributes);
     }
   }
   //
   // If the right side of the box is outside the clipping rectangle, don't bother.
   if (right >= clip_left and right <= clip_right) {
     for (int i = max_top + 1; i < min_bottom - 1; i++) {
-      screen.draw_char(chars.right, right - 1, i, foreground_color, background_color, attributes);
+      this->screen.draw_char(chars.right, right - 1, i, this->foreground_color, this->background_color, this->attributes);
     }
   }
-}
-
-TerminalGraphics::TerminalGraphics(TerminalScreen &screen) :
-    TerminalGraphics(screen, Rectangle { 0, 0, screen.get_width(), screen.get_height() }, 0, 0) {
-}
-
-TerminalGraphics::TerminalGraphics(TerminalScreen &screen, const Rectangle &clip_rect, int dx, int dy) :
-    screen(screen), dx(dx), dy(dy), clip(clip_rect) {
 }
 
 void TerminalGraphics::clip_rect(int x, int y, int width, int height) {
@@ -183,7 +170,7 @@ void TerminalGraphics::draw_char(const Char &c, int x, int y, const Attributes &
 
 void TerminalGraphics::draw_hline(int x, int y, int length, const Attributes &attributes) {
   if (auto rect = this->clip.get_intersection(x + this->dx, y + this->dy, length, 1)) {
-    auto &chars = get_chars(this->stroke);
+    auto &chars = get_box_chars(this->stroke);
     for (int x = rect.get_left(), right = rect.get_right(); x < right; ++x) {
       this->screen.draw_char(chars.horizontal, x, rect.y, this->foreground_color, this->background_color, this->attributes | attributes);
     }
@@ -191,11 +178,11 @@ void TerminalGraphics::draw_hline(int x, int y, int length, const Attributes &at
 }
 
 void TerminalGraphics::draw_rect(int x, int y, int width, int height) {
-  terminal::draw_rect(this->screen, this->clip, x + this->dx, y + this->dy, width, height, this->foreground_color, this->background_color, this->attributes, get_chars(this->stroke));
+  draw_rect(x, y, width, height, get_box_chars(this->stroke));
 }
 
 void TerminalGraphics::draw_rounded_rect(int x, int y, int width, int height) {
-  terminal::draw_rect(this->screen, this->clip, x + this->dx, y + this->dy, width, height, this->foreground_color, this->background_color, this->attributes, ROUNDED_LIGHT_BOX);
+  draw_rect(x, y, width, height, ROUNDED_LIGHT_BOX);
 }
 
 void TerminalGraphics::draw_string(const std::string &str, int x, int y, const Attributes &attributes) {
@@ -216,7 +203,7 @@ void TerminalGraphics::draw_string(const std::string &str, int x, int y, const A
 
 void TerminalGraphics::draw_vline(int x, int y, int length, const Attributes &attributes) {
   if (auto rect = this->clip.get_intersection(x + this->dx, y + this->dy, 1, length)) {
-    auto &chars = get_chars(this->stroke);
+    auto &chars = get_box_chars(this->stroke);
     for (auto y = rect.get_top(), bottom = rect.get_bottom(); y < bottom; ++y) {
       this->screen.draw_char(chars.vertical, rect.x, y, this->foreground_color, this->background_color, this->attributes | attributes);
     }

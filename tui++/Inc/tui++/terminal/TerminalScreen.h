@@ -51,9 +51,6 @@ private:
 private:
   void resize_view();
 
-  friend class TerminalGraphics;
-
-public:
   void draw_char(Char ch, int x, int y, const Color &foreground_color, const Color &background_color, const Attributes &attributes) {
     auto &cv = this->view[y][x];
     cv.ch = ch;
@@ -62,6 +59,9 @@ public:
     cv.background_color = background_color;
   }
 
+  friend class TerminalGraphics;
+
+public:
   virtual void run_event_loop() override;
 
   virtual void refresh();
