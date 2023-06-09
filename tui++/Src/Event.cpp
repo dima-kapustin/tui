@@ -12,8 +12,21 @@ std::string to_string(KeyEvent::KeyCode key_code) {
   buf.reserve(128);
 
   if (key_code < KeyEvent::VK_SPACE) {
-    buf += '^';
-    buf += (char) (key_code + 0x40);
+    switch (key_code) {
+    case KeyEvent::VK_TAB:
+      buf += "Tab"sv;
+      break;
+    case KeyEvent::VK_ENTER:
+      buf += "Enter"sv;
+      break;
+    case KeyEvent::VK_ESCAPE:
+      buf += "Esc"sv;
+      break;
+    default:
+      buf += '^';
+      buf += (char) (key_code + 0x40);
+      break;
+    }
   } else if (key_code == KeyEvent::VK_SPACE) {
     buf += "SPACE"sv;
   } else if (key_code < 0x7f) {
@@ -39,21 +52,41 @@ std::string to_string(KeyEvent::KeyCode key_code) {
       buf += "BackSpace"sv;
       break;
     case KeyEvent::VK_F1:
-    case KeyEvent::VK_F2:
-    case KeyEvent::VK_F3:
-    case KeyEvent::VK_F4:
-    case KeyEvent::VK_F5:
-    case KeyEvent::VK_F6:
-    case KeyEvent::VK_F7:
-    case KeyEvent::VK_F8:
-    case KeyEvent::VK_F9:
-    case KeyEvent::VK_F10:
-    case KeyEvent::VK_F11:
-    case KeyEvent::VK_F12: {
-      auto c = 1 + key_code - KeyEvent::VK_F1;
-      buf += std::format("F{}", c);
+      buf += "F1"sv;
       break;
-    }
+    case KeyEvent::VK_F2:
+      buf += "F2"sv;
+      break;
+    case KeyEvent::VK_F3:
+      buf += "F3"sv;
+      break;
+    case KeyEvent::VK_F4:
+      buf += "F4"sv;
+      break;
+    case KeyEvent::VK_F5:
+      buf += "F5"sv;
+      break;
+    case KeyEvent::VK_F6:
+      buf += "F6"sv;
+      break;
+    case KeyEvent::VK_F7:
+      buf += "F7"sv;
+      break;
+    case KeyEvent::VK_F8:
+      buf += "F8"sv;
+      break;
+    case KeyEvent::VK_F9:
+      buf += "F9"sv;
+      break;
+    case KeyEvent::VK_F10:
+      buf += "F10"sv;
+      break;
+    case KeyEvent::VK_F11:
+      buf += "F11"sv;
+      break;
+    case KeyEvent::VK_F12:
+      buf += "F12"sv;
+      break;
     case KeyEvent::VK_DELETE:
       buf += "Delete"sv;
       break;

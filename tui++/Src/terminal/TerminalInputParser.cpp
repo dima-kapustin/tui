@@ -12,7 +12,7 @@ void Terminal::InputParser::parse_event() {
     parse_esc();
     break;
 
-  case '\x8':
+  case '\b':
     new_key_event(KeyEvent::VK_BACK_SPACE);
     break;
 

@@ -81,7 +81,7 @@ public:
   constexpr static float LEFT_ALIGNMENT = 0;
   constexpr static float RIGHT_ALIGNMENT = 1.0;
 
-  enum InvocationPolicy {
+  enum InputCondition {
     // Command should be invoked when the component has the focus.
     WHEN_FOCUSED = 0,
     // Command should be invoked when the receiving component is an ancestor of the focused component or is itself the focused component.

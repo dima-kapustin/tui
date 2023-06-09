@@ -124,7 +124,7 @@ class Terminal {
     }
 
     char get() {
-      return get(std::chrono::milliseconds::zero());
+      return get(std::chrono::milliseconds::max());
     }
 
     char get(const std::chrono::milliseconds &timeout) {

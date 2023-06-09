@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <functional>
 
 namespace tui {
@@ -62,40 +63,21 @@ struct MouseEvent: InputEvent {
 
 struct KeyEvent: InputEvent {
   enum KeyCode : char32_t {
+    VK_TAB = '\t',
+    VK_ENTER = '\r',
     VK_ESCAPE = '\x1b',
     VK_SPACE = ' ',
-
-    VK_TAB = '\t',
-    VK_BACK_TAB = 0xe000,
-
-    VK_DOWN = 0xe001,
-    VK_UP = 0xe002,
-    VK_LEFT = 0xe003,
-    VK_RIGHT = 0xe004,
-    VK_HOME = 0xe005,
-    VK_END = 0xe006,
-    VK_BACK_SPACE = 0xe007,
-
-    VK_F1 = 0xe008,
-    VK_F2 = 0xe009,
-    VK_F3 = 0xe00a,
-    VK_F4 = 0xe00b,
-    VK_F5 = 0xe00c,
-    VK_F6 = 0xe00d,
-    VK_F7 = 0xe00e,
-    VK_F8 = 0xe00f,
-    VK_F9 = 0xe010,
-    VK_F10 = 0xe011,
-    VK_F11 = 0xe012,
-    VK_F12 = 0xe013,
-
-    VK_DELETE = 0xe01a,
-    VK_INSERT = 0xe01b,
-    VK_PAGE_DOWN = 0xe01c,
-    VK_PAGE_UP = 0xe01d,
-
-    VK_ENTER = 0xe01e,
-
+    VK_EXCLAMATION_MARK = '!',
+    VK_DOUBLE_QUOTE = '"',
+    VK_NUMBER_SIGN = '#',
+    VK_DOLLAR = '$',
+    VK_PERCENT = '%',
+    VK_AMPERSAND = '&',
+    VK_QUOTE = '\'',
+    VK_LEFT_PARENTHESIS = '(',
+    VK_RIGHT_PARENTHESIS = ')',
+    VK_ASTERISK = '*',
+    VK_PLUS = '+',
     VK_COMMA = ',',
     VK_MINUS = '-',
     VK_PERIOD = '.',
@@ -112,8 +94,13 @@ struct KeyEvent: InputEvent {
     VK_8 = '8',
     VK_9 = '9',
 
+    VK_COLON = ':',
     VK_SEMICOLON = ';',
+    VK_LESS = '<',
     VK_EQUALS = '=',
+    VK_GREATER = '>',
+    VK_QUESTION_MARK = '?',
+    VK_AT = '@',
 
     VK_A = 'A',
     VK_B = 'B',
@@ -141,13 +128,70 @@ struct KeyEvent: InputEvent {
     VK_X = 'X',
     VK_Y = 'Y',
     VK_Z = 'Z',
+
     VK_OPEN_BRACKET = '[',
+    VK_BACK_SLASH = '\\',
     VK_CLOSE_BRACKET = ']',
-    VK_OPEN_PAREN = '(',
-    VK_CLOSE_PAREN = ')',
+    VK_CARET = '^',
+    VK_UNDERSCORE = '_',
+    VK_BACK_QUOTE = '`',
+
+    VK_LEFT_BRACE = '{',
+    VK_PIPE = '|',
+    VK_RIGHT_BRACE = '}',
+    VK_DEAD_TILDE = '~',
+
+    VK_BACK_SPACE = 127,
+
+    // Special Keys - These overlap with C1 (128 - 159)
+    VK_HOME = 128,
+    VK_INSERT = 129,
+    VK_DELETE = 130,
+    VK_END = 131,
+    VK_PAGE_UP = 132,
+    VK_PAGE_DOWN = 133,
+    // Empty
+    // Empty
+    // Empty
+    // Empty
+    VK_F1 = 138,
+    VK_F2 = 139,
+    VK_F3 = 140,
+    VK_F4 = 141,
+    VK_F5 = 142,
+    // Empty
+    VK_F6 = 144,
+    VK_F7 = 145,
+    VK_F8 = 146,
+    VK_F9 = 147,
+    VK_F10 = 148,
+    // Empty
+    VK_F11 = 150,
+    VK_F12 = 151,
+
+    VK_DOWN = 152,
+    VK_UP = 153,
+    VK_LEFT = 154,
+    VK_RIGHT = 155,
+    VK_BACK_TAB = 156,
   };
 
   KeyCode key_code;
+
+  char get_key_char() const {
+    constexpr auto low = short { ' ' };
+    constexpr auto high = short { '~' };
+    const auto value = static_cast<char32_t>(this->key_code);
+    return (value < low or value > high) ? U'\0' : static_cast<char>(value);
+  }
+
+  char32_t get_key_char32() const {
+    constexpr auto low = short { ' ' };
+    constexpr auto mid = short { '~' };
+    constexpr auto high = short { 160 };
+    const auto value = static_cast<char32_t>(this->key_code);
+    return (value < low or (value > mid and value < high)) ? U'\0' : value;
+  }
 };
 
 std::string to_string(KeyEvent::KeyCode key_code);
@@ -224,5 +268,21 @@ public:
 };
 
 std::ostream& operator<<(std::ostream &os, const Event &event);
+
+}
+
+namespace std {
+
+template<>
+struct hash<tui::KeyEvent::KeyCode> {
+public:
+  using argument_type = tui::KeyEvent::KeyCode;
+  using result_type = std::size_t;
+
+public:
+  result_type operator()(argument_type const &key) const noexcept {
+    return std::hash<std::underlying_type_t<argument_type>> { }(std::to_underlying(key));
+  }
+};
 
 }

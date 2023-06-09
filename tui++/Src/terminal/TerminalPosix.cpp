@@ -26,9 +26,10 @@ public:
     impl = this;
 
     ::tcgetattr(STDIN_FILENO, &this->termios);
+    auto termios = this->termios;
     termios.c_lflag &= ~(ICANON|ECHO|ICRNL);
     termios.c_cc[VMIN] = 1;
-    ::tcsetattr(STDIN_FILENO, TCSAFLUSH, &this->termios);
+    ::tcsetattr(STDIN_FILENO, TCSAFLUSH, &termios);
 
     //this->input_flags = ::fcntl(STDIN_FILENO, F_GETFL, 0);
     //::fcntl(STDIN_FILENO, F_SETFL, this->input_flags | O_NONBLOCK);
@@ -46,11 +47,11 @@ public:
   }
 
   bool read_input(const std::chrono::milliseconds &timeout, Terminal::InputBuffer &into) {
-    if (timeout.count() and is_stdin_empty(timeout)) {
+    if (is_stdin_empty(timeout)) {
       return false;
     }
-    char byte;
-    if (::read(fileno(stdin), &byte, 1) == 1) {
+    char byte = '\0';
+    if ((::read(fileno(stdin), &byte, 1) == 1)) {
       into.put(byte);
       return true;
     }
