@@ -1,11 +1,13 @@
 #pragma once
 
+#include <chrono>
 #include <memory>
 #include <string>
 #include <utility>
 #include <functional>
 
 #include <tui++/Char.h>
+#include <tui++/util/string.h>
 #include <tui++/util/EnumFlags.h>
 
 namespace tui {
@@ -40,6 +42,7 @@ struct InputEvent: BasicEvent {
   using Modifiers = util::EnumFlags<Modifier>;
 
   Modifiers modifiers;
+  std::chrono::utc_clock::time_point when = std::chrono::utc_clock::now();
 
   constexpr InputEvent() = default;
   constexpr InputEvent(const std::shared_ptr<Component> &source, Modifiers modifiers) :
@@ -235,6 +238,22 @@ public:
 
 std::string to_string(KeyEvent::KeyCode key_code);
 
+using ActionKey = u8string;
+
+struct ActionEvent: public BasicEvent {
+  constexpr static auto NO_MODIFIERS = InputEvent::NO_MODIFIERS;
+  constexpr static auto SHIFT_DOWN = InputEvent::SHIFT_DOWN;
+  constexpr static auto CTRL_DOWN = InputEvent::CTRL_DOWN;
+  constexpr static auto ALT_DOWN = InputEvent::ALT_DOWN;
+  constexpr static auto META_DOWN = InputEvent::META_DOWN;
+
+  using Modifiers = InputEvent::Modifiers;
+
+  ActionKey action_command;
+  Modifiers modifiers;
+  std::chrono::utc_clock::time_point when = std::chrono::utc_clock::now();
+};
+
 struct InvocationEvent {
   std::function<void()> target;
 };
@@ -256,6 +275,7 @@ public:
     UNDEFINED,
     KEY,
     MOUSE,
+    ACTION,
     INVOCATION,
     FOCUS
   };
@@ -266,6 +286,7 @@ public:
     } undefined { };
     KeyEvent key;
     MouseEvent mouse;
+    ActionEvent action;
     InvocationEvent invocation;
     FocusEvent focus;
   };
@@ -290,6 +311,10 @@ public:
       type(Type::FOCUS), focus { source, type, temporary, opposite } {
   }
 
+  Event(const std::shared_ptr<Component> &source, const ActionKey &action_command, ActionEvent::Modifiers modifiers) :
+      type(Type::ACTION), action { source, action_command, modifiers } {
+  }
+
   ~Event() {
     switch (this->type) {
     case UNDEFINED:
@@ -299,6 +324,9 @@ public:
       break;
     case MOUSE:
       this->mouse.~MouseEvent();
+      break;
+    case ACTION:
+      this->action.~ActionEvent();
       break;
     case INVOCATION:
       this->invocation.~InvocationEvent();

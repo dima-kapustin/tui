@@ -11,34 +11,20 @@ class KeyStroke {
   InputEvent::Modifiers modifiers;
 
 private:
-  constexpr u8string_view next_token(const u8string &str, size_t &index) {
-    auto from_index = index, to_index = from_index;
-    for (; to_index < str.size(); ++to_index) {
-      if (str[to_index] == ' ') {
-        index = to_index + 1;
-        return {str.data() + from_index, to_index - from_index};
-      }
-    }
-    index = str.size();
-    if (to_index != from_index) {
-      return {str.data() + from_index, to_index - from_index};
-    } else {
-      return {};
-    }
-  }
-
   constexpr KeyStroke parse(const u8string &str) {
+    using namespace std::string_literals;
+    using namespace std::string_view_literals;
+
     auto throw_invalid_format = [&str] {
-      throw std::runtime_error("Invalid KeyStroke format: " + str);
+      throw std::runtime_error("Invalid KeyStroke: "s + str);
     };
 
-    using namespace std::string_view_literals;
+    auto typed = false;
     auto char_index = size_t { 0 };
     auto modifiers = InputEvent::Modifiers::NONE;
-    auto typed = false;
     auto key_code = KeyEvent::VK_UNDEFINED;
     while (char_index < str.size()) {
-      auto token = next_token(str, char_index);
+      auto token = util::next_token(str, char_index, ' ');
       if (not token.empty()) { // multiple spaces ?
         if (typed) {
           if (char_index == str.size()) {
@@ -117,6 +103,26 @@ public:
       return KeyEvent::KEY_TYPED;
     }
     return KeyEvent::KEY_PRESSED;
+  }
+
+  constexpr bool operator==(const KeyStroke &other) const {
+    return this->key_char == other.key_char and this->key_code == other.key_code and this->modifiers == other.modifiers;
+  }
+};
+
+}
+
+namespace std {
+
+template<>
+struct hash<tui::KeyStroke> {
+public:
+  using argument_type = tui::KeyStroke;
+  using result_type = std::size_t;
+
+public:
+  result_type operator()(argument_type const &key_stroke) const noexcept {
+    return (key_stroke.get_key_char().get_code() + 1) * (key_stroke.get_key_code() + 1) * (key_stroke.get_modifiers() + 1) * 2;
   }
 };
 

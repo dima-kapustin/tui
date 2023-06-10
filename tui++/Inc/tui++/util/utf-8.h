@@ -1,12 +1,9 @@
 #pragma once
 
 #include <string>
-#include <tui++/util/unicode.h>
 
-namespace tui {
-using u8string = std::string;
-using u8string_view = std::string_view;
-}
+#include <tui++/util/string.h>
+#include <tui++/util/unicode.h>
 
 namespace tui::util {
 
@@ -266,6 +263,22 @@ constexpr std::wstring from_utf8(const std::string &s) {
     }
   }
   return ws;
+}
+
+constexpr u8string_view next_token(const u8string &str, size_t &index, char delim) {
+  auto from_index = index, to_index = from_index;
+  for (; to_index < str.size(); ++to_index) {
+    if (str[to_index] == delim) {
+      index = to_index + 1;
+      return {str.data() + from_index, to_index - from_index};
+    }
+  }
+  index = str.size();
+  if (to_index != from_index) {
+    return {str.data() + from_index, to_index - from_index};
+  } else {
+    return {};
+  }
 }
 
 }
