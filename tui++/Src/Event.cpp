@@ -214,6 +214,10 @@ std::ostream& operator<<(std::ostream &os, const Event &event) {
     os << " at " << event.mouse.x << "," << event.mouse.y;
     break;
 
+  case Event::ACTION:
+    os << "Action '" << event.action.action_command << "' Performed";
+    break;
+
   case Event::INVOCATION:
     os << "Invocation";
     break;
