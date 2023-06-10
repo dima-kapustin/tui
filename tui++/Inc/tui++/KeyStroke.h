@@ -1,13 +1,123 @@
 #pragma once
 
 #include <tui++/Event.h>
+#include <tui++/util/utf-8.h>
 
 namespace tui {
 
 class KeyStroke {
-  InputEvent::Modifiers modifiers;
+  Char key_char;
   KeyEvent::KeyCode key_code;
+  InputEvent::Modifiers modifiers;
 
+private:
+  constexpr u8string_view next_token(const u8string &str, size_t &index) {
+    auto from_index = index, to_index = from_index;
+    for (; to_index < str.size(); ++to_index) {
+      if (str[to_index] == ' ') {
+        index = to_index + 1;
+        return {str.data() + from_index, to_index - from_index};
+      }
+    }
+    index = str.size();
+    if (to_index != from_index) {
+      return {str.data() + from_index, to_index - from_index};
+    } else {
+      return {};
+    }
+  }
+
+  constexpr KeyStroke parse(const u8string &str) {
+    auto throw_invalid_format = [&str] {
+      throw std::runtime_error("Invalid KeyStroke format: " + str);
+    };
+
+    using namespace std::string_view_literals;
+    auto char_index = size_t { 0 };
+    auto modifiers = InputEvent::Modifiers::NONE;
+    auto typed = false;
+    auto key_code = KeyEvent::VK_UNDEFINED;
+    while (char_index < str.size()) {
+      auto token = next_token(str, char_index);
+      if (not token.empty()) { // multiple spaces ?
+        if (typed) {
+          if (char_index == str.size()) {
+            auto cp = char32_t { 0 };
+            auto cp_len = util::mb_to_c32(token, &cp);
+            if (cp_len > 0 and token.length() == size_t(cp_len)) {
+              return {cp, modifiers};
+            }
+          }
+          throw_invalid_format();
+        }
+
+        if (token == "typed"sv) {
+          typed = true;
+        } else if (token == "ctrl"sv or token == "control"sv) {
+          modifiers |= InputEvent::CTRL_DOWN;
+        } else if (token == "shift"sv) {
+          modifiers |= InputEvent::SHIFT_DOWN;
+        } else if (token == "alt"sv) {
+          modifiers |= InputEvent::ALT_DOWN;
+        } else {
+          if (char_index == str.size()) {
+            auto cp = char32_t { 0 };
+            auto cp_len = util::mb_to_c32(token, &cp);
+            if (cp_len > 0 and token.length() == size_t(cp_len)) {
+              key_code = KeyEvent::KeyCode(cp);
+              break;
+            }
+          }
+          throw_invalid_format();
+        }
+      }
+    }
+
+    return {key_code, modifiers};
+  }
+
+public:
+  constexpr KeyStroke(char c) :
+      key_char(c), key_code(KeyEvent::VK_UNDEFINED), modifiers(InputEvent::NO_MODIFIERS) {
+  }
+
+  constexpr KeyStroke(const Char &key_char, InputEvent::Modifiers modifiers) :
+      key_char(key_char), key_code(KeyEvent::VK_UNDEFINED), modifiers(modifiers) {
+  }
+
+  constexpr KeyStroke(KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers) :
+      key_char(KeyEvent::CHAR_UNDEFINED), key_code(key_code), modifiers(modifiers) {
+  }
+
+  constexpr KeyStroke(const u8string &str) :
+      KeyStroke(parse(str)) {
+  }
+
+  constexpr KeyStroke(const KeyStroke&) = default;
+  constexpr KeyStroke(KeyStroke&&) = default;
+
+  constexpr KeyStroke& operator=(const KeyStroke&) = default;
+  constexpr KeyStroke& operator=(KeyStroke&&) = default;
+
+public:
+  constexpr const Char& get_key_char() const {
+    return this->key_char;
+  }
+
+  constexpr KeyEvent::KeyCode get_key_code() const {
+    return this->key_code;
+  }
+
+  constexpr InputEvent::Modifiers get_modifiers() const {
+    return this->modifiers;
+  }
+
+  constexpr KeyEvent::Type get_key_event_type() const {
+    if (this->key_code == KeyEvent::VK_UNDEFINED) {
+      return KeyEvent::KEY_TYPED;
+    }
+    return KeyEvent::KEY_PRESSED;
+  }
 };
 
 }

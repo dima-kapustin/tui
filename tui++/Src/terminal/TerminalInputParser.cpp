@@ -61,12 +61,16 @@ void Terminal::InputParser::parse_utf8(char first_byte) {
     utf8[i] = consume();
   }
 
-  auto cp = char32_t { };
-  if (auto cp_size = util::mb_to_c32(utf8.data(), std::size(utf8), &cp); cp_size > 0) {
-    new_key_event(KeyEvent::KeyCode(cp));
-  } else if (cp_size == -1) {
+  auto c = char32_t { };
+  if (auto c_len = util::mb_to_c32(utf8.data(), std::size(utf8), &c); c_len > 0) {
+    if (c < ' ') {
+      new_key_event(char(c + 0x40), InputEvent::CTRL_DOWN);
+    } else {
+      new_key_event(c);
+    }
+  } else if (c_len == -1) {
     // TODO report eror: "Illegal byte sequence"
-  } else if (cp_size == -2) {
+  } else if (c_len == -2) {
     // TODO report eror: "Incomplete byte sequence"
   }
 }
@@ -97,7 +101,7 @@ void Terminal::InputParser::parse_esc() {
 
   default:
     if (c >= 0x40 and c <= 0x7E) {
-      new_key_event(KeyEvent::KeyCode(c), InputEvent::ALT_MASK);
+      new_key_event(KeyEvent::KeyCode(c), InputEvent::ALT_DOWN);
     }
     break;
   }
@@ -237,51 +241,45 @@ void Terminal::InputParser::parse_csi_params() {
   } while (true);
 }
 
-constexpr InputEvent::Modifiers operator|(InputEvent::Modifiers a, InputEvent::Modifiers b) {
-  return InputEvent::Modifiers(std::underlying_type_t<InputEvent::Modifiers>(a) | std::underlying_type_t<InputEvent::Modifiers>(b));
-}
-
 static InputEvent::Modifiers parse_modifiers(const std::vector<unsigned> &args) {
   if (args.size() < 2) {
-    return InputEvent::Modifiers::NONE_MASK;
+    return InputEvent::Modifiers::NONE;
   }
-
-  using Modifiers = InputEvent::Modifiers;
 
   switch (args[1]) {
   case 2:
-    return Modifiers::SHIFT_MASK;
+    return InputEvent::SHIFT_DOWN;
   case 3:
-    return Modifiers::ALT_MASK;
+    return InputEvent::ALT_DOWN;
   case 4:
-    return Modifiers::SHIFT_MASK | Modifiers::ALT_MASK;
+    return InputEvent::SHIFT_DOWN | InputEvent::ALT_DOWN;
   case 5:
-    return Modifiers::CTRL_MASK;
+    return InputEvent::CTRL_DOWN;
   case 6:
-    return Modifiers::SHIFT_MASK | Modifiers::CTRL_MASK;
+    return InputEvent::SHIFT_DOWN | InputEvent::CTRL_DOWN;
   case 7:
-    return Modifiers::CTRL_MASK | Modifiers::ALT_MASK;
+    return InputEvent::CTRL_DOWN | InputEvent::ALT_DOWN;
   case 8:
-    return Modifiers::SHIFT_MASK | Modifiers::CTRL_MASK | Modifiers::ALT_MASK;
+    return InputEvent::SHIFT_DOWN | InputEvent::CTRL_DOWN | InputEvent::ALT_DOWN;
   case 9:
-    return Modifiers::META_MASK;
+    return InputEvent::META_DOWN;
   case 10:
-    return Modifiers::SHIFT_MASK | Modifiers::META_MASK;
+    return InputEvent::SHIFT_DOWN | InputEvent::META_DOWN;
   case 11:
-    return Modifiers::ALT_MASK | Modifiers::META_MASK;
+    return InputEvent::ALT_DOWN | InputEvent::META_DOWN;
   case 12:
-    return Modifiers::SHIFT_MASK | Modifiers::ALT_MASK | Modifiers::META_MASK;
+    return InputEvent::SHIFT_DOWN | InputEvent::ALT_DOWN | InputEvent::META_DOWN;
   case 13:
-    return Modifiers::CTRL_MASK | Modifiers::META_MASK;
+    return InputEvent::CTRL_DOWN | InputEvent::META_DOWN;
   case 14:
-    return Modifiers::SHIFT_MASK | Modifiers::CTRL_MASK | Modifiers::META_MASK;
+    return InputEvent::SHIFT_DOWN | InputEvent::CTRL_DOWN | InputEvent::META_DOWN;
   case 15:
-    return Modifiers::CTRL_MASK | Modifiers::ALT_MASK | Modifiers::META_MASK;
+    return InputEvent::CTRL_DOWN | InputEvent::ALT_DOWN | InputEvent::META_DOWN;
   case 16:
-    return Modifiers::SHIFT_MASK | Modifiers::CTRL_MASK | Modifiers::ALT_MASK | Modifiers::META_MASK;
+    return InputEvent::SHIFT_DOWN | InputEvent::CTRL_DOWN | InputEvent::ALT_DOWN | InputEvent::META_DOWN;
   }
 
-  return InputEvent::Modifiers::NONE_MASK;
+  return InputEvent::NO_MODIFIERS;
 }
 
 void Terminal::InputParser::parse_csi_selector() {

@@ -120,6 +120,10 @@ public:
     return this->code == other.code;
   }
 
+  friend constexpr bool operator==(const Char &left, char32_t right) {
+    return left.code == right;
+  }
+
   constexpr bool operator!=(const Char &other) const {
     return this->code != other.code;
   }
@@ -130,6 +134,10 @@ public:
 
   constexpr int glyph_width() const {
     return util::unicode::glyph_width(char32_t(this->code));
+  }
+
+  constexpr char32_t get_code() const {
+    return char32_t(this->code);
   }
 };
 

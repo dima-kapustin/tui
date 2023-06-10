@@ -3,9 +3,12 @@
 #include <string>
 #include <tui++/util/unicode.h>
 
-namespace tui::util {
-
+namespace tui {
 using u8string = std::string;
+using u8string_view = std::string_view;
+}
+
+namespace tui::util {
 
 constexpr int mb_to_c32(const char *utf8, std::size_t size, char32_t *c32) {
   if (size == 0 or *utf8 == 0) {
@@ -70,21 +73,30 @@ constexpr int mb_to_c32(const char *utf8, std::size_t size, char32_t *c32) {
       *c32 = c;
       return 4;
     } else {
-      return -2;
+      return -2; // incomplete
     }
   }
 
-  return -1;
+  return -1; // invalid
+}
+
+constexpr int mb_to_c32(const u8string &str, char32_t *c32) {
+  return mb_to_c32(str.data(), str.length(), c32);
+}
+
+constexpr int mb_to_c32(const u8string_view &str, char32_t *c32) {
+  return mb_to_c32(str.data(), str.length(), c32);
 }
 
 constexpr u8string c32_to_mb(char32_t c) {
-  u8string mb(4, '\0');
+  u8string mb;
+  mb.reserve(4);
 
   // 1 byte UTF8
   if (c <= 0b000'0000'0111'1111) {
     auto const b1 = c;
-    mb[0] = u8string::value_type(b1);
     mb.resize(1);
+    mb[0] = u8string::value_type(b1);
     return mb;
   }
 
@@ -93,9 +105,9 @@ constexpr u8string c32_to_mb(char32_t c) {
     auto const b2 = c & 0b111111;
     c >>= 6;
     auto const b1 = c;
+    mb.resize(2);
     mb[0] = u8string::value_type(0b11000000 + b1);
     mb[1] = u8string::value_type(0b10000000 + b2);
-    mb.resize(2);
     return mb;
   }
 
@@ -106,10 +118,10 @@ constexpr u8string c32_to_mb(char32_t c) {
     auto const b2 = c & 0b111111;
     c >>= 6;
     auto const b1 = c;
+    mb.resize(3);
     mb[0] = u8string::value_type(0b11100000 + b1);
     mb[1] = u8string::value_type(0b10000000 + b2);
     mb[2] = u8string::value_type(0b10000000 + b3);
-    mb.resize(3);
     return mb;
   }
 
@@ -122,6 +134,7 @@ constexpr u8string c32_to_mb(char32_t c) {
     auto const b2 = c & 0b111111;
     c >>= 6;
     auto const b1 = c;
+    mb.resize(4);
     mb[0] = u8string::value_type(0b11110000 + b1);
     mb[1] = u8string::value_type(0b10000000 + b2);
     mb[2] = u8string::value_type(0b10000000 + b3);
@@ -157,7 +170,7 @@ constexpr std::size_t glyph_width(const std::string_view &utf8) {
   return glyph_width(utf8.data(), utf8.size());
 }
 
-constexpr std::size_t next_code_point(const char *utf8, std::size_t size, std::size_t index, char32_t *cp) {
+constexpr std::size_t next_c32(const char *utf8, std::size_t size, std::size_t index, char32_t *cp) {
   while (index < size) {
     auto cp_size = mb_to_c32(utf8 + index, size - index, cp);
     if (cp_size < 0) {
@@ -172,7 +185,7 @@ constexpr std::size_t next_code_point(const char *utf8, std::size_t size, std::s
   return index;
 }
 
-constexpr std::size_t prev_code_point(const char *utf8, std::size_t size, std::size_t index, char32_t *cp) {
+constexpr std::size_t prev_c32(const char *utf8, std::size_t size, std::size_t index, char32_t *cp) {
   while (true) {
     if (index == 0) {
       return 0;
@@ -189,6 +202,70 @@ constexpr std::size_t prev_code_point(const char *utf8, std::size_t size, std::s
     }
   }
   return index;
+}
+
+constexpr int wc_to_c32(const wchar_t *ws, std::size_t size, char32_t *c32) {
+  if (size == 0 or *ws == 0) {
+    return 0;
+  }
+
+  // UTF32
+  if constexpr (sizeof(wchar_t) == sizeof(char32_t)) {
+    *c32 = *ws;
+    return 1;
+  } else {
+    // UTF16
+    auto c0 = ws[0];
+    if (c0 < 0xD800 or c0 >= 0xDC00) {
+      *c32 = c0;
+      return 1;
+    } else if (size >= 2) {
+      auto c1 = ws[1];
+      *c32 = ((c0 & 0x3FF) << 10) + (c1 & 0x3FF) + 0x10000;
+      return 2;
+    } else {
+      return -2; // incomplete
+    }
+  }
+}
+
+constexpr std::string to_utf8(const std::wstring &s) {
+  std::string utf8;
+  utf8.reserve(4 * s.length());
+  auto cp = char32_t { 0 }; // code point
+  while (wc_to_c32(s.data(), s.size(), &cp) > 0) {
+    utf8 += c32_to_mb(cp);
+  }
+  return utf8;
+}
+
+constexpr std::wstring from_utf8(const std::string &s) {
+  std::wstring ws;
+  ws.reserve(s.length());
+  auto index = size_t { 0 };
+  while (index < s.size()) {
+    auto cp = char32_t { 0 }; // code point
+    auto cp_len = mb_to_c32(s.data() + index, s.size() - index, &cp);
+    if (cp_len > 0) {
+      // UTF32
+      if constexpr (sizeof(wchar_t) == sizeof(char32_t)) {
+        ws += cp;
+      } else {
+        // UTF16
+        if (cp < 0xD800 or (cp > 0xDFFF && cp < 0x10000)) {
+          ws += wchar_t(cp);
+        } else {
+          cp -= 0x010000;
+          ws += wchar_t(((cp << 12) >> 22) + 0xD800);
+          ws += wchar_t(((cp << 22) >> 22) + 0xDC00);
+        }
+      }
+      index += cp_len;
+    } else {
+      break;
+    }
+  }
+  return ws;
 }
 
 }

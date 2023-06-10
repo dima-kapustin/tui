@@ -135,6 +135,10 @@ void Terminal::new_resize_event() {
   this->screen.terminal_resized();
 }
 
+void Terminal::new_key_event(const Char &c, InputEvent::Modifiers modifiers) {
+  this->screen.post(std::make_unique<Event>(nullptr, c, modifiers));
+}
+
 void Terminal::new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers) {
   this->screen.post(std::make_unique<Event>(nullptr, key_code, modifiers));
 }

@@ -166,16 +166,20 @@ class Terminal {
     void parse_utf8(char first_byte);
 
   private:
-    void new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers = InputEvent::NONE_MASK) {
+    void new_key_event(const Char &c, InputEvent::Modifiers modifiers = InputEvent::NO_MODIFIERS) {
+      this->terminal.new_key_event(c, modifiers);
+    }
+
+    void new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers = InputEvent::NO_MODIFIERS) {
       this->terminal.new_key_event(key_code, modifiers);
     }
 
     void new_mouse_event(bool pressed) {
       auto button = this->csi_params[0] & 3;
       auto type = this->csi_params[0] & 64 ? MouseEvent::MOUSE_WHEEL : (pressed ? MouseEvent::MOUSE_PRESSED : MouseEvent::MOUSE_RELEASED);
-      int modifiers = this->csi_params[0] & 4 ? InputEvent::Modifiers::SHIFT_MASK : InputEvent::Modifiers::NONE_MASK;
-      modifiers |= this->csi_params[0] & 8 ? InputEvent::Modifiers::META_MASK : InputEvent::Modifiers::NONE_MASK;
-      modifiers |= this->csi_params[0] & 16 ? InputEvent::Modifiers::CTRL_MASK : InputEvent::Modifiers::NONE_MASK;
+      InputEvent::Modifiers modifiers = this->csi_params[0] & 4 ? InputEvent::SHIFT_DOWN : InputEvent::NO_MODIFIERS;
+      modifiers |= this->csi_params[0] & 8 ? InputEvent::META_DOWN : InputEvent::NO_MODIFIERS;
+      modifiers |= this->csi_params[0] & 16 ? InputEvent::CTRL_DOWN : InputEvent::NO_MODIFIERS;
       int x = this->csi_params[1];
       int y = this->csi_params[2];
       this->terminal.new_mouse_event(type, MouseEvent::Button(button), InputEvent::Modifiers(modifiers), x, y);
@@ -233,6 +237,7 @@ private:
   void deinit();
 
   void new_resize_event();
+  void new_key_event(const Char &c, InputEvent::Modifiers modifiers);
   void new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers);
   void new_mouse_event(MouseEvent::Type type, MouseEvent::Button button, InputEvent::Modifiers modifiers, int x, int y);
 
@@ -263,20 +268,20 @@ public:
 
   template<typename ...Args>
   void print(Args &&... args) {
-    (std::cout << ... << args);
-  }
+  (std::cout << ... << args);
+}
 
-  void set_title(const std::string &title);
+void set_title(const std::string &title);
 
-  void flush();
+void flush();
 
-  void run_event_loop() {
-    this->screen.run_event_loop();
-  }
+void run_event_loop() {
+  this->screen.run_event_loop();
+}
 
-  void post(std::function<void()> fn) {
-    this->screen.post(std::move(fn));
-  }
+void post(std::function<void()> fn) {
+  this->screen.post(std::move(fn));
+}
 };
 
 }

@@ -4,21 +4,24 @@
 
 namespace tui::util {
 
-template<typename E, std::enable_if_t<std::is_enum_v<E>, bool> = true>
-class EnumFlags {
-  using UT = std::underlying_type_t<E>;
+template<typename E, typename = void>
+class EnumFlags;
 
-  UT flags;
+template<typename E>
+class EnumFlags<E, std::enable_if_t<std::is_enum_v<E>>> {
+  using U = std::underlying_type_t<E>;
+
+  U flags;
 
 public:
-  constexpr static auto NONE = E(0);
+  constexpr static EnumFlags NONE = { };
 
 public:
   class const_iterator {
-    UT bitset;
+    U bitset;
 
   protected:
-    const_iterator(UT bitset) :
+    const_iterator(U bitset) :
         bitset(bitset) {
     }
 
@@ -44,7 +47,7 @@ public:
     }
 
     constexpr E operator*() const {
-      return E(UT(1) << __builtin_ctzl(this->bitset));
+      return E(U(1) << __builtin_ctzl(this->bitset));
     }
   };
 
@@ -54,7 +57,7 @@ public:
   }
 
   constexpr EnumFlags(E e) :
-      flags { UT(e) } {
+      flags { U(e) } {
   }
 
   constexpr EnumFlags(const EnumFlags &other) = default;
@@ -63,7 +66,7 @@ public:
 
 public:
   constexpr EnumFlags& operator|=(E other) {
-    this->flags |= UT(other);
+    this->flags |= U(other);
     return *this;
   }
 
@@ -89,7 +92,7 @@ public:
   }
 
   constexpr EnumFlags operator&=(E other) {
-    this->flags &= UT(other);
+    this->flags &= U(other);
     return *this;
   }
 
@@ -119,7 +122,7 @@ public:
   }
 
   constexpr bool operator==(const E &other) const {
-    return this->flags == UT(other);
+    return this->flags == U(other);
   }
 
   constexpr bool operator!=(const EnumFlags &other) {
@@ -127,7 +130,7 @@ public:
   }
 
   constexpr bool operator!=(const E &other) const {
-    return this->flags != UT(other);
+    return this->flags != U(other);
   }
 
   constexpr const_iterator begin() const {

@@ -109,7 +109,7 @@ std::string to_string(KeyEvent::KeyCode key_code) {
       buf += "End"sv;
       break;
     default:
-      buf += util::c32_to_mb(key_code);
+      buf += "UNDEFINED"sv;
     }
   }
 
@@ -119,17 +119,31 @@ std::string to_string(KeyEvent::KeyCode key_code) {
 std::ostream& operator<<(std::ostream &os, const Event &event) {
   switch (event.type) {
   case Event::KEY:
-    os << "Key Pressed: ";
-    if (event.key.modifiers & KeyEvent::ALT_MASK) {
+    switch (event.key.type) {
+    case KeyEvent::KEY_PRESSED:
+      os << "Key Pressed: ";
+      break;
+
+    case KeyEvent::KEY_TYPED:
+      os << "Key Typed: ";
+      break;
+    }
+
+    if (event.key.modifiers & KeyEvent::ALT_DOWN) {
       os << "Alt+";
     }
-    if (event.key.modifiers & KeyEvent::SHIFT_MASK) {
+    if (event.key.modifiers & KeyEvent::SHIFT_DOWN) {
       os << "Shift+";
     }
-    if (event.key.modifiers & KeyEvent::CTRL_MASK) {
+    if (event.key.modifiers & KeyEvent::CTRL_DOWN) {
       os << "Ctrl+";
     }
-    os << to_string(event.key.key_code);
+
+    if (event.key.type == KeyEvent::KEY_TYPED) {
+      os << event.key.get_key_char();
+    } else {
+      os << to_string(event.key.get_key_code());
+    }
     break;
 
   case Event::MOUSE:
@@ -183,16 +197,16 @@ std::ostream& operator<<(std::ostream &os, const Event &event) {
 
     if (event.mouse.modifiers) {
       os << " with ";
-      if (event.mouse.modifiers & InputEvent::ALT_MASK) {
+      if (event.mouse.modifiers & InputEvent::ALT_DOWN) {
         os << "Alt";
       }
-      if (event.mouse.modifiers & InputEvent::SHIFT_MASK) {
+      if (event.mouse.modifiers & InputEvent::SHIFT_DOWN) {
         os << "Shift";
       }
-      if (event.mouse.modifiers & InputEvent::CTRL_MASK) {
+      if (event.mouse.modifiers & InputEvent::CTRL_DOWN) {
         os << "Ctrl";
       }
-      if (event.mouse.modifiers & InputEvent::META_MASK) {
+      if (event.mouse.modifiers & InputEvent::META_DOWN) {
         os << "Meta";
       }
     }

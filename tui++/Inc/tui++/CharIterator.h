@@ -22,7 +22,7 @@ class CharIterator {
 
 private:
   constexpr size_t get_code_point_size() const {
-    return util::next_code_point(this->utf8, this->utf8_size, this->utf8_index, &const_cast<CharIterator*>(this)->code_point) - this->utf8_index;
+    return util::next_c32(this->utf8, this->utf8_size, this->utf8_index, &const_cast<CharIterator*>(this)->code_point) - this->utf8_index;
   }
 
   constexpr void next() {
@@ -35,7 +35,7 @@ private:
   }
 
   constexpr void prev() {
-    this->code_point_byte_size = this->utf8_index - util::prev_code_point(this->utf8, this->utf8_size, this->utf8_index, &this->code_point);
+    this->code_point_byte_size = this->utf8_index - util::prev_c32(this->utf8, this->utf8_size, this->utf8_index, &this->code_point);
     this->utf8_index -= this->code_point_byte_size;
   }
 

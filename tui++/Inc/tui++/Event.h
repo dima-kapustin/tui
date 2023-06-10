@@ -5,30 +5,46 @@
 #include <utility>
 #include <functional>
 
+#include <tui++/Char.h>
+#include <tui++/util/EnumFlags.h>
+
 namespace tui {
 
 class Component;
 
 struct BasicEvent {
   std::shared_ptr<Component> source;
+
+  constexpr BasicEvent() = default;
+  constexpr BasicEvent(const std::shared_ptr<Component> &source) :
+      source(source) {
+  }
 };
 
 struct InputEvent: BasicEvent {
-  enum Modifiers {
-    NONE_MASK = 0,
+  enum Modifier {
+    NO_MODIFIERS = 0,
+
     /** The shift key modifier constant */
-    SHIFT_MASK = 1 << 0,
+    SHIFT_DOWN = 1 << 0,
 
     /** The control key modifier constant */
-    CTRL_MASK = 1 << 1,
+    CTRL_DOWN = 1 << 1,
 
     /** The alt key modifier constant */
-    ALT_MASK = 1 << 2,
+    ALT_DOWN = 1 << 2,
 
-    META_MASK = 1 << 4
+    META_DOWN = 1 << 4
   };
 
+  using Modifiers = util::EnumFlags<Modifier>;
+
   Modifiers modifiers;
+
+  constexpr InputEvent() = default;
+  constexpr InputEvent(const std::shared_ptr<Component> &source, Modifiers modifiers) :
+      BasicEvent(source), modifiers(modifiers) {
+  }
 };
 
 struct MouseEvent: InputEvent {
@@ -59,6 +75,11 @@ struct MouseEvent: InputEvent {
     int weel_rotation;
   };
   bool is_popup_trigger;
+
+  constexpr MouseEvent() = default;
+  constexpr MouseEvent(const std::shared_ptr<Component> &source, Type type, Button button, Modifiers modifiers, int x, int y, int click_count_or_wheel_rotation, bool is_popup_trigger) :
+      InputEvent(source, modifiers), type(type), button(button), x(x), y(y), click_count(click_count_or_wheel_rotation), is_popup_trigger(is_popup_trigger) {
+  }
 };
 
 struct KeyEvent: InputEvent {
@@ -174,23 +195,41 @@ struct KeyEvent: InputEvent {
     VK_LEFT = 154,
     VK_RIGHT = 155,
     VK_BACK_TAB = 156,
+
+    VK_UNDEFINED = char32_t(0)
   };
 
-  KeyCode key_code;
+  constexpr static Char CHAR_UNDEFINED { char32_t(0) };
 
-  char get_key_char() const {
-    constexpr auto low = short { ' ' };
-    constexpr auto high = short { '~' };
-    const auto value = static_cast<char32_t>(this->key_code);
-    return (value < low or value > high) ? U'\0' : static_cast<char>(value);
+  enum Type {
+    KEY_TYPED,
+    KEY_PRESSED
+  };
+
+  Type type;
+
+private:
+  union {
+    KeyCode key_code;
+    Char char_code;
+  };
+
+public:
+  constexpr KeyEvent(const std::shared_ptr<Component> &source, Type type, KeyCode key_code, Modifiers modifiers) :
+      InputEvent(source, modifiers), type(type), key_code(key_code) {
   }
 
-  char32_t get_key_char32() const {
-    constexpr auto low = short { ' ' };
-    constexpr auto mid = short { '~' };
-    constexpr auto high = short { 160 };
-    const auto value = static_cast<char32_t>(this->key_code);
-    return (value < low or (value > mid and value < high)) ? U'\0' : value;
+  constexpr KeyEvent(const std::shared_ptr<Component> &source, const Char &c, Modifiers modifiers) :
+      InputEvent(source, modifiers), type(KEY_TYPED), char_code(c) {
+  }
+
+public:
+  constexpr KeyCode get_key_code() const {
+    return this->type != KEY_TYPED ? this->key_code : VK_UNDEFINED;
+  }
+
+  constexpr Char get_key_char() const {
+    return this->type == KEY_TYPED ? this->char_code : CHAR_UNDEFINED;
   }
 };
 
@@ -236,11 +275,15 @@ public:
   }
 
   Event(const std::shared_ptr<Component> &source, KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers) :
-      type(Type::KEY), key { source, modifiers, key_code } {
+      type(Type::KEY), key { source, KeyEvent::KEY_PRESSED, key_code, modifiers } {
+  }
+
+  Event(const std::shared_ptr<Component> &source, const Char &c, InputEvent::Modifiers modifiers) :
+      type(Type::KEY), key { source, c, modifiers } {
   }
 
   Event(const std::shared_ptr<Component> &source, MouseEvent::Type type, MouseEvent::Button button, InputEvent::Modifiers modifiers, int x, int y, int click_count_or_wheel_rotation, bool is_popup_trigger) :
-      type(Type::MOUSE), mouse { source, modifiers, type, button, x, y, (unsigned) click_count_or_wheel_rotation, is_popup_trigger } {
+      type(Type::MOUSE), mouse { source, type, button, modifiers, x, y, click_count_or_wheel_rotation, is_popup_trigger } {
   }
 
   Event(const std::shared_ptr<Component> &source, FocusEvent::Type type, bool temporary, const std::shared_ptr<Component> &opposite) :

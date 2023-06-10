@@ -13,6 +13,7 @@
 #include <tui++/Layout.h>
 #include <tui++/Dimension.h>
 #include <tui++/Rectangle.h>
+#include <tui++/KeyStroke.h>
 #include <tui++/ComponentOrientation.h>
 
 #include <tui++/Object.h>
