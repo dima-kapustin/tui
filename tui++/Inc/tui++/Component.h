@@ -13,6 +13,7 @@
 #include <tui++/Layout.h>
 #include <tui++/Dimension.h>
 #include <tui++/Rectangle.h>
+#include <tui++/ActionMap.h>
 #include <tui++/ComponentInputMap.h>
 #include <tui++/ComponentOrientation.h>
 
@@ -75,6 +76,11 @@ protected:
   Property<std::optional<Color>> background_color { this, "background_color" };
   Property<std::optional<Color>> foreground_color { this, "foreground_color" };
 
+  mutable std::shared_ptr<InputMap> focus_input_map;
+  mutable std::shared_ptr<InputMap> ancestor_input_map;
+  mutable std::shared_ptr<ComponentInputMap> window_input_map;
+  mutable std::shared_ptr<ActionMap> action_map;
+
 public:
   constexpr static float TOP_ALIGNMENT = 0;
   constexpr static float BOTTOM_ALIGNMENT = 1.0;
@@ -86,7 +92,7 @@ public:
     // Command should be invoked when the component has the focus.
     WHEN_FOCUSED = 0,
     // Command should be invoked when the receiving component is an ancestor of the focused component or is itself the focused component.
-    WHEN_ANCESTOR_OF_FOCUSED_WIDGET = 1,
+    WHEN_ANCESTOR_OF_FOCUSED_COMPONENT = 1,
     // Command should be invoked when the receiving component is in the window that has the focus or is itself the focused component.
     WHEN_IN_FOCUSED_WINDOW = 2
   };
@@ -123,6 +129,27 @@ private:
         }
       }
     }
+  }
+
+  std::shared_ptr<InputMap> get_input_map(InputCondition condition, bool create) const {
+    switch (condition) {
+    case WHEN_FOCUSED:
+      if (not this->focus_input_map and create) {
+        this->focus_input_map = std::make_shared<InputMap>();
+      }
+      return this->focus_input_map;
+    case WHEN_ANCESTOR_OF_FOCUSED_COMPONENT:
+      if (not this->ancestor_input_map and create) {
+        this->ancestor_input_map = std::make_shared<InputMap>();
+      }
+      return this->ancestor_input_map;
+    case WHEN_IN_FOCUSED_WINDOW:
+      if (not this->window_input_map and create) {
+        this->window_input_map = std::make_shared<ComponentInputMap>(const_cast<Component*>(this)->shared_from_this());
+      }
+      return this->window_input_map;
+    }
+    return {};
   }
 
 protected:
@@ -708,6 +735,45 @@ public:
   void set_cursor(const std::optional<Cursor> &cursor) {
     this->cursor = cursor;
   }
+
+  std::shared_ptr<ActionMap> get_action_map() const {
+    if (not this->action_map) {
+      this->action_map = std::make_shared<ActionMap>();
+    }
+    return this->action_map;
+  }
+
+  void set_action_map(const std::shared_ptr<ActionMap> &action_map) {
+    this->action_map = action_map;
+  }
+
+  std::shared_ptr<InputMap> get_input_map() const {
+    return get_input_map(WHEN_FOCUSED, true);
+  }
+
+  std::shared_ptr<InputMap> getInputMap(InputCondition condition) {
+    return get_input_map(condition, true);
+  }
+
+  void set_input_map(InputCondition condition, const std::shared_ptr<InputMap> &map) {
+    switch (condition) {
+    case WHEN_IN_FOCUSED_WINDOW:
+      if (auto component_input_map = std::dynamic_pointer_cast<ComponentInputMap>(map)) {
+        this->window_input_map = component_input_map;
+      } else {
+        throw std::runtime_error("WHEN_IN_FOCUSED_WINDOW InputMaps must be of type ComponentInputMap");
+      }
+      //registerWithKeyboardManager(false);
+      break;
+    case WHEN_ANCESTOR_OF_FOCUSED_COMPONENT:
+      this->ancestor_input_map = map;
+      break;
+    case WHEN_FOCUSED:
+      this->focus_input_map = map;
+      break;
+    }
+  }
+
 };
 
 /**

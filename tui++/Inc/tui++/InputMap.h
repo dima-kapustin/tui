@@ -32,6 +32,10 @@ private:
   }
 
 public:
+  virtual ~InputMap() {
+  }
+
+public:
   std::optional<ActionKey> at(const KeyStroke &key_stroke) const {
     auto pos = this->map.find(key_stroke);
     if (pos != this->map.end()) {
