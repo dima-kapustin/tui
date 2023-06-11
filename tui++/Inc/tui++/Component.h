@@ -31,7 +31,7 @@ template<typename T>
 constexpr bool is_component_v = std::is_base_of_v<Component, T>;
 
 class Component: public Object, public std::enable_shared_from_this<Component> {
-  static std::mutex tree_mutex;
+  static std::recursive_mutex tree_mutex;
 
 protected:
   std::string name;
@@ -344,12 +344,24 @@ public:
     return this->border;
   }
 
+  ComponentOrientation get_component_orientation() const {
+    return this->orientation;
+  }
+
   std::shared_ptr<Component> get_component_at(int x, int y) const {
     return get_component_at(x, y, false);
   }
 
   std::shared_ptr<Component> get_component_at(const Point &p) const {
     return get_component_at(p.x, p.y);
+  }
+
+  size_t get_component_count() const {
+    return this->components.size();
+  }
+
+  const std::shared_ptr<Component>& get_component(size_t index) const {
+    return this->components[index];
   }
 
   int get_component_index(const std::shared_ptr<const Component> &component) const {
@@ -417,6 +429,14 @@ public:
 
   int get_width() const {
     return this->size.width;
+  }
+
+  const Point& get_location() const {
+    return this->location;
+  }
+
+  const Dimension& get_size() const {
+    return this->size;
   }
 
   /**
@@ -774,6 +794,31 @@ public:
     }
   }
 
+  auto begin() -> decltype(this->components.begin()) {
+    return this->components.begin();
+  }
+
+  auto end() -> decltype(this->components.end()) {
+    return this->components.end();
+  }
+
+  auto begin() const -> decltype(this->components.begin()) {
+    return this->components.begin();
+  }
+
+  auto end() const -> decltype(this->components.end()) {
+    return this->components.end();
+  }
+
+  auto get_tree_lock() const -> decltype(std::unique_lock {tree_mutex}) {
+    return std::unique_lock { tree_mutex };
+  }
+
+  template<typename Callable>
+  auto with_tree_locked(Callable &&callable) const -> decltype(callable()) {
+    auto lock = get_tree_lock();
+    return callable();
+  }
 };
 
 /**
