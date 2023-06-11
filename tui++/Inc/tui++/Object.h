@@ -201,6 +201,22 @@ public:
     set_optional_value(value);
     return *this;
   }
+
+  bool operator==(const Property &other) const {
+    return this->optional == other.optional;
+  }
+
+  bool operator!=(const Property &other) const {
+    return this->optional != other.optional;
+  }
+
+  bool operator==(const std::optional<value_type> &other) const {
+    return this->optional == other;
+  }
+
+  bool operator!=(const std::optional<value_type> &other) const {
+    return this->optional != other;
+  }
 };
 
 }
