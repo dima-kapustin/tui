@@ -32,7 +32,7 @@ Dimension FlowLayout::get_preferred_layout_size(const std::shared_ptr<const Comp
   auto lock = target->get_tree_lock();
 
   auto target_size = Dimension { };
-  bool use_hgap = true;
+  auto use_hgap = true;
 
   for (auto &&c : *target) {
     if (c->is_visible()) {
