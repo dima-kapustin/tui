@@ -1,6 +1,9 @@
 #include <tui++/terminal/Terminal.h>
 #include <tui++/terminal/TerminalGraphics.h>
 
+#include <tui++/Frame.h>
+#include <tui++/event/MouseEvent.h>
+
 using namespace tui;
 using namespace tui::terminal;
 
@@ -29,6 +32,25 @@ int main(int argc, char *argv[]) {
     g->draw_rounded_rect(0, 0, 14, 3);
     g->flush();
   });
+
+  auto frame = terminal.create_window<Frame>();
+
+  auto mouse_listener = [&terminal](MouseEvent &e) {
+
+  };
+
+  static_assert(std::is_convertible_v<decltype(mouse_listener), FunctionalEventListener<MouseEvent>>);
+
+  frame->add_event_listener(mouse_listener);
+  frame->add_event_listener(MouseEvent::MOUSE_DRAGGED, [](MouseEvent &e) {
+
+  });
+
+  frame->add_event_listener( { MouseEvent::MOUSE_DRAGGED }, [](MouseEvent &e) {
+
+  });
+
+  frame->remove_event_listener(mouse_listener);
 
   terminal.run_event_loop();
 }

@@ -216,7 +216,12 @@ private:
 
   std::vector<Option> set_options;
 
-  MouseEvent prev_mouse_event { };
+  struct {
+    MouseEvent::Type type;
+    MouseEvent::Button button = MouseEvent::NO_BUTTON;
+    int x, y;
+    InputEvent::Modifiers modifiers;
+  } prev_mouse_event;
   Clock::time_point prev_mouse_press_time;
   Clock::time_point prev_mouse_click_time;
 
@@ -268,20 +273,25 @@ public:
 
   template<typename ...Args>
   void print(Args &&... args) {
-  (std::cout << ... << args);
-}
+    (std::cout << ... << args);
+  }
 
-void set_title(const std::string &title);
+  void set_title(const std::string &title);
 
-void flush();
+  void flush();
 
-void run_event_loop() {
-  this->screen.run_event_loop();
-}
+  void run_event_loop() {
+    this->screen.run_event_loop();
+  }
 
-void post(std::function<void()> fn) {
-  this->screen.post(std::move(fn));
-}
+  void post(std::function<void()> fn) {
+    this->screen.post(std::move(fn));
+  }
+
+  template<typename Window, typename ... Args>
+  std::shared_ptr<Window> create_window(Args &&...args) {
+    return this->screen.create_window<Window>(std::forward<Args>(args)...);
+  }
 };
 
 }

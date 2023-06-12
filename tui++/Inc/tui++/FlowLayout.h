@@ -4,7 +4,7 @@
 
 namespace tui {
 
-class FlowLayout: public LayoutBase {
+class FlowLayout: public AbstractLayout {
 public:
   enum Alignment {
     /**

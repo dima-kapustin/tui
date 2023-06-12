@@ -45,7 +45,7 @@ public:
   virtual void invalidate_layout(const std::shared_ptr<const Component> &target) = 0;
 };
 
-class LayoutBase: public Layout {
+class AbstractLayout: public Layout {
 public:
   void add_layout_component(const std::shared_ptr<Component> &target, const std::any &constraints) override;
   void remove_layout_component(const std::shared_ptr<Component> &target) override;

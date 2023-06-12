@@ -15,11 +15,12 @@ class Window: public Component {
 protected:
   void paint_components(Graphics &g) override;
 
-public:
   Window(Screen &screen) :
       screen(screen) {
   }
 
+  friend class Screen;
+public:
   Window(const std::shared_ptr<Window> &owner) :
       screen(owner->screen), owner(owner) {
   }

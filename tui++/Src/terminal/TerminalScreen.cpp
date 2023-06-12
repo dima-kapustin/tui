@@ -145,7 +145,7 @@ void TerminalScreen::run_event_loop() {
       std::cout << *event << std::endl;
       switch (event->type) {
       case Event::INVOCATION:
-        event->invocation.target();
+        event->invocation.dispatch();
         break;
 
       default:

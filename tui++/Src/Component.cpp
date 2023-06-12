@@ -7,7 +7,7 @@
 
 namespace tui {
 
-std::mutex Component::tree_mutex;
+std::recursive_mutex Component::tree_mutex;
 
 std::shared_ptr<Window> Component::get_window_ancestor() const {
   if (auto window = std::dynamic_pointer_cast<Window>(const_cast<Component*>(this)->shared_from_this())) {
@@ -82,6 +82,103 @@ void Component::request_focus() {
   } else {
     focus_component->request_focus();
   }
+}
+
+void Component::transfer_focus() {
+  if (not has_children()) {
+    return;
+  }
+  /* Put a FOCUS_LOST event on the queue for the component that is losing the focus. If the current focus is a Container, then this
+   * method will have been called by that container (which would already have posted a FOCUS_LOST event for its own contained
+   * component that was losing focus). if ((focusOwner instanceof Container) == false) { FocusEvent evt = new
+   * FocusEvent(AWTEvent.FOCUS_LOST, focusOwner); EventQueue evtQueue = Toolkit.getDefaultToolkit().getSystemEventQueue();
+   * evtQueue.postEvent(evt); } */
+
+  /* Determine which component should get focus next. */
+  auto index = get_component_index(this->focus_component.lock().get());
+  if (index == size_t(-1)) {
+    throw std::runtime_error("focus component not found in parent");
+  }
+
+  std::shared_ptr<Component> focus_candidate;
+
+  for (;;) {
+    /* If the focus was owned by the last component in this container, the new focus should go to the next component in the parent
+     * container, IF THERE IS A PARENT (this container may be a Window, in which case the parent is null). */
+    if (++index >= this->components.size()) {
+      std::shared_ptr<Component> parent;
+      if (not is_focus_cycle_root() and (parent = get_parent())) {
+        parent->transfer_focus();
+        return;
+      } else {
+        /* Don't need to worry about infinite loops. Worst case, we should just end up where we started. */
+        index = 0;
+      }
+    }
+
+    focus_candidate = this->components[index];
+
+    /* If the next component will not accept the focus, continue trying until we get one that does. */
+    if (focus_candidate->is_focusable()) {
+      break;
+    }
+  }
+
+  if (this->focus_component.lock() != focus_candidate) {
+    focus_candidate->first_focus();
+    focus_candidate->request_focus();
+  }
+}
+
+void Component::transfer_focus_backward() {
+  if (not has_children()) {
+    return;
+  }
+
+  /* Put a FOCUS_LOST event on the queue for the component that is losing the focus. If the current focus is a Container, then this
+   * method will have been called by that container (which would already have posted a FOCUS_LOST event for its own contained
+   * component that was losing focus). if ((focusOwner instanceof Container) == false) { FocusEvent evt = new
+   * FocusEvent(AWTEvent.FOCUS_LOST, focusOwner); EventQueue evtQueue = Toolkit.getDefaultToolkit().getSystemEventQueue();
+   * evtQueue.postEvent(evt); } */
+
+  /* Determine which component should get focus next. */
+  auto index = get_component_index(this->focus_component.lock().get());
+  if (index == size_t(-1)) {
+    throw std::runtime_error("focus component not found in parent");
+  }
+
+  std::shared_ptr<Component> focus_candidate;
+
+  for (;;) {
+    /* If the focus was owned by the first component in this container, the new focus should go to the previous component in the
+     * parent container, IF THERE IS A PARENT (this container may be a Window, in which case the parent is null). */
+    if (index == 0) {
+      std::shared_ptr<Component> parent;
+      if (not is_focus_cycle_root() and (parent = get_parent())) {
+        parent->transfer_focus_backward();
+        return;
+      } else {
+        index = this->components.size() - 1;
+      }
+    } else {
+      index -= 1;
+    }
+
+    focus_candidate = this->components[index];
+
+    /* If the next component will not accept the focus, continue trying until we get one that does. */
+    if (focus_candidate->is_focusable()) {
+      break;
+    }
+  }
+  if (this->focus_component.lock() != focus_candidate) {
+    focus_candidate->last_focus();
+    focus_candidate->request_focus();
+  }
+}
+
+void Component::transfer_focus_up_cycle() {
+
 }
 
 Screen* Component::get_screen() const {

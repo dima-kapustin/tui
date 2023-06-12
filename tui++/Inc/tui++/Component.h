@@ -17,6 +17,8 @@
 #include <tui++/ComponentInputMap.h>
 #include <tui++/ComponentOrientation.h>
 
+#include <tui++/event/EventSource.h>
+
 #include <tui++/Object.h>
 
 namespace tui {
@@ -30,7 +32,9 @@ class EventQueue;
 template<typename T>
 constexpr bool is_component_v = std::is_base_of_v<Component, T>;
 
-class Component: public Object, public std::enable_shared_from_this<Component> {
+class Component: public std::enable_shared_from_this<Component>, virtual public Object, virtual public BasicEventSource<FocusEvent, MouseEvent, KeyEvent> {
+  using EventSource = BasicEventSource<FocusEvent, MouseEvent, KeyEvent>;
+
   static std::recursive_mutex tree_mutex;
 
 protected:
@@ -80,6 +84,14 @@ protected:
   mutable std::shared_ptr<InputMap> ancestor_input_map;
   mutable std::shared_ptr<ComponentInputMap> window_input_map;
   mutable std::shared_ptr<ActionMap> action_map;
+
+  /**
+   * Indicates whether this Component is the root of a focus traversal cycle. Once focus enters a traversal cycle, typically it cannot
+   * leave it via focus traversal unless one of the up- or down-cycle keys is pressed. Normal traversal is limited to this Container, and
+   * all of this Container's descendants that are not descendants of inferior focus cycle roots.
+   */
+  Property<bool> focus_cycle_root { this, "focus_cycle_root", false };
+  Property<bool> opaque { this, "opaque" };
 
 public:
   constexpr static float TOP_ALIGNMENT = 0;
@@ -150,6 +162,41 @@ private:
       return this->window_input_map;
     }
     return {};
+  }
+
+  /**
+   * Sets the keyboard focus to the first component that is focusTraversable. Called by the nextFocus() method when it runs out of
+   * components in the current container to move the focus to. The nextFocus() method first checks that this container contains a
+   * focusTraversable component before calling this.
+   */
+  void first_focus() {
+    if (has_children()) {
+      for (auto &&c : this->components) {
+        if (c->is_focusable()) {
+          c->first_focus();
+          this->focus_component = c;
+          return;
+        }
+      }
+    }
+  }
+
+  /**
+   * Sets the keyboard focus to the last component that is focusTraversable. Called by the previousFocus() method when it runs out of
+   * components in the current container to move the focus to. The previousFocus() method first checks that this container contains a
+   * focusTraversable component before calling this.
+   */
+  void last_focus() {
+    if (has_children()) {
+      for (int i = this->components.size() - 1; i >= 0; i--) {
+        auto &&c = this->components[i];
+        if (c->is_focusable()) {
+          c->last_focus();
+          this->focus_component = c;
+          return;
+        }
+      }
+    }
   }
 
 protected:
@@ -303,6 +350,18 @@ protected:
   std::shared_ptr<Window> get_top_window() const;
   EventQueue& get_event_queue() const;
 
+  virtual void process_event(FocusEvent &e) override {
+    EventSource::process_event(e);
+  }
+
+  virtual void process_event(MouseEvent &e) override {
+    EventSource::process_event(e);
+  }
+
+  virtual void process_event(KeyEvent &e) override {
+    EventSource::process_event(e);
+  }
+
 public:
   virtual ~Component() {
   }
@@ -364,17 +423,17 @@ public:
     return this->components[index];
   }
 
-  int get_component_index(const std::shared_ptr<const Component> &component) const {
+  size_t get_component_index(const std::shared_ptr<const Component> &component) const {
     return get_component_index(component.get());
   }
 
-  int get_component_index(const Component *component) const {
+  size_t get_component_index(const Component *component) const {
     for (size_t index = 0; index != this->components.size(); ++index) {
       if (this->components[index].get() == component) {
         return index;
       }
     }
-    return -1;
+    return size_t(-1);
   }
 
   /**
@@ -818,6 +877,78 @@ public:
   auto with_tree_locked(Callable &&callable) const -> decltype(callable()) {
     auto lock = get_tree_lock();
     return callable();
+  }
+
+  /**
+   * Returns whether this Container is the root of a focus traversal cycle. Once focus enters a traversal cycle, typically it cannot leave
+   * it via focus traversal unless one of the up- or down-cycle keys is pressed. Normal traversal is limited to this Container, and all of
+   * this Container's descendants that are not descendants of inferior focus cycle roots. Note that a FocusTraversalPolicy may bend these
+   * restrictions, however. For example, ContainerOrderFocusTraversalPolicy supports implicit down-cycle traversal.
+   */
+  bool is_focus_cycle_root() const {
+    return this->focus_cycle_root;
+  }
+
+  /**
+   * Sets whether this Container is the root of a focus traversal cycle. Once focus enters a traversal cycle, typically it cannot leave it
+   * via focus traversal unless one of the up- or down-cycle keys is pressed. Normal traversal is limited to this Container, and all of
+   * this Container's descendants that are not descendants of inferior focus cycle roots.
+   */
+  void set_focus_cycle_root(bool focus_cycle_root) {
+    this->focus_cycle_root = focus_cycle_root;
+  }
+
+  bool is_focus_cycle_root(const Component *component) const {
+    if (is_focus_cycle_root() and component == this) {
+      return true;
+    } else {
+      return get_focus_cycle_root_ancestor().get() == component;
+    }
+  }
+
+  std::shared_ptr<Component> get_focus_cycle_root_ancestor() const {
+    auto root_ancestor = get_parent();
+    while (root_ancestor and not root_ancestor->is_focus_cycle_root()) {
+      root_ancestor = root_ancestor->get_parent();
+    }
+    return root_ancestor;
+  }
+
+  void transfer_focus();
+  void transfer_focus_backward();
+  void transfer_focus_up_cycle();
+
+  /**
+   * Returns true if this component is completely opaque.
+   * <p>
+   * An opaque component paints every pixel within its
+   * rectangular bounds. A non-opaque component paints only a subset of
+   * its pixels or none at all, allowing the pixels underneath it to
+   * "show through".  Therefore, a component that does not fully paint
+   * its pixels provides a degree of transparency.
+   * <p>
+   * Subclasses that guarantee to always completely paint their contents
+   * should override this method and return true.
+   *
+   * @return true if this component is completely opaque
+   * @see #setOpaque
+   */
+  bool is_opaque() const {
+    return this->opaque;
+  }
+
+  /**
+   * If true the component paints every pixel within its bounds.
+   * Otherwise, the component may not paint some or all of its
+   * pixels, allowing the underlying pixels to show through.
+   * <p>
+   * The default value of this property is false for <code>JComponent</code>.
+   * However, the default value for this property on most standard
+   * <code>JComponent</code> subclasses (such as <code>JButton</code> and
+   * <code>JTree</code>) is look-and-feel dependent.
+   */
+  void set_opaque(bool value) {
+    this->opaque = value;
   }
 };
 
