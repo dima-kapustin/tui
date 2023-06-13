@@ -50,6 +50,7 @@ int main(int argc, char *argv[]) {
 
   });
 
+  frame->remove_event_listener(MouseEvent::MOUSE_DRAGGED, mouse_listener);
   frame->remove_event_listener(mouse_listener);
 
   terminal.run_event_loop();

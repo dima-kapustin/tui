@@ -53,7 +53,7 @@ class Object {
 
 private:
   void add_property(PropertyBase *property) {
-    assert(properties.contains(property->name));
+    assert(not this->properties.contains(property->name));
     this->properties[property->name] = property;
   }
 

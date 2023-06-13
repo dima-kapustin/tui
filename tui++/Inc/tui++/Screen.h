@@ -65,9 +65,9 @@ public:
 
   virtual void refresh() = 0;
 
-  template<typename Window, typename ... Args>
-  std::shared_ptr<Window> create_window(Args &&...args) {
-    return std::shared_ptr<Window> { new Window(*this, std::forward<Args>(args)...) };
+  template<typename W, typename ... Args>
+  std::enable_if_t<std::is_convertible_v<W*, Window*>, std::shared_ptr<W>> create_window(Args &&...args) {
+    return std::shared_ptr<W> { new W(*this, std::forward<Args>(args)...) };
   }
 };
 

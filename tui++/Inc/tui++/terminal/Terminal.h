@@ -288,9 +288,9 @@ public:
     this->screen.post(std::move(fn));
   }
 
-  template<typename Window, typename ... Args>
-  std::shared_ptr<Window> create_window(Args &&...args) {
-    return this->screen.create_window<Window>(std::forward<Args>(args)...);
+  template<typename W, typename ... Args>
+  std::enable_if_t<std::is_convertible_v<W*, Window*>, std::shared_ptr<W>> create_window(Args &&...args) {
+    return this->screen.create_window<W>(std::forward<Args>(args)...);
   }
 };
 
