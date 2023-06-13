@@ -1,6 +1,7 @@
 #pragma once
 
 #include <tui++/event/KeyEvent.h>
+#include <tui++/event/ItemEvent.h>
 #include <tui++/event/FocusEvent.h>
 #include <tui++/event/MouseEvent.h>
 #include <tui++/event/ActionEvent.h>
@@ -18,7 +19,8 @@ public:
     MOUSE,
     ACTION,
     INVOCATION,
-    FOCUS
+    FOCUS,
+    ITEM
   };
 
   const Type type = UNDEFINED;
@@ -30,6 +32,7 @@ public:
     ActionEvent action;
     InvocationEvent invocation;
     FocusEvent focus;
+    ItemEvent item;
   };
 
   Event(const std::function<void()> &target) :
@@ -74,6 +77,9 @@ public:
       break;
     case FOCUS:
       this->focus.~FocusEvent();
+      break;
+    case ITEM:
+      this->item.~ItemEvent();
       break;
     }
   }

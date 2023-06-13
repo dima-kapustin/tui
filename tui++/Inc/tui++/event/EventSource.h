@@ -92,35 +92,51 @@ protected:
 
 protected:
   void add_event_listener(const std::shared_ptr<EventListener<Event>> &event_listener) {
+    if (not std::ranges::contains(this->event_listeners, event_listener)) {
+      this->event_listeners.emplace_back(event_listener);
+    }
+  }
+
+  void add_event_listener(FunctionalEventListener<Event> &&event_listener) {
     for (auto &&l : this->event_listeners) {
-      if (l == event_listener) {
-        return;
+      if (auto adapter = std::dynamic_pointer_cast<BasicFunctionalEventAdapter<Event>>(l)) {
+        if (adapter->event_listener.template target<void(Event &e)>() == event_listener.template target<void(Event &e)>()) {
+          return;
+        }
       }
     }
-    this->event_listeners.emplace_back(event_listener);
+    add_event_listener(std::make_shared<BasicFunctionalEventAdapter<Event>>(std::move(event_listener)));
   }
 
-  void add_event_listener(FunctionalEventListener<Event> &&listener) {
-    add_event_listener(std::make_shared<BasicFunctionalEventAdapter<Event>>(std::move(listener)));
+  std::enable_if_t<has_type_enum_v<Event>, void> add_event_listener(std::vector<typename Event::Type> &&event_types, FunctionalEventListener<Event> &&event_listener) {
+    for (auto &&l : this->event_listeners) {
+      if (auto adapter = std::dynamic_pointer_cast<FunctionalEventAdapter<Event>>(l)) {
+        if (adapter->event_listener.template target<void(Event &e)>() == event_listener.template target<void(Event &e)>()) {
+          for (auto &&event_type : event_types) {
+            if (not std::ranges::contains(adapter->event_types, event_type)) {
+              adapter->event_types.emplace_back(event_type);
+            }
+          }
+          return;
+        }
+      }
+    }
+    add_event_listener(std::make_shared<FunctionalEventAdapter<Event>>(std::move(event_types), std::move(event_listener)));
   }
 
-  std::enable_if_t<has_type_enum_v<Event>, void> add_event_listener(std::vector<typename Event::Type> &&types, FunctionalEventListener<Event> &&listener) {
-    add_event_listener(std::make_shared<FunctionalEventAdapter<Event>>(std::move(types), std::move(listener)));
-  }
-
-  void remove_event_listener(const std::shared_ptr<EventListener<Event>> &listener) {
+  void remove_event_listener(const std::shared_ptr<EventListener<Event>> &event_listener) {
     for (auto l = this->event_listeners.begin(); l != this->event_listeners.end(); ++l) {
-      if (*l == listener) {
+      if (*l == event_listener) {
         this->event_listeners.erase(l);
         return;
       }
     }
   }
 
-  void remove_event_listener(const FunctionalEventListener<Event> &listener) {
+  void remove_event_listener(const FunctionalEventListener<Event> &event_listener) {
     for (auto l = this->event_listeners.begin(); l != this->event_listeners.end();) {
       if (auto adapter = std::dynamic_pointer_cast<BasicFunctionalEventAdapter<Event>>(*l)) {
-        if (adapter->event_listener.template target<void(Event &e)>() == listener.template target<void(Event &e)>()) {
+        if (adapter->event_listener.template target<void(Event &e)>() == event_listener.template target<void(Event &e)>()) {
           l = this->event_listeners.erase(l);
           continue;
         }
@@ -129,12 +145,13 @@ protected:
     }
   }
 
-  std::enable_if_t<has_type_enum_v<Event>, void> remove_event_listener(const std::vector<typename Event::Type> &types, const FunctionalEventListener<Event> &listener) {
+  std::enable_if_t<has_type_enum_v<Event>, void> remove_event_listener(const std::vector<typename Event::Type> &types, const FunctionalEventListener<Event> &event_listener) {
     for (auto l = this->event_listeners.begin(); l != this->event_listeners.end();) {
       if (auto adapter = std::dynamic_pointer_cast<FunctionalEventAdapter<Event>>(*l)) {
-        if (adapter->event_listener.template target<void(Event &e)>() == listener.template target<void(Event &e)>()) {
+        if (adapter->event_listener.template target<void(Event &e)>() == event_listener.template target<void(Event &e)>()) {
           if (types.empty() or adapter->event_types.empty()) {
             l = this->event_listeners.erase(l);
+            continue;
           } else {
             auto end = adapter->event_types.end();
             for (auto &&type : types) {
@@ -143,9 +160,9 @@ protected:
             adapter->event_types.erase(end, adapter->event_types.end());
             if (adapter->event_types.empty()) {
               l = this->event_listeners.erase(l);
+              continue;
             }
           }
-          continue;
         }
       }
       ++l;
@@ -168,7 +185,7 @@ using event_type_from_callable_t = typename event_type_from_callable<Callable, E
 }
 
 template<typename ... Events>
-class BasicEventSource: protected detail::EventSource<Events> ... {
+class BasicEventSource: protected virtual detail::EventSource<Events> ... {
 protected:
 //
   using detail::EventSource<Events>::process_event...;

@@ -32,7 +32,7 @@ class EventQueue;
 template<typename T>
 constexpr bool is_component_v = std::is_base_of_v<Component, T>;
 
-class Component: public std::enable_shared_from_this<Component>, virtual public Object, virtual public BasicEventSource<FocusEvent, MouseEvent, KeyEvent> {
+class Component: public std::enable_shared_from_this<Component>, virtual public Object, public BasicEventSource<FocusEvent, MouseEvent, KeyEvent> {
   using EventSource = BasicEventSource<FocusEvent, MouseEvent, KeyEvent>;
 
   static std::recursive_mutex tree_mutex;
@@ -360,7 +360,16 @@ protected:
 
   virtual void process_event(KeyEvent &e) override {
     EventSource::process_event(e);
+    if (not e.consumed) {
+      e.consumed = process_key_bindings(e);
+    }
   }
+
+  virtual bool process_key_bindings(KeyEvent &e);
+
+  virtual bool process_key_binding(const KeyStroke &ks, KeyEvent &e, InputCondition condition);
+
+  static bool process_key_bindings_for_all_components(KeyEvent &e, const std::shared_ptr<Component> &container);
 
 public:
   virtual ~Component() {

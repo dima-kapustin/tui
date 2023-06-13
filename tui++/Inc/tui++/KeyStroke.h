@@ -63,11 +63,13 @@ private:
   }
 
 public:
+  constexpr KeyStroke() = default;
+
   constexpr KeyStroke(char c) :
       key_char(c), key_code(KeyEvent::VK_UNDEFINED), modifiers(InputEvent::NO_MODIFIERS) {
   }
 
-  constexpr KeyStroke(const Char &key_char, InputEvent::Modifiers modifiers) :
+  constexpr KeyStroke(const Char &key_char, InputEvent::Modifiers modifiers = InputEvent::NO_MODIFIERS) :
       key_char(key_char), key_code(KeyEvent::VK_UNDEFINED), modifiers(modifiers) {
   }
 

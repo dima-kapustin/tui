@@ -2,6 +2,8 @@
 #include <tui++/Window.h>
 #include <tui++/Graphics.h>
 #include <tui++/Component.h>
+#include <tui++/KeyStroke.h>
+#include <tui++/KeyboardManager.h>
 
 #include <tui++/Screen.h>
 
@@ -191,6 +193,59 @@ std::shared_ptr<Window> Component::get_top_window() const {
 
 EventQueue& Component::get_event_queue() const {
   return get_screen()->get_event_queue();
+}
+
+bool Component::process_key_bindings(KeyEvent &e) {
+  auto const ks = [&e]() -> KeyStroke {
+    if (e.type == KeyEvent::KEY_TYPED) {
+      return {e.get_key_char()};
+    } else {
+      return {e.get_key_code(), e.modifiers};
+    }
+  }();
+
+  if (process_key_binding(ks, e, WHEN_FOCUSED)) {
+    return true;
+  }
+
+  auto parent = get_parent();
+  for (; parent and not std::dynamic_pointer_cast<Window>(parent); parent = parent->get_parent()) {
+    if (parent->process_key_binding(ks, e, WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)) {
+      return true;
+    }
+  }
+
+  if (parent) {
+    return process_key_bindings_for_all_components(e, parent);
+  }
+  return false;
+}
+
+bool Component::process_key_binding(const KeyStroke &ks, KeyEvent &e, InputCondition condition) {
+  if (is_enabled()) {
+    if (auto input_map = get_input_map(condition, false); input_map and this->action_map) {
+      if (auto binding = input_map->at(ks); binding.has_value()) {
+        if (auto action = this->action_map->at(binding.value())) {
+//        return SwingUtilities.notifyAction(action, ks, e, this, e.getModifiers());
+        }
+      }
+    }
+  }
+  return false;
+}
+
+bool Component::process_key_bindings_for_all_components(KeyEvent &e, const std::shared_ptr<Component> &container) {
+  while (true) {
+    if (KeyboardManager::fire_keyboard_action(e, container)) {
+      return true;
+    }
+
+//    TODO if (auto window = std::dynamic_pointer_cast<Popup.HeavyWeightWindow>(container)) {
+//      container = window.get_owner();
+//    } else {
+    return false;
+//    }
+  }
 }
 
 /**

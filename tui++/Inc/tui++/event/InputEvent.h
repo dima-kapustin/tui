@@ -35,5 +35,6 @@ protected:
 public:
   Modifiers modifiers;
   std::chrono::utc_clock::time_point when = std::chrono::utc_clock::now();
+  bool consumed = false;
 };
 }

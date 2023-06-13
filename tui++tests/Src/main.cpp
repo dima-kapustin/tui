@@ -42,6 +42,9 @@ int main(int argc, char *argv[]) {
   static_assert(std::is_convertible_v<decltype(mouse_listener), FunctionalEventListener<MouseEvent>>);
 
   frame->add_event_listener(mouse_listener);
+  frame->add_event_listener(MouseEvent::MOUSE_DRAGGED, mouse_listener);
+  frame->add_event_listener(MouseEvent::MOUSE_MOVED, mouse_listener);
+
   frame->add_event_listener(MouseEvent::MOUSE_DRAGGED, [](MouseEvent &e) {
 
   });
