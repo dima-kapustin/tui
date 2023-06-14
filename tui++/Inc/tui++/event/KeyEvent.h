@@ -139,12 +139,12 @@ private:
   };
 
 public:
-  constexpr KeyEvent(const std::shared_ptr<Component> &source, Type type, KeyCode key_code, Modifiers modifiers) :
-      InputEvent(source, modifiers), type(type), key_code(key_code) {
+  constexpr KeyEvent(const std::shared_ptr<Component> &source, Type type, KeyCode key_code, Modifiers modifiers,  const EventClock::time_point &when = EventClock::now()) :
+      InputEvent(source, modifiers, when), type(type), key_code(key_code) {
   }
 
-  constexpr KeyEvent(const std::shared_ptr<Component> &source, const Char &c, Modifiers modifiers) :
-      InputEvent(source, modifiers), type(KEY_TYPED), char_code(c) {
+  constexpr KeyEvent(const std::shared_ptr<Component> &source, const Char &c, Modifiers modifiers,  const EventClock::time_point &when = EventClock::now()) :
+      InputEvent(source, modifiers, when), type(KEY_TYPED), char_code(c) {
   }
 
 public:

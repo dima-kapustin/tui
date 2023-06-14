@@ -226,12 +226,30 @@ bool Component::process_key_binding(const KeyStroke &ks, KeyEvent &e, InputCondi
     if (auto input_map = get_input_map(condition, false); input_map and this->action_map) {
       if (auto binding = input_map->at(ks); binding.has_value()) {
         if (auto action = this->action_map->at(binding.value())) {
-//        return SwingUtilities.notifyAction(action, ks, e, this, e.getModifiers());
+          return notify_action(action, ks, e, shared_from_this());
         }
       }
     }
   }
   return false;
+}
+
+bool Component::notify_action(const std::shared_ptr<Action> &action, const KeyStroke &ks, KeyEvent &e, const std::shared_ptr<Component> &sender) {
+  if (not action or not action->accept(sender)) {
+    return false;
+  }
+
+  std::string command;
+  // Get the command object.
+  if (auto any = action->get_value(Action::ACTION_COMMAND_KEY)) {
+    command = std::any_cast<decltype(command)>(*any);
+  } else if (e.get_key_char() != KeyEvent::CHAR_UNDEFINED) {
+    command = e.get_key_char();
+  } else {
+    return false;
+  }
+  action->action_performed(ActionEvent(sender, command, e.modifiers, e.when));
+  return true;
 }
 
 bool Component::process_key_bindings_for_all_components(KeyEvent &e, const std::shared_ptr<Component> &container) {

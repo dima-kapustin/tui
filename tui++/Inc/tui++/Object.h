@@ -1,8 +1,8 @@
 #pragma once
 
 #include <any>
-#include <map>
 #include <ranges>
+#include <vector>
 #include <cassert>
 #include <variant>
 #include <concepts>
@@ -49,33 +49,42 @@ public:
 };
 
 class Object {
-  std::map<std::string_view, PropertyBase*> properties;
+  std::vector<PropertyBase*> properties;
 
 private:
-  void add_property(PropertyBase *property) {
-    assert(not this->properties.contains(property->name));
-    this->properties[property->name] = property;
+  auto add_property(PropertyBase *property) {
+    auto pos = std::lower_bound(this->properties.begin(), this->properties.end(), property, //
+        [property](const auto &a, const auto &b) {
+          return a->name < b->name;
+        });
+    this->properties.insert(pos, property);
   }
 
   friend class PropertyBase;
 
 public:
   auto get_properties() {
-    return std::views::values(this->properties);
+    return this->properties;
   }
 
   auto get_properties() const {
-    return std::views::values(this->properties);
+    return this->properties;
   }
 
   PropertyBase* get_property(const std::string_view &name) {
-    auto pos = this->properties.find(name);
-    return pos == this->properties.end() ? nullptr : pos->second;
+    auto pos = std::lower_bound(this->properties.begin(), this->properties.end(), name, //
+        [](const auto &a, const std::string_view &name) {
+          return a->name < name;
+        });
+    return pos == this->properties.end() or ((*pos)->name != name) ? nullptr : *pos;
   }
 
   const PropertyBase* get_property(const std::string_view &name) const {
-    auto pos = this->properties.find(name);
-    return pos == this->properties.end() ? nullptr : pos->second;
+    auto pos = std::lower_bound(this->properties.begin(), this->properties.end(), name, //
+        [](const auto &a, const std::string_view &name) {
+          return a->name < name;
+        });
+    return pos == this->properties.end() or ((*pos)->name != name) ? nullptr : *pos;
   }
 };
 

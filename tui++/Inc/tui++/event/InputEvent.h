@@ -7,6 +7,8 @@
 
 namespace tui {
 
+using EventClock = std::chrono::utc_clock;
+
 class InputEvent: public BasicEvent {
 public:
   enum Modifier {
@@ -28,13 +30,13 @@ public:
 
 protected:
   constexpr InputEvent() = default;
-  constexpr InputEvent(const std::shared_ptr<Component> &source, Modifiers modifiers) :
-      BasicEvent(source), modifiers(modifiers) {
+  constexpr InputEvent(const std::shared_ptr<Component> &source, Modifiers modifiers, const EventClock::time_point &when = EventClock::now()) :
+      BasicEvent(source), modifiers(modifiers), when(when) {
   }
 
 public:
   Modifiers modifiers;
-  std::chrono::utc_clock::time_point when = std::chrono::utc_clock::now();
+  EventClock::time_point when = EventClock::now();
   bool consumed = false;
 };
 }

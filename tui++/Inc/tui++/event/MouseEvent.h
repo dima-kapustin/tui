@@ -36,8 +36,8 @@ public:
   bool is_popup_trigger;
 
 public:
-  constexpr MouseEvent(const std::shared_ptr<Component> &source, Type type, Button button, Modifiers modifiers, int x, int y, int click_count_or_wheel_rotation, bool is_popup_trigger) :
-      InputEvent(source, modifiers), type(type), button(button), x(x), y(y), click_count(click_count_or_wheel_rotation), is_popup_trigger(is_popup_trigger) {
+  constexpr MouseEvent(const std::shared_ptr<Component> &source, Type type, Button button, Modifiers modifiers, int x, int y, int click_count_or_wheel_rotation, bool is_popup_trigger, const EventClock::time_point &when = EventClock::now()) :
+      InputEvent(source, modifiers, when), type(type), button(button), x(x), y(y), click_count(click_count_or_wheel_rotation), is_popup_trigger(is_popup_trigger) {
   }
 };
 

@@ -17,14 +17,14 @@ struct ActionEvent: public BasicEvent {
   using Modifiers = InputEvent::Modifiers;
 
 public:
-  ActionEvent(const std::shared_ptr<Component> &source, const ActionKey &action_command, const Modifiers &modifiers) :
-      BasicEvent(source), action_command(action_command), modifiers(modifiers) {
+  ActionEvent(const std::shared_ptr<Component> &source, const ActionKey &action_command, const Modifiers &modifiers, EventClock::time_point when = std::chrono::utc_clock::now()) :
+      BasicEvent(source), action_command(action_command), modifiers(modifiers), when(when) {
   }
 
 public:
   ActionKey action_command;
   Modifiers modifiers;
-  std::chrono::utc_clock::time_point when = std::chrono::utc_clock::now();
+  EventClock::time_point when;
 };
 
 }
