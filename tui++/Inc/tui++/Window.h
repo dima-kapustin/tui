@@ -39,6 +39,12 @@ public:
     base::paint(g);
     request_focus();
   }
+
+  bool is_focused() const {
+    return KeyboardFocusManager::get_focused_window().get() == this;
+  }
+
+  std::shared_ptr<Component> get_focus_owner() const;
 };
 
 }

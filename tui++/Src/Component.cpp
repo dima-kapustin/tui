@@ -86,101 +86,77 @@ void Component::request_focus() {
   }
 }
 
-void Component::transfer_focus() {
-  if (not has_children()) {
-    return;
+bool Component::transfer_focus(bool clear_on_failure) {
+//  if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
+//      focusLog.finer("clearOnFailure = " + clearOnFailure);
+//  }
+  auto to_focus = get_next_focus_candidate();
+  auto result = false;
+  if (to_focus and not to_focus->is_focus_owner() and to_focus != shared_from_this()) {
+//      res = toFocus.request_focus_in_window(FocusEvent::Cause::TRAVERSAL_FORWARD);
   }
-  /* Put a FOCUS_LOST event on the queue for the component that is losing the focus. If the current focus is a Container, then this
-   * method will have been called by that container (which would already have posted a FOCUS_LOST event for its own contained
-   * component that was losing focus). if ((focusOwner instanceof Container) == false) { FocusEvent evt = new
-   * FocusEvent(AWTEvent.FOCUS_LOST, focusOwner); EventQueue evtQueue = Toolkit.getDefaultToolkit().getSystemEventQueue();
-   * evtQueue.postEvent(evt); } */
-
-  /* Determine which component should get focus next. */
-  auto index = get_component_index(this->focus_component.lock().get());
-  if (index == size_t(-1)) {
-    throw std::runtime_error("focus component not found in parent");
+  if (clear_on_failure and not result) {
+//      if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
+//          focusLog.finer("clear global focus owner");
+//      }
+    KeyboardFocusManager::clear_global_focus_owner();
   }
-
-  std::shared_ptr<Component> focus_candidate;
-
-  for (;;) {
-    /* If the focus was owned by the last component in this container, the new focus should go to the next component in the parent
-     * container, IF THERE IS A PARENT (this container may be a Window, in which case the parent is null). */
-    if (++index >= this->components.size()) {
-      std::shared_ptr<Component> parent;
-      if (not is_focus_cycle_root() and (parent = get_parent())) {
-        parent->transfer_focus();
-        return;
-      } else {
-        /* Don't need to worry about infinite loops. Worst case, we should just end up where we started. */
-        index = 0;
-      }
-    }
-
-    focus_candidate = this->components[index];
-
-    /* If the next component will not accept the focus, continue trying until we get one that does. */
-    if (focus_candidate->is_focusable()) {
-      break;
-    }
-  }
-
-  if (this->focus_component.lock() != focus_candidate) {
-    focus_candidate->first_focus();
-    focus_candidate->request_focus();
-  }
+//  if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
+//      focusLog.finer("returning result: " + res);
+//  }
+  return result;
 }
 
-void Component::transfer_focus_backward() {
-  if (not has_children()) {
-    return;
+bool Component::transfer_focus_backward(bool clear_on_failure) {
+  auto root_ancestor = get_traversal_root();
+  auto comp = shared_from_this();
+  while (root_ancestor and not (root_ancestor->is_showing() and root_ancestor->can_be_focus_owner())) {
+    comp = root_ancestor;
+    root_ancestor = comp->get_focus_cycle_root_ancestor();
   }
-
-  /* Put a FOCUS_LOST event on the queue for the component that is losing the focus. If the current focus is a Container, then this
-   * method will have been called by that container (which would already have posted a FOCUS_LOST event for its own contained
-   * component that was losing focus). if ((focusOwner instanceof Container) == false) { FocusEvent evt = new
-   * FocusEvent(AWTEvent.FOCUS_LOST, focusOwner); EventQueue evtQueue = Toolkit.getDefaultToolkit().getSystemEventQueue();
-   * evtQueue.postEvent(evt); } */
-
-  /* Determine which component should get focus next. */
-  auto index = get_component_index(this->focus_component.lock().get());
-  if (index == size_t(-1)) {
-    throw std::runtime_error("focus component not found in parent");
-  }
-
-  std::shared_ptr<Component> focus_candidate;
-
-  for (;;) {
-    /* If the focus was owned by the first component in this container, the new focus should go to the previous component in the
-     * parent container, IF THERE IS A PARENT (this container may be a Window, in which case the parent is null). */
-    if (index == 0) {
-      std::shared_ptr<Component> parent;
-      if (not is_focus_cycle_root() and (parent = get_parent())) {
-        parent->transfer_focus_backward();
-        return;
-      } else {
-        index = this->components.size() - 1;
-      }
-    } else {
-      index -= 1;
+  auto result = false;
+  if (root_ancestor) {
+    auto policy = root_ancestor->get_focus_traversal_policy();
+    auto to_focus = policy->get_component_before(root_ancestor, comp);
+    if (not to_focus) {
+      to_focus = policy->get_default_component(root_ancestor);
     }
-
-    focus_candidate = this->components[index];
-
-    /* If the next component will not accept the focus, continue trying until we get one that does. */
-    if (focus_candidate->is_focusable()) {
-      break;
+    if (to_focus) {
+//          result = toFocus->request_focus_in_window(FocusEvent.Cause.TRAVERSAL_BACKWARD);
     }
   }
-  if (this->focus_component.lock() != focus_candidate) {
-    focus_candidate->last_focus();
-    focus_candidate->request_focus();
+  if (not result and clear_on_failure) {
+//      if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
+//          focusLog.finer("clear global focus owner");
+//      }
+    KeyboardFocusManager::clear_global_focus_owner();
   }
+//  if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
+//      focusLog.finer("returning result: " + res);
+//  }
+  return result;
 }
 
 void Component::transfer_focus_up_cycle() {
+  auto root_ancestor = get_focus_cycle_root_ancestor();
+  while (root_ancestor and not (root_ancestor->is_showing() and root_ancestor->is_focusable() and root_ancestor->is_enabled())) {
+    root_ancestor = root_ancestor->get_focus_cycle_root_ancestor();
+  }
 
+  if (root_ancestor) {
+    auto root_ancestor_root_ancestor = root_ancestor->get_focus_cycle_root_ancestor();
+    auto fcr = root_ancestor_root_ancestor ? root_ancestor_root_ancestor : root_ancestor;
+
+    KeyboardFocusManager::set_global_current_focus_cycle_root(fcr);
+//      rootAncestor->request_focus(FocusEvent.Cause.TRAVERSAL_UP);
+  } else {
+    if (auto window = get_containing_window()) {
+      if (auto to_focus = window->get_focus_traversal_policy()->get_default_component(window)) {
+        KeyboardFocusManager::set_global_current_focus_cycle_root(window);
+//              toFocus->request_focus(FocusEvent.Cause.TRAVERSAL_UP);
+      }
+    }
+  }
 }
 
 Screen* Component::get_screen() const {
@@ -193,6 +169,17 @@ std::shared_ptr<Window> Component::get_top_window() const {
 
 EventQueue& Component::get_event_queue() const {
   return get_screen()->get_event_queue();
+}
+
+std::shared_ptr<Window> Component::get_containing_window() const {
+  auto component = const_cast<Component*>(this)->shared_from_this();
+  while (component) {
+    if (auto window = std::dynamic_pointer_cast<Window>(component)) {
+      return window;
+    }
+    component = component->get_parent();
+  }
+  return {};
 }
 
 bool Component::process_key_bindings(KeyEvent &e) {

@@ -16,6 +16,8 @@
 #include <tui++/ActionMap.h>
 #include <tui++/ComponentInputMap.h>
 #include <tui++/ComponentOrientation.h>
+#include <tui++/KeyboardFocusManager.h>
+#include <tui++/FocusTraversalPolicy.h>
 
 #include <tui++/event/EventSource.h>
 
@@ -84,6 +86,9 @@ protected:
   mutable std::shared_ptr<InputMap> ancestor_input_map;
   mutable std::shared_ptr<ComponentInputMap> window_input_map;
   mutable std::shared_ptr<ActionMap> action_map;
+
+  std::shared_ptr<FocusTraversalPolicy> focus_traversal_policy;
+  bool focus_traversal_policy_provider;
 
   /**
    * Indicates whether this Component is the root of a focus traversal cycle. Once focus enters a traversal cycle, typically it cannot
@@ -164,40 +169,33 @@ private:
     return {};
   }
 
-  /**
-   * Sets the keyboard focus to the first component that is focusTraversable. Called by the nextFocus() method when it runs out of
-   * components in the current container to move the focus to. The nextFocus() method first checks that this container contains a
-   * focusTraversable component before calling this.
-   */
-  void first_focus() {
-    if (has_children()) {
-      for (auto &&c : this->components) {
-        if (c->is_focusable()) {
-          c->first_focus();
-          this->focus_component = c;
-          return;
-        }
+  std::shared_ptr<Component> find_traversal_root() const {
+    // I potentially have two roots, myself and my root parent
+    // If I am the current root, then use me
+    // If none of my parents are roots, then use me
+    // If my root parent is the current root, then use my root parent
+    // If neither I nor my root parent is the current root, then
+    // use my root parent (a guess)
+
+    auto current_focus_cycle_root = KeyboardFocusManager::get_current_focus_cycle_root();
+    std::shared_ptr<Component> root;
+
+    if (current_focus_cycle_root == shared_from_this()) {
+      root = current_focus_cycle_root;
+    } else {
+      root = get_focus_cycle_root_ancestor();
+      if (not root) {
+        root = const_cast<Component*>(this)->shared_from_this();
       }
     }
+
+    if (root != current_focus_cycle_root) {
+      KeyboardFocusManager::set_global_current_focus_cycle_root(root);
+    }
+    return root;
   }
 
-  /**
-   * Sets the keyboard focus to the last component that is focusTraversable. Called by the previousFocus() method when it runs out of
-   * components in the current container to move the focus to. The previousFocus() method first checks that this container contains a
-   * focusTraversable component before calling this.
-   */
-  void last_focus() {
-    if (has_children()) {
-      for (int i = this->components.size() - 1; i >= 0; i--) {
-        auto &&c = this->components[i];
-        if (c->is_focusable()) {
-          c->last_focus();
-          this->focus_component = c;
-          return;
-        }
-      }
-    }
-  }
+  std::shared_ptr<Window> get_containing_window() const;
 
 protected:
   Component() {
@@ -371,6 +369,58 @@ protected:
 
   static bool process_key_bindings_for_all_components(KeyEvent &e, const std::shared_ptr<Component> &container);
   static bool notify_action(const std::shared_ptr<Action> &action, const KeyStroke &ks, KeyEvent &e, const std::shared_ptr<Component> &sender);
+
+  std::shared_ptr<Component> get_traversal_root() const {
+    if (is_focus_cycle_root()) {
+      return find_traversal_root();
+    }
+
+    return get_focus_cycle_root_ancestor();
+  }
+
+  bool can_be_focus_owner() const {
+    // It is enabled, visible, focusable.
+    if (is_enabled() and is_displayable() and is_visible() and is_focusable()) {
+      return true;
+    }
+    return false;
+  }
+
+  std::shared_ptr<Component> get_next_focus_candidate() const {
+    auto root_ancestor = get_traversal_root();
+    auto comp = shared_from_this();
+    while (root_ancestor and not (root_ancestor->is_showing() and root_ancestor->can_be_focus_owner())) {
+      comp = root_ancestor;
+      root_ancestor = comp->get_focus_cycle_root_ancestor();
+    }
+
+//    if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
+//        focusLog.finer("comp = " + comp + ", root = " + rootAncestor);
+//    }
+
+    std::shared_ptr<Component> candidate;
+    if (root_ancestor) {
+      auto policy = root_ancestor->get_focus_traversal_policy();
+      auto to_focus = policy->get_component_after(root_ancestor, comp);
+//      if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
+//        focusLog.finer("component after is " + toFocus);
+//      }
+      if (not to_focus) {
+        to_focus = policy->get_default_component(root_ancestor);
+//        if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
+//          focusLog.finer("default component is " + toFocus);
+//        }
+      }
+      candidate = to_focus;
+    }
+//    if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
+//      focusLog.finer("Focus transfer candidate: " + candidate);
+//    }
+    return candidate;
+  }
+
+  bool transfer_focus(bool clear_on_failure);
+  bool transfer_focus_backward(bool clear_on_failure);
 
 public:
   virtual ~Component() {
@@ -889,6 +939,10 @@ public:
     return callable();
   }
 
+  bool is_focus_owner() const {
+    return KeyboardFocusManager::get_focus_owner().get() == this;
+  }
+
   /**
    * Returns whether this Container is the root of a focus traversal cycle. Once focus enters a traversal cycle, typically it cannot leave
    * it via focus traversal unless one of the up- or down-cycle keys is pressed. Normal traversal is limited to this Container, and all of
@@ -924,8 +978,14 @@ public:
     return root_ancestor;
   }
 
-  void transfer_focus();
-  void transfer_focus_backward();
+  void transfer_focus() {
+    transfer_focus(false);
+  }
+
+  void transfer_focus_backward() {
+    transfer_focus_backward(false);
+  }
+
   void transfer_focus_up_cycle();
 
   /**
@@ -959,6 +1019,22 @@ public:
    */
   void set_opaque(bool value) {
     this->opaque = value;
+  }
+
+  bool is_focus_traversal_policy_provider() const {
+    return this->focus_traversal_policy_provider;
+  }
+
+  std::shared_ptr<FocusTraversalPolicy> get_focus_traversal_policy() const {
+    if (not is_focus_traversal_policy_provider() and not is_focus_cycle_root()) {
+      return {};
+    } else if (this->focus_traversal_policy) {
+      return this->focus_traversal_policy;
+    } else if (auto root_ancestor = get_focus_cycle_root_ancestor()) {
+      return root_ancestor->get_focus_traversal_policy();
+    } else {
+      return KeyboardFocusManager::get_default_focus_traversal_policy();
+    }
   }
 };
 

@@ -108,10 +108,11 @@ protected:
     add_event_listener(std::make_shared<BasicFunctionalEventAdapter<Event>>(std::move(event_listener)));
   }
 
-  std::enable_if_t<has_type_enum_v<Event>, void> add_event_listener(std::vector<typename Event::Type> &&event_types, FunctionalEventListener<Event> &&event_listener) {
+  template<typename E = Event>
+  std::enable_if_t<has_type_enum_v<E>, void> add_event_listener(std::vector<typename E::Type> &&event_types, FunctionalEventListener<E> &&event_listener) {
     for (auto &&l : this->event_listeners) {
-      if (auto adapter = std::dynamic_pointer_cast<FunctionalEventAdapter<Event>>(l)) {
-        if (adapter->event_listener.template target<void(Event &e)>() == event_listener.template target<void(Event &e)>()) {
+      if (auto adapter = std::dynamic_pointer_cast<FunctionalEventAdapter<E>>(l)) {
+        if (adapter->event_listener.template target<void(E &e)>() == event_listener.template target<void(E &e)>()) {
           for (auto &&event_type : event_types) {
             if (not std::ranges::contains(adapter->event_types, event_type)) {
               adapter->event_types.emplace_back(event_type);
@@ -121,7 +122,7 @@ protected:
         }
       }
     }
-    add_event_listener(std::make_shared<FunctionalEventAdapter<Event>>(std::move(event_types), std::move(event_listener)));
+    add_event_listener(std::make_shared<FunctionalEventAdapter<E>>(std::move(event_types), std::move(event_listener)));
   }
 
   void remove_event_listener(const std::shared_ptr<EventListener<Event>> &event_listener) {
@@ -145,10 +146,11 @@ protected:
     }
   }
 
-  std::enable_if_t<has_type_enum_v<Event>, void> remove_event_listener(const std::vector<typename Event::Type> &types, const FunctionalEventListener<Event> &event_listener) {
+  template<typename E = Event>
+  std::enable_if_t<has_type_enum_v<E>, void> remove_event_listener(const std::vector<typename E::Type> &types, const FunctionalEventListener<E> &event_listener) {
     for (auto l = this->event_listeners.begin(); l != this->event_listeners.end();) {
-      if (auto adapter = std::dynamic_pointer_cast<FunctionalEventAdapter<Event>>(*l)) {
-        if (adapter->event_listener.template target<void(Event &e)>() == event_listener.template target<void(Event &e)>()) {
+      if (auto adapter = std::dynamic_pointer_cast<FunctionalEventAdapter<E>>(*l)) {
+        if (adapter->event_listener.template target<void(E &e)>() == event_listener.template target<void(E &e)>()) {
           if (types.empty() or adapter->event_types.empty()) {
             l = this->event_listeners.erase(l);
             continue;

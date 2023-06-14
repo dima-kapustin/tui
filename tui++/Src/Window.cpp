@@ -1,5 +1,6 @@
 #include <tui++/Window.h>
 #include <tui++/Graphics.h>
+#include <tui++/KeyboardFocusManager.h>
 
 namespace tui {
 
@@ -13,4 +14,7 @@ void Window::paint_components(Graphics &g) {
   g.translate(-x, -y);
 }
 
+std::shared_ptr<Component> Window::get_focus_owner() const {
+  return is_focused() ? KeyboardFocusManager::get_focus_owner() : nullptr;
+}
 }
