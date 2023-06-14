@@ -210,61 +210,13 @@ protected:
   virtual void hide() {
   }
 
-  void add_impl(const std::shared_ptr<Component> &c, const std::any &constraints) noexcept (false) {
-    if (is_window(c)) {
-      throw std::runtime_error("Adding a window to a container");
-    }
+  void add_impl(const std::shared_ptr<Component> &c, const std::any &constraints) noexcept (false);
 
-    for (auto parent = shared_from_this(); parent; parent = parent->parent.lock()) {
-      if (parent == c) {
-        throw std::runtime_error("Adding component's parent to itself");
-      }
-    }
+  virtual void add_notify();
 
-    // Reparent the component
-    if (auto parent = c->get_parent()) {
-      parent->remove(c);
-    }
+  void remove_impl(const std::shared_ptr<Component> &component);
 
-    // Add the specified component to the list of components
-    // in this container
-    this->components.emplace_back(c);
-
-    // Set this container as the parent of the component
-    c->set_parent(shared_from_this());
-
-    invalidate();
-
-    if (is_displayable()) {
-      c->add_notify();
-    }
-
-    if (this->layout) {
-      this->layout->add_layout_component(c, constraints);
-    }
-  }
-
-  virtual void add_notify() {
-  }
-
-  void remove_impl(const std::shared_ptr<Component> &component) {
-    if (is_displayable()) {
-      component->remove_notify();
-    }
-
-    if (this->layout) {
-      this->layout->remove_layout_component(component);
-    }
-
-    this->components.erase( //
-        std::remove(this->components.begin(), this->components.end(), component), //
-        this->components.end());
-
-    component->set_parent(nullptr);
-  }
-
-  virtual void remove_notify() {
-  }
+  virtual void remove_notify();
 
   /**
    * Set the parent container of this component. This is intended to be called by Container objects only. Note that we use a WeakReference
@@ -1052,16 +1004,6 @@ inline Point convert_point_from_screen(const Point &p, std::shared_ptr<Component
 Point convert_point_to_screen(int x, int y, std::shared_ptr<Component> from);
 inline Point convert_point_to_screen(const Point &p, std::shared_ptr<Component> from) {
   return convert_point_to_screen(p.x, p.y, from);
-}
-
-}
-
-#include <tui++/Window.h>
-
-namespace tui {
-
-inline bool Component::is_window(const std::shared_ptr<Component> &component) {
-  return std::dynamic_pointer_cast<Window>(component) != nullptr;
 }
 
 }

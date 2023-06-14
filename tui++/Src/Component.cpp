@@ -253,6 +253,66 @@ bool Component::process_key_bindings_for_all_components(KeyEvent &e, const std::
   }
 }
 
+bool Component::is_window(const std::shared_ptr<Component> &component) {
+  return dynamic_cast<Window*>(component.get()) != nullptr;
+}
+
+void Component::add_impl(const std::shared_ptr<Component> &c, const std::any &constraints) noexcept (false) {
+  if (is_window(c)) {
+    throw std::runtime_error("Adding a window to a container");
+  }
+
+  for (auto parent = shared_from_this(); parent; parent = parent->get_parent()) {
+    if (parent == c) {
+      throw std::runtime_error("Adding component's parent to itself");
+    }
+  }
+
+  // Reparent the component
+  if (auto parent = c->get_parent()) {
+    parent->remove(c);
+  }
+
+  // Add the specified component to the list of components
+  // in this container
+  this->components.emplace_back(c);
+
+  // Set this container as the parent of the component
+  c->set_parent(shared_from_this());
+
+  invalidate();
+
+  if (is_displayable()) {
+    c->add_notify();
+  }
+
+  if (this->layout) {
+    this->layout->add_layout_component(c, constraints);
+  }
+}
+
+void Component::add_notify() {
+}
+
+void Component::remove_impl(const std::shared_ptr<Component> &component) {
+  if (is_displayable()) {
+    component->remove_notify();
+  }
+
+  if (this->layout) {
+    this->layout->remove_layout_component(component);
+  }
+
+  this->components.erase( //
+      std::remove(this->components.begin(), this->components.end(), component), //
+      this->components.end());
+
+  component->set_parent(nullptr);
+}
+
+void Component::remove_notify() {
+}
+
 /**
  * Convert a point from a screen coordinates to a component's coordinate system
  */
