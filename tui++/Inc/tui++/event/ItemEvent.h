@@ -6,16 +6,16 @@ namespace tui {
 
 class ItemEvent: public BasicEvent {
 public:
-  enum StateChange {
+  enum Type {
     SELECTED,
     DESELECTED
   };
 
-  const StateChange state_change;
+  const Type type;
 
 public:
-  constexpr ItemEvent(const std::shared_ptr<Component> &source, StateChange state_change) :
-      BasicEvent(source), state_change(state_change) {
+  constexpr ItemEvent(const std::shared_ptr<Component> &source, Type type) :
+      BasicEvent(source), type(type) {
   }
 };
 

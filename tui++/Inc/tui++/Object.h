@@ -93,7 +93,9 @@ inline PropertyBase::PropertyBase(Object *object, const std::string_view &name) 
   this->object->add_property(this);
 }
 
-template<typename T, typename = void>
+namespace detail {
+
+template<typename, typename = void>
 struct is_optional: std::false_type {
 };
 
@@ -104,11 +106,24 @@ struct is_optional<std::optional<T> > : std::true_type {
 template<typename T>
 constexpr bool is_optional_v = is_optional<T>::value;
 
+template<typename, typename = void>
+struct has_bool_operator: std::false_type {
+};
+
+template<typename T>
+struct has_bool_operator<T, std::void_t<decltype(std::declval<T>().operator bool())>> : std::true_type {
+};
+
+template<typename T>
+constexpr bool has_bool_operator_v = has_bool_operator<T>::value;
+
+}
+
 template<typename T, typename = void>
 class Property;
 
 template<typename T>
-class Property<T, std::enable_if_t<not is_optional_v<T>>> : public PropertyBase {
+class Property<T, std::enable_if_t<not detail::is_optional_v<T>>> : public PropertyBase {
   T value;
 
 private:
@@ -142,10 +157,31 @@ public:
     set_value(value);
     return *this;
   }
+
+  bool operator==(const Property &other) const {
+    return this->value == other.value;
+  }
+
+  bool operator!=(const Property &other) const {
+    return this->value != other.value;
+  }
+
+  bool operator==(const T &other) const {
+    return this->value == other;
+  }
+
+  bool operator!=(const T &other) const {
+    return this->value != other;
+  }
+
+  template<typename U = T, std::enable_if_t<detail::has_bool_operator_v<U>, bool> = true>
+  operator bool() const {
+    return bool(this->value);
+  }
 };
 
 template<typename T>
-class Property<T, std::enable_if_t<is_optional_v<T>>> : public PropertyBase {
+class Property<T, std::enable_if_t<detail::is_optional_v<T>>> : public PropertyBase {
   using value_type = typename T::value_type;
 
   std::optional<value_type> optional;

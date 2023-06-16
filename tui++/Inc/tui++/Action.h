@@ -4,13 +4,14 @@
 #include <string>
 #include <unordered_map>
 
-#include <tui++/Event.h>
+#include <tui++/event/ActionEvent.h>
+#include <tui++/event/EventListener.h>
 
 namespace tui {
 
 class Object;
 
-class Action {
+class Action/*: public EventListener<ActionEvent>*/ {
   std::unordered_map<std::string, std::any> map;
 public:
   constexpr static std::string ACTION_COMMAND_KEY = "ActionCommand";
