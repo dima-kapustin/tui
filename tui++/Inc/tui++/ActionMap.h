@@ -27,8 +27,8 @@ private:
       return true;
     }
 
-    void action_performed(const ActionEvent &event) override {
-      this->action(event);
+    void action_performed(ActionEvent &e) override {
+      this->action(e);
     }
   };
 

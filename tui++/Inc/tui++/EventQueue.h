@@ -29,7 +29,7 @@ public:
   void push(const std::shared_ptr<Event> &event) {
     std::unique_lock lock(this->mutex);
     this->queue.emplace_back(event);
-    if (event->type == Event::FOCUS) {
+    if (std::holds_alternative<FocusEvent>(*event)) {
       this->last_focus_event = event;
     }
     lock.unlock();
@@ -62,8 +62,8 @@ public:
     return this->queue.empty();
   }
 
-  std::shared_ptr<Event> get_last_focus_event() const {
-    return last_focus_event;
+  const FocusEvent* get_last_focus_event() const {
+    return std::get_if<FocusEvent>(this->last_focus_event.get());
   }
 };
 

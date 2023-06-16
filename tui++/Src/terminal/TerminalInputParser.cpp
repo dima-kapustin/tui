@@ -64,7 +64,7 @@ void Terminal::InputParser::parse_utf8(char first_byte) {
   auto c = char32_t { };
   if (auto c_len = util::mb_to_c32(utf8.data(), std::size(utf8), &c); c_len > 0) {
     if (c < ' ') {
-      new_key_event(char(c + 0x40), InputEvent::CTRL_DOWN);
+      new_key_event(KeyEvent::KeyCode(char(c + 0x40)), InputEvent::CTRL_DOWN);
     } else {
       new_key_event(c);
     }

@@ -11,7 +11,7 @@ namespace tui {
 
 class Object;
 
-class Action/*: public EventListener<ActionEvent>*/ {
+class Action: public EventListener<ActionEvent> {
   std::unordered_map<std::string, std::any> map;
 public:
   constexpr static std::string ACTION_COMMAND_KEY = "ActionCommand";
@@ -25,8 +25,6 @@ public:
   }
 
   virtual bool is_enabled() const = 0;
-
-  virtual void action_performed(const ActionEvent &event) = 0;
 
   const std::any* get_value(const std::string &key) const {
     if (auto pos = this->map.find(key); pos != this->map.end()) {

@@ -176,13 +176,17 @@ class Terminal {
 
     void new_mouse_event(bool pressed) {
       auto button = this->csi_params[0] & 3;
-      auto type = this->csi_params[0] & 64 ? MouseEvent::MOUSE_WHEEL : (pressed ? MouseEvent::MOUSE_PRESSED : MouseEvent::MOUSE_RELEASED);
       InputEvent::Modifiers modifiers = this->csi_params[0] & 4 ? InputEvent::SHIFT_DOWN : InputEvent::NO_MODIFIERS;
       modifiers |= this->csi_params[0] & 8 ? InputEvent::META_DOWN : InputEvent::NO_MODIFIERS;
       modifiers |= this->csi_params[0] & 16 ? InputEvent::CTRL_DOWN : InputEvent::NO_MODIFIERS;
       int x = this->csi_params[1];
       int y = this->csi_params[2];
-      this->terminal.new_mouse_event(type, MouseEvent::Button(button), InputEvent::Modifiers(modifiers), x, y);
+      if (this->csi_params[0] & 64) {
+        this->terminal.new_mouse_wheel_event(button == 0 ? -1 : 1, InputEvent::Modifiers(modifiers), x, y);
+      } else {
+        auto type = pressed ? MouseEvent::MOUSE_PRESSED : MouseEvent::MOUSE_RELEASED;
+        this->terminal.new_mouse_event(type, MouseEvent::Button(button), InputEvent::Modifiers(modifiers), x, y);
+      }
     }
 
     char get() {
@@ -245,6 +249,10 @@ private:
   void new_key_event(const Char &c, InputEvent::Modifiers modifiers);
   void new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers);
   void new_mouse_event(MouseEvent::Type type, MouseEvent::Button button, InputEvent::Modifiers modifiers, int x, int y);
+  void new_mouse_wheel_event(int wheel_rotation, InputEvent::Modifiers modifiers, int x, int y);
+//  void new_mouse_move_event(InputEvent::Modifiers modifiers, int x, int y);
+//  void new_mouse_drag_event(MouseEvent::Button button, InputEvent::Modifiers modifiers, int x, int y);
+//  void new_mouse_click_event(MouseEvent::Button button, InputEvent::Modifiers modifiers, int x, int y);
 
   friend class TerminalImpl;
   friend class InputParser;
@@ -273,25 +281,25 @@ public:
 
   template<typename ...Args>
   void print(Args &&... args) {
-    (std::cout << ... << args);
-  }
+  (std::cout << ... << args);
+}
 
-  void set_title(const std::string &title);
+void set_title(const std::string &title);
 
-  void flush();
+void flush();
 
-  void run_event_loop() {
-    this->screen.run_event_loop();
-  }
+void run_event_loop() {
+  this->screen.run_event_loop();
+}
 
-  void post(std::function<void()> fn) {
-    this->screen.post(std::move(fn));
-  }
+void post(std::function<void()> fn) {
+  this->screen.post(std::move(fn));
+}
 
-  template<typename W, typename ... Args>
-  std::enable_if_t<std::is_convertible_v<W*, Window*>, std::shared_ptr<W>> create_window(Args &&...args) {
-    return this->screen.create_window<W>(std::forward<Args>(args)...);
-  }
+template<typename W, typename ... Args>
+std::enable_if_t<std::is_convertible_v<W*, Window*>, std::shared_ptr<W>> create_window(Args &&...args) {
+  return this->screen.create_window<W>(std::forward<Args>(args)...);
+}
 };
 
 }

@@ -61,19 +61,19 @@ void Component::request_focus() {
       auto &event_queue = get_event_queue();
 
       if (auto last_focus_event = event_queue.get_last_focus_event()) {
-        ancestor_current_focus = last_focus_event->focus.source;
+        ancestor_current_focus = last_focus_event->source;
         if (ancestor_current_focus and ancestor_current_focus->get_window_ancestor() and ancestor_current_focus->get_window_ancestor()->is_enabled() and ancestor_current_focus->get_window_ancestor() != ancestor) {
           temporary = true;
         } else {
           temporary = false;
         }
 
-        event_queue.push(std::make_shared<Event>(ancestor_current_focus, FocusEvent::FOCUS_LOST, temporary, shared_from_this()));
+        event_queue.push(std::make_shared<Event>(std::in_place_type<FocusEvent>, ancestor_current_focus, FocusEvent::FOCUS_LOST, temporary, shared_from_this()));
       } else {
         ancestor_current_focus = nullptr;
       }
 
-      event_queue.push(std::make_shared<Event>(shared_from_this(), FocusEvent::FOCUS_GAINED, temporary, ancestor_current_focus));
+      event_queue.push(std::make_shared<Event>(std::in_place_type<FocusEvent>, shared_from_this(), FocusEvent::FOCUS_GAINED, temporary, ancestor_current_focus));
 
       if (auto parent = get_parent()) {
         parent->set_focus(shared_from_this());
@@ -235,7 +235,8 @@ bool Component::notify_action(const std::shared_ptr<Action> &action, const KeySt
   } else {
     return false;
   }
-  action->action_performed(ActionEvent(sender, command, e.modifiers, e.when));
+  auto event = ActionEvent { sender, command, e.modifiers, e.when };
+  action->action_performed(event);
   return true;
 }
 

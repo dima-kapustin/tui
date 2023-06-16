@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <type_traits>
 
+#include <tui++/Event.h>
+
 #include <tui++/event/EventListener.h>
 
 namespace tui {
@@ -22,6 +24,31 @@ struct has_type_enum<Event, std::enable_if_t<std::is_enum_v<typename Event::Type
 
 template<typename Event>
 constexpr bool has_type_enum_v = has_type_enum<Event>::value;
+
+template<typename, typename = void>
+struct has_type_member: std::false_type {
+};
+
+template<typename T>
+struct has_type_member<T, std::void_t<typename T::type>> : std::true_type {
+};
+
+template<typename T>
+constexpr bool has_type_member_v = has_type_member<T>::value;
+
+template<typename Callable, typename Event>
+constexpr bool is_global_function_v = std::is_convertible_v<Callable, void (*)(Event&)>;
+
+template<typename T, typename = void>
+struct is_smart_pointer: std::false_type {
+};
+
+template<typename T>
+struct is_smart_pointer<T, std::enable_if_t<std::is_same_v<typename std::decay_t<T>, std::shared_ptr<typename std::decay_t<T>::element_type>>>> : std::true_type {
+};
+
+template<typename T>
+constexpr bool is_smart_pointer_v = is_smart_pointer<T>::value;
 
 template<typename >
 class EventSource;
@@ -51,6 +78,14 @@ public:
   void operator()(Event &e) const {
     this->event_listener(e);
   }
+
+  constexpr bool operator==(const BasicFunctionalEventAdapter &other) const {
+    return false;
+  }
+
+  constexpr bool operator!=(const BasicFunctionalEventAdapter &other) const {
+    return true;
+  }
 };
 
 template<typename Event, std::enable_if_t<has_type_enum_v<Event>, bool> = true>
@@ -79,6 +114,14 @@ public:
       this->event_listener(e);
     }
   }
+
+  constexpr bool operator==(const FunctionalEventAdapter &other) const {
+    return false;
+  }
+
+  constexpr bool operator!=(const FunctionalEventAdapter &other) const {
+    return true;
+  }
 };
 
 template<typename Event, typename = void>
@@ -102,12 +145,69 @@ class EventSource {
   std::vector<event_listener_variant_t<Event>> event_listeners;
 
 protected:
+  static void dispatch_event(const std::shared_ptr<EventListener<Event>> &event_listener, Event &e) {
+    if constexpr (std::is_same_v<ActionEvent, Event>) {
+      event_listener->action_performed(e);
+    } else if constexpr (std::is_same_v<KeyEvent, Event>) {
+      switch (e.type) {
+      case KeyEvent::KEY_PRESSED:
+        event_listener->key_pressed(e);
+        break;
+
+      case KeyEvent::KEY_TYPED:
+        event_listener->key_typed(e);
+        break;
+      }
+    } else if constexpr (std::is_same_v<MouseEvent, Event>) {
+      switch (e.type) {
+      case MouseEvent::MOUSE_PRESSED:
+        event_listener->mouse_pressed(e);
+        break;
+
+      case MouseEvent::MOUSE_RELEASED:
+        event_listener->mouse_released(e);
+        break;
+      }
+    } else if constexpr (std::is_same_v<MouseClickEvent, Event>) {
+      event_listener->mouse_clicked(e);
+    } else if constexpr (std::is_same_v<MouseMoveEvent, Event>) {
+      event_listener->mouse_moved(e);
+    } else if constexpr (std::is_same_v<MouseDragEvent, Event>) {
+      event_listener->mouse_dragged(e);
+    } else if constexpr (std::is_same_v<MouseWheelEvent, Event>) {
+      event_listener->mouse_wheel_moved(e);
+    } else if constexpr (std::is_same_v<MouseHoverEvent, Event>) {
+      switch (e.type) {
+      case MouseHoverEvent::MOUSE_ENTERED:
+        event_listener->mouse_entered(e);
+        break;
+
+      case MouseHoverEvent::MOUSE_EXITED:
+        event_listener->mouse_exited(e);
+        break;
+      }
+    } else if constexpr (std::is_same_v<ItemEvent, Event>) {
+      event_listener->item_state_changed(e);
+    } else if constexpr (std::is_same_v<FocusEvent, Event>) {
+      switch (e.type) {
+      case FocusEvent::FOCUS_GAINED:
+        event_listener->focus_gained(e);
+        break;
+
+      case FocusEvent::FOCUS_LOST:
+        event_listener->focus_lost(e);
+        break;
+      }
+    } else if constexpr (std::is_same_v<InvocationEvent, Event>) {
+    }
+  }
+
   virtual void process_event(Event &e) {
     for (auto &&event_listener : this->event_listeners) {
       std::visit([&e](auto &&event_listener) {
         using T = std::decay_t<decltype(event_listener)>;
         if constexpr (std::is_same_v<T, std::shared_ptr<EventListener<Event>>>) {
-          event_listener->on_event(e);
+          dispatch_event(event_listener, e);
         } else if constexpr (std::is_same_v<T, BasicFunctionalEventAdapter<Event>>) {
           event_listener(e);
         } else if constexpr (std::is_same_v<T, FunctionalEventAdapter<Event>>) {
@@ -119,17 +219,28 @@ protected:
 
 protected:
   void add_event_listener(const std::shared_ptr<EventListener<Event>> &event_listener) {
-    if (not std::ranges::contains(this->event_listeners, event_listener)) {
-      this->event_listeners.emplace_back(event_listener);
+    for (auto &&l : this->event_listeners) {
+      if (auto event_listener_ptr = std::get_if<std::shared_ptr<EventListener<Event>>>(&l)) {
+        if (*event_listener_ptr == event_listener) {
+          return;
+        }
+      }
     }
+    this->event_listeners.emplace_back(event_listener);
   }
 
   template<typename Callable>
   void add_event_listener(Callable &&callable) {
     for (auto &&l : this->event_listeners) {
       if (auto adapter = std::get_if<BasicFunctionalEventAdapter<Event>>(&l)) {
-        if (adapter->event_listener.template target<std::decay_t<Callable>>()) {
-          return;
+        if (auto target = adapter->event_listener.template target<std::decay_t<Callable>>()) {
+          if constexpr (detail::is_global_function_v<Callable, Event>) {
+            if (*target == callable) {
+              return;
+            }
+          } else {
+            return;
+          }
         }
       }
     }
@@ -140,13 +251,19 @@ protected:
   std::enable_if_t<has_type_enum_v<E>, void> add_event_listener(std::vector<typename E::Type> &&event_types, Callable &&callable) {
     for (auto &&l : this->event_listeners) {
       if (auto adapter = std::get_if<FunctionalEventAdapter<E>>(&l)) {
-        if (adapter->event_listener.template target<std::decay_t<Callable>>()) {
-          for (auto &&event_type : event_types) {
-            if (not std::ranges::contains(adapter->event_types, event_type)) {
-              adapter->event_types.emplace_back(event_type);
+        if (auto target = adapter->event_listener.template target<std::decay_t<Callable>>()) {
+          if constexpr (detail::is_global_function_v<Callable, Event>) {
+            if (*target == callable) {
+              return;
             }
+          } else {
+            for (auto &&event_type : event_types) {
+              if (not std::ranges::contains(adapter->event_types, event_type)) {
+                adapter->event_types.emplace_back(event_type);
+              }
+            }
+            return;
           }
-          return;
         }
       }
     }
@@ -155,9 +272,11 @@ protected:
 
   void remove_event_listener(const std::shared_ptr<EventListener<Event>> &event_listener) {
     for (auto l = this->event_listeners.begin(); l != this->event_listeners.end(); ++l) {
-      if (*l == event_listener) {
-        this->event_listeners.erase(l);
-        return;
+      if (auto event_listener_ptr = std::get_if<std::shared_ptr<EventListener<Event>>>(&*l)) {
+        if (*event_listener_ptr == event_listener) {
+          this->event_listeners.erase(l);
+          return;
+        }
       }
     }
   }
@@ -203,15 +322,36 @@ protected:
 };
 
 template<typename Callable, typename Event>
-struct __event_type_from_callable: std::enable_if<std::is_convertible_v<Callable, FunctionalEventListener<Event>>, Event> {
+struct __event_type_from_callable_or_nothing: std::enable_if<std::is_convertible_v<Callable, FunctionalEventListener<Event>>, Event> {
 };
 
 template<typename Callable, typename ... Events>
-struct event_type_from_callable: __event_type_from_callable<Callable, Events> ... {
+struct event_type_from_callable_or_nothing: __event_type_from_callable_or_nothing<Callable, Events> ... {
+};
+
+template<typename Callable, typename, typename ... Events>
+struct event_type_from_callable {
+  using type = void;
 };
 
 template<typename Callable, typename ... Events>
-using event_type_from_callable_t = typename event_type_from_callable<Callable, Events...>::type;
+struct event_type_from_callable<Callable, std::void_t<typename event_type_from_callable_or_nothing<Callable, Events...>::type>, Events...> {
+  using type = typename event_type_from_callable_or_nothing<Callable, Events...>::type;
+};
+
+template<typename Callable, typename ... Events>
+using event_type_from_callable_t = typename event_type_from_callable<Callable, void, Events...>::type;
+
+//template<typename Pointer, typename Event>
+//struct __event_type_from_pointer: std::enable_if<std::is_convertible_v<Pointer*, EventListener<Event>*>, Event> {
+//};
+//
+//template<typename Pointer, typename ... Events>
+//struct event_type_from_pointer: __event_type_from_pointer<Pointer, Events> ... {
+//};
+//
+//template<typename Pointer, typename ... Events>
+//using event_type_from_pointer_t = typename event_type_from_pointer<Pointer, Events...>::type;
 
 }
 
@@ -224,36 +364,36 @@ protected:
 public:
   template<typename Event>
   void add_event_listener(const std::shared_ptr<EventListener<Event>> &listener) {
-    detail::EventSource<Event>::add_event_litener(listener);
+    detail::EventSource<Event>::add_event_listener(listener);
   }
 
   template<typename Callable, typename Event = detail::event_type_from_callable_t<Callable, Events...>>
-  void add_event_listener(Callable &&callable) {
+  std::enable_if_t<std::is_invocable_v<Callable, Event&>, void> add_event_listener(Callable &&callable) {
     detail::EventSource<Event>::add_event_listener(std::forward<Callable>(callable));
   }
 
   template<typename Callable, typename Event = detail::event_type_from_callable_t<Callable, Events...>>
-  std::enable_if_t<detail::has_type_enum_v<Event>, void> add_event_listener(typename Event::Type type, Callable &&callable) {
+  std::enable_if_t<std::is_invocable_v<Callable, Event&> and detail::has_type_enum_v<Event>, void> add_event_listener(typename Event::Type type, Callable &&callable) {
     detail::EventSource<Event>::add_event_listener(std::vector<typename Event::Type> { 1, type }, std::forward<Callable>(callable));
   }
 
   template<typename Callable, typename Event = detail::event_type_from_callable_t<Callable, Events...>>
-  std::enable_if_t<detail::has_type_enum_v<Event>, void> add_event_listener(std::initializer_list<typename Event::Type> types, Callable &&callable) {
+  std::enable_if_t<std::is_invocable_v<Callable, Event&> and detail::has_type_enum_v<Event>, void> add_event_listener(std::initializer_list<typename Event::Type> types, Callable &&callable) {
     detail::EventSource<Event>::add_event_listener(std::vector<typename Event::Type> { types.begin(), types.end() }, std::forward<Callable>(callable));
   }
 
   template<typename Event>
   void remove_event_listener(const std::shared_ptr<EventListener<Event>> &listener) {
-    detail::EventSource<Event>::remove_event_litener(listener);
+    detail::EventSource<Event>::remove_event_listener(listener);
   }
 
   template<typename Callable, typename Event = detail::event_type_from_callable_t<Callable, Events...>>
-  void remove_event_listener(const Callable &callable) {
+  std::enable_if_t<std::is_invocable_v<Callable, Event&>, void> remove_event_listener(const Callable &callable) {
     detail::EventSource<Event>::remove_event_listener(callable);
   }
 
   template<typename Callable, typename Event = detail::event_type_from_callable_t<Callable, Events...>>
-  std::enable_if_t<detail::has_type_enum_v<Event>, void> remove_event_listener(typename Event::Type type, const Callable &callable) {
+  std::enable_if_t<std::is_invocable_v<Callable, Event&> and detail::has_type_enum_v<Event>, void> remove_event_listener(typename Event::Type type, const Callable &callable) {
     detail::EventSource<Event>::remove_event_listener(std::vector<typename Event::Type> { 1, type }, callable);
   }
 };

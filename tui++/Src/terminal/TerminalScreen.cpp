@@ -143,13 +143,8 @@ void TerminalScreen::run_event_loop() {
     this->terminal.read_events();
     if (auto event = this->event_queue.pop(WAIT_EVENT_TIMEOUT)) {
       std::cout << *event << std::endl;
-      switch (event->type) {
-      case Event::INVOCATION:
-        event->invocation.dispatch();
-        break;
-
-      default:
-        break;
+      if (auto invocation = std::get_if<InvocationEvent>(event.get())) {
+        invocation->dispatch();
       }
     }
   }

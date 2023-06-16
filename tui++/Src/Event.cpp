@@ -116,10 +116,23 @@ std::string to_string(KeyEvent::KeyCode key_code) {
   return buf;
 }
 
-std::ostream& operator<<(std::ostream &os, const Event &event) {
-  switch (event.type) {
-  case Event::KEY:
-    switch (event.key.type) {
+struct EventDump {
+  std::ostream &os;
+
+  void operator()(const std::monostate&) {
+    this->os << "UNDEFINED";
+  }
+
+  void operator()(const ActionEvent &event) {
+    this->os << "Action '" << event.action_command << "' Performed";
+  }
+
+  void operator()(const ItemEvent &e) {
+
+  }
+
+  void operator()(const KeyEvent &event) {
+    switch (event.type) {
     case KeyEvent::KEY_PRESSED:
       os << "Key Pressed: ";
       break;
@@ -129,115 +142,117 @@ std::ostream& operator<<(std::ostream &os, const Event &event) {
       break;
     }
 
-    if (event.key.modifiers & KeyEvent::ALT_DOWN) {
+    if (event.modifiers & KeyEvent::ALT_DOWN) {
       os << "Alt+";
     }
-    if (event.key.modifiers & KeyEvent::SHIFT_DOWN) {
+    if (event.modifiers & KeyEvent::SHIFT_DOWN) {
       os << "Shift+";
     }
-    if (event.key.modifiers & KeyEvent::CTRL_DOWN) {
+    if (event.modifiers & KeyEvent::CTRL_DOWN) {
       os << "Ctrl+";
     }
 
-    if (event.key.type == KeyEvent::KEY_TYPED) {
-      os << event.key.get_key_char();
+    if (event.type == KeyEvent::KEY_TYPED) {
+      os << event.get_key_char();
     } else {
-      os << to_string(event.key.get_key_code());
+      os << to_string(event.get_key_code());
     }
-    break;
+  }
 
-  case Event::MOUSE:
-    os << "Mouse ";
-
-    if (event.mouse.type == MouseEvent::MOUSE_MOVED) {
-      os << "Moved with ";
-    } else if (event.mouse.type == MouseEvent::MOUSE_DRAGGED) {
-      os << "Dragged with ";
-    }
-
-    if (event.mouse.type != MouseEvent::MOUSE_WHEEL) {
-      switch (event.mouse.button) {
-      case MouseEvent::LEFT_BUTTON:
-        os << "Left Button";
-        break;
-      case MouseEvent::MIDDLE_BUTTON:
-        os << "Middle Button";
-        break;
-      case MouseEvent::RIGHT_BUTTON:
-        os << "Right Button";
-        break;
-      case MouseEvent::NO_BUTTON:
-        os << "No Button";
-        break;
-      }
+  void operator()(const MouseEvent &event) {
+    this->os << "Mouse" << ' ';
+    switch (event.button) {
+    case MouseEvent::LEFT_BUTTON:
+      this->os << "Left Button";
+      break;
+    case MouseEvent::MIDDLE_BUTTON:
+      this->os << "Middle Button";
+      break;
+    case MouseEvent::RIGHT_BUTTON:
+      this->os << "Right Button";
+      break;
+    case MouseEvent::NO_BUTTON:
+      this->os << "No Button";
+      break;
     }
 
-    switch (event.mouse.type) {
+    this->os << ' ';
+
+    switch (event.type) {
     case MouseEvent::MOUSE_PRESSED:
-      os << " Pressed";
+      this->os << "Pressed";
       break;
     case MouseEvent::MOUSE_RELEASED:
-      os << " Released";
-      break;
-    case MouseEvent::MOUSE_CLICKED:
-      if (event.mouse.click_count == 2) {
-        os << " Double Clicked";
-      } else {
-        os << " Clicked";
-      }
-      break;
-
-    case MouseEvent::MOUSE_WHEEL:
-      os << " Wheel scrolled by " << event.mouse.weel_rotation;
+      this->os << "Released";
       break;
 
     default:
       break;
     }
+    this->os << " at " << event.x << "," << event.y;
+  }
 
-    if (event.mouse.modifiers) {
-      os << " with ";
-      if (event.mouse.modifiers & InputEvent::ALT_DOWN) {
-        os << "Alt";
-      }
-      if (event.mouse.modifiers & InputEvent::SHIFT_DOWN) {
-        os << "Shift";
-      }
-      if (event.mouse.modifiers & InputEvent::CTRL_DOWN) {
-        os << "Ctrl";
-      }
-      if (event.mouse.modifiers & InputEvent::META_DOWN) {
-        os << "Meta";
-      }
+  void operator()(const MouseMoveEvent &event) {
+    this->os << "Mouse Moved";
+    this->os << " at " << event.x << "," << event.y;
+  }
+
+  void operator()(const MouseDragEvent &event) {
+    this->os << "Mouse Dragged with ";
+    switch (event.button) {
+    case MouseEvent::LEFT_BUTTON:
+      this->os << "Left Button";
+      break;
+    case MouseEvent::MIDDLE_BUTTON:
+      this->os << "Middle Button";
+      break;
+    case MouseEvent::RIGHT_BUTTON:
+      this->os << "Right Button";
+      break;
+    case MouseEvent::NO_BUTTON:
+      this->os << "No Button";
+      break;
     }
+    this->os << " at " << event.x << "," << event.y;
+  }
 
-    os << " at " << event.mouse.x << "," << event.mouse.y;
-    break;
+  void operator()(const MouseClickEvent &event) {
+    this->os << "Mouse" << ' ';
+    if (event.click_count == 2) {
+      this->os << "Double Clicked";
+    } else {
+      this->os << "Clicked";
+    }
+    this->os << " at " << event.x << "," << event.y;
+  }
 
-  case Event::ACTION:
-    os << "Action '" << event.action.action_command << "' Performed";
-    break;
+  void operator()(const MouseWheelEvent &event) {
+    this->os << "Mouse Wheel scrolled by " << event.wheel_rotation;
+    this->os << " at " << event.x << "," << event.y;
+  }
 
-  case Event::INVOCATION:
-    os << "Invocation";
-    break;
+  void operator()(const MouseHoverEvent &e) {
 
-  case Event::FOCUS:
-    switch (event.focus.type) {
+  }
+
+  void operator()(const InvocationEvent &e) {
+
+  }
+
+  void operator()(const FocusEvent &event) {
+    switch (event.type) {
     case FocusEvent::FOCUS_GAINED:
-      os << "Focus Gained";
+      this->os << "Focus Gained";
       break;
     case FocusEvent::FOCUS_LOST:
-      os << "Focus Lost";
+      this->os << "Focus Lost";
       break;
     }
-    os << (event.focus.temporary ? " temporary" : "");
-    break;
-
-  case Event::UNDEFINED:
-    os << "UNDEFINED";
-    break;
   }
+};
+
+std::ostream& operator<<(std::ostream &os, const Event &event) {
+  std::visit(EventDump { os }, event);
   return os;
 }
 

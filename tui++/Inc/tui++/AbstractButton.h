@@ -23,8 +23,8 @@ public:
 //    this->action = action;
     static_assert(detail::has_bool_operator_v<std::shared_ptr<Action>>);
     if (this->action != action) {
-      if (std::shared_ptr<Action> oldValue = this->action) {
-//        remove_event_listener(oldValue);
+      if (this->action) {
+//        remove_event_listener(this->action.value());
 //            oldValue->removePropertyChangeListener(actionPropertyChangeListener);
 //            actionPropertyChangeListener = null;
       }

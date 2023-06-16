@@ -127,7 +127,7 @@ public:
 
   enum Type {
     KEY_TYPED,
-    KEY_PRESSED
+    KEY_PRESSED,
   };
 
   const Type type;
