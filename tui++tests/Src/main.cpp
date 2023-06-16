@@ -101,25 +101,26 @@ int main(int argc, char *argv[]) {
 //  static_assert(typeid(f) != typeid(g));
 
   frame->add_event_listener(mouse_listener);
+//  frame->add_event_listener(ml);
   frame->add_event_listener(std::static_pointer_cast<EventListener<MouseEvent>>(ml));
 
   frame->add_event_listener(g);
   frame->add_event_listener(f);
   frame->add_event_listener(f);
 
-//  frame->add_event_listener(MouseEvent::MOUSE_DRAGGED, mouse_listener);
-//  frame->add_event_listener(MouseEvent::MOUSE_MOVED, mouse_listener);
-//  frame->add_event_listener(MouseEvent::MOUSE_MOVED, mouse_listener2);
-//
-//  frame->add_event_listener(MouseEvent::MOUSE_DRAGGED, [](MouseEvent &e) {
-//
-//  });
-//
-//  frame->add_event_listener( { MouseEvent::MOUSE_DRAGGED }, [](MouseEvent &e) {
-//
-//  });
-//
-//  frame->remove_event_listener(MouseEvent::MOUSE_DRAGGED, mouse_listener);
+  frame->add_event_listener(MouseEvent::MOUSE_PRESSED, mouse_listener);
+  frame->add_event_listener(MouseEvent::MOUSE_RELEASED, mouse_listener);
+  frame->add_event_listener(MouseEvent::MOUSE_RELEASED, mouse_listener2);
+
+  frame->add_event_listener(MouseEvent::MOUSE_PRESSED, [](MouseEvent &e) {
+
+  });
+
+  frame->add_event_listener( { MouseEvent::MOUSE_PRESSED }, [](MouseEvent &e) {
+
+  });
+
+  frame->remove_event_listener(MouseEvent::MOUSE_PRESSED, mouse_listener);
   frame->remove_event_listener(mouse_listener);
   frame->remove_event_listener(std::static_pointer_cast<EventListener<MouseEvent>>(ml));
 
