@@ -97,11 +97,11 @@ int main(int argc, char *argv[]) {
 
   static_assert(std::is_convertible_v<decltype(mouse_listener), FunctionalEventListener<MouseEvent>>);
   static_assert(typeid(mouse_listener) != typeid(mouse_listener2));
-//  static_assert(typeid(A::f) != typeid(B::f));
-//  static_assert(typeid(f) != typeid(g));
+  static_assert(typeid(A::f) == typeid(B::f));
+  static_assert(typeid(f) == typeid(g));
 
+  frame->add_event_listener(ml);
   frame->add_event_listener(mouse_listener);
-//  frame->add_event_listener(ml);
   frame->add_event_listener(std::static_pointer_cast<EventListener<MouseEvent>>(ml));
 
   frame->add_event_listener(g);
@@ -123,6 +123,7 @@ int main(int argc, char *argv[]) {
   frame->remove_event_listener(MouseEvent::MOUSE_PRESSED, mouse_listener);
   frame->remove_event_listener(mouse_listener);
   frame->remove_event_listener(std::static_pointer_cast<EventListener<MouseEvent>>(ml));
+  frame->remove_event_listener(ml);
 
   terminal.run_event_loop();
 }

@@ -39,17 +39,6 @@ constexpr bool has_type_member_v = has_type_member<T>::value;
 template<typename Callable, typename Event>
 constexpr bool is_global_function_v = std::is_convertible_v<Callable, void (*)(Event&)>;
 
-template<typename T, typename = void>
-struct is_smart_pointer: std::false_type {
-};
-
-template<typename T>
-struct is_smart_pointer<T, std::enable_if_t<std::is_same_v<typename std::decay_t<T>, std::shared_ptr<typename std::decay_t<T>::element_type>>>> : std::true_type {
-};
-
-template<typename T>
-constexpr bool is_smart_pointer_v = is_smart_pointer<T>::value;
-
 template<typename >
 class EventSource;
 
@@ -230,7 +219,7 @@ protected:
   }
 
   template<typename Callable>
-  void add_event_listener(Callable &&callable) {
+  std::enable_if_t<std::is_invocable_v<Callable, Event&>, void> add_event_listener(Callable &&callable) {
     for (auto &&l : this->event_listeners) {
       if (auto adapter = std::get_if<BasicFunctionalEventAdapter<Event>>(&l)) {
         if (auto target = adapter->event_listener.template target<std::decay_t<Callable>>()) {
@@ -248,7 +237,7 @@ protected:
   }
 
   template<typename Callable, typename E = Event>
-  std::enable_if_t<has_type_enum_v<E>, void> add_event_listener(std::vector<typename E::Type> &&event_types, Callable &&callable) {
+  std::enable_if_t<std::is_invocable_v<Callable, E&> and has_type_enum_v<E>, void> add_event_listener(std::vector<typename E::Type> &&event_types, Callable &&callable) {
     for (auto &&l : this->event_listeners) {
       if (auto adapter = std::get_if<FunctionalEventAdapter<E>>(&l)) {
         if (auto target = adapter->event_listener.template target<std::decay_t<Callable>>()) {
@@ -342,16 +331,18 @@ struct event_type_from_callable<Callable, std::void_t<typename event_type_from_c
 template<typename Callable, typename ... Events>
 using event_type_from_callable_t = typename event_type_from_callable<Callable, void, Events...>::type;
 
-//template<typename Pointer, typename Event>
-//struct __event_type_from_pointer: std::enable_if<std::is_convertible_v<Pointer*, EventListener<Event>*>, Event> {
-//};
-//
-//template<typename Pointer, typename ... Events>
-//struct event_type_from_pointer: __event_type_from_pointer<Pointer, Events> ... {
-//};
-//
-//template<typename Pointer, typename ... Events>
-//using event_type_from_pointer_t = typename event_type_from_pointer<Pointer, Events...>::type;
+template<typename Listener, typename = void>
+struct event_type_from_listener {
+  using type = void;
+};
+
+template<typename Listener>
+struct event_type_from_listener<Listener, std::void_t<typename Listener::event_type>> {
+  using type = typename Listener::event_type;
+};
+
+template<typename Listener>
+using event_type_from_listener_t = typename event_type_from_listener<Listener>::type;
 
 }
 
@@ -362,9 +353,9 @@ protected:
   using detail::EventSource<Events>::process_event...;
 
 public:
-  template<typename Event>
-  void add_event_listener(const std::shared_ptr<EventListener<Event>> &listener) {
-    detail::EventSource<Event>::add_event_listener(listener);
+  template<typename Listener, typename Event = detail::event_type_from_listener_t<Listener>>
+  std::enable_if_t<std::is_convertible_v<Listener*, EventListener<Event>*>, void> add_event_listener(const std::shared_ptr<Listener> &listener) {
+    detail::EventSource<Event>::add_event_listener(std::static_pointer_cast<EventListener<Event>>(listener));
   }
 
   template<typename Callable, typename Event = detail::event_type_from_callable_t<Callable, Events...>>
@@ -382,9 +373,9 @@ public:
     detail::EventSource<Event>::add_event_listener(std::vector<typename Event::Type> { types.begin(), types.end() }, std::forward<Callable>(callable));
   }
 
-  template<typename Event>
-  void remove_event_listener(const std::shared_ptr<EventListener<Event>> &listener) {
-    detail::EventSource<Event>::remove_event_listener(listener);
+  template<typename Listener, typename Event = detail::event_type_from_listener_t<Listener>>
+  std::enable_if_t<std::is_convertible_v<Listener*, EventListener<Event>*>, void> remove_event_listener(const std::shared_ptr<Listener> &listener) {
+    detail::EventSource<Event>::remove_event_listener(std::static_pointer_cast<EventListener<Event>>(listener));
   }
 
   template<typename Callable, typename Event = detail::event_type_from_callable_t<Callable, Events...>>
