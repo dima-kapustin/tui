@@ -6,7 +6,7 @@
 
 namespace tui {
 
-class AbstractButton: public Component, public BasicEventSource<ActionEvent, ItemEvent> {
+class AbstractButton: public ComponentExtension<Component, ActionEvent, ItemEvent> {
   Property<std::shared_ptr<Action>> action { this, "action" };
 
 protected:
@@ -19,9 +19,6 @@ protected:
   }
 
 public:
-  using Component::remove_event_listener;
-  using BasicEventSource<ActionEvent, ItemEvent>::remove_event_listener;
-
   void set_action(const std::shared_ptr<Action> &action) {
 //    this->action = action;
     static_assert(detail::has_bool_operator_v<std::shared_ptr<Action>>);

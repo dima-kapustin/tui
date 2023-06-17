@@ -2,11 +2,13 @@
 
 #include <tui++/Component.h>
 
+#include <tui++/event/WindowEvent.h>
+
 namespace tui {
 
 class Screen;
 
-class Window: public Component {
+class Window: public ComponentExtension<Component, WindowEvent> {
   using base = Component;
 
   Screen &screen;

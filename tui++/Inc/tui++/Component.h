@@ -34,8 +34,8 @@ class EventQueue;
 template<typename T>
 constexpr bool is_component_v = std::is_base_of_v<Component, T>;
 
-class Component: public std::enable_shared_from_this<Component>, virtual public Object, public BasicEventSource<FocusEvent, MouseEvent, KeyEvent> {
-  using EventSource = BasicEventSource<FocusEvent, MouseEvent, KeyEvent>;
+class Component: virtual public Object, public std::enable_shared_from_this<Component>, public EventSource<FocusEvent, MouseEvent, KeyEvent> {
+  using base = EventSource<FocusEvent, MouseEvent, KeyEvent>;
 
   static std::recursive_mutex tree_mutex;
 
@@ -301,15 +301,15 @@ protected:
   EventQueue& get_event_queue() const;
 
   virtual void process_event(FocusEvent &e) override {
-    EventSource::process_event(e);
+    base::process_event(e);
   }
 
   virtual void process_event(MouseEvent &e) override {
-    EventSource::process_event(e);
+    base::process_event(e);
   }
 
   virtual void process_event(KeyEvent &e) override {
-    EventSource::process_event(e);
+    base::process_event(e);
     if (not e.consumed) {
       e.consumed = process_key_bindings(e);
     }
@@ -402,6 +402,8 @@ public:
     }
     invalidate();
   }
+
+  void dispatch_event(Event &e);
 
   bool contains(int x, int y) const {
     return (x >= 0 and x < get_width() and y >= 0 and y < get_height());
@@ -989,6 +991,9 @@ public:
     }
   }
 };
+
+template<typename BaseComponent, typename ... Events>
+using ComponentExtension = EventSourceExtension<BaseComponent, Events...>;
 
 /**
  * Convert a point from a screen coordinates to a component's coordinate system

@@ -249,6 +249,11 @@ struct EventDump {
       break;
     }
   }
+
+  void operator()(const WindowEvent &event) {
+    switch (event.type) {
+    }
+  }
 };
 
 std::ostream& operator<<(std::ostream &os, const Event &event) {
