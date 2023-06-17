@@ -31,6 +31,12 @@ public:
 };
 
 template<>
+class EventListener<ItemEvent> : public BasicEventListener<ItemEvent> {
+public:
+  virtual void item_state_changed(ItemEvent &e) = 0;
+};
+
+template<>
 class EventListener<KeyEvent> : public BasicEventListener<KeyEvent> {
 public:
   virtual void key_pressed(KeyEvent &e) = 0;
@@ -80,6 +86,21 @@ class EventListener<FocusEvent> : public BasicEventListener<FocusEvent> {
 public:
   virtual void focus_gained(FocusEvent &e) = 0;
   virtual void focus_lost(FocusEvent &e) = 0;
+};
+
+template<>
+class EventListener<WindowEvent> : public BasicEventListener<WindowEvent> {
+public:
+  virtual void window_opened(WindowEvent &e) = 0;
+  virtual void window_closing(WindowEvent &e) = 0;
+  virtual void window_closed(WindowEvent &e) = 0;
+  virtual void window_activated(WindowEvent &e) = 0;
+  virtual void window_deactivated(WindowEvent &e) = 0;
+  virtual void window_gained_focus(WindowEvent &e) = 0;
+  virtual void window_lost_focus(WindowEvent &e) = 0;
+  virtual void window_iconified(WindowEvent &e) = 0;
+  virtual void window_deiconified(WindowEvent &e) = 0;
+  virtual void window_state_changed(WindowEvent &e) = 0;
 };
 
 }

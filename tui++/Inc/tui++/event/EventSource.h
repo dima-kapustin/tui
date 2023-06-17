@@ -9,6 +9,8 @@
 #include <tui++/Event.h>
 
 #include <tui++/event/EventListener.h>
+#include <tui++/event/EventDispatcher.h>
+#include <tui++/event/event_traits.h>
 
 namespace tui {
 
@@ -24,17 +26,6 @@ struct has_type_enum<Event, std::enable_if_t<std::is_enum_v<typename Event::Type
 
 template<typename Event>
 constexpr bool has_type_enum_v = has_type_enum<Event>::value;
-
-template<typename, typename = void>
-struct has_type_member: std::false_type {
-};
-
-template<typename T>
-struct has_type_member<T, std::void_t<typename T::type>> : std::true_type {
-};
-
-template<typename T>
-constexpr bool has_type_member_v = has_type_member<T>::value;
 
 template<typename Callable, typename Event>
 constexpr bool is_global_function_v = std::is_convertible_v<Callable, void (*)(Event&)>;
@@ -131,72 +122,16 @@ using event_listener_variant_t = typename event_listener_variant<Event>::type;
 
 template<typename Event>
 class SingleEventSource {
+protected: // for testability
   std::vector<event_listener_variant_t<Event>> event_listeners;
 
 protected:
-  static void dispatch_event(const std::shared_ptr<EventListener<Event>> &event_listener, Event &e) {
-    if constexpr (std::is_same_v<ActionEvent, Event>) {
-      event_listener->action_performed(e);
-    } else if constexpr (std::is_same_v<KeyEvent, Event>) {
-      switch (e.type) {
-      case KeyEvent::KEY_PRESSED:
-        event_listener->key_pressed(e);
-        break;
-
-      case KeyEvent::KEY_TYPED:
-        event_listener->key_typed(e);
-        break;
-      }
-    } else if constexpr (std::is_same_v<MouseEvent, Event>) {
-      switch (e.type) {
-      case MouseEvent::MOUSE_PRESSED:
-        event_listener->mouse_pressed(e);
-        break;
-
-      case MouseEvent::MOUSE_RELEASED:
-        event_listener->mouse_released(e);
-        break;
-      }
-    } else if constexpr (std::is_same_v<MouseClickEvent, Event>) {
-      event_listener->mouse_clicked(e);
-    } else if constexpr (std::is_same_v<MouseMoveEvent, Event>) {
-      event_listener->mouse_moved(e);
-    } else if constexpr (std::is_same_v<MouseDragEvent, Event>) {
-      event_listener->mouse_dragged(e);
-    } else if constexpr (std::is_same_v<MouseWheelEvent, Event>) {
-      event_listener->mouse_wheel_moved(e);
-    } else if constexpr (std::is_same_v<MouseHoverEvent, Event>) {
-      switch (e.type) {
-      case MouseHoverEvent::MOUSE_ENTERED:
-        event_listener->mouse_entered(e);
-        break;
-
-      case MouseHoverEvent::MOUSE_EXITED:
-        event_listener->mouse_exited(e);
-        break;
-      }
-    } else if constexpr (std::is_same_v<ItemEvent, Event>) {
-      event_listener->item_state_changed(e);
-    } else if constexpr (std::is_same_v<FocusEvent, Event>) {
-      switch (e.type) {
-      case FocusEvent::FOCUS_GAINED:
-        event_listener->focus_gained(e);
-        break;
-
-      case FocusEvent::FOCUS_LOST:
-        event_listener->focus_lost(e);
-        break;
-      }
-    } else if constexpr (std::is_same_v<InvocationEvent, Event>) {
-    }
-  }
-
   virtual void process_event(Event &e) {
     for (auto &&event_listener : this->event_listeners) {
       std::visit([&e](auto &&event_listener) {
         using T = std::decay_t<decltype(event_listener)>;
         if constexpr (std::is_same_v<T, std::shared_ptr<EventListener<Event>>>) {
-          dispatch_event(event_listener, e);
+          EventDispatcher::dispatch_event(event_listener, e);
         } else if constexpr (std::is_same_v<T, BasicFunctionalEventAdapter<Event>>) {
           event_listener(e);
         } else if constexpr (std::is_same_v<T, FunctionalEventAdapter<Event>>) {
@@ -309,40 +244,6 @@ protected:
   }
 
 };
-
-template<typename Callable, typename Event>
-struct __event_type_from_callable_or_nothing: std::enable_if<std::is_convertible_v<Callable, FunctionalEventListener<Event>>, Event> {
-};
-
-template<typename Callable, typename ... Events>
-struct event_type_from_callable_or_nothing: __event_type_from_callable_or_nothing<Callable, Events> ... {
-};
-
-template<typename Callable, typename, typename ... Events>
-struct event_type_from_callable {
-  using type = void;
-};
-
-template<typename Callable, typename ... Events>
-struct event_type_from_callable<Callable, std::void_t<typename event_type_from_callable_or_nothing<Callable, Events...>::type>, Events...> {
-  using type = typename event_type_from_callable_or_nothing<Callable, Events...>::type;
-};
-
-template<typename Callable, typename ... Events>
-using event_type_from_callable_t = typename event_type_from_callable<Callable, void, Events...>::type;
-
-template<typename Listener, typename = void>
-struct event_type_from_listener {
-  using type = void;
-};
-
-template<typename Listener>
-struct event_type_from_listener<Listener, std::void_t<typename Listener::event_type>> {
-  using type = typename Listener::event_type;
-};
-
-template<typename Listener>
-using event_type_from_listener_t = typename event_type_from_listener<Listener>::type;
 
 template<typename T, typename ... Types>
 constexpr bool is_one_of_v = std::disjunction<std::is_same<T, Types> ...>::value;

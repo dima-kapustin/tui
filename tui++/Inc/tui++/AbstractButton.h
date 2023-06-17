@@ -29,16 +29,13 @@ public:
 //            actionPropertyChangeListener = null;
       }
 //        configurePropertiesFromAction(action);
+      this->action = action;
       if (action) {
-        // Don't add if it is already a listener
-//            if (!isListener(ActionListener.class, action)) {
-//                addActionListener(action);
-//            }
+        add_event_listener(this->action.value());
         // Reverse linkage:
 //            actionPropertyChangeListener = createActionPropertyChangeListener(action);
 //            action.addPropertyChangeListener(actionPropertyChangeListener);
       }
-      this->action = action;
     }
   }
 };

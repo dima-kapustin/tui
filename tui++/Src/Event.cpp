@@ -252,6 +252,36 @@ struct EventDump {
 
   void operator()(const WindowEvent &event) {
     switch (event.type) {
+    case WindowEvent::WINDOW_OPENED:
+      this->os << "Window Opened";
+      break;
+    case WindowEvent::WINDOW_CLOSING:
+      this->os << "Window Closing";
+      break;
+    case WindowEvent::WINDOW_CLOSED:
+      this->os << "Window Closed";
+      break;
+    case WindowEvent::WINDOW_ACTIVATED:
+      this->os << "Window Activated";
+      break;
+    case WindowEvent::WINDOW_DEACTIVATED:
+      this->os << "Window Deactivated";
+      break;
+    case WindowEvent::WINDOW_GAINED_FOCUS:
+      this->os << "Window Gained Focus";
+     break;
+    case WindowEvent::WINDOW_LOST_FOCUS:
+      this->os << "Window Gained Lost";
+      break;
+    case WindowEvent::WINDOW_ICONIFIED:
+      this->os << "Window Iconified";
+      break;
+    case WindowEvent::WINDOW_DEICONIFIED:
+      this->os << "Window Deiconified";
+      break;
+    case WindowEvent::WINDOW_STATE_CHANGED:
+      this->os << "Window State Changed";
+      break;
     }
   }
 };
