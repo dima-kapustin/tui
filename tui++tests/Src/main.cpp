@@ -13,6 +13,8 @@ void test_EnumMask();
 void test_KeyStroke();
 void test_CharIterator();
 
+static_assert(detail::is_one_of_v<MouseEvent, KeyEvent, ItemEvent, MouseEvent>);
+
 void g(MouseEvent &e) {
 
 }
@@ -28,15 +30,6 @@ struct X {
 
   }
 };
-
-template<typename F, typename Event>
-struct is_global_function: std::is_convertible<F, void (*)(Event&)> {
-};
-
-static_assert(is_global_function<decltype(g), MouseEvent>::value);
-//static_assert(is_global_function<decltype(gg), MouseEvent>::value);
-
-//static_assert(detail::is_global_function_v<decltype(g), MouseEvent>);
 
 struct A {
   static void f() {

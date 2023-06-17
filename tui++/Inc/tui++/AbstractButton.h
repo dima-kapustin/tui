@@ -19,12 +19,15 @@ protected:
   }
 
 public:
+  using Component::remove_event_listener;
+  using BasicEventSource<ActionEvent, ItemEvent>::remove_event_listener;
+
   void set_action(const std::shared_ptr<Action> &action) {
 //    this->action = action;
     static_assert(detail::has_bool_operator_v<std::shared_ptr<Action>>);
     if (this->action != action) {
       if (this->action) {
-//        remove_event_listener(this->action.value());
+        remove_event_listener(this->action.value());
 //            oldValue->removePropertyChangeListener(actionPropertyChangeListener);
 //            actionPropertyChangeListener = null;
       }
