@@ -17,6 +17,24 @@
 
 namespace tui {
 
+enum class EventType : unsigned {
+  UNDEFINED = 1 << 0,
+  KEY = 1 << 1,
+  ITEM = 1 << 2,
+  FOCUS = 1 << 3,
+  MOUSE = 1 << 4,
+  MOUSE_MOVE = 1 << 5,
+  MOUSE_DRAG = 1 << 6,
+  MOUSE_CLICK = 1 << 7,
+  MOUSE_WHEEL = 1 << 8,
+  ACTION = 1 << 9,
+  WINDOW = 1 << 10,
+  COMPONENT = 1 << 11,
+  CONTAINER = 1 << 12,
+  HIERARCHY = 1 << 13,
+  INVOCATION = 1 << 14,
+};
+
 using EventVariant = std::variant<
 /**/std::monostate,
 /**/KeyEvent,
@@ -34,53 +52,8 @@ using EventVariant = std::variant<
 /**/HierarchyEvent,
 /**/InvocationEvent>;
 
-class Screen;
-class KeyboardFocusManager;
-
-class Event: public EventVariant {
-  unsigned system_generated :1 = false;
-  unsigned is_posted :1 = false;
-  unsigned focus_manager_is_dispatching :1 = false;
-
-  friend class Screen;
-  friend class Component;
-  friend class KeyboardFocusManager;
-
-public:
-  Event() = default;
-
-  template<typename T, typename ...Args>
-  Event(std::in_place_type_t<T>, Args ... args) :
-      EventVariant(std::in_place_type<T>, std::forward<Args>(args)...) {
-  }
-};
-
-std::ostream& operator<<(std::ostream &os, const Event &event);
-
-enum class EventType {
-  UNDEFINED = 0,
-  KEY = 1 << 0,
-  ITEM = 1 << 1,
-  FOCUS = 1 << 2,
-  MOUSE = 1 << 3,
-  MOUSE_MOVE = 1 << 4,
-  MOUSE_DRAG = 1 << 5,
-  MOUSE_CLICK = 1 << 6,
-  MOUSE_WHEEL = 1 << 7,
-  ACTION = 1 << 8,
-  WINDOW = 1 << 9,
-  COMPONENT = 1 << 10,
-  CONTAINER = 1 << 11,
-  HIERARCHY = 1 << 12,
-  INVOCATION = 1 << 13,
-};
-
 template<EventType event_type>
-struct event_alternative: std::variant_alternative<std::countr_zero(std::make_unsigned_t<std::underlying_type_t<EventType>>(std::to_underlying(event_type))) + 1, EventVariant> {
-};
-
-template<>
-struct event_alternative<EventType::UNDEFINED> : std::variant_alternative<std::to_underlying(EventType::UNDEFINED), EventVariant> {
+struct event_alternative: std::variant_alternative<std::countr_zero(std::to_underlying (event_type)), EventVariant> {
 };
 
 template<EventType event_type>
@@ -119,21 +92,43 @@ constexpr size_t variant_alternative_index_v = variant_alternative_index<T, Ts..
 }
 
 template<typename Event>
-struct event_mask {
-  constexpr static EventTypeMask value = [] {
-    constexpr auto index = detail::variant_alternative_index_v<Event, EventVariant>;
-    if constexpr (index == 0) {
-      static_assert(std::is_same_v<Event, std::monostate>);
-      static_assert(std::is_same_v<std::monostate, event_alternative_t<EventType(index)>>);
-      return EventType::UNDEFINED;
-    } else {
-      static_assert(std::is_same_v<Event, event_alternative_t<EventType(1 << (index - 1))>>);
-      return EventType(1 << (index - 1));
-    }
-  }();
+struct event_type {
+  constexpr static EventType value = EventType(std::underlying_type_t<EventType>(1) << detail::variant_alternative_index_v<Event, EventVariant>);
 };
 
+template<typename Event>
+constexpr EventType event_type_v = event_type<Event>::value;
+
 template<typename Event, typename ... Events>
-constexpr EventTypeMask event_mask_v = (event_mask<Event>::value | ... | event_mask<Events>::value);
+constexpr EventTypeMask event_mask_v = (event_type_v<Event> | ... | event_type_v<Events>);
+
+static_assert(event_type_v<std::monostate> == EventType::UNDEFINED);
+
+class Screen;
+class KeyboardFocusManager;
+
+class Event: public EventVariant {
+  unsigned system_generated :1 = false;
+  unsigned is_posted :1 = false;
+  unsigned focus_manager_is_dispatching :1 = false;
+
+  friend class Screen;
+  friend class Component;
+  friend class KeyboardFocusManager;
+
+public:
+  constexpr Event() = default;
+
+  template<typename T, typename ...Args>
+  constexpr Event(std::in_place_type_t<T>, Args ... args) :
+      EventVariant(std::in_place_type<T>, std::forward<Args>(args)...) {
+  }
+
+  constexpr EventType get_type() const {
+    return EventType(std::underlying_type_t<EventType>(1) << index());
+  }
+};
+
+std::ostream& operator<<(std::ostream &os, const Event &event);
 
 }

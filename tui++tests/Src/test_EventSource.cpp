@@ -12,13 +12,10 @@ class EventSource_A: public EventSource<KeyEvent, ItemEvent, MouseEvent> {
 };
 
 class EventSource_B: public EventSourceExtension<EventSource_A, WindowEvent> {
+  using base = EventSourceExtension<EventSource_A, WindowEvent>;
 public:
   size_t get_mouse_event_listener_count() const {
-    return detail::SingleEventSource<MouseEvent>::event_listeners.size();
-  }
-
-  EventTypeMask get_event_listener_mask() const {
-    return this->event_listener_mask;
+    return base::get_event_listener_count<MouseEvent>();
   }
 };
 
