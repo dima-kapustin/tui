@@ -157,6 +157,8 @@ public:
   }
 };
 
+std::string to_string(KeyEvent::KeyCode key_code);
+
 }
 
 #include <utility>

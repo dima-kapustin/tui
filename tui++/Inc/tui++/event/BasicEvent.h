@@ -15,6 +15,7 @@ protected:
 
 public:
   std::shared_ptr<Component> source;
+  bool consumed = false;
 };
 
 }

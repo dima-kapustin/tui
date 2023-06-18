@@ -31,6 +31,11 @@ private:
 protected:
   Screen() = default;
 
+  void post_system(const std::shared_ptr<Event> &event) {
+    event->system_generated = true;
+    post(event);
+  }
+
   void paint(Graphics &g);
 
 public:
@@ -54,10 +59,10 @@ public:
 
   void post(const std::shared_ptr<Event> &event);
   void post(std::function<void()> fn) {
-    post(std::make_shared<Event>(fn));
+    post(std::make_shared<Event>(std::in_place_type<InvocationEvent>, fn));
   }
 
-  std::shared_ptr<Window> get_top_window();
+  std::shared_ptr<Window> get_active_window();
   std::shared_ptr<Component> get_component_at(int x, int y);
   std::shared_ptr<Component> get_component_at(const Point &p) {
     return get_component_at(p.x, p.y);

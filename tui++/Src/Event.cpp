@@ -284,6 +284,15 @@ struct EventDump {
       break;
     }
   }
+
+  void operator()(const ComponentEvent &event) {
+  }
+
+  void operator()(const ContainerEvent &event) {
+  }
+
+  void operator()(const HierarchyEvent &event) {
+  }
 };
 
 std::ostream& operator<<(std::ostream &os, const Event &event) {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <memory>
 #include <atomic>
 
@@ -14,6 +15,19 @@ class KeyboardFocusManager {
   static std::atomic<std::shared_ptr<Window>> focused_window;
   static std::atomic<std::shared_ptr<Component>> current_focus_cycle_root;
   static std::atomic<std::shared_ptr<FocusTraversalPolicy>> default_focus_traversal_policy;
+
+  static std::map<std::shared_ptr<Window>, std::weak_ptr<Component>> most_recent_focus_owners;
+
+private:
+  static void set_most_recent_focus_owner(const std::shared_ptr<Component> &component);
+
+  static void set_most_recent_focus_owner(const std::shared_ptr<Window> &window, const std::shared_ptr<Component> &component);
+  static std::shared_ptr<Component> get_most_recent_focus_owner(const std::shared_ptr<Window> &window);
+
+  static bool request_focus(const std::shared_ptr<Component> &component, bool temporary, bool focused_window_change_allowed, FocusEvent::Cause cause);
+
+  friend class Window;
+  friend class Component;
 
 public:
   static std::shared_ptr<Component> get_current_focus_cycle_root() {
@@ -38,6 +52,10 @@ public:
   }
 
   static void clear_global_focus_owner();
+
+  static bool dispatch_event(const std::shared_ptr<Event> &e);
+
+  static void process_key_event(const std::shared_ptr<Component> &focused_component, KeyEvent &e);
 };
 
 }

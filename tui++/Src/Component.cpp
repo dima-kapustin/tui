@@ -44,49 +44,160 @@ void Component::paint_components(Graphics &g) {
   }
 }
 
-void Component::request_focus() {
-  if (auto focus_component = get_focus_component(); not focus_component or not has_children()) {
-    auto temporary = false;
-
-    // generate the FOCUS_GAINED only if the component does not already have the focus
-    auto ancestor = get_window_ancestor();
-    auto ancestor_current_focus = ancestor->get_focus_component();
-
-    auto top_window = get_top_window();
-    auto top_window_current_focus = top_window->get_focus_component();
-
-    if (ancestor_current_focus != shared_from_this() or (top_window_current_focus == shared_from_this() and not this->was_focus_owner)) {
-      this->was_focus_owner = true;
-
-      auto &event_queue = get_event_queue();
-
-      if (auto last_focus_event = event_queue.get_last_focus_event()) {
-        ancestor_current_focus = last_focus_event->source;
-        if (ancestor_current_focus and ancestor_current_focus->get_window_ancestor() and ancestor_current_focus->get_window_ancestor()->is_enabled() and ancestor_current_focus->get_window_ancestor() != ancestor) {
-          temporary = true;
-        } else {
-          temporary = false;
-        }
-
-        event_queue.push(std::make_shared<Event>(std::in_place_type<FocusEvent>, ancestor_current_focus, FocusEvent::FOCUS_LOST, temporary, shared_from_this()));
-      } else {
-        ancestor_current_focus = nullptr;
-      }
-
-      event_queue.push(std::make_shared<Event>(std::in_place_type<FocusEvent>, shared_from_this(), FocusEvent::FOCUS_GAINED, temporary, ancestor_current_focus));
-
-      if (auto parent = get_parent()) {
-        parent->set_focus(shared_from_this());
-      }
-
-      repaint();
-    }
-  } else {
-    focus_component->request_focus();
+bool Component::is_request_focus_accepted(bool temporary, bool focused_window_change_allowed, FocusEvent::Cause cause) {
+  if (not is_focusable() or not is_visible()) {
+    // TODO
+//    if (focusLog.isLoggable(PlatformLogger.Level.FINEST)) {
+//      focusLog.finest("Not focusable or not visible");
+//    }
+    return false;
   }
+
+  auto window = get_containing_window();
+  if (not window or not window->is_focusable_window()) {
+    // TODO
+//    if (focusLog.isLoggable(PlatformLogger.Level.FINEST)) {
+//      focusLog.finest("Component doesn't have toplevel");
+//    }
+    return false;
+  }
+
+  // We have passed all regular checks for focus request,
+  // now let's call RequestFocusController and see what it says.
+  auto focus_owner = KeyboardFocusManager::get_most_recent_focus_owner(window);
+  if (not focus_owner) {
+    // sometimes most recent focus owner may be null, but focus owner is not
+    // e.g. we reset most recent focus owner if user removes focus owner
+    focus_owner = KeyboardFocusManager::get_focus_owner();
+    if (focus_owner and focus_owner->get_containing_window() != window) {
+      focus_owner = nullptr;
+    }
+  }
+
+  if (focus_owner == shared_from_this() or not focus_owner) {
+    // Controller is supposed to verify focus transfers and for this it
+    // should know both from and to components.  And it shouldn't verify
+    // transfers from when these components are equal.
+
+    // TODO
+//    if (focusLog.isLoggable(PlatformLogger.Level.FINEST)) {
+//      focusLog.finest("focus owner is null or this");
+//    }
+    return true;
+  }
+
+  if (cause == FocusEvent::Cause::ACTIVATION) {
+    // we shouldn't call RequestFocusController in case we are
+    // in activation.  We do request focus on component which
+    // has got temporary focus lost and then on component which is
+    // most recent focus owner.  But most recent focus owner can be
+    // changed by requestFocusXXX() call only, so this transfer has
+    // been already approved.
+    // TODO
+//    if (focusLog.isLoggable(PlatformLogger.Level.FINEST)) {
+//      focusLog.finest("cause is activation");
+//    }
+    return true;
+  }
+
+  // TODO
+//  bool ret = Component.requestFocusController.acceptRequestFocus(focus_owner, this, temporary, focusedWindowChangeAllowed, cause);
+//  if (focusLog.isLoggable(PlatformLogger.Level.FINEST)) {
+//    focusLog.finest("RequestFocusController returns {0}", ret);
+//  }
+//
+//  return ret;
+  return true;
+}
+
+bool Component::request_focus(bool temporary, bool focused_window_change_allowed, FocusEvent::Cause cause) {
+  // 1) Check if the event being dispatched is a system-generated mouse event.
+  auto current_event = get_event_queue().get_current_event();
+  if (auto mouse_event = std::get_if<MouseEvent>(current_event.get()); mouse_event and current_event->system_generated) {
+    // 2) Sanity check: if the mouse event component source belongs to the same containing window.
+    auto source = mouse_event->source;
+    if (not source or source->get_containing_window() == get_containing_window()) {
+      // TODO
+      // focusLog.finest("requesting focus by mouse event \"in window\"");
+
+      // If both the conditions are fulfilled the focus request should be strictly
+      // bounded by the toplevel window. It's assumed that the mouse event activates
+      // the window (if it wasn't active) and this makes it possible for a focus
+      // request with a strong in-window requirement to change focus in the bounds
+      // of the toplevel. If, by any means, due to asynchronous nature of the event
+      // dispatching mechanism, the window happens to be natively inactive by the time
+      // this focus request is eventually handled, it should not re-activate the
+      // toplevel. Otherwise the result may not meet user expectations. See 6981400.
+      focused_window_change_allowed = false;
+    }
+  }
+
+  if (not is_request_focus_accepted(temporary, focused_window_change_allowed, cause)) {
+    // TODO
+//    if (focusLog.isLoggable(PlatformLogger.Level.FINEST)) {
+//      focusLog.finest("requestFocus is not accepted");
+//    }
+    return false;
+  }
+
+  // Update most-recent map
+  KeyboardFocusManager::set_most_recent_focus_owner(shared_from_this());
+
+  auto window = shared_from_this();
+  while (not std::dynamic_pointer_cast<Window>(window)) {
+    if (not window->is_visible()) {
+      // TODO
+//      if (focusLog.isLoggable(PlatformLogger.Level.FINEST)) {
+//        focusLog.finest("component is recursively invisible");
+//      }
+      return false;
+    }
+    window = window->get_parent();
+  }
+
+  // Focus this Component
+  return KeyboardFocusManager::request_focus(shared_from_this(), temporary, focused_window_change_allowed, cause);
+}
+
+std::shared_ptr<Component> Component::get_next_focus_candidate() const {
+  auto root_ancestor = get_traversal_root();
+  auto comp = shared_from_this();
+  while (root_ancestor and not (root_ancestor->is_showing() and root_ancestor->can_be_focus_owner())) {
+    comp = root_ancestor;
+    root_ancestor = comp->get_focus_cycle_root_ancestor();
+  }
+
+  // TODO
+//    if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
+//        focusLog.finer("comp = " + comp + ", root = " + rootAncestor);
+//    }
+
+  std::shared_ptr<Component> candidate;
+  if (root_ancestor) {
+    auto policy = root_ancestor->get_focus_traversal_policy();
+    auto to_focus = policy->get_component_after(root_ancestor, comp);
+    // TODO
+//      if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
+//        focusLog.finer("component after is " + toFocus);
+//      }
+    if (not to_focus) {
+      to_focus = policy->get_default_component(root_ancestor);
+      // TODO
+//        if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
+//          focusLog.finer("default component is " + toFocus);
+//        }
+    }
+    candidate = to_focus;
+  }
+  // TODO
+//    if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
+//      focusLog.finer("Focus transfer candidate: " + candidate);
+//    }
+  return candidate;
 }
 
 bool Component::transfer_focus(bool clear_on_failure) {
+  // TODO
 //  if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
 //      focusLog.finer("clearOnFailure = " + clearOnFailure);
 //  }
@@ -96,11 +207,13 @@ bool Component::transfer_focus(bool clear_on_failure) {
 //      res = toFocus.request_focus_in_window(FocusEvent::Cause::TRAVERSAL_FORWARD);
   }
   if (clear_on_failure and not result) {
+    // TODO
 //      if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
 //          focusLog.finer("clear global focus owner");
 //      }
     KeyboardFocusManager::clear_global_focus_owner();
   }
+  // TODO
 //  if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
 //      focusLog.finer("returning result: " + res);
 //  }
@@ -122,15 +235,17 @@ bool Component::transfer_focus_backward(bool clear_on_failure) {
       to_focus = policy->get_default_component(root_ancestor);
     }
     if (to_focus) {
-//          result = toFocus->request_focus_in_window(FocusEvent.Cause.TRAVERSAL_BACKWARD);
+      result = to_focus->request_focus_in_window(FocusEvent::Cause::TRAVERSAL_BACKWARD);
     }
   }
   if (not result and clear_on_failure) {
+    // TODO
 //      if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
 //          focusLog.finer("clear global focus owner");
 //      }
     KeyboardFocusManager::clear_global_focus_owner();
   }
+  // TODO
 //  if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
 //      focusLog.finer("returning result: " + res);
 //  }
@@ -161,10 +276,6 @@ void Component::transfer_focus_up_cycle() {
 
 Screen* Component::get_screen() const {
   return get_window_ancestor()->get_screen();
-}
-
-std::shared_ptr<Window> Component::get_top_window() const {
-  return get_screen()->get_top_window();
 }
 
 EventQueue& Component::get_event_queue() const {
@@ -312,6 +423,170 @@ void Component::remove_impl(const std::shared_ptr<Component> &component) {
 }
 
 void Component::remove_notify() {
+}
+
+void Component::dispatch_event(const std::shared_ptr<Event> &e) {
+  //TODO
+//  if (eventLog.isLoggable(PlatformLogger.Level.FINEST)) {
+//      eventLog.finest("{0}", e);
+//  }
+
+  /*
+   * 0. Set timestamp and modifiers of current event.
+   */
+  if (not std::get_if<KeyEvent>(e.get())) {
+    get_event_queue().set_current_event(e);
+  }
+
+  // TODO
+//  if (not e->focus_manager_is_dispatching) {
+//    // Now, with the event properly targeted to a lightweight
+//    // descendant if necessary, invoke the public focus retargeting
+//    // and dispatching function
+//    if (KeyboardFocusManager::dispatch_event(e)) {
+//      return;
+//    }
+//  }
+
+  // TODO
+//  if (auto focus_event = std::get_if<FocusEvent>(e.get()) and focusLog.isLoggable(PlatformLogger.Level.FINEST)) {
+//    focusLog.finest("" + e);
+//  }
+
+  // MouseWheel may need to be retargeted here so that
+  // AWTEventListener sees the event go to the correct
+  // Component.  If the MouseWheelEvent needs to go to an ancestor,
+  // the event is dispatched to the ancestor, and dispatching here
+  // stops.
+  if (auto mouse_wheel_event = std::get_if<MouseWheelEvent>(e.get())) {
+    if (dispatch_mouse_wheel_to_ancestor(*mouse_wheel_event)) {
+      return;
+    }
+  }
+
+  /*
+   * 3. If no one has consumed a key event, allow the
+   *    KeyboardFocusManager to process it.
+   */
+  if (auto key_event = std::get_if<KeyEvent>(e.get())) {
+    if (not key_event->consumed) {
+      KeyboardFocusManager::process_key_event(shared_from_this(), *key_event);
+      if (key_event->consumed) {
+        return;
+      }
+    }
+  }
+
+  /*
+   * 5. Pre-process any special events before delivery
+   */
+//  switch (id) {
+//// Handling of the PAINT and UPDATE events is now done in the
+//// peer's handleEvent() method so the background can be cleared
+//// selectively for non-native components on Windows only.
+//// - Fred.Ecks@Eng.sun.com, 5-8-98
+//
+//  case KeyEvent.KEY_PRESSED:
+//  case KeyEvent.KEY_RELEASED:
+//    Container p = (Container)((this instanceof Container) ? this : parent);
+//    if (p != null) {
+//      p.preProcessKeyEvent((KeyEvent) e);
+//      if (e.isConsumed()) {
+//        if (focusLog.isLoggable(PlatformLogger.Level.FINEST)) {
+//          focusLog.finest("Pre-process consumed event");
+//        }
+//        return;
+//      }
+//    }
+//    break;
+//
+//  default:
+//    break;
+//  }
+//
+//  /*
+//   * 6. Deliver event for normal processing
+//   */
+//  if (newEventsOnly) {
+//    // Filtering needs to really be moved to happen at a lower
+//    // level in order to get maximum performance gain;  it is
+//    // here temporarily to ensure the API spec is honored.
+//    //
+//    if (eventEnabled(e)) {
+//      processEvent(e);
+//    }
+//  } else if (id == MouseEvent.MOUSE_WHEEL) {
+//    // newEventsOnly will be false for a listenerless ScrollPane, but
+//    // MouseWheelEvents still need to be dispatched to it so scrolling
+//    // can be done.
+//    autoProcessMouseWheel((MouseWheelEvent) e);
+//  } else if (!(e instanceof MouseEvent && !postsOldMouseEvents())) {
+//    //
+//    // backward compatibility
+//    //
+//    Event olde = e.convertToOld();
+//    if (olde != null) {
+//      int key = olde.key;
+//      int modifiers = olde.modifiers;
+//
+//      postEvent(olde);
+//      if (olde.isConsumed()) {
+//        e.consume();
+//      }
+//      // if target changed key or modifier values, copy them
+//      // back to original event
+//      //
+//      switch (olde.id) {
+//      case Event.KEY_PRESS:
+//      case Event.KEY_RELEASE:
+//      case Event.KEY_ACTION:
+//      case Event.KEY_ACTION_RELEASE:
+//        if (olde.key != key) {
+//          ((KeyEvent) e).setKeyChar(olde.getKeyEventChar());
+//        }
+//        if (olde.modifiers != modifiers) {
+//          ((KeyEvent) e).setModifiers(olde.modifiers);
+//        }
+//        break;
+//      default:
+//        break;
+//      }
+//    }
+//  }
+//
+//  /*
+//   * 9. Allow the peer to process the event.
+//   * Except KeyEvents, they will be processed by peer after
+//   * all KeyEventPostProcessors
+//   * (see DefaultKeyboardFocusManager.dispatchKeyEvent())
+//   */
+//  if (!(e instanceof KeyEvent)) {
+//    ComponentPeer tpeer = peer;
+//    if (e instanceof FocusEvent && (tpeer == null || tpeer instanceof LightweightPeer)) {
+//      // if focus owner is lightweight then its native container
+//      // processes event
+//      Component source = (Component) e.getSource();
+//      if (source != null) {
+//        Container target = source.getNativeContainer();
+//        if (target != null) {
+//          tpeer = target.peer;
+//        }
+//      }
+//    }
+//    if (tpeer != null) {
+//      tpeer.handleEvent(e);
+//    }
+//  }
+//
+//  if (SunToolkit.isTouchKeyboardAutoShowEnabled() &&
+//  (toolkit instanceof SunToolkit) &&
+//  ((e instanceof MouseEvent) || (e instanceof FocusEvent))) {
+//    ((SunToolkit) toolkit).showOrHideTouchKeyboard(this, e);
+//  }
+}
+
+bool Component::dispatch_mouse_wheel_to_ancestor(MouseWheelEvent &e) {
+
 }
 
 /**

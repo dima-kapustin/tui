@@ -136,11 +136,11 @@ void Terminal::new_resize_event() {
 }
 
 void Terminal::new_key_event(const Char &c, InputEvent::Modifiers modifiers) {
-  this->screen.post(std::make_unique<Event>(std::in_place_type<KeyEvent>, nullptr, c, modifiers));
+  this->screen.post_system(std::make_unique<Event>(std::in_place_type<KeyEvent>, nullptr, c, modifiers));
 }
 
 void Terminal::new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers) {
-  this->screen.post(std::make_unique<Event>(std::in_place_type<KeyEvent>, nullptr, KeyEvent::KEY_PRESSED, key_code, modifiers));
+  this->screen.post_system(std::make_unique<Event>(std::in_place_type<KeyEvent>, nullptr, KeyEvent::KEY_PRESSED, key_code, modifiers));
 }
 
 void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button, InputEvent::Modifiers modifiers, int x, int y) {
@@ -162,22 +162,22 @@ void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button,
 
   if (motion) {
     if (type == MouseEvent::MOUSE_PRESSED and button != MouseEvent::NO_BUTTON) {
-      this->screen.post(std::make_unique<Event>(std::in_place_type<MouseDragEvent>, component, button, modifiers, p.x, p.y));
+      this->screen.post_system(std::make_unique<Event>(std::in_place_type<MouseDragEvent>, component, button, modifiers, p.x, p.y));
     } else {
-      this->screen.post(std::make_unique<Event>(std::in_place_type<MouseMoveEvent>, component, modifiers, p.x, p.y));
+      this->screen.post_system(std::make_unique<Event>(std::in_place_type<MouseMoveEvent>, component, modifiers, p.x, p.y));
     }
   } else {
-    this->screen.post(std::make_unique<Event>(std::in_place_type<MouseEvent>, component, type, button, modifiers, p.x, p.y, false));
+    this->screen.post_system(std::make_unique<Event>(std::in_place_type<MouseEvent>, component, type, button, modifiers, p.x, p.y, false));
 
     if (type == MouseEvent::MOUSE_PRESSED) {
       prev_mouse_press_time = Clock::now();
     } else if (type == MouseEvent::MOUSE_RELEASED) {
       if (prev_mouse_event.button == button and (Clock::now() - prev_mouse_press_time) < mouse_click_detection_timeout) {
         if ((Clock::now() - prev_mouse_click_time) < mouse_double_click_detection_timeout) {
-          this->screen.post(std::make_unique<Event>(std::in_place_type<MouseClickEvent>, component, button, modifiers, p.x, p.y, false, 2));
+          this->screen.post_system(std::make_unique<Event>(std::in_place_type<MouseClickEvent>, component, button, modifiers, p.x, p.y, false, 2));
           prev_mouse_click_time = { };
         } else {
-          this->screen.post(std::make_unique<Event>(std::in_place_type<MouseClickEvent>, component, button, modifiers, p.x, p.y, false, 1));
+          this->screen.post_system(std::make_unique<Event>(std::in_place_type<MouseClickEvent>, component, button, modifiers, p.x, p.y, false, 1));
           prev_mouse_click_time = Clock::now();
         }
       }
@@ -199,7 +199,7 @@ void Terminal::new_mouse_wheel_event(int wheel_rotation, InputEvent::Modifiers m
     p = convert_point_from_screen(p, component);
   }
 
-  this->screen.post(std::make_unique<Event>(std::in_place_type<MouseWheelEvent>, component, modifiers, p.x, p.y, wheel_rotation));
+  this->screen.post_system(std::make_unique<Event>(std::in_place_type<MouseWheelEvent>, component, modifiers, p.x, p.y, wheel_rotation));
 }
 
 std::shared_ptr<TerminalGraphics> Terminal::get_graphics() {

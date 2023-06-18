@@ -14,6 +14,8 @@ class Window: public ComponentExtension<Component, WindowEvent> {
   Screen &screen;
   std::shared_ptr<Window> owner;
 
+  Property<bool> focusable_window_state { this, "focusable_window_state", false };
+
 protected:
   void paint_components(Graphics &g) override;
 
@@ -28,6 +30,11 @@ public:
   }
 
 public:
+  std::shared_ptr<Window> get_owner() const {
+    // TODO
+    return {};
+  }
+
   Screen* get_screen() const override {
     return &this->screen;
   }
@@ -39,7 +46,6 @@ public:
   void paint(Graphics &g) override {
     validate();
     base::paint(g);
-    request_focus();
   }
 
   bool is_focused() const {
@@ -47,6 +53,14 @@ public:
   }
 
   std::shared_ptr<Component> get_focus_owner() const;
+
+  bool is_focusable_window() const;
+
+  bool get_focusable_window_state() const {
+    return this->focusable_window_state;
+  }
+
+  void set_focusable_window_state(bool state);
 };
 
 }

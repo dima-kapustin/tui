@@ -197,6 +197,8 @@ private:
 
   std::shared_ptr<Window> get_containing_window() const;
 
+  bool is_request_focus_accepted(bool temporary, bool focused_window_change_allowed, FocusEvent::Cause cause);
+
 protected:
   Component() {
   }
@@ -297,7 +299,6 @@ protected:
 
   virtual Screen* get_screen() const;
 
-  std::shared_ptr<Window> get_top_window() const;
   EventQueue& get_event_queue() const;
 
   virtual void process_event(FocusEvent &e) override {
@@ -338,41 +339,20 @@ protected:
     return false;
   }
 
-  std::shared_ptr<Component> get_next_focus_candidate() const {
-    auto root_ancestor = get_traversal_root();
-    auto comp = shared_from_this();
-    while (root_ancestor and not (root_ancestor->is_showing() and root_ancestor->can_be_focus_owner())) {
-      comp = root_ancestor;
-      root_ancestor = comp->get_focus_cycle_root_ancestor();
-    }
-
-//    if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
-//        focusLog.finer("comp = " + comp + ", root = " + rootAncestor);
-//    }
-
-    std::shared_ptr<Component> candidate;
-    if (root_ancestor) {
-      auto policy = root_ancestor->get_focus_traversal_policy();
-      auto to_focus = policy->get_component_after(root_ancestor, comp);
-//      if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
-//        focusLog.finer("component after is " + toFocus);
-//      }
-      if (not to_focus) {
-        to_focus = policy->get_default_component(root_ancestor);
-//        if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
-//          focusLog.finer("default component is " + toFocus);
-//        }
-      }
-      candidate = to_focus;
-    }
-//    if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
-//      focusLog.finer("Focus transfer candidate: " + candidate);
-//    }
-    return candidate;
-  }
+  std::shared_ptr<Component> get_next_focus_candidate() const;
 
   bool transfer_focus(bool clear_on_failure);
   bool transfer_focus_backward(bool clear_on_failure);
+
+  bool request_focus(bool temporary, bool focused_window_change_allowed, FocusEvent::Cause cause);
+
+  bool request_focus(bool temporary, FocusEvent::Cause cause) {
+    return request_focus(temporary, true, cause);
+  }
+
+  bool dispatch_mouse_wheel_to_ancestor(MouseWheelEvent &e);
+
+  friend class Window;
 
 public:
   virtual ~Component() {
@@ -403,7 +383,7 @@ public:
     invalidate();
   }
 
-  void dispatch_event(Event &e);
+  void dispatch_event(const std::shared_ptr<Event> &e);
 
   bool contains(int x, int y) const {
     return (x >= 0 and x < get_width() and y >= 0 and y < get_height());
@@ -706,7 +686,13 @@ public:
     repaint(rect.x, rect.y, rect.width, rect.height);
   }
 
-  void request_focus();
+  void request_focus(FocusEvent::Cause cause) {
+    request_focus(false, true, cause);
+  }
+
+  bool request_focus_in_window(FocusEvent::Cause cause) {
+    return request_focus(false, false, cause);
+  }
 
   void set_visible(bool visible) {
     if (visible) {

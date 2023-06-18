@@ -17,4 +17,53 @@ void Window::paint_components(Graphics &g) {
 std::shared_ptr<Component> Window::get_focus_owner() const {
   return is_focused() ? KeyboardFocusManager::get_focus_owner() : nullptr;
 }
+
+bool Window::is_focusable_window() const {
+  // If a Window/Frame/Dialog was made non-focusable, then it is always
+  // non-focusable.
+  if (not this->focusable_window_state) {
+    return false;
+  }
+
+  // All other tests apply only to Windows.
+  // TODO
+//  if (this instanceof Frame or this instanceof Dialog) {
+//    return true;
+//  }
+
+  // A Window must have at least one Component in its root focus
+  // traversal cycle to be focusable.
+  if (not get_focus_traversal_policy()->get_default_component(shared_from_this())) {
+    return false;
+  }
+
+  // A Window's nearest owning Frame or Dialog must be showing on the
+  // screen.
+  for (auto owner = get_owner(); owner; owner = owner->get_owner()) {
+    // TODO
+//    if (owner instanceof Frame || owner instanceof Dialog) {
+    return owner->is_showing();
+//    }
+  }
+
+  return false;
+}
+
+void Window::set_focusable_window_state(bool state) {
+  bool old_focusable_window_state = this->focusable_window_state;
+
+  this->focusable_window_state = state;
+
+  if (old_focusable_window_state and not this->focusable_window_state and is_focused()) {
+    for (auto owner = get_owner(); owner; owner = owner->get_owner()) {
+      auto to_focus = KeyboardFocusManager::get_most_recent_focus_owner(owner);
+      if (to_focus and to_focus->request_focus(false, FocusEvent::Cause::ACTIVATION)) {
+        return;
+      }
+    }
+
+    KeyboardFocusManager::clear_global_focus_owner();
+  }
+}
+
 }

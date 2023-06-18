@@ -3,18 +3,28 @@
 #include <list>
 #include <mutex>
 #include <chrono>
+#include <memory>
 #include <condition_variable>
 
 #include <tui++/Event.h>
 
 namespace tui {
 
+class Component;
+
 class EventQueue {
-  std::mutex mutex;
+  mutable std::mutex mutex;
   std::list<std::shared_ptr<Event>> queue;
   std::condition_variable queue_cv;
 
-  std::shared_ptr<Event> last_focus_event;
+  std::weak_ptr<Event> current_event;
+
+private:
+  void set_current_event(const std::shared_ptr<Event> &event) {
+    this->current_event = event;
+  }
+
+  friend class Component;
 
 public:
   EventQueue() = default;
@@ -29,9 +39,6 @@ public:
   void push(const std::shared_ptr<Event> &event) {
     std::unique_lock lock(this->mutex);
     this->queue.emplace_back(event);
-    if (std::holds_alternative<FocusEvent>(*event)) {
-      this->last_focus_event = event;
-    }
     lock.unlock();
     this->queue_cv.notify_one();
   }
@@ -55,6 +62,7 @@ public:
     }
     auto event = std::move(this->queue.front());
     this->queue.pop_front();
+    set_current_event(event);
     return event;
   }
 
@@ -62,8 +70,9 @@ public:
     return this->queue.empty();
   }
 
-  const FocusEvent* get_last_focus_event() const {
-    return std::get_if<FocusEvent>(this->last_focus_event.get());
+  std::shared_ptr<Event> get_current_event() const {
+    std::unique_lock lock(this->mutex);
+    return this->current_event.lock();
   }
 };
 

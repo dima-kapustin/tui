@@ -37,6 +37,6 @@ protected:
 public:
   Modifiers modifiers;
   EventClock::time_point when = EventClock::now();
-  bool consumed = false;
 };
+
 }

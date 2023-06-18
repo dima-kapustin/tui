@@ -16,6 +16,10 @@ public:
   size_t get_mouse_event_listener_count() const {
     return detail::SingleEventSource<MouseEvent>::event_listeners.size();
   }
+
+  EventTypeMask get_event_mask() const {
+    return this->event_mask;
+  }
 };
 
 void g(MouseEvent &e) {
@@ -122,4 +126,15 @@ void test_EventSource() {
 
   event_source_b->remove_event_listener(ml);
   assert(event_source_b->get_mouse_event_listener_count() == 6);
+
+  assert(event_source_b->get_event_mask() == EventType::MOUSE);
+
+  auto window_listener = [](WindowEvent &e) {
+  };
+
+  event_source_b->add_event_listener(WindowEvent::WINDOW_ACTIVATED, window_listener);
+  assert(event_source_b->get_event_mask() == (EventType::MOUSE|EventType::WINDOW));
+
+  event_source_b->remove_event_listener(WindowEvent::WINDOW_ACTIVATED, window_listener);
+  assert(event_source_b->get_event_mask() == EventType::MOUSE);
 }

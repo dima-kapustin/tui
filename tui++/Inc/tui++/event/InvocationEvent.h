@@ -2,6 +2,8 @@
 
 #include <functional>
 
+#include <tui++/event/BasicEvent.h>
+
 namespace tui {
 
 class InvocationEvent {

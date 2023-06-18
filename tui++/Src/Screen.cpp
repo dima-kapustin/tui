@@ -14,15 +14,15 @@ void Screen::post(const std::shared_ptr<Event> &event) {
   this->event_queue.push(event);
 }
 
-std::shared_ptr<Window> Screen::get_top_window() {
-  std::unique_lock lock(this->windows_mutex);
-  return this->windows.empty() ? nullptr : this->windows.back();
+std::shared_ptr<Window> Screen::get_active_window() {
+//  std::unique_lock lock(this->windows_mutex);
+//  return this->windows.empty() ? nullptr : this->windows.back();
 }
 
 std::shared_ptr<Component> Screen::get_component_at(int x, int y) {
-  if (auto top_window = get_top_window()) {
-    auto component = top_window->get_component_at(x - top_window->get_x(), y - top_window->get_y());
-    return component ? component : top_window;
+  if (auto window = get_active_window()) {
+    auto component = window->get_component_at(x - window->get_x(), y - window->get_y());
+    return component ? component : window;
   }
   return {};
 }
