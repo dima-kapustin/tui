@@ -17,14 +17,7 @@ class EventQueue {
   std::list<std::shared_ptr<Event>> queue;
   std::condition_variable queue_cv;
 
-  std::weak_ptr<Event> current_event;
-
-private:
-  void set_current_event(const std::shared_ptr<Event> &event) {
-    this->current_event = event;
-  }
-
-  friend class Component;
+  std::atomic<std::weak_ptr<Event>> current_event;
 
 public:
   EventQueue() = default;
@@ -62,7 +55,7 @@ public:
     }
     auto event = std::move(this->queue.front());
     this->queue.pop_front();
-    set_current_event(event);
+    this->current_event = event;
     return event;
   }
 
@@ -71,8 +64,7 @@ public:
   }
 
   std::shared_ptr<Event> get_current_event() const {
-    std::unique_lock lock(this->mutex);
-    return this->current_event.lock();
+    return this->current_event.load().lock();
   }
 };
 

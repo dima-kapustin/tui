@@ -274,6 +274,15 @@ void Component::transfer_focus_up_cycle() {
   }
 }
 
+void Component::transfer_focus_down_cycle() {
+  if (is_focus_cycle_root()) {
+    KeyboardFocusManager::set_global_current_focus_cycle_root(shared_from_this());
+    if (auto to_focus = get_focus_traversal_policy()->get_default_component(shared_from_this())) {
+      to_focus->request_focus(FocusEvent::Cause::TRAVERSAL_DOWN);
+    }
+  }
+}
+
 Screen* Component::get_screen() const {
   return get_window_ancestor()->get_screen();
 }
@@ -425,18 +434,11 @@ void Component::remove_impl(const std::shared_ptr<Component> &component) {
 void Component::remove_notify() {
 }
 
-void Component::dispatch_event(const std::shared_ptr<Event> &e) {
+void Component::dispatch_event(Event &e) {
   //TODO
 //  if (eventLog.isLoggable(PlatformLogger.Level.FINEST)) {
 //      eventLog.finest("{0}", e);
 //  }
-
-  /*
-   * 0. Set timestamp and modifiers of current event.
-   */
-  if (not std::get_if<KeyEvent>(e.get())) {
-    get_event_queue().set_current_event(e);
-  }
 
   // TODO
 //  if (not e->focus_manager_is_dispatching) {
@@ -458,7 +460,7 @@ void Component::dispatch_event(const std::shared_ptr<Event> &e) {
   // Component.  If the MouseWheelEvent needs to go to an ancestor,
   // the event is dispatched to the ancestor, and dispatching here
   // stops.
-  if (auto mouse_wheel_event = std::get_if<MouseWheelEvent>(e.get())) {
+  if (auto mouse_wheel_event = std::get_if<MouseWheelEvent>(&e)) {
     if (dispatch_mouse_wheel_to_ancestor(*mouse_wheel_event)) {
       return;
     }
@@ -468,7 +470,7 @@ void Component::dispatch_event(const std::shared_ptr<Event> &e) {
    * 3. If no one has consumed a key event, allow the
    *    KeyboardFocusManager to process it.
    */
-  if (auto key_event = std::get_if<KeyEvent>(e.get())) {
+  if (auto key_event = std::get_if<KeyEvent>(&e)) {
     if (not key_event->consumed) {
       KeyboardFocusManager::process_key_event(shared_from_this(), *key_event);
       if (key_event->consumed) {
@@ -586,8 +588,62 @@ void Component::dispatch_event(const std::shared_ptr<Event> &e) {
 }
 
 bool Component::dispatch_mouse_wheel_to_ancestor(MouseWheelEvent &e) {
+  auto x = e.x + get_x();
+  auto y = e.y + get_y();
 
+  std::unique_lock lock(tree_mutex);
+
+  auto ancestor = get_parent();
+  while (ancestor and not ancestor->is_event_enabled(EventType::MOUSE_WHEEL)) {
+    x += ancestor->get_x();
+    y += ancestor->get_y();
+
+    if (is_window(ancestor)) {
+      break;
+    }
+    ancestor = ancestor->get_parent();
+  }
+
+  if (ancestor and ancestor->is_event_enabled(EventType::MOUSE_WHEEL)) {
+    auto new_event = Event { std::in_place_type<MouseWheelEvent>, ancestor, e.modifiers, x, y, e.wheel_rotation, e.when };
+    ancestor->dispatch_event(new_event);
+    if (new_event.is_consumed<MouseWheelEvent>()) {
+      e.consumed = true;
+    }
+    return true;
+  }
+  return false;
 }
+
+std::shared_ptr<const std::unordered_set<KeyStroke>> Component::get_focus_traversal_keys(KeyboardFocusManager::FocusTraversalKeys id) const {
+  if (this->focus_traversal_keys.empty()) {
+    return {};
+  }
+
+  auto keyStrokes = this->focus_traversal_keys[id];
+
+  if (keyStrokes) {
+    return keyStrokes;
+  } else if (auto parent = get_parent()) {
+    return parent->get_focus_traversal_keys(id);
+  } else {
+    return KeyboardFocusManager::get_default_focus_traversal_keys(id);
+  }
+}
+
+void Component::set_focus_traversal_keys(KeyboardFocusManager::FocusTraversalKeys id, const std::shared_ptr<const std::unordered_set<KeyStroke>> &keyStrokes) {
+  this->focus_traversal_keys.resize(std::max(this->focus_traversal_keys.size(), size_t(id)));
+  if (keyStrokes) {
+    for (auto &&keyStroke : *keyStrokes) {
+      for (auto &&keys : this->focus_traversal_keys) {
+        if (keys and keys->contains(keyStroke)) {
+          throw std::runtime_error("focus traversal keys must be unique for a Component");
+        }
+      }
+    }
+  }
+}
+
 
 /**
  * Convert a point from a screen coordinates to a component's coordinate system

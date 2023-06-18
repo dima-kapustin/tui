@@ -81,6 +81,20 @@ public:
       KeyStroke(parse(str)) {
   }
 
+  constexpr KeyStroke(const KeyEvent &event) :
+      modifiers(event.modifiers) {
+    switch (event.type) {
+    case KeyEvent::KEY_TYPED:
+      this->key_char = event.get_key_char();
+      this->key_code = KeyEvent::VK_UNDEFINED;
+      break;
+    case KeyEvent::KEY_PRESSED:
+      this->key_char = KeyEvent::CHAR_UNDEFINED;
+      this->key_code = event.get_key_code();
+      break;
+    }
+  }
+
   constexpr KeyStroke(const KeyStroke&) = default;
   constexpr KeyStroke(KeyStroke&&) = default;
 
@@ -127,5 +141,18 @@ public:
     return (key_stroke.get_key_char().get_code() + 1) * (key_stroke.get_key_code() + 1) * (key_stroke.get_modifiers() + 1) * 2;
   }
 };
+
+}
+
+#include <memory>
+
+namespace tui {
+
+template<typename ... KeyStrokes>
+constexpr std::shared_ptr<std::unordered_set<KeyStroke>> make_shared_keystroke_set(KeyStrokes &&... keyStrokes) {
+  auto set = std::make_shared<std::unordered_set<KeyStroke>>();
+  (set->emplace(std::forward<KeyStrokes>(keyStrokes)), ...);
+  return set;
+}
 
 }

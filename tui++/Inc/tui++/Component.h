@@ -4,6 +4,7 @@
 #include <memory>
 #include <vector>
 #include <exception>
+#include <unordered_set>
 
 #include <tui++/Point.h>
 #include <tui++/Color.h>
@@ -11,17 +12,17 @@
 #include <tui++/Cursor.h>
 #include <tui++/Insets.h>
 #include <tui++/Layout.h>
+#include <tui++/Object.h>
 #include <tui++/Dimension.h>
 #include <tui++/Rectangle.h>
 #include <tui++/ActionMap.h>
+#include <tui++/KeyStroke.h>
 #include <tui++/ComponentInputMap.h>
 #include <tui++/ComponentOrientation.h>
 #include <tui++/KeyboardFocusManager.h>
 #include <tui++/FocusTraversalPolicy.h>
 
 #include <tui++/event/EventSource.h>
-
-#include <tui++/Object.h>
 
 namespace tui {
 
@@ -38,6 +39,8 @@ class Component: virtual public Object, public std::enable_shared_from_this<Comp
   using base = EventSource<FocusEvent, MouseEvent, KeyEvent>;
 
   static std::recursive_mutex tree_mutex;
+
+  EventTypeMask event_mask = EventTypeMask::NONE;
 
 protected:
   std::string name;
@@ -97,6 +100,9 @@ protected:
    */
   Property<bool> focus_cycle_root { this, "focus_cycle_root", false };
   Property<bool> opaque { this, "opaque" };
+
+  Property<bool> focus_traversal_keys_enabled { this, "focus_traversal_keys_enabled" };
+  std::vector<std::shared_ptr<const std::unordered_set<KeyStroke>>> focus_traversal_keys;
 
 public:
   constexpr static float TOP_ALIGNMENT = 0;
@@ -206,10 +212,12 @@ protected:
 protected:
   static bool is_window(const std::shared_ptr<Component> &component);
 
-  virtual void show() {
+  void enable_events(EventTypeMask event_mask) {
+    this->event_mask |= event_mask;
   }
 
-  virtual void hide() {
+  void disable_events(EventTypeMask event_mask) {
+    this->event_mask &= ~event_mask;
   }
 
   void add_impl(const std::shared_ptr<Component> &c, const std::any &constraints) noexcept (false);
@@ -353,6 +361,7 @@ protected:
   bool dispatch_mouse_wheel_to_ancestor(MouseWheelEvent &e);
 
   friend class Window;
+  friend class KeyboardFocusManager;
 
 public:
   virtual ~Component() {
@@ -383,7 +392,7 @@ public:
     invalidate();
   }
 
-  void dispatch_event(const std::shared_ptr<Event> &e);
+  void dispatch_event(Event &e);
 
   bool contains(int x, int y) const {
     return (x >= 0 and x < get_width() and y >= 0 and y < get_height());
@@ -697,12 +706,10 @@ public:
   void set_visible(bool visible) {
     if (visible) {
       if (not this->visible) {
-        show();
         this->visible = true;
       }
     } else {
       if (this->visible) {
-        hide();
         this->visible = false;
       }
     }
@@ -830,7 +837,7 @@ public:
     return get_input_map(WHEN_FOCUSED, true);
   }
 
-  std::shared_ptr<InputMap> getInputMap(InputCondition condition) {
+  std::shared_ptr<InputMap> get_input_map(InputCondition condition) {
     return get_input_map(condition, true);
   }
 
@@ -928,6 +935,8 @@ public:
 
   void transfer_focus_up_cycle();
 
+  void transfer_focus_down_cycle();
+
   /**
    * Returns true if this component is completely opaque.
    * <p>
@@ -976,6 +985,28 @@ public:
       return KeyboardFocusManager::get_default_focus_traversal_policy();
     }
   }
+
+  bool is_event_enabled(EventType event_type) const {
+    return (this->event_mask & event_type) or has_event_listeners(event_type);
+  }
+
+  void set_focus_traversal_keys_enabled(bool focus_traversal_keys_enabled) {
+    this->focus_traversal_keys_enabled = focus_traversal_keys_enabled;
+  }
+
+  /**
+   * Returns whether focus traversal keys are enabled for this Component.
+   * Components for which focus traversal keys are disabled receive key
+   * events for focus traversal keys. Components for which focus traversal
+   * keys are enabled do not see these events; instead, the events are
+   * automatically converted to traversal operations.
+   */
+  bool get_focus_traversal_keys_enabled() const {
+    return focus_traversal_keys_enabled;
+  }
+
+  std::shared_ptr<const std::unordered_set<KeyStroke>> get_focus_traversal_keys(KeyboardFocusManager::FocusTraversalKeys id) const;
+  void set_focus_traversal_keys(KeyboardFocusManager::FocusTraversalKeys id, const std::shared_ptr<const std::unordered_set<KeyStroke>> &keyStrokes);
 };
 
 template<typename BaseComponent, typename ... Events>

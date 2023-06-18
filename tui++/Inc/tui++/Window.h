@@ -1,7 +1,6 @@
 #pragma once
 
 #include <tui++/Component.h>
-
 #include <tui++/event/WindowEvent.h>
 
 namespace tui {
@@ -62,5 +61,14 @@ public:
 
   void set_focusable_window_state(bool state);
 };
+
+constexpr WindowEvent::WindowEvent(const std::shared_ptr<Window> &source_window, Type type, const std::shared_ptr<Window> &opposite_window) :
+    BasicEvent(source_window), type(type), opposite_window(opposite_window) {
+}
+
+constexpr std::shared_ptr<Window> WindowEvent::get_window() const {
+  return std::dynamic_pointer_cast<Window>(this->source);
+}
+
 
 }

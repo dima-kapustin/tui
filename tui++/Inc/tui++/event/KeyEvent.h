@@ -139,11 +139,11 @@ private:
   };
 
 public:
-  constexpr KeyEvent(const std::shared_ptr<Component> &source, Type type, KeyCode key_code, Modifiers modifiers,  const EventClock::time_point &when = EventClock::now()) :
+  constexpr KeyEvent(const std::shared_ptr<Component> &source, Type type, KeyCode key_code, Modifiers modifiers, const EventClock::time_point &when = EventClock::now()) :
       InputEvent(source, modifiers, when), type(type), key_code(key_code) {
   }
 
-  constexpr KeyEvent(const std::shared_ptr<Component> &source, const Char &c, Modifiers modifiers,  const EventClock::time_point &when = EventClock::now()) :
+  constexpr KeyEvent(const std::shared_ptr<Component> &source, const Char &c, Modifiers modifiers, const EventClock::time_point &when = EventClock::now()) :
       InputEvent(source, modifiers, when), type(KEY_TYPED), char_code(c) {
   }
 
@@ -154,6 +154,42 @@ public:
 
   constexpr Char get_key_char() const {
     return this->type == KEY_TYPED ? this->char_code : CHAR_UNDEFINED;
+  }
+
+  /**
+   * Returns whether the key in this event is an "action" key.
+   * Typically an action key does not fire a unicode character and is
+   * not a modifier key.
+   */
+  constexpr bool is_action_key() const {
+    switch (this->key_code) {
+    case VK_HOME:
+    case VK_END:
+    case VK_PAGE_UP:
+    case VK_PAGE_DOWN:
+    case VK_UP:
+    case VK_DOWN:
+    case VK_LEFT:
+    case VK_RIGHT:
+
+    case VK_F1:
+    case VK_F2:
+    case VK_F3:
+    case VK_F4:
+    case VK_F5:
+    case VK_F6:
+    case VK_F7:
+    case VK_F8:
+    case VK_F9:
+    case VK_F10:
+    case VK_F11:
+    case VK_F12:
+    case VK_INSERT:
+      return true;
+
+    default:
+      return false;
+    }
   }
 };
 

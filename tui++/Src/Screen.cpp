@@ -44,4 +44,15 @@ void Screen::remove_window(const std::shared_ptr<Window> &window) {
   }
 }
 
+void Screen::dispatch_event(Event &event) {
+  std::visit([&event](auto &&arg) {
+    using T = std::decay_t<decltype(arg)>;
+    if constexpr (std::is_same_v<T, InvocationEvent>) {
+      arg.dispatch();
+    } else if (auto source = static_cast<BasicEvent&>(arg).source) {
+      source->dispatch_event(event);
+    }
+  }, event);
+}
+
 }

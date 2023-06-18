@@ -6,7 +6,7 @@
 
 namespace tui {
 
-class InvocationEvent {
+class InvocationEvent: public BasicEvent {
   std::function<void()> target;
 
 public:

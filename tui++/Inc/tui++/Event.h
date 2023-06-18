@@ -9,6 +9,7 @@
 #include <tui++/event/ComponentEvent.h>
 #include <tui++/event/ContainerEvent.h>
 #include <tui++/event/HierarchyEvent.h>
+#include <tui++/event/HierarchyBoundsEvent.h>
 #include <tui++/event/InvocationEvent.h>
 
 #include <tui++/util/EnumFlags.h>
@@ -18,25 +19,24 @@
 namespace tui {
 
 enum class EventType : unsigned {
-  UNDEFINED = 1 << 0,
-  KEY = 1 << 1,
-  ITEM = 1 << 2,
-  FOCUS = 1 << 3,
-  MOUSE = 1 << 4,
-  MOUSE_MOVE = 1 << 5,
-  MOUSE_DRAG = 1 << 6,
-  MOUSE_CLICK = 1 << 7,
-  MOUSE_WHEEL = 1 << 8,
-  ACTION = 1 << 9,
-  WINDOW = 1 << 10,
-  COMPONENT = 1 << 11,
-  CONTAINER = 1 << 12,
-  HIERARCHY = 1 << 13,
+  KEY = 1 << 0,
+  ITEM = 1 << 1,
+  FOCUS = 1 << 2,
+  MOUSE = 1 << 3,
+  MOUSE_MOVE = 1 << 4,
+  MOUSE_DRAG = 1 << 5,
+  MOUSE_CLICK = 1 << 6,
+  MOUSE_WHEEL = 1 << 7,
+  ACTION = 1 << 8,
+  WINDOW = 1 << 9,
+  COMPONENT = 1 << 10,
+  CONTAINER = 1 << 11,
+  HIERARCHY = 1 << 12,
+  HIERARCHY_BOUNDS = 1 << 13,
   INVOCATION = 1 << 14,
 };
 
 using EventVariant = std::variant<
-/**/std::monostate,
 /**/KeyEvent,
 /**/ItemEvent,
 /**/FocusEvent,
@@ -50,6 +50,7 @@ using EventVariant = std::variant<
 /**/ComponentEvent,
 /**/ContainerEvent,
 /**/HierarchyEvent,
+/**/HierarchyBoundsEvent,
 /**/InvocationEvent>;
 
 template<EventType event_type>
@@ -59,7 +60,6 @@ struct event_alternative: std::variant_alternative<std::countr_zero(std::to_unde
 template<EventType event_type>
 using event_alternative_t = typename event_alternative<event_type>::type;
 
-static_assert(std::is_same_v<std::monostate, event_alternative_t<EventType::UNDEFINED>>);
 static_assert(std::is_same_v<KeyEvent, event_alternative_t<EventType::KEY>>);
 static_assert(std::is_same_v<ItemEvent, event_alternative_t<EventType::ITEM>>);
 static_assert(std::is_same_v<FocusEvent, event_alternative_t<EventType::FOCUS>>);
@@ -73,6 +73,7 @@ static_assert(std::is_same_v<WindowEvent, event_alternative_t<EventType::WINDOW>
 static_assert(std::is_same_v<ComponentEvent, event_alternative_t<EventType::COMPONENT>>);
 static_assert(std::is_same_v<ContainerEvent, event_alternative_t<EventType::CONTAINER>>);
 static_assert(std::is_same_v<HierarchyEvent, event_alternative_t<EventType::HIERARCHY>>);
+static_assert(std::is_same_v<HierarchyBoundsEvent, event_alternative_t<EventType::HIERARCHY_BOUNDS>>);
 static_assert(std::is_same_v<InvocationEvent, event_alternative_t<EventType::INVOCATION>>);
 
 using EventTypeMask = util::EnumFlags<EventType>;
@@ -102,8 +103,6 @@ constexpr EventType event_type_v = event_type<Event>::value;
 template<typename Event, typename ... Events>
 constexpr EventTypeMask event_mask_v = (event_type_v<Event> | ... | event_type_v<Events>);
 
-static_assert(event_type_v<std::monostate> == EventType::UNDEFINED);
-
 class Screen;
 class KeyboardFocusManager;
 
@@ -126,6 +125,11 @@ public:
 
   constexpr EventType get_type() const {
     return EventType(std::underlying_type_t<EventType>(1) << index());
+  }
+
+  template<typename E>
+  constexpr bool is_consumed() const {
+    return std::get<E>(*this).consumed;
   }
 };
 

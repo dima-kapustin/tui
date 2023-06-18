@@ -38,6 +38,8 @@ protected:
 
   void paint(Graphics &g);
 
+  void dispatch_event(Event &event);
+
 public:
   EventQueue& get_event_queue() {
     return this->event_queue;

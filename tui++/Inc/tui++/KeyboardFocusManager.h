@@ -15,8 +15,14 @@ class KeyboardFocusManager {
   static std::atomic<std::shared_ptr<Window>> focused_window;
   static std::atomic<std::shared_ptr<Component>> current_focus_cycle_root;
   static std::atomic<std::shared_ptr<FocusTraversalPolicy>> default_focus_traversal_policy;
+  static std::atomic<std::weak_ptr<Component>> realOppositeComponent;
+  static std::atomic<std::weak_ptr<Window>> realOppositeWindow;
+  static std::atomic<std::shared_ptr<Component>> restoreFocusTo;
 
   static std::map<std::shared_ptr<Window>, std::weak_ptr<Component>> most_recent_focus_owners;
+  static std::vector<std::shared_ptr<std::unordered_set<KeyStroke>>> default_focus_traversal_keys;
+
+  static bool consume_next_key_typed;
 
 private:
   static void set_most_recent_focus_owner(const std::shared_ptr<Component> &component);
@@ -26,8 +32,48 @@ private:
 
   static bool request_focus(const std::shared_ptr<Component> &component, bool temporary, bool focused_window_change_allowed, FocusEvent::Cause cause);
 
+  static void consume_traversal_key(KeyEvent &e) {
+    e.consumed = true;
+    consume_next_key_typed = (e.type == KeyEvent::KEY_PRESSED) and not e.is_action_key();
+  }
+
+  static bool consume_processed_key_event(KeyEvent &e) {
+    if ((e.type == KeyEvent::KEY_TYPED) and consume_next_key_typed) {
+      e.consumed = true;
+      consume_next_key_typed = false;
+      return true;
+    }
+    return false;
+  }
+
+  static void focus_previous_component(const std::shared_ptr<Component> &component);
+  static void focus_next_component(const std::shared_ptr<Component> &component);
+  static void up_focus_cycle(const std::shared_ptr<Component> &component);
+  static void down_focus_cycle(const std::shared_ptr<Component> &component);
+
+  /*
+   * This series of restoreFocus methods is used for recovering from a
+   * rejected focus or activation change. Rejections typically occur when
+   * the user attempts to focus a non-focusable Component or Window.
+   */
+  static void restore_focus(FocusEvent &e, const std::shared_ptr<Window> &new_focused_window);
+  static void restore_focus(WindowEvent &e);
+  static bool restore_focus(const std::shared_ptr<Window> &window, const std::shared_ptr<Component> &vetoed_component, bool clear_on_failure);
+  static bool restore_focus(const std::shared_ptr<Component> &to_focus, bool clear_on_failure) {
+    return do_restore_focus(to_focus, nullptr, clear_on_failure);
+  }
+  static bool do_restore_focus(const std::shared_ptr<Component> &to_focus, const std::shared_ptr<Component> &vetoed_component, bool clear_on_failure);
+
   friend class Window;
   friend class Component;
+
+public:
+  enum FocusTraversalKeys {
+    FORWARD_TRAVERSAL_KEYS,
+    BACKWARD_TRAVERSAL_KEYS,
+    UP_CYCLE_TRAVERSAL_KEYS,
+    DOWN_CYCLE_TRAVERSAL_KEYS
+  };
 
 public:
   static std::shared_ptr<Component> get_current_focus_cycle_root() {
@@ -53,9 +99,13 @@ public:
 
   static void clear_global_focus_owner();
 
-  static bool dispatch_event(const std::shared_ptr<Event> &e);
+  static bool dispatch_event(Event &e);
 
   static void process_key_event(const std::shared_ptr<Component> &focused_component, KeyEvent &e);
+
+  static std::shared_ptr<const std::unordered_set<KeyStroke>> get_default_focus_traversal_keys(FocusTraversalKeys id);
+
+  static void redispatch_event(const std::shared_ptr<Component> &target, Event &e);
 };
 
 }
