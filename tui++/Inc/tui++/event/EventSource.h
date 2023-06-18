@@ -263,18 +263,32 @@ constexpr bool is_one_of_v = std::disjunction<std::is_same<T, Types> ...>::value
 
 class MultipleEventSourceBase {
 protected:
-  EventTypeMask event_mask = EventTypeMask::NONE;
+  EventTypeMask event_listener_mask = EventTypeMask::NONE;
+
+public:
+  bool has_event_listeners(EventType event_type) const {
+    return bool(this->event_listener_mask & event_type);
+  }
+
+  bool has_event_listeners(EventTypeMask event_mask) const {
+    return (this->event_listener_mask & event_mask) == event_mask;
+  }
+
+  template<typename Event>
+  bool has_event_listeners() const {
+    return has_event_listeners(event_mask_v<Event>);
+  }
 };
 
 template<typename ... Events>
 class MultipleEventSource: virtual public MultipleEventSourceBase, protected SingleEventSource<Events> ... {
   template<typename Event>
-  void update_event_mask() {
-    auto event_mask = to_event_mask<Event>();
+  void update_event_listener_mask() {
+    auto event_mask = event_mask_v<Event>;
     if (SingleEventSource<Event>::event_listeners.empty()) {
-      this->event_mask &= ~event_mask;
+      this->event_listener_mask &= ~event_mask;
     } else {
-      this->event_mask |= event_mask;
+      this->event_listener_mask |= event_mask;
     }
   }
 
@@ -288,7 +302,7 @@ public:
   requires (is_one_of_v<Event, Events...> and std::is_convertible_v<Listener*, EventListener<Event>*>)
   void add_event_listener(const std::shared_ptr<Listener> &listener) {
     if (SingleEventSource<Event>::add_event_listener(std::static_pointer_cast<EventListener<Event>>(listener))) {
-      update_event_mask<Event>();
+      update_event_listener_mask<Event>();
     }
   }
 
@@ -296,7 +310,7 @@ public:
   requires (is_one_of_v<Event, Events...> and std::is_invocable_v<Callable, Event&>)
   void add_event_listener(Callable &&callable) {
     if (SingleEventSource<Event>::add_event_listener(std::forward<Callable>(callable))) {
-      update_event_mask<Event>();
+      update_event_listener_mask<Event>();
     }
   }
 
@@ -304,7 +318,7 @@ public:
   requires (is_one_of_v<Event, Events...> and std::is_invocable_v<Callable, Event&> and has_type_enum_v<Event>)
   void add_event_listener(typename Event::Type type, Callable &&callable) {
     if (SingleEventSource<Event>::add_event_listener(std::vector<typename Event::Type> {1, type}, std::forward<Callable>(callable))) {
-      update_event_mask<Event>();
+      update_event_listener_mask<Event>();
     }
   }
 
@@ -312,7 +326,7 @@ public:
   requires (is_one_of_v<Event, Events...> and std::is_invocable_v<Callable, Event&> and has_type_enum_v<Event>)
   void add_event_listener(std::initializer_list<typename Event::Type> types, Callable &&callable) {
     if (SingleEventSource<Event>::add_event_listener(std::vector<typename Event::Type> {types.begin(), types.end()}, std::forward<Callable>(callable))) {
-      update_event_mask<Event>();
+      update_event_listener_mask<Event>();
     }
   }
 
@@ -320,7 +334,7 @@ public:
   requires (is_one_of_v<Event, Events...> and std::is_convertible_v<Listener*, EventListener<Event>*>)
   void remove_event_listener(const std::shared_ptr<Listener> &listener) {
     if (SingleEventSource<Event>::remove_event_listener(std::static_pointer_cast<EventListener<Event>>(listener))) {
-      update_event_mask<Event>();
+      update_event_listener_mask<Event>();
     }
   }
 
@@ -328,7 +342,7 @@ public:
   requires (is_one_of_v<Event, Events...> and std::is_invocable_v<Callable, Event&>)
   void remove_event_listener(const Callable &callable) {
     if (SingleEventSource<Event>::remove_event_listener(callable)) {
-      update_event_mask<Event>();
+      update_event_listener_mask<Event>();
     }
   }
 
@@ -336,7 +350,7 @@ public:
   requires (is_one_of_v<Event, Events...> and std::is_invocable_v<Callable, Event&> and has_type_enum_v<Event>)
   void remove_event_listener(typename Event::Type type, const Callable &callable) {
     if (SingleEventSource<Event>::remove_event_listener(std::vector<typename Event::Type> {1, type}, callable)) {
-      update_event_mask<Event>();
+      update_event_listener_mask<Event>();
     }
   }
 };

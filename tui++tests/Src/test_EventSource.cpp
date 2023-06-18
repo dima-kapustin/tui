@@ -17,8 +17,8 @@ public:
     return detail::SingleEventSource<MouseEvent>::event_listeners.size();
   }
 
-  EventTypeMask get_event_mask() const {
-    return this->event_mask;
+  EventTypeMask get_event_listener_mask() const {
+    return this->event_listener_mask;
   }
 };
 
@@ -127,14 +127,17 @@ void test_EventSource() {
   event_source_b->remove_event_listener(ml);
   assert(event_source_b->get_mouse_event_listener_count() == 6);
 
-  assert(event_source_b->get_event_mask() == EventType::MOUSE);
+  assert(event_source_b->get_event_listener_mask() == EventType::MOUSE);
 
   auto window_listener = [](WindowEvent &e) {
   };
 
   event_source_b->add_event_listener(WindowEvent::WINDOW_ACTIVATED, window_listener);
-  assert(event_source_b->get_event_mask() == (EventType::MOUSE|EventType::WINDOW));
+  assert(event_source_b->get_event_listener_mask() == (EventType::MOUSE | EventType::WINDOW));
+  assert(event_source_b->has_event_listeners(EventType::MOUSE | EventType::WINDOW));
 
   event_source_b->remove_event_listener(WindowEvent::WINDOW_ACTIVATED, window_listener);
-  assert(event_source_b->get_event_mask() == EventType::MOUSE);
+  assert(event_source_b->get_event_listener_mask() == EventType::MOUSE);
+  assert(event_source_b->has_event_listeners(EventType::MOUSE));
+  assert(not event_source_b->has_event_listeners(EventType::WINDOW));
 }

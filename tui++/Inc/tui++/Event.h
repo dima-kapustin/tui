@@ -119,16 +119,21 @@ constexpr size_t variant_alternative_index_v = variant_alternative_index<T, Ts..
 }
 
 template<typename Event>
-constexpr EventTypeMask to_event_mask() {
-  constexpr auto index = detail::variant_alternative_index_v<Event, EventVariant>;
-  if constexpr (index == 0) {
-    static_assert(std::is_same_v<Event, std::monostate>);
-    static_assert(std::is_same_v<std::monostate, event_alternative_t<EventType(index)>>);
-    return EventType::UNDEFINED;
-  } else {
-    static_assert(std::is_same_v<Event, event_alternative_t<EventType(1 << (index - 1))>>);
-    return EventType(1 << (index - 1));
-  }
-}
+struct event_mask {
+  constexpr static EventTypeMask value = [] {
+    constexpr auto index = detail::variant_alternative_index_v<Event, EventVariant>;
+    if constexpr (index == 0) {
+      static_assert(std::is_same_v<Event, std::monostate>);
+      static_assert(std::is_same_v<std::monostate, event_alternative_t<EventType(index)>>);
+      return EventType::UNDEFINED;
+    } else {
+      static_assert(std::is_same_v<Event, event_alternative_t<EventType(1 << (index - 1))>>);
+      return EventType(1 << (index - 1));
+    }
+  }();
+};
+
+template<typename Event, typename ... Events>
+constexpr EventTypeMask event_mask_v = (event_mask<Event>::value | ... | event_mask<Events>::value);
 
 }
