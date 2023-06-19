@@ -40,7 +40,8 @@ public:
   std::shared_ptr<Window> opposite_window;
 
 public:
-  constexpr WindowEvent(const std::shared_ptr<Window> &source_window, Type type, const std::shared_ptr<Window> &opposite_window);
+  constexpr WindowEvent(const std::shared_ptr<Window> &source, Type type, const std::shared_ptr<Window> &opposite_window);
+  constexpr WindowEvent(const std::shared_ptr<Window> &source, Type type);
 
   constexpr std::shared_ptr<Window> get_window() const;
 };

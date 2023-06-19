@@ -18,6 +18,12 @@ class Window: public ComponentExtension<Component, WindowEvent> {
 
   std::weak_ptr<Component> temporary_lost_component;
 
+  struct {
+    unsigned in_show :1 = false;
+    unsigned before_first_show :1 = true;
+    unsigned opened :1 = false;
+  };
+
 private:
   std::shared_ptr<Component> get_temporary_lost_component() const {
     return this->temporary_lost_component.lock();
@@ -35,15 +41,28 @@ private:
     return prev;
   }
 
-  friend class KeyboardFocusManager;
-protected:
-  void paint_components(Graphics &g) override;
+  void to_front();
 
+  template<typename T, typename ... Args>
+  void post_event(Args &&... args) {
+    base::post_event<T, Window>(std::forward<Args>(args)...);
+  }
+
+  friend class KeyboardFocusManager;
+
+protected:
   Window(Screen &screen) :
       screen(screen) {
   }
 
   friend class Screen;
+
+protected:
+  void paint_components(Graphics &g) override;
+
+  virtual void show() override;
+  virtual void hide() override;
+
 public:
   Window(const std::shared_ptr<Window> &owner) :
       screen(owner->screen), owner(owner) {
@@ -86,6 +105,10 @@ public:
 
 constexpr WindowEvent::WindowEvent(const std::shared_ptr<Window> &source_window, Type type, const std::shared_ptr<Window> &opposite_window) :
     BasicEvent(source_window), type(type), opposite_window(opposite_window) {
+}
+
+constexpr WindowEvent::WindowEvent(const std::shared_ptr<Window> &source, Type type) :
+    WindowEvent(source, type, nullptr) {
 }
 
 constexpr std::shared_ptr<Window> WindowEvent::get_window() const {

@@ -65,7 +65,7 @@ public:
   }
 
   void post(const std::shared_ptr<Event> &event);
-  template<typename T, typename ... Args>
+  template<typename T, typename Component, typename ... Args>
   void post(const std::shared_ptr<Component> &source, Args &&... args) {
     post(std::make_shared<Event>(std::in_place_type<T>, source, std::forward<Args>(args)...));
   }

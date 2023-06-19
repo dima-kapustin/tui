@@ -10,6 +10,7 @@
 namespace tui {
 
 std::recursive_mutex Component::tree_mutex;
+bool Component::descend_unconditionally_when_validating = false;
 
 std::shared_ptr<Window> Component::get_window_ancestor() const {
   if (auto window = std::dynamic_pointer_cast<Window>(const_cast<Component*>(this)->shared_from_this())) {
@@ -112,7 +113,7 @@ bool Component::is_request_focus_accepted(bool temporary, bool focused_window_ch
 
 bool Component::request_focus(bool temporary, bool focused_window_change_allowed, FocusEvent::Cause cause) {
   // 1) Check if the event being dispatched is a system-generated mouse event.
-  auto current_event = get_event_queue().get_current_event();
+  auto current_event = get_event_queue()->get_current_event();
   if (auto mouse_event = std::get_if<MouseEvent>(current_event.get()); mouse_event and current_event->system_generated) {
     // 2) Sanity check: if the mouse event component source belongs to the same containing window.
     auto source = mouse_event->source;
@@ -287,8 +288,8 @@ Screen* Component::get_screen() const {
   return get_window_ancestor()->get_screen();
 }
 
-EventQueue& Component::get_event_queue() const {
-  return get_screen()->get_event_queue();
+EventQueue* Component::get_event_queue() const {
+  return &get_screen()->get_event_queue();
 }
 
 std::shared_ptr<Window> Component::get_containing_window() const {
@@ -644,6 +645,41 @@ void Component::set_focus_traversal_keys(KeyboardFocusManager::FocusTraversalKey
   }
 }
 
+void Component::show() {
+  if (not this->visible) {
+    std::unique_lock lock(tree_mutex);
+    this->visible = true;
+    create_hierarchy_events(HierarchyEvent::SHOWING_CHANGED, shared_from_this(), get_parent());
+    repaint();
+
+    post_event<ComponentEvent>(ComponentEvent::COMPONENT_SHOWN);
+
+    if (auto parent = get_parent()) {
+      parent->invalidate();
+    }
+  }
+}
+
+void Component::hide() {
+}
+
+void Component::create_hierarchy_events(HierarchyEvent::Type type, const std::shared_ptr<Component> &changed, const std::shared_ptr<Component> &changed_parent) {
+  for (auto &&component : this->components) {
+    component->create_hierarchy_events(type, changed, changed_parent);
+  }
+  if (is_event_enabled<HierarchyEvent>()) {
+    dispatch_event<HierarchyEvent>(type, changed, changed_parent);
+  }
+}
+
+void Component::create_hierarchy_bounds_events(HierarchyBoundsEvent::Type type, const std::shared_ptr<Component> &changed, const std::shared_ptr<Component> &changed_parent) {
+  for (auto &&component : this->components) {
+    component->create_hierarchy_bounds_events(type, changed, changed_parent);
+  }
+  if (is_event_enabled<HierarchyBoundsEvent>()) {
+    dispatch_event<HierarchyBoundsEvent>(type, changed, changed_parent);
+  }
+}
 
 /**
  * Convert a point from a screen coordinates to a component's coordinate system

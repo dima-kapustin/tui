@@ -293,6 +293,9 @@ struct EventDump {
 
   void operator()(const HierarchyEvent &event) {
   }
+
+  void operator()(const HierarchyBoundsEvent &event) {
+  }
 };
 
 std::ostream& operator<<(std::ostream &os, const Event &event) {

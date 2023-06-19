@@ -13,6 +13,7 @@
 #include <tui++/Insets.h>
 #include <tui++/Layout.h>
 #include <tui++/Object.h>
+#include <tui++/Screen.h>
 #include <tui++/Dimension.h>
 #include <tui++/Rectangle.h>
 #include <tui++/ActionMap.h>
@@ -26,7 +27,6 @@
 
 namespace tui {
 
-class Screen;
 class Window;
 class Graphics;
 class Component;
@@ -104,6 +104,12 @@ protected:
   Property<bool> focus_traversal_keys_enabled { this, "focus_traversal_keys_enabled" };
   std::vector<std::shared_ptr<const std::unordered_set<KeyStroke>>> focus_traversal_keys;
 
+  /**
+   * Indicates whether valid containers should also traverse their
+   * children and call the validate_tree() method on them.
+   */
+  static bool descend_unconditionally_when_validating;
+
 public:
   constexpr static float TOP_ALIGNMENT = 0;
   constexpr static float BOTTOM_ALIGNMENT = 1.0;
@@ -140,10 +146,10 @@ private:
   }
 
   void validate_tree() {
-    if (not this->valid) {
+    if (not this->valid or descend_unconditionally_when_validating) {
       do_layout();
       for (auto &&c : this->components) {
-        if (not c->is_valid()) {
+        if (not c->is_valid() or descend_unconditionally_when_validating) {
           if (not is_window(c)) {
             c->validate_tree();
           } else {
@@ -152,6 +158,13 @@ private:
         }
       }
     }
+    this->valid = true;
+  }
+
+  void validate_unconditionally() {
+    descend_unconditionally_when_validating = true;
+    validate();
+    descend_unconditionally_when_validating = false;
   }
 
   std::shared_ptr<InputMap> get_input_map(InputCondition condition, bool create) const {
@@ -219,6 +232,9 @@ protected:
   void disable_events(EventTypeMask event_mask) {
     this->event_mask &= ~event_mask;
   }
+
+  virtual void show();
+  virtual void hide();
 
   void add_impl(const std::shared_ptr<Component> &c, const std::any &constraints) noexcept (false);
 
@@ -307,7 +323,7 @@ protected:
 
   virtual Screen* get_screen() const;
 
-  EventQueue& get_event_queue() const;
+  EventQueue* get_event_queue() const;
 
   virtual void process_event(FocusEvent &e) override {
     base::process_event(e);
@@ -360,6 +376,23 @@ protected:
 
   bool dispatch_mouse_wheel_to_ancestor(MouseWheelEvent &e);
 
+  virtual void create_hierarchy_events(HierarchyEvent::Type type, const std::shared_ptr<Component> &changed, const std::shared_ptr<Component> &changed_parent);
+  virtual void create_hierarchy_bounds_events(HierarchyBoundsEvent::Type type, const std::shared_ptr<Component> &changed, const std::shared_ptr<Component> &changed_parent);
+
+  template<typename T, typename ... Args>
+  void post_event(Args &&... args) {
+    if (is_event_enabled<T>()) {
+      get_screen()->post<T>(shared_from_this(), std::forward<Args>(args)...);
+    }
+  }
+
+  template<typename T, typename Component, typename ... Args>
+  void post_event(Args &&... args) {
+    if (is_event_enabled<T>()) {
+      get_screen()->post<T>(std::dynamic_pointer_cast<Component>(shared_from_this()), std::forward<Args>(args)...);
+    }
+  }
+
   friend class Window;
   friend class KeyboardFocusManager;
 
@@ -393,6 +426,12 @@ public:
   }
 
   void dispatch_event(Event &e);
+
+  template<typename T, typename ... Args>
+  void dispatch_event(Args &&... args) {
+    auto e = Event { std::in_place_type<T>, shared_from_this(), std::forward<Args>(args)... };
+    dispatch_event(e);
+  }
 
   bool contains(int x, int y) const {
     return (x >= 0 and x < get_width() and y >= 0 and y < get_height());
@@ -706,10 +745,12 @@ public:
   void set_visible(bool visible) {
     if (visible) {
       if (not this->visible) {
+        show();
         this->visible = true;
       }
     } else {
       if (this->visible) {
+        hide();
         this->visible = false;
       }
     }
@@ -779,8 +820,9 @@ public:
    * default implementation does nothing; it is overridden by Container.
    */
   void validate() {
-    validate_tree();
-    this->valid = true;
+    if (not this->valid or descend_unconditionally_when_validating) {
+      validate_tree();
+    }
   }
 
   std::optional<Color> get_background_color() const {
@@ -984,6 +1026,11 @@ public:
     } else {
       return KeyboardFocusManager::get_default_focus_traversal_policy();
     }
+  }
+
+  template<typename Event>
+  bool is_event_enabled() const {
+    return is_event_enabled(event_type_v<Event>);
   }
 
   bool is_event_enabled(EventType event_type) const {

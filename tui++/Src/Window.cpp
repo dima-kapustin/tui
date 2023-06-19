@@ -76,4 +76,32 @@ void Window::set_focusable_window_state(bool state) {
   }
 }
 
+void Window::to_front() {
+
+}
+
+void Window::show() {
+  validate_unconditionally();
+  this->in_show = true;
+  if (this->visible) {
+    to_front();
+  } else {
+    this->before_first_show = false;
+    // TODO
+    // close_splash_screen();
+    // Dialog::check_should_be_blocked(this);
+    base::show();
+  }
+  this->in_show = false;
+
+  if (not this->opened) {
+    post_event<WindowEvent>(WindowEvent::WINDOW_OPENED);
+    this->opened = true;
+  }
+}
+
+void Window::hide() {
+
+}
+
 }
