@@ -12,14 +12,17 @@ class FocusTraversalPolicy;
 
 class KeyboardFocusManager {
   static std::atomic<std::shared_ptr<Component>> focus_owner;
+  static std::atomic<std::shared_ptr<Component>> permanent_focus_owner;
   static std::atomic<std::shared_ptr<Window>> focused_window;
+  static std::atomic<std::shared_ptr<Window>> active_window;
   static std::atomic<std::shared_ptr<Component>> current_focus_cycle_root;
   static std::atomic<std::shared_ptr<FocusTraversalPolicy>> default_focus_traversal_policy;
   static std::atomic<std::weak_ptr<Component>> realOppositeComponent;
   static std::atomic<std::weak_ptr<Window>> realOppositeWindow;
   static std::atomic<std::shared_ptr<Component>> restoreFocusTo;
+  static std::atomic<unsigned> in_send_event;
 
-  static std::map<std::shared_ptr<Window>, std::weak_ptr<Component>> most_recent_focus_owners;
+  static std::map<std::shared_ptr<const Window>, std::weak_ptr<Component>> most_recent_focus_owners;
   static std::vector<std::shared_ptr<std::unordered_set<KeyStroke>>> default_focus_traversal_keys;
 
   static bool consume_next_key_typed;
@@ -28,7 +31,26 @@ private:
   static void set_most_recent_focus_owner(const std::shared_ptr<Component> &component);
 
   static void set_most_recent_focus_owner(const std::shared_ptr<Window> &window, const std::shared_ptr<Component> &component);
-  static std::shared_ptr<Component> get_most_recent_focus_owner(const std::shared_ptr<Window> &window);
+  static std::shared_ptr<Component> get_most_recent_focus_owner(const std::shared_ptr<const Window> &window);
+
+  static void set_focus_owner(const std::shared_ptr<Component> &component) {
+    focus_owner = component;
+  }
+
+  static void set_permanent_focus_owner(const std::shared_ptr<Component> &component) {
+    permanent_focus_owner = component;
+    set_most_recent_focus_owner(component);
+  }
+
+  static void set_focused_window(const std::shared_ptr<Window> &window) {
+    return focused_window = window;
+  }
+
+  static void set_active_window(const std::shared_ptr<Window> &window) {
+    active_window = window;
+  }
+
+  static void clear_global_focus_owner();
 
   static bool request_focus(const std::shared_ptr<Component> &component, bool temporary, bool focused_window_change_allowed, FocusEvent::Cause cause);
 
@@ -64,6 +86,20 @@ private:
   }
   static bool do_restore_focus(const std::shared_ptr<Component> &to_focus, const std::shared_ptr<Component> &vetoed_component, bool clear_on_failure);
 
+  template<typename T, typename Component, typename ... Args>
+  static void send_event(const std::shared_ptr<Component> &to, Args &&... args) {
+    auto e = Event { std::in_place_type<T>, to, std::forward<Args>(args)... };
+    in_send_event += 1;
+    to->dispatch_event(e);
+    in_send_event -= 1;
+  }
+
+  template<typename T, typename Component, typename ... Args>
+  static void redispatch_event(const std::shared_ptr<Component> &to, Args &&... args) {
+    auto e = Event { std::in_place_type<T>, to, std::forward<Args>(args)... };
+    redispatch_event(to, e);
+  }
+
   friend class Window;
   friend class Component;
 
@@ -90,14 +126,16 @@ public:
   }
 
   static std::shared_ptr<Component> get_focus_owner() {
-    return focus_owner.load();
+    return focus_owner;
   }
 
   static std::shared_ptr<Window> get_focused_window() {
-    return focused_window.load();
+    return focused_window;
   }
 
-  static void clear_global_focus_owner();
+  static std::shared_ptr<Window> get_active_window() {
+    return active_window;
+  }
 
   static bool dispatch_event(Event &e);
 

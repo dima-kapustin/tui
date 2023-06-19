@@ -36,6 +36,11 @@ protected:
     post(event);
   }
 
+  template<typename T, typename ... Args>
+  void post_system(const std::shared_ptr<Component> &source, Args &&... args) {
+    post_system(std::make_shared<Event>(std::in_place_type<T>, source, std::forward<Args>(args)...));
+  }
+
   void paint(Graphics &g);
 
   void dispatch_event(Event &event);
@@ -60,6 +65,10 @@ public:
   }
 
   void post(const std::shared_ptr<Event> &event);
+  template<typename T, typename ... Args>
+  void post(const std::shared_ptr<Component> &source, Args &&... args) {
+    post(std::make_shared<Event>(std::in_place_type<T>, source, std::forward<Args>(args)...));
+  }
   void post(std::function<void()> fn) {
     post(std::make_shared<Event>(std::in_place_type<InvocationEvent>, fn));
   }

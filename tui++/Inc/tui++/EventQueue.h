@@ -36,6 +36,11 @@ public:
     this->queue_cv.notify_one();
   }
 
+  template<typename T, typename ... Args>
+  void push(Args &&... args) {
+    push(std::make_shared<Event>(std::in_place_type<T>, std::forward<Args>(args)...));
+  }
+
   std::shared_ptr<Event> pop() {
     std::unique_lock lock(this->mutex);
     this->queue_cv.wait(lock, [this] {

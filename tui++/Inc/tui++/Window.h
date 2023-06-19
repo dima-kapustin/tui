@@ -6,6 +6,7 @@
 namespace tui {
 
 class Screen;
+class KeyboardFocusManager;
 
 class Window: public ComponentExtension<Component, WindowEvent> {
   using base = Component;
@@ -15,6 +16,26 @@ class Window: public ComponentExtension<Component, WindowEvent> {
 
   Property<bool> focusable_window_state { this, "focusable_window_state", false };
 
+  std::weak_ptr<Component> temporary_lost_component;
+
+private:
+  std::shared_ptr<Component> get_temporary_lost_component() const {
+    return this->temporary_lost_component.lock();
+  }
+
+  std::shared_ptr<Component> set_temporary_lost_component(const std::shared_ptr<Component> &component) {
+    auto prev = get_temporary_lost_component();
+    // Check that "component" is an acceptable focus owner and don't store it otherwise
+    // - or later we will have problems with opposite while handling  WINDOW_GAINED_FOCUS
+    if (not component or component->can_be_focus_owner()) {
+      this->temporary_lost_component = component;
+    } else {
+      this->temporary_lost_component.reset();
+    }
+    return prev;
+  }
+
+  friend class KeyboardFocusManager;
 protected:
   void paint_components(Graphics &g) override;
 
@@ -30,8 +51,7 @@ public:
 
 public:
   std::shared_ptr<Window> get_owner() const {
-    // TODO
-    return {};
+    return this->owner;
   }
 
   Screen* get_screen() const override {
@@ -53,6 +73,8 @@ public:
 
   std::shared_ptr<Component> get_focus_owner() const;
 
+  std::shared_ptr<Component> get_most_recent_focus_owner() const;
+
   bool is_focusable_window() const;
 
   bool get_focusable_window_state() const {
@@ -69,6 +91,5 @@ constexpr WindowEvent::WindowEvent(const std::shared_ptr<Window> &source_window,
 constexpr std::shared_ptr<Window> WindowEvent::get_window() const {
   return std::dynamic_pointer_cast<Window>(this->source);
 }
-
 
 }

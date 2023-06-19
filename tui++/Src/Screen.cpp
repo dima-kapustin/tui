@@ -3,6 +3,7 @@
 #include <stdexcept>
 
 #include <tui++/Window.h>
+#include <tui++/KeyboardFocusManager.h>
 
 namespace tui {
 
@@ -15,8 +16,7 @@ void Screen::post(const std::shared_ptr<Event> &event) {
 }
 
 std::shared_ptr<Window> Screen::get_active_window() {
-//  std::unique_lock lock(this->windows_mutex);
-//  return this->windows.empty() ? nullptr : this->windows.back();
+  return KeyboardFocusManager::get_active_window();
 }
 
 std::shared_ptr<Component> Screen::get_component_at(int x, int y) {

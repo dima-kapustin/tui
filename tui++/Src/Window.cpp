@@ -18,6 +18,16 @@ std::shared_ptr<Component> Window::get_focus_owner() const {
   return is_focused() ? KeyboardFocusManager::get_focus_owner() : nullptr;
 }
 
+std::shared_ptr<Component> Window::get_most_recent_focus_owner() const {
+  if (is_focused()) {
+    return get_focus_owner();
+  } else if (auto most_recent = KeyboardFocusManager::get_most_recent_focus_owner(std::dynamic_pointer_cast<const Window>(shared_from_this()))) {
+    return most_recent;
+  } else {
+    return is_focusable_window() ? get_focus_traversal_policy()->get_initial_component(std::dynamic_pointer_cast<const Window>(shared_from_this())) : nullptr;
+  }
+}
+
 bool Window::is_focusable_window() const {
   // If a Window/Frame/Dialog was made non-focusable, then it is always
   // non-focusable.

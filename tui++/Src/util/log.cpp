@@ -2,6 +2,7 @@
 
 namespace tui::util {
 
-std::ostream *log = nullptr;
+std::ostream *event_log = nullptr;
+std::ostream *focus_log = nullptr;
 
 }
