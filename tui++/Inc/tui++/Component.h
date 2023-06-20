@@ -407,7 +407,8 @@ public:
   }
 
   template<typename T, typename ... Args>
-  std::enable_if_t<is_component_v<T>, T&> add(Args ... args) noexcept (false) {
+  requires (is_component_v<T>)
+  T& add(Args ... args) noexcept (false) {
     add(std::make_shared<T>(std::forward<Args>(args)...));
   }
 

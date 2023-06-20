@@ -9,6 +9,8 @@
 
 namespace tui {
 
+class Frame;
+class Dialog;
 class Window;
 class Graphics;
 
@@ -83,10 +85,16 @@ public:
 
   virtual void refresh() = 0;
 
-  template<typename W, typename ... Args>
-  requires (std::is_convertible_v<W*, Window*>)
-  std::shared_ptr<W> create_window(Args &&...args) {
-    return std::shared_ptr<W> { new W(*this, std::forward<Args>(args)...) };
+  template<typename F, typename ... Args>
+  requires (std::is_convertible_v<F*, Frame*>)
+  std::shared_ptr<F> create_frame(Args &&...args) {
+    return std::shared_ptr<F> { new F(*this, std::forward<Args>(args)...) };
+  }
+
+  template<typename D, typename ... Args>
+  requires (std::is_convertible_v<D*, Dialog*>)
+  std::shared_ptr<D> create_dialog(Args &&...args) {
+    return std::shared_ptr<D> { new D(*this, std::forward<Args>(args)...) };
   }
 };
 

@@ -281,25 +281,32 @@ public:
 
   template<typename ...Args>
   void print(Args &&... args) {
-  (std::cout << ... << args);
-}
+    (std::cout << ... << args);
+  }
 
-void set_title(const std::string &title);
+  void set_title(const std::string &title);
 
-void flush();
+  void flush();
 
-void run_event_loop() {
-  this->screen.run_event_loop();
-}
+  void run_event_loop() {
+    this->screen.run_event_loop();
+  }
 
-void post(std::function<void()> fn) {
-  this->screen.post(std::move(fn));
-}
+  void post(std::function<void()> fn) {
+    this->screen.post(std::move(fn));
+  }
 
-template<typename W, typename ... Args>
-std::enable_if_t<std::is_convertible_v<W*, Window*>, std::shared_ptr<W>> create_window(Args &&...args) {
-  return this->screen.create_window<W>(std::forward<Args>(args)...);
-}
+  template<typename F, typename ... Args>
+  requires (std::is_convertible_v<F*, Frame*>)
+  std::shared_ptr<F> create_frame(Args &&...args) {
+    return this->screen.create_frame<F>(std::forward<Args>(args)...);
+  }
+
+  template<typename D, typename ... Args>
+  requires (std::is_convertible_v<D*, Dialog*>)
+  std::shared_ptr<D> create_dialog(Args &&...args) {
+    return this->screen.create_dialog<D>(std::forward<Args>(args)...);
+  }
 };
 
 }

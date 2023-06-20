@@ -56,6 +56,10 @@ protected:
       screen(screen) {
   }
 
+  Window(const std::shared_ptr<Window> &owner) :
+      screen(owner->screen), owner(owner) {
+  }
+
   friend class Screen;
 
 protected:
@@ -63,11 +67,6 @@ protected:
 
   virtual void show() override;
   virtual void hide() override;
-
-public:
-  Window(const std::shared_ptr<Window> &owner) :
-      screen(owner->screen), owner(owner) {
-  }
 
 public:
   std::shared_ptr<Window> get_owner() const {
