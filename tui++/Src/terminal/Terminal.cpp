@@ -1,6 +1,7 @@
 #include <iostream>
 
-#include <tui++/Component.h>
+#include <tui++/Window.h>
+#include <tui++/KeyboardFocusManager.h>
 
 #include <tui++/terminal/Terminal.h>
 #include <tui++/terminal/TerminalGraphics.h>
@@ -136,11 +137,11 @@ void Terminal::new_resize_event() {
 }
 
 void Terminal::new_key_event(const Char &c, InputEvent::Modifiers modifiers) {
-  this->screen.post_system<KeyEvent>(nullptr, c, modifiers);
+  this->screen.post_system<KeyEvent>(KeyboardFocusManager::get_focused_window(), c, modifiers);
 }
 
 void Terminal::new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers) {
-  this->screen.post_system<KeyEvent>(nullptr, KeyEvent::KEY_PRESSED, key_code, modifiers);
+  this->screen.post_system<KeyEvent>(KeyboardFocusManager::get_focused_window(), KeyEvent::KEY_PRESSED, key_code, modifiers);
 }
 
 void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button, InputEvent::Modifiers modifiers, int x, int y) {
