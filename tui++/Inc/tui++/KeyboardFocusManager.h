@@ -50,7 +50,7 @@ private:
     active_window = window;
   }
 
-  static void clear_global_focus_owner();
+  static void clear_focus_owner();
 
   static bool request_focus(const std::shared_ptr<Component> &component, bool temporary, bool focused_window_change_allowed, FocusEvent::Cause cause);
 
@@ -112,16 +112,16 @@ public:
   };
 
 public:
-  static std::shared_ptr<Component> get_current_focus_cycle_root() {
-    return current_focus_cycle_root.load();
-  }
-
   static std::shared_ptr<FocusTraversalPolicy> get_default_focus_traversal_policy() {
     return default_focus_traversal_policy;
   }
 
-  static void set_global_current_focus_cycle_root(const std::shared_ptr<Component> &new_focus_cycle_root) {
-    auto old_focus_cycle_root = current_focus_cycle_root.exchange(new_focus_cycle_root);
+  static std::shared_ptr<Component> get_current_focus_cycle_root() {
+    return current_focus_cycle_root.load();
+  }
+
+  static void get_current_focus_cycle_root(const std::shared_ptr<Component> &component) {
+    auto old_focus_cycle_root = current_focus_cycle_root.exchange(component);
 //      firePropertyChange("currentFocusCycleRoot", oldFocusCycleRoot, newFocusCycleRoot);
   }
 

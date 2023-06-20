@@ -48,6 +48,7 @@ private:
     base::post_event<T, Window>(std::forward<Args>(args)...);
   }
 
+  friend class Component;
   friend class KeyboardFocusManager;
 
 protected:

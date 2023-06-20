@@ -209,7 +209,7 @@ private:
     }
 
     if (root != current_focus_cycle_root) {
-      KeyboardFocusManager::set_global_current_focus_cycle_root(root);
+      KeyboardFocusManager::get_current_focus_cycle_root(root);
     }
     return root;
   }
@@ -217,6 +217,12 @@ private:
   std::shared_ptr<Window> get_containing_window() const;
 
   bool is_request_focus_accepted(bool temporary, bool focused_window_change_allowed, FocusEvent::Cause cause);
+
+  bool is_parent_of(std::shared_ptr<Component> component) const;
+  void clear_current_focus_cycle_root_on_hide();
+  void clear_most_recent_focus_owner_on_hide();
+
+  bool contains_focus() const;
 
 protected:
   Component() {

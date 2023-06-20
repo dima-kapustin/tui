@@ -7,6 +7,8 @@
 
 #include <tui++/Screen.h>
 
+#include <tui++/util/log.h>
+
 namespace tui {
 
 std::recursive_mutex Component::tree_mutex;
@@ -75,7 +77,7 @@ bool Component::is_request_focus_accepted(bool temporary, bool focused_window_ch
     }
   }
 
-  if (focus_owner == shared_from_this() or not focus_owner) {
+  if (focus_owner.get() == this or not focus_owner) {
     // Controller is supposed to verify focus transfers and for this it
     // should know both from and to components.  And it shouldn't verify
     // transfers from when these components are equal.
@@ -212,7 +214,7 @@ bool Component::transfer_focus(bool clear_on_failure) {
 //      if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
 //          focusLog.finer("clear global focus owner");
 //      }
-    KeyboardFocusManager::clear_global_focus_owner();
+    KeyboardFocusManager::clear_focus_owner();
   }
   // TODO
 //  if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
@@ -240,16 +242,10 @@ bool Component::transfer_focus_backward(bool clear_on_failure) {
     }
   }
   if (not result and clear_on_failure) {
-    // TODO
-//      if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
-//          focusLog.finer("clear global focus owner");
-//      }
-    KeyboardFocusManager::clear_global_focus_owner();
+    log_focus_ln("clear global focus owner");
+    KeyboardFocusManager::clear_focus_owner();
   }
-  // TODO
-//  if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
-//      focusLog.finer("returning result: " + res);
-//  }
+//  log_focus_ln("returning result: " << result);
   return result;
 }
 
@@ -263,13 +259,13 @@ void Component::transfer_focus_up_cycle() {
     auto root_ancestor_root_ancestor = root_ancestor->get_focus_cycle_root_ancestor();
     auto fcr = root_ancestor_root_ancestor ? root_ancestor_root_ancestor : root_ancestor;
 
-    KeyboardFocusManager::set_global_current_focus_cycle_root(fcr);
-//      rootAncestor->request_focus(FocusEvent.Cause.TRAVERSAL_UP);
+    KeyboardFocusManager::get_current_focus_cycle_root(fcr);
+    root_ancestor->request_focus(FocusEvent::Cause::TRAVERSAL_UP);
   } else {
     if (auto window = get_containing_window()) {
       if (auto to_focus = window->get_focus_traversal_policy()->get_default_component(window)) {
-        KeyboardFocusManager::set_global_current_focus_cycle_root(window);
-//              toFocus->request_focus(FocusEvent.Cause.TRAVERSAL_UP);
+        KeyboardFocusManager::get_current_focus_cycle_root(window);
+        to_focus->request_focus(FocusEvent::Cause::TRAVERSAL_UP);
       }
     }
   }
@@ -277,7 +273,7 @@ void Component::transfer_focus_up_cycle() {
 
 void Component::transfer_focus_down_cycle() {
   if (is_focus_cycle_root()) {
-    KeyboardFocusManager::set_global_current_focus_cycle_root(shared_from_this());
+    KeyboardFocusManager::get_current_focus_cycle_root(shared_from_this());
     if (auto to_focus = get_focus_traversal_policy()->get_default_component(shared_from_this())) {
       to_focus->request_focus(FocusEvent::Cause::TRAVERSAL_DOWN);
     }
@@ -661,24 +657,73 @@ void Component::show() {
 }
 
 void Component::hide() {
+  if (this->visible) {
+    clear_current_focus_cycle_root_on_hide();
+    clear_most_recent_focus_owner_on_hide();
+
+    std::unique_lock lock(tree_mutex);
+    this->visible = false;
+    if (contains_focus() /*TODO and KeyboardFocusManager::is_auto_focus_transfer_enabled()*/) {
+      transfer_focus(true);
+    }
+    create_hierarchy_events(HierarchyEvent::SHOWING_CHANGED, shared_from_this(), get_parent());
+    repaint();
+
+    post_event<ComponentEvent>(ComponentEvent::COMPONENT_HIDDEN);
+
+    if (auto parent = get_parent()) {
+      parent->invalidate();
+    }
+  }
+}
+
+bool Component::contains_focus() const {
+  return is_parent_of(KeyboardFocusManager::get_focus_owner());
+}
+
+bool Component::is_parent_of(std::shared_ptr<Component> component) const {
+  std::unique_lock lock(tree_mutex);
+  while (component and component.get() != this and not is_window(component)) {
+    component = component->get_parent();
+  }
+  return (component.get() == this);
+}
+
+void Component::clear_current_focus_cycle_root_on_hide() {
+  auto focus_cycle_root = KeyboardFocusManager::get_current_focus_cycle_root();
+  if (this == focus_cycle_root.get() or is_parent_of(focus_cycle_root)) {
+    KeyboardFocusManager::get_current_focus_cycle_root(nullptr);
+  }
+}
+
+void Component::clear_most_recent_focus_owner_on_hide() {
+  std::unique_lock lock(tree_mutex);
+  if (auto window = get_containing_window()) {
+    auto focus_owner = KeyboardFocusManager::get_most_recent_focus_owner(window);
+    auto reset = ((focus_owner.get() == this) or is_parent_of(focus_owner));
+    auto storedComp = window->get_temporary_lost_component();
+    if (is_parent_of(storedComp) or storedComp.get() == this) {
+      window->set_temporary_lost_component(nullptr);
+    }
+
+    if (reset) {
+      KeyboardFocusManager::set_most_recent_focus_owner(window, nullptr);
+    }
+  }
 }
 
 void Component::create_hierarchy_events(HierarchyEvent::Type type, const std::shared_ptr<Component> &changed, const std::shared_ptr<Component> &changed_parent) {
   for (auto &&component : this->components) {
     component->create_hierarchy_events(type, changed, changed_parent);
   }
-  if (is_event_enabled<HierarchyEvent>()) {
-    dispatch_event<HierarchyEvent>(type, changed, changed_parent);
-  }
+  post_event<HierarchyEvent>(type, changed, changed_parent);
 }
 
 void Component::create_hierarchy_bounds_events(HierarchyBoundsEvent::Type type, const std::shared_ptr<Component> &changed, const std::shared_ptr<Component> &changed_parent) {
   for (auto &&component : this->components) {
     component->create_hierarchy_bounds_events(type, changed, changed_parent);
   }
-  if (is_event_enabled<HierarchyBoundsEvent>()) {
-    dispatch_event<HierarchyBoundsEvent>(type, changed, changed_parent);
-  }
+  post_event<HierarchyBoundsEvent>(type, changed, changed_parent);
 }
 
 /**

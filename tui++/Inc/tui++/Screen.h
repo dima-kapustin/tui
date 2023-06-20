@@ -1,7 +1,7 @@
 #pragma once
 
+#include <list>
 #include <mutex>
-#include <vector>
 
 #include <tui++/Point.h>
 #include <tui++/Dimension.h>
@@ -18,13 +18,16 @@ protected:
   EventQueue event_queue;
 
   std::mutex windows_mutex;
-  std::vector<std::shared_ptr<Window>> windows;
+  std::list<std::shared_ptr<Window>> windows;
 
   Dimension size { };
 
 private:
-  void add_window(const std::shared_ptr<Window> &window);
-  void remove_window(const std::shared_ptr<Window> &window);
+  void show_window(const std::shared_ptr<Window> &window);
+  void hide_window(const std::shared_ptr<Window> &window);
+
+  void to_front(const std::shared_ptr<Window> &window);
+  void focus(const std::shared_ptr<Window> &window);
 
   friend class Window;
 
@@ -36,7 +39,7 @@ protected:
     post(event);
   }
 
-  template<typename T, typename ... Args>
+  template<typename T, typename Component, typename ... Args>
   void post_system(const std::shared_ptr<Component> &source, Args &&... args) {
     post_system(std::make_shared<Event>(std::in_place_type<T>, source, std::forward<Args>(args)...));
   }
@@ -73,7 +76,6 @@ public:
     post(std::make_shared<Event>(std::in_place_type<InvocationEvent>, fn));
   }
 
-  std::shared_ptr<Window> get_active_window();
   std::shared_ptr<Component> get_component_at(int x, int y);
   std::shared_ptr<Component> get_component_at(const Point &p) {
     return get_component_at(p.x, p.y);
@@ -82,7 +84,8 @@ public:
   virtual void refresh() = 0;
 
   template<typename W, typename ... Args>
-  std::enable_if_t<std::is_convertible_v<W*, Window*>, std::shared_ptr<W>> create_window(Args &&...args) {
+  requires (std::is_convertible_v<W*, Window*>)
+  std::shared_ptr<W> create_window(Args &&...args) {
     return std::shared_ptr<W> { new W(*this, std::forward<Args>(args)...) };
   }
 };

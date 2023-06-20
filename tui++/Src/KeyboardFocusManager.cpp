@@ -28,7 +28,7 @@ std::vector<std::shared_ptr<std::unordered_set<KeyStroke>>> KeyboardFocusManager
 
 bool KeyboardFocusManager::consume_next_key_typed = false;
 
-void KeyboardFocusManager::clear_global_focus_owner() {
+void KeyboardFocusManager::clear_focus_owner() {
   if (auto active_window = get_active_window()) {
     auto focus_owner = active_window->get_focus_owner();
     log_focus_ln("Clearing global focus owner " << focus_owner);
@@ -491,7 +491,7 @@ void KeyboardFocusManager::restore_focus(FocusEvent &e, const std::shared_ptr<Wi
   } else if (opposite_component and do_restore_focus(opposite_component, vetoed_component, false)) {
   } else if (e.opposite and do_restore_focus(e.opposite, vetoed_component, false)) {
   } else {
-    clear_global_focus_owner();
+    clear_focus_owner();
   }
 }
 
@@ -502,7 +502,7 @@ void KeyboardFocusManager::restore_focus(WindowEvent &e) {
   } else if (e.opposite_window and restore_focus(e.opposite_window, nullptr, false)) {
     // do nothing, everything is done in restoreFocus()
   } else {
-    clear_global_focus_owner();
+    clear_focus_owner();
   }
 }
 
@@ -516,7 +516,7 @@ bool KeyboardFocusManager::restore_focus(const std::shared_ptr<Window> &window, 
   }
 
   if (clear_on_failure) {
-    clear_global_focus_owner();
+    clear_focus_owner();
     return true;
   } else {
     return false;
@@ -536,7 +536,7 @@ bool KeyboardFocusManager::do_restore_focus(const std::shared_ptr<Component> &to
     if (next_focus and next_focus != vetoed_component and next_focus->request_focus_in_window(FocusEvent::Cause::ROLLBACK)) {
       return true;
     } else if (clear_on_failure) {
-      clear_global_focus_owner();
+      clear_focus_owner();
       return true;
     } else {
       return false;

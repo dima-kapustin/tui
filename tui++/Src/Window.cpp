@@ -72,12 +72,12 @@ void Window::set_focusable_window_state(bool state) {
       }
     }
 
-    KeyboardFocusManager::clear_global_focus_owner();
+    KeyboardFocusManager::clear_focus_owner();
   }
 }
 
 void Window::to_front() {
-
+  this->screen.to_front(std::dynamic_pointer_cast<Window>(shared_from_this()));
 }
 
 void Window::show() {
@@ -91,6 +91,7 @@ void Window::show() {
     // close_splash_screen();
     // Dialog::check_should_be_blocked(this);
     base::show();
+    this->screen.show_window(std::dynamic_pointer_cast<Window>(shared_from_this()));
   }
   this->in_show = false;
 
@@ -101,7 +102,8 @@ void Window::show() {
 }
 
 void Window::hide() {
-
+  this->screen.hide_window(std::dynamic_pointer_cast<Window>(shared_from_this()));
+  base::hide();
 }
 
 }

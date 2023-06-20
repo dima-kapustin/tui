@@ -7,7 +7,8 @@ namespace tui {
 class ComponentEvent: public BasicEvent {
 public:
   enum Type {
-    COMPONENT_SHOWN
+    COMPONENT_SHOWN,
+    COMPONENT_HIDDEN,
   };
 
 public:
