@@ -231,7 +231,7 @@ struct EventDump {
     this->os << " at " << event.x << "," << event.y;
   }
 
-  void operator()(const MouseHoverEvent &e) {
+  void operator()(const MouseOverEvent &e) {
 
   }
 
