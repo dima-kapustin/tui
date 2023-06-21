@@ -18,10 +18,10 @@ bool WindowMouseEventTracker::process_event(Event &e) {
             not this->isMouseInNativeContainer) {
           // any event but an exit or drag means we're in the native container
           this->isMouseInNativeContainer = true;
-//          startListeningForOtherDrags();
+          start_listening_for_other_drags();
         } else if (is_mouse_exited) {
           this->isMouseInNativeContainer = false;
-//          stopListeningForOtherDrags();
+          stop_listening_for_other_drags();
         }
 
 //        Component tle = retargetMouseEnterExit(targetOver, e, targetLastEntered.get(), isMouseInNativeContainer);
@@ -31,6 +31,14 @@ bool WindowMouseEventTracker::process_event(Event &e) {
 
   }
   return false;
+}
+
+void WindowMouseEventTracker::start_listening_for_other_drags() {
+  this->window->get_screen()->add_event_listener(shared_from_this(), EventType::MOUSE | EventType::MOUSE_MOVE | EventType::MOUSE_DRAG | EventType::MOUSE_OVER);
+}
+
+void WindowMouseEventTracker::stop_listening_for_other_drags() {
+  this->window->get_screen()->remove_event_listener(shared_from_this());
 }
 
 void WindowMouseEventTracker::event_dispatched(Event &e) {

@@ -1,18 +1,21 @@
 #pragma once
 
+#include <memory>
+
 #include <tui++/Event.h>
 
 namespace tui {
 
 class Window;
 
-class WindowMouseEventTracker: public EventListener<Event> {
+class WindowMouseEventTracker: public std::enable_shared_from_this<WindowMouseEventTracker>, public EventListener<Event> {
   Window *const window;
 
   bool isMouseInNativeContainer = false;
 
 private:
-  void track_mouse_enter_exit(const std::shared_ptr<Component> &target_over, Event &e);
+  void start_listening_for_other_drags();
+  void stop_listening_for_other_drags();
 
 public:
   WindowMouseEventTracker(Window *window) :
