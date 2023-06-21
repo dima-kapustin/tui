@@ -40,7 +40,7 @@ public:
   }
 };
 
-class MouseHoverEvent: public MouseEventBase {
+class MouseOverEvent: public MouseEventBase {
 public:
   enum Type {
     MOUSE_ENTERED,
@@ -50,7 +50,7 @@ public:
 public:
   const Type type;
 public:
-  constexpr MouseHoverEvent(const std::shared_ptr<Component> &source, Type type, Button button, Modifiers modifiers, int x, int y, const EventClock::time_point &when = EventClock::now()) :
+  constexpr MouseOverEvent(const std::shared_ptr<Component> &source, Type type, Button button, Modifiers modifiers, int x, int y, const EventClock::time_point &when = EventClock::now()) :
       MouseEventBase(source, button, modifiers, x, y, when), type(type) {
   }
 };

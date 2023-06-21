@@ -38,11 +38,11 @@ constexpr bool is_component_v = std::is_base_of_v<Component, T>;
 class Component: virtual public Object, public std::enable_shared_from_this<Component>, public EventSource<FocusEvent, MouseEvent, KeyEvent> {
   using base = EventSource<FocusEvent, MouseEvent, KeyEvent>;
 
+protected:
   static std::recursive_mutex tree_mutex;
 
   EventTypeMask event_mask = EventTypeMask::NONE;
 
-protected:
   std::string name;
 
   std::shared_ptr<Border> border;
@@ -312,21 +312,6 @@ protected:
     }
   }
 
-  std::shared_ptr<Component> get_component_at(int x, int y, bool visible_only) const {
-    for (auto &&c : this->components) {
-      auto cx = c->get_x();
-      auto cy = c->get_y();
-
-      if ((not visible_only or c->is_visible()) and c->contains(x - cx, y - cy)) {
-        if (c->has_children()) {
-          return c->get_component_at(x - cx, y - cy, visible_only);
-        }
-        return c;
-      }
-    }
-    return {};
-  }
-
   virtual Screen* get_screen() const;
 
   EventQueue* get_event_queue() const;
@@ -399,15 +384,16 @@ protected:
     }
   }
 
+  std::shared_ptr<Component> get_mouse_event_target(int x, int y, bool include_self) const;
+
   friend class Window;
   friend class KeyboardFocusManager;
 
 public:
-  virtual ~Component() {
-  }
+  virtual ~Component();
 
   template<typename T, typename ... Args>
-  requires (is_component_v<T>)
+  requires (is_component_v<T> )
   T& add(Args ... args) noexcept (false) {
     add(std::make_shared<T>(std::forward<Args>(args)...));
   }
@@ -432,7 +418,7 @@ public:
     invalidate();
   }
 
-  void dispatch_event(Event &e);
+  virtual void dispatch_event(Event &e);
 
   template<typename T, typename ... Args>
   void dispatch_event(Args &&... args) {
@@ -457,7 +443,15 @@ public:
   }
 
   std::shared_ptr<Component> get_component_at(int x, int y) const {
-    return get_component_at(x, y, false);
+    for (auto &&c : this->components) {
+      auto cx = c->get_x();
+      auto cy = c->get_y();
+
+      if (c->contains(x - cx, y - cy)) {
+        return c;
+      }
+    }
+    return {};
   }
 
   std::shared_ptr<Component> get_component_at(const Point &p) const {

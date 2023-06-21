@@ -57,10 +57,10 @@ public:
 };
 
 template<>
-class EventListener<MouseHoverEvent> : public BasicEventListener<MouseHoverEvent> {
+class EventListener<MouseOverEvent> : public BasicEventListener<MouseOverEvent> {
 public:
-  virtual void mouse_entered(MouseHoverEvent &e) = 0;
-  virtual void mouse_exited(MouseHoverEvent &e) = 0;
+  virtual void mouse_entered(MouseOverEvent &e) = 0;
+  virtual void mouse_exited(MouseOverEvent &e) = 0;
 };
 
 template<>

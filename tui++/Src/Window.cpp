@@ -4,6 +4,20 @@
 
 namespace tui {
 
+void Window::add_notify() {
+  base::add_notify();
+  this->mouse_event_tracker = std::make_unique<WindowMouseEventTracker>(this);
+}
+
+void Window::dispatch_event(Event &e) {
+  constexpr auto tracker_event_mask = EventType::MOUSE | EventType::MOUSE_MOVE | EventType::MOUSE_OVER;
+  if (this->mouse_event_tracker and tracker_event_mask & e.get_type()) {
+    this->mouse_event_tracker->process_event(e);
+    return;
+  }
+  base::dispatch_event(e);
+}
+
 void Window::paint_components(Graphics &g) {
   int x = get_x(), y = get_y();
   g.translate(x, y);

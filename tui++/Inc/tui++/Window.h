@@ -2,17 +2,21 @@
 
 #include <tui++/Component.h>
 #include <tui++/event/WindowEvent.h>
+#include <tui++/WindowMouseEventTracker.h>
 
 namespace tui {
 
 class Screen;
 class KeyboardFocusManager;
+class MouseEventDispatcher;
 
 class Window: public ComponentExtension<Component, WindowEvent> {
   using base = Component;
 
   Screen &screen;
   std::shared_ptr<Window> owner;
+
+  std::unique_ptr<WindowMouseEventTracker> mouse_event_tracker;
 
   Property<bool> focusable_window_state { this, "focusable_window_state", false };
 
@@ -50,6 +54,7 @@ private:
 
   friend class Component;
   friend class KeyboardFocusManager;
+  friend class WindowMouseEventTracker;
 
 protected:
   Window(Screen &screen) :
@@ -63,10 +68,12 @@ protected:
   friend class Screen;
 
 protected:
+  void add_notify() override;
+
   void paint_components(Graphics &g) override;
 
-  virtual void show() override;
-  virtual void hide() override;
+  void show() override;
+  void hide() override;
 
 public:
   std::shared_ptr<Window> get_owner() const {
@@ -101,6 +108,8 @@ public:
   }
 
   void set_focusable_window_state(bool state);
+
+  void dispatch_event(Event &e) override;
 };
 
 constexpr WindowEvent::WindowEvent(const std::shared_ptr<Window> &source_window, Type type, const std::shared_ptr<Window> &opposite_window) :

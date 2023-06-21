@@ -51,13 +51,13 @@ public:
     event_listener->mouse_wheel_moved(e);
   }
 
-  static void dispatch_event(const std::shared_ptr<EventListener<MouseHoverEvent>> &event_listener, MouseHoverEvent &e) {
+  static void dispatch_event(const std::shared_ptr<EventListener<MouseOverEvent>> &event_listener, MouseOverEvent &e) {
     switch (e.type) {
-    case MouseHoverEvent::MOUSE_ENTERED:
+    case MouseOverEvent::MOUSE_ENTERED:
       event_listener->mouse_entered(e);
       break;
 
-    case MouseHoverEvent::MOUSE_EXITED:
+    case MouseOverEvent::MOUSE_EXITED:
       event_listener->mouse_exited(e);
       break;
     }
@@ -131,7 +131,7 @@ public:
       dispatch_event(event_listener, e);
     } else if constexpr (std::is_same_v<MouseWheelEvent, Event>) {
       dispatch_event(event_listener, e);
-    } else if constexpr (std::is_same_v<MouseHoverEvent, Event>) {
+    } else if constexpr (std::is_same_v<MouseOverEvent, Event>) {
       dispatch_event(event_listener, e);
     } else if constexpr (std::is_same_v<ItemEvent, Event>) {
       dispatch_event(event_listener, e);

@@ -3,6 +3,7 @@
 #include <list>
 #include <mutex>
 
+#include <tui++/Event.h>
 #include <tui++/Point.h>
 #include <tui++/Dimension.h>
 #include <tui++/EventQueue.h>
@@ -15,11 +16,18 @@ class Window;
 class Graphics;
 
 class Screen {
+  struct SelectiveEventListener {
+    std::shared_ptr<EventListener<Event>> event_listener;
+    EventTypeMask event_mask;
+  };
+
 protected:
+  std::list<SelectiveEventListener> selective_event_listeners;
+
   bool quit = false;
   EventQueue event_queue;
 
-  std::mutex windows_mutex;
+  mutable std::mutex windows_mutex;
   std::list<std::shared_ptr<Window>> windows;
 
   Dimension size { };
@@ -78,8 +86,8 @@ public:
     post(std::make_shared<Event>(std::in_place_type<InvocationEvent>, fn));
   }
 
-  std::shared_ptr<Component> get_component_at(int x, int y);
-  std::shared_ptr<Component> get_component_at(const Point &p) {
+  std::shared_ptr<Component> get_component_at(int x, int y) const;
+  std::shared_ptr<Component> get_component_at(const Point &p) const {
     return get_component_at(p.x, p.y);
   }
 
@@ -95,6 +103,35 @@ public:
   requires (std::is_convertible_v<D*, Dialog*>)
   std::shared_ptr<D> create_dialog(Args &&...args) {
     return std::shared_ptr<D> { new D(*this, std::forward<Args>(args)...) };
+  }
+
+  void add_event_listener(const std::shared_ptr<EventListener<Event>> &event_listener, const EventTypeMask &event_mask) {
+    for (auto i = this->selective_event_listeners.begin(); i != this->selective_event_listeners.end(); ++i) {
+      if (i->event_listener == event_listener) {
+        i->event_mask |= event_mask;
+        return;
+      }
+    }
+    this->selective_event_listeners.emplace_back(event_listener, event_mask);
+  }
+
+  void remove_event_listener(const std::shared_ptr<EventListener<Event>> &event_listener) {
+    for (auto i = this->selective_event_listeners.begin(); i != this->selective_event_listeners.end();) {
+      if (i->event_listener == event_listener) {
+        this->selective_event_listeners.erase(i);
+        break;
+      } else {
+        ++i;
+      }
+    }
+  }
+
+  void notify_event_listeners(Event &e) {
+    for (auto &&selective_event_listener : this->selective_event_listeners) {
+      if (selective_event_listener.event_mask & e.get_type()) {
+        selective_event_listener.event_listener->event_dispatched(e);
+      }
+    }
   }
 };
 

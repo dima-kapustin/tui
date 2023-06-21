@@ -15,7 +15,7 @@ void Screen::post(const std::shared_ptr<Event> &event) {
   this->event_queue.push(event);
 }
 
-std::shared_ptr<Component> Screen::get_component_at(int x, int y) {
+std::shared_ptr<Component> Screen::get_component_at(int x, int y) const {
   std::unique_lock lock(this->windows_mutex);
   for (auto &&window : this->windows) {
     if (window->contains(x, y)) {
@@ -48,7 +48,7 @@ void Screen::to_front(const std::shared_ptr<Window> &window) {
   if (this->windows.front() != window) {
     if (auto pos = std::remove(this->windows.begin(), this->windows.end(), window); pos != this->windows.end()) {
       this->windows.erase(pos, this->windows.end());
-      this->windows.emplace_front();
+      this->windows.emplace_front(window);
     } else {
       throw std::runtime_error("unknown window");
     }

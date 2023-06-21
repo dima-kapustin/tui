@@ -12,6 +12,8 @@
 #include <tui++/event/HierarchyBoundsEvent.h>
 #include <tui++/event/InvocationEvent.h>
 
+#include <tui++/event/EventListener.h>
+
 #include <tui++/util/EnumFlags.h>
 
 #include <variant>
@@ -23,17 +25,18 @@ enum class EventType : unsigned {
   ITEM = 1 << 1,
   FOCUS = 1 << 2,
   MOUSE = 1 << 3,
-  MOUSE_MOVE = 1 << 4,
-  MOUSE_DRAG = 1 << 5,
-  MOUSE_CLICK = 1 << 6,
-  MOUSE_WHEEL = 1 << 7,
-  ACTION = 1 << 8,
-  WINDOW = 1 << 9,
-  COMPONENT = 1 << 10,
-  CONTAINER = 1 << 11,
-  HIERARCHY = 1 << 12,
-  HIERARCHY_BOUNDS = 1 << 13,
-  INVOCATION = 1 << 14,
+  MOUSE_OVER = 1 << 4,
+  MOUSE_MOVE = 1 << 5,
+  MOUSE_DRAG = 1 << 6,
+  MOUSE_CLICK = 1 << 7,
+  MOUSE_WHEEL = 1 << 8,
+  ACTION = 1 << 9,
+  WINDOW = 1 << 10,
+  COMPONENT = 1 << 11,
+  CONTAINER = 1 << 12,
+  HIERARCHY = 1 << 13,
+  HIERARCHY_BOUNDS = 1 << 14,
+  INVOCATION = 1 << 15,
 };
 
 using EventVariant = std::variant<
@@ -41,6 +44,7 @@ using EventVariant = std::variant<
 /**/ItemEvent,
 /**/FocusEvent,
 /**/MouseEvent,
+/**/MouseOverEvent,
 /**/MouseMoveEvent,
 /**/MouseDragEvent,
 /**/MouseClickEvent,
@@ -54,7 +58,7 @@ using EventVariant = std::variant<
 /**/InvocationEvent>;
 
 template<EventType event_type>
-struct event_alternative: std::variant_alternative<std::countr_zero(std::to_underlying (event_type)), EventVariant> {
+struct event_alternative: std::variant_alternative<std::countr_zero(std::to_underlying(event_type)), EventVariant> {
 };
 
 template<EventType event_type>
@@ -64,6 +68,7 @@ static_assert(std::is_same_v<KeyEvent, event_alternative_t<EventType::KEY>>);
 static_assert(std::is_same_v<ItemEvent, event_alternative_t<EventType::ITEM>>);
 static_assert(std::is_same_v<FocusEvent, event_alternative_t<EventType::FOCUS>>);
 static_assert(std::is_same_v<MouseEvent, event_alternative_t<EventType::MOUSE>>);
+static_assert(std::is_same_v<MouseOverEvent, event_alternative_t<EventType::MOUSE_OVER>>);
 static_assert(std::is_same_v<MouseMoveEvent, event_alternative_t<EventType::MOUSE_MOVE>>);
 static_assert(std::is_same_v<MouseDragEvent, event_alternative_t<EventType::MOUSE_DRAG>>);
 static_assert(std::is_same_v<MouseClickEvent, event_alternative_t<EventType::MOUSE_CLICK>>);
@@ -134,5 +139,11 @@ public:
 };
 
 std::ostream& operator<<(std::ostream &os, const Event &event);
+
+template<>
+class EventListener<Event> : public BasicEventListener<Event> {
+public:
+  virtual void event_dispatched(Event &e) = 0;
+};
 
 }
