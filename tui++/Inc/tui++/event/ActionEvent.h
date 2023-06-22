@@ -13,6 +13,9 @@ struct ActionEvent: public BasicEvent {
   constexpr static auto CTRL_DOWN = InputEvent::CTRL_DOWN;
   constexpr static auto ALT_DOWN = InputEvent::ALT_DOWN;
   constexpr static auto META_DOWN = InputEvent::META_DOWN;
+  constexpr static auto LEFT_BUTTON_DOWN = InputEvent::LEFT_BUTTON_DOWN;
+  constexpr static auto MIDDLE_BUTTON_DOWN = InputEvent::LEFT_BUTTON_DOWN;
+  constexpr static auto RIGHT_BUTTON_DOWN = InputEvent::LEFT_BUTTON_DOWN;
 
   using Modifiers = InputEvent::Modifiers;
 

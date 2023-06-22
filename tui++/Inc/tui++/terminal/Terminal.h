@@ -166,26 +166,26 @@ class Terminal {
     void parse_utf8(char first_byte);
 
   private:
-    void new_key_event(const Char &c, InputEvent::Modifiers modifiers = InputEvent::NO_MODIFIERS) {
-      this->terminal.new_key_event(c, modifiers);
+    void new_key_event(const Char &c, InputEvent::Modifiers key_modifiers = InputEvent::NO_MODIFIERS) {
+      this->terminal.new_key_event(c, key_modifiers);
     }
 
-    void new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers = InputEvent::NO_MODIFIERS) {
-      this->terminal.new_key_event(key_code, modifiers);
+    void new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers key_modifiers = InputEvent::NO_MODIFIERS) {
+      this->terminal.new_key_event(key_code, key_modifiers);
     }
 
     void new_mouse_event(bool pressed) {
       auto button = this->csi_params[0] & 3;
-      InputEvent::Modifiers modifiers = this->csi_params[0] & 4 ? InputEvent::SHIFT_DOWN : InputEvent::NO_MODIFIERS;
-      modifiers |= this->csi_params[0] & 8 ? InputEvent::META_DOWN : InputEvent::NO_MODIFIERS;
-      modifiers |= this->csi_params[0] & 16 ? InputEvent::CTRL_DOWN : InputEvent::NO_MODIFIERS;
+      InputEvent::Modifiers key_modifiers = this->csi_params[0] & 4 ? InputEvent::SHIFT_DOWN : InputEvent::NO_MODIFIERS;
+      key_modifiers |= this->csi_params[0] & 8 ? InputEvent::META_DOWN : InputEvent::NO_MODIFIERS;
+      key_modifiers |= this->csi_params[0] & 16 ? InputEvent::CTRL_DOWN : InputEvent::NO_MODIFIERS;
       int x = this->csi_params[1];
       int y = this->csi_params[2];
       if (this->csi_params[0] & 64) {
-        this->terminal.new_mouse_wheel_event(button == 0 ? -1 : 1, InputEvent::Modifiers(modifiers), x, y);
+        this->terminal.new_mouse_wheel_event(button == 0 ? -1 : 1, key_modifiers, x, y);
       } else {
         auto type = pressed ? MouseEvent::MOUSE_PRESSED : MouseEvent::MOUSE_RELEASED;
-        this->terminal.new_mouse_event(type, MouseEvent::Button(button), InputEvent::Modifiers(modifiers), x, y);
+        this->terminal.new_mouse_event(type, MouseEvent::Button(button), key_modifiers, x, y);
       }
     }
 
@@ -224,8 +224,8 @@ private:
     MouseEvent::Type type;
     MouseEvent::Button button = MouseEvent::NO_BUTTON;
     int x, y;
-    InputEvent::Modifiers modifiers;
   } prev_mouse_event;
+  InputEvent::Modifiers modifiers = InputEvent::NO_MODIFIERS;
   Clock::time_point prev_mouse_press_time;
   Clock::time_point prev_mouse_click_time;
 
@@ -246,10 +246,10 @@ private:
   void deinit();
 
   void new_resize_event();
-  void new_key_event(const Char &c, InputEvent::Modifiers modifiers);
-  void new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers);
-  void new_mouse_event(MouseEvent::Type type, MouseEvent::Button button, InputEvent::Modifiers modifiers, int x, int y);
-  void new_mouse_wheel_event(int wheel_rotation, InputEvent::Modifiers modifiers, int x, int y);
+  void new_key_event(const Char &c, InputEvent::Modifiers key_modifiers);
+  void new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers key_modifiers);
+  void new_mouse_event(MouseEvent::Type type, MouseEvent::Button button, InputEvent::Modifiers key_modifiers, int x, int y);
+  void new_mouse_wheel_event(int wheel_rotation, InputEvent::Modifiers key_modifiers, int x, int y);
 //  void new_mouse_move_event(InputEvent::Modifiers modifiers, int x, int y);
 //  void new_mouse_drag_event(MouseEvent::Button button, InputEvent::Modifiers modifiers, int x, int y);
 //  void new_mouse_click_event(MouseEvent::Button button, InputEvent::Modifiers modifiers, int x, int y);

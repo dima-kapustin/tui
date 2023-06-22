@@ -23,6 +23,15 @@ protected:
   }
 };
 
+constexpr InputEvent::Modifier to_modifier(MouseEventBase::Button button) {
+  return button == MouseEventBase::NO_BUTTON? InputEvent::NO_MODIFIERS : InputEvent::Modifier(1 << (std::to_underlying(button) + 5));
+}
+
+static_assert(InputEvent::Modifier::NO_MODIFIERS == to_modifier(MouseEventBase::NO_BUTTON));
+static_assert(InputEvent::Modifier::LEFT_BUTTON_DOWN == to_modifier(MouseEventBase::LEFT_BUTTON));
+static_assert(InputEvent::Modifier::MIDDLE_BUTTON_DOWN == to_modifier(MouseEventBase::MIDDLE_BUTTON));
+static_assert(InputEvent::Modifier::RIGHT_BUTTON_DOWN == to_modifier(MouseEventBase::RIGHT_BUTTON));
+
 class MouseEvent: public MouseEventBase {
 public:
   enum Type {

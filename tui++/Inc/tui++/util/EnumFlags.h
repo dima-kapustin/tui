@@ -144,12 +144,20 @@ public:
 
 }
 
-template<typename E, std::enable_if_t<std::is_enum_v<E>, bool> = true>
+template<typename E>
+requires (std::is_enum_v<E>)
 constexpr tui::util::EnumFlags<E> operator|(E a, E b) {
   return {E(std::underlying_type_t<E>(a) | std::underlying_type_t<E>(b))};
 }
 
-template<typename E, std::enable_if_t<std::is_enum_v<E>, bool> = true>
+template<typename E>
+requires (std::is_enum_v<E>)
 constexpr tui::util::EnumFlags<E> operator&(E a, E b) {
   return {E(std::underlying_type_t<E>(a) & std::underlying_type_t<E>(b))};
+}
+
+template<typename E>
+requires (std::is_enum_v<E>)
+constexpr tui::util::EnumFlags<E> operator~(E a) {
+  return {E(~std::underlying_type_t<E>(a))};
 }

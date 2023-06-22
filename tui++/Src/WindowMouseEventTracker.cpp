@@ -24,8 +24,7 @@ bool WindowMouseEventTracker::process_event(Event &e) {
           stop_listening_for_other_drags();
         }
 
-//        Component tle = retargetMouseEnterExit(targetOver, e, targetLastEntered.get(), isMouseInNativeContainer);
-//        targetLastEntered = new WeakReference<>(tle);
+        this->target_last_entered = retarget_mouse_enter_exit(target_over, e, target_last_entered.lock(), this->isMouseInNativeContainer);
       }
     }, e);
 
@@ -33,8 +32,34 @@ bool WindowMouseEventTracker::process_event(Event &e) {
   return false;
 }
 
+std::shared_ptr<Component> WindowMouseEventTracker::retarget_mouse_enter_exit(const std::shared_ptr<Component> &target_over, Event &e, std::shared_ptr<Component> last_entered, bool in_window) {
+  auto target_enter = in_window ? target_over : nullptr;
+
+//  if (last_entered != target_enter) {
+//    if (last_entered) {
+//      retarget_mouse_event(last_entered, MouseOverEvent::MOUSE_EXITED, e);
+//    }
+//
+//    if (id == MouseOverEvent::MOUSE_EXITED) {
+//      // consume native exit event if we generate one
+//      e.consume();
+//    }
+//
+//    if (target_enter) {
+//      retarget_mouse_event(target_enter, MouseOverEvent::MOUSE_ENTERED, e);
+//    }
+//
+//    if (id == MouseOverEvent::MOUSE_ENTERED) {
+//      // consume native enter event if we generate one
+//      e.consume();
+//    }
+//  }
+  return target_enter;
+}
+
 void WindowMouseEventTracker::start_listening_for_other_drags() {
-  this->window->get_screen()->add_event_listener(shared_from_this(), EventType::MOUSE | EventType::MOUSE_MOVE | EventType::MOUSE_DRAG | EventType::MOUSE_OVER);
+  constexpr auto event_mask = EventType::MOUSE | EventType::MOUSE_MOVE | EventType::MOUSE_DRAG | EventType::MOUSE_OVER | EventType::MOUSE_WHEEL;
+  this->window->get_screen()->add_event_listener(shared_from_this(), event_mask);
 }
 
 void WindowMouseEventTracker::stop_listening_for_other_drags() {

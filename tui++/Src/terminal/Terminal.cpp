@@ -136,15 +136,15 @@ void Terminal::new_resize_event() {
   this->screen.terminal_resized();
 }
 
-void Terminal::new_key_event(const Char &c, InputEvent::Modifiers modifiers) {
-  this->screen.post_system<KeyEvent>(KeyboardFocusManager::get_focused_window(), c, modifiers);
+void Terminal::new_key_event(const Char &c, InputEvent::Modifiers key_modifiers) {
+  this->screen.post_system<KeyEvent>(KeyboardFocusManager::get_focused_window(), c, key_modifiers);
 }
 
-void Terminal::new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers) {
-  this->screen.post_system<KeyEvent>(KeyboardFocusManager::get_focused_window(), KeyEvent::KEY_PRESSED, key_code, modifiers);
+void Terminal::new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers key_modifiers) {
+  this->screen.post_system<KeyEvent>(KeyboardFocusManager::get_focused_window(), KeyEvent::KEY_PRESSED, key_code, key_modifiers);
 }
 
-void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button, InputEvent::Modifiers modifiers, int x, int y) {
+void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button, InputEvent::Modifiers key_modifiers, int x, int y) {
   auto motion = false;
   if ((prev_mouse_event.type == type and prev_mouse_event.button == button) or button == MouseEvent::NO_BUTTON) {
     if (prev_mouse_event.x == x and prev_mouse_event.y == y) {
@@ -152,6 +152,16 @@ void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button,
     } else {
       motion = true;
     }
+  }
+
+  modifiers = (modifiers & ~(InputEvent::SHIFT_DOWN | InputEvent::CTRL_DOWN | InputEvent::ALT_DOWN | InputEvent::META_DOWN)) | key_modifiers;
+
+  if (type == MouseEvent::MOUSE_PRESSED) {
+    if (button != MouseEvent::NO_BUTTON) {
+      modifiers |= to_modifier(button);
+    }
+  } else if (type == MouseEvent::MOUSE_RELEASED) {
+    modifiers &= ~to_modifier(button);
   }
 
   auto p = Point { x, y };
@@ -187,12 +197,11 @@ void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button,
 
   prev_mouse_event.type = type;
   prev_mouse_event.button = button;
-  prev_mouse_event.modifiers = modifiers;
   prev_mouse_event.x = x;
   prev_mouse_event.y = y;
 }
 
-void Terminal::new_mouse_wheel_event(int wheel_rotation, InputEvent::Modifiers modifiers, int x, int y) {
+void Terminal::new_mouse_wheel_event(int wheel_rotation, InputEvent::Modifiers key_modifiers, int x, int y) {
   auto p = Point { x, y };
 
   auto component = this->screen.get_component_at(p);
@@ -200,7 +209,7 @@ void Terminal::new_mouse_wheel_event(int wheel_rotation, InputEvent::Modifiers m
     p = convert_point_from_screen(p, component);
   }
 
-  this->screen.post_system<MouseWheelEvent>(component, modifiers, p.x, p.y, wheel_rotation);
+  this->screen.post_system<MouseWheelEvent>(component, key_modifiers, p.x, p.y, wheel_rotation);
 }
 
 std::shared_ptr<TerminalGraphics> Terminal::get_graphics() {
