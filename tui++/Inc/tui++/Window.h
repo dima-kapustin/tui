@@ -8,7 +8,6 @@ namespace tui {
 
 class Screen;
 class KeyboardFocusManager;
-class MouseEventDispatcher;
 
 class Window: public ComponentExtension<Component, WindowEvent> {
   using base = Component;
@@ -16,7 +15,7 @@ class Window: public ComponentExtension<Component, WindowEvent> {
   Screen &screen;
   std::shared_ptr<Window> owner;
 
-  std::unique_ptr<WindowMouseEventDispatcher> mouse_event_dispatcher;
+  std::shared_ptr<WindowMouseEventDispatcher> mouse_event_dispatcher;
 
   Property<bool> focusable_window_state { this, "focusable_window_state", false };
 
@@ -53,7 +52,7 @@ private:
     base::post_event<T, Window>(std::forward<Args>(args)...);
   }
 
-  void enable_event_dispatching(EventTypeMask event_mask) {
+  void enable_events_for_dispatching(EventTypeMask event_mask) {
     if (this->mouse_event_dispatcher) {
       this->mouse_event_dispatcher->enable_events(event_mask);
     }
@@ -61,7 +60,7 @@ private:
 
   friend class Component;
   friend class KeyboardFocusManager;
-  friend class WindowMouseEventTracker;
+  friend class WindowMouseEventDispatcher;
 
   void init();
 
@@ -86,7 +85,13 @@ protected:
   void show() override;
   void hide() override;
 
+  void dispatch_event_to_self(Event &e) {
+    base::dispatch_event(e);
+  }
+
 public:
+  void dispatch_event(Event &e) override;
+
   std::shared_ptr<Window> get_owner() const {
     return this->owner;
   }
@@ -119,8 +124,6 @@ public:
   }
 
   void set_focusable_window_state(bool state);
-
-  void dispatch_event(Event &e) override;
 
   void pack();
 };

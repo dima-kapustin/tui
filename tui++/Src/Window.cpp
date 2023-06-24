@@ -6,7 +6,7 @@ namespace tui {
 
 void Window::add_notify() {
   base::add_notify();
-  this->mouse_event_dispatcher = std::make_unique<WindowMouseEventDispatcher>(this);
+  this->mouse_event_dispatcher = std::make_shared<WindowMouseEventDispatcher>(this);
 }
 
 void Window::dispatch_event(Event &e) {

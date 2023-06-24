@@ -27,7 +27,7 @@ private:
 
   template<typename E>
   requires (is_mouse_event_v<E> )
-  void retarget_mouse_event(const std::shared_ptr<Component> &target, E &e);
+  void retarget_mouse_event(const std::shared_ptr<Component> &target, Event &e);
 
 public:
   WindowMouseEventDispatcher(Window *window) :
