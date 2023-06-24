@@ -293,9 +293,14 @@ class MultipleEventSource: virtual public MultipleEventSourceBase, virtual prote
     auto event_mask = event_mask_v<Event>;
     if (SingleEventSource<Event>::event_listeners.empty()) {
       this->event_listener_mask &= ~event_mask;
+      event_listener_mask_updated(event_mask, EventTypeMask::NONE);
     } else {
       this->event_listener_mask |= event_mask;
+      event_listener_mask_updated(EventTypeMask::NONE, event_mask);
     }
+  }
+
+  virtual void event_listener_mask_updated(const EventTypeMask &removed, const EventTypeMask &added) {
   }
 
 protected:

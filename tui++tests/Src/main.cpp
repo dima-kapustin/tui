@@ -1,3 +1,6 @@
+#include <tui++/Event.h>
+#include <tui++/Frame.h>
+
 #include <tui++/terminal/Terminal.h>
 #include <tui++/terminal/TerminalGraphics.h>
 
@@ -30,6 +33,14 @@ int main(int argc, char *argv[]) {
     g->set_stroke(Stroke::DOUBLE);
     g->draw_rounded_rect(0, 0, 14, 3);
     g->flush();
+  });
+
+  auto frame = terminal.create_frame<Frame>();
+  frame->set_size(terminal.get_size());
+  frame->pack();
+  frame->set_visible(true);
+
+  frame->add_event_listener([](MouseMoveEvent &e) {
   });
 
   terminal.run_event_loop();

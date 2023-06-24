@@ -6,13 +6,12 @@ namespace tui {
 
 void Window::add_notify() {
   base::add_notify();
-  this->mouse_event_tracker = std::make_unique<WindowMouseEventTracker>(this);
+  this->mouse_event_dispatcher = std::make_unique<WindowMouseEventDispatcher>(this);
 }
 
 void Window::dispatch_event(Event &e) {
-  constexpr auto tracker_event_mask = EventType::MOUSE | EventType::MOUSE_MOVE | EventType::MOUSE_OVER;
-  if (this->mouse_event_tracker and tracker_event_mask & e.get_type()) {
-    this->mouse_event_tracker->process_event(e);
+  if (this->mouse_event_dispatcher and (MOUSE_EVENT_MASK & e.get_type())) {
+    this->mouse_event_dispatcher->dispatch_event(e);
     return;
   }
   base::dispatch_event(e);
@@ -118,6 +117,30 @@ void Window::show() {
 void Window::hide() {
   this->screen.hide_window(std::dynamic_pointer_cast<Window>(shared_from_this()));
   base::hide();
+}
+
+void Window::init() {
+  set_focus_traversal_policy(KeyboardFocusManager::get_default_focus_traversal_policy());
+}
+
+void Window::pack() {
+  if (auto parent = get_parent()) {
+    parent->add_notify();
+  }
+
+  add_notify();
+
+  // TODO
+//    Dimension newSize = getPreferredSize();
+//    if (peer != null) {
+//        setClientSize(newSize.width, newSize.height);
+//    }
+
+  if (this->before_first_show) {
+    this->packed = true;
+  }
+
+  validate_unconditionally();
 }
 
 }

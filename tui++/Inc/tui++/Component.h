@@ -35,8 +35,8 @@ class EventQueue;
 template<typename T>
 constexpr bool is_component_v = std::is_base_of_v<Component, T>;
 
-class Component: virtual public Object, public std::enable_shared_from_this<Component>, public EventSource<FocusEvent, MouseEvent, KeyEvent> {
-  using base = EventSource<FocusEvent, MouseEvent, KeyEvent>;
+class Component: virtual public Object, public std::enable_shared_from_this<Component>, public EventSource<ComponentEvent, FocusEvent, HierarchyEvent, HierarchyBoundsEvent, KeyEvent, MouseEvent, MouseClickEvent, MouseMoveEvent, MouseOverEvent, MouseWheelEvent> {
+  using base = EventSource<ComponentEvent, FocusEvent, HierarchyEvent, HierarchyBoundsEvent, KeyEvent, MouseEvent, MouseClickEvent, MouseMoveEvent, MouseOverEvent, MouseWheelEvent>;
 
 protected:
   static std::recursive_mutex tree_mutex;
@@ -90,7 +90,7 @@ protected:
   mutable std::shared_ptr<ComponentInputMap> window_input_map;
   mutable std::shared_ptr<ActionMap> action_map;
 
-  std::shared_ptr<FocusTraversalPolicy> focus_traversal_policy;
+  Property<std::shared_ptr<FocusTraversalPolicy>> focus_traversal_policy { this, "focus_traversal_policy" };
   bool focus_traversal_policy_provider;
 
   /**
@@ -231,13 +231,10 @@ protected:
 protected:
   static bool is_window(const std::shared_ptr<Component> &component);
 
-  void enable_events(EventTypeMask event_mask) {
-    this->event_mask |= event_mask;
-  }
+  void enable_events(EventTypeMask event_mask);
+  void disable_events(EventTypeMask event_mask);
 
-  void disable_events(EventTypeMask event_mask) {
-    this->event_mask &= ~event_mask;
-  }
+  virtual void event_listener_mask_updated(const EventTypeMask &removed, const EventTypeMask &added) override;
 
   virtual void show();
   virtual void hide();
@@ -540,11 +537,6 @@ public:
   const Dimension& get_size() const {
     return this->size;
   }
-
-  /**
-   * Get the Window that contains this component.
-   */
-  std::shared_ptr<Window> get_window_ancestor() const noexcept (false);
 
   /**
    * Gets the preferred size of this component.
@@ -1027,6 +1019,11 @@ public:
     } else {
       return KeyboardFocusManager::get_default_focus_traversal_policy();
     }
+  }
+
+  void set_focus_traversal_policy(const std::shared_ptr<FocusTraversalPolicy> &policy) {
+    // TODO synchronize?
+    this->focus_traversal_policy = policy;
   }
 
   template<typename Event>

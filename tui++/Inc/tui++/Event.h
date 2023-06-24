@@ -83,6 +83,8 @@ static_assert(std::is_same_v<InvocationEvent, event_alternative_t<EventType::INV
 
 using EventTypeMask = util::EnumFlags<EventType>;
 
+constexpr EventTypeMask MOUSE_EVENT_MASK = EventType::MOUSE | EventType::MOUSE_CLICK | EventType::MOUSE_DRAG | EventType::MOUSE_MOVE | EventType::MOUSE_OVER | EventType::MOUSE_WHEEL;
+
 namespace detail {
 
 template<typename T, typename V>
@@ -107,6 +109,14 @@ constexpr EventType event_type_v = event_type<Event>::value;
 
 template<typename Event, typename ... Events>
 constexpr EventTypeMask event_mask_v = (event_type_v<Event> | ... | event_type_v<Events>);
+
+template<typename E>
+struct is_mouse_event {
+  constexpr static bool value = MOUSE_EVENT_MASK & event_type_v<E>;
+};
+
+template<typename E>
+constexpr bool is_mouse_event_v = is_mouse_event<E>::value;
 
 class Screen;
 class KeyboardFocusManager;
@@ -145,5 +155,10 @@ class EventListener<Event> : public BasicEventListener<Event> {
 public:
   virtual void event_dispatched(Event &e) = 0;
 };
+
+template<typename T, typename ...Args>
+constexpr auto make_event(Args ... args) {
+  return Event { std::in_place_type<T>, std::forward<Args>(args)... };
+}
 
 }

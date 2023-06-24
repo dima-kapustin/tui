@@ -17,19 +17,6 @@ bool Component::descend_unconditionally_when_validating = false;
 Component::~Component() {
 }
 
-std::shared_ptr<Window> Component::get_window_ancestor() const {
-  if (auto window = std::dynamic_pointer_cast<Window>(const_cast<Component*>(this)->shared_from_this())) {
-    return window;
-  }
-
-  for (auto ancestor = get_parent(); ancestor; ancestor = ancestor->get_parent()) {
-    if (auto window = std::dynamic_pointer_cast<Window>(ancestor)) {
-      return window;
-    }
-  }
-  throw std::runtime_error("No window ancestor");
-}
-
 void Component::paint_border(Graphics &g) {
   if (this->border) {
     this->border->paint_border(*this, g, 0, 0, get_width(), get_height());
@@ -48,6 +35,18 @@ void Component::paint_components(Graphics &g) {
       g.translate(-x, -y);
     }
   }
+}
+
+void Component::enable_events(EventTypeMask event_mask) {
+  this->event_mask |= event_mask;
+
+  if (auto window = get_containing_window()) {
+    window->enable_event_dispatching(event_mask);
+  }
+}
+
+void Component::disable_events(EventTypeMask event_mask) {
+  this->event_mask &= ~event_mask;
 }
 
 bool Component::is_request_focus_accepted(bool temporary, bool focused_window_change_allowed, FocusEvent::Cause cause) {
@@ -284,7 +283,10 @@ void Component::transfer_focus_down_cycle() {
 }
 
 Screen* Component::get_screen() const {
-  return get_window_ancestor()->get_screen();
+  if (auto window = get_containing_window()) {
+    return window->get_screen();
+  }
+  return nullptr;
 }
 
 EventQueue* Component::get_event_queue() const {
@@ -413,6 +415,9 @@ void Component::add_impl(const std::shared_ptr<Component> &c, const std::any &co
 }
 
 void Component::add_notify() {
+  for (auto &&component : this->components) {
+    component->add_notify();
+  }
 }
 
 void Component::remove_impl(const std::shared_ptr<Component> &component) {
@@ -637,6 +642,12 @@ void Component::set_focus_traversal_keys(KeyboardFocusManager::FocusTraversalKey
         }
       }
     }
+  }
+}
+
+void Component::event_listener_mask_updated(const EventTypeMask &removed, const EventTypeMask &added) {
+  if (auto window = get_containing_window()) {
+    window->enable_event_dispatching(added);
   }
 }
 
