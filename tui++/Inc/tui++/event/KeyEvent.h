@@ -126,11 +126,9 @@ public:
   constexpr static Char CHAR_UNDEFINED { char32_t(0) };
 
   enum Type {
-    KEY_TYPED,
-    KEY_PRESSED,
+    KEY_TYPED = event_id_v<EventType::KEY, 0>,
+    KEY_PRESSED = event_id_v<EventType::KEY, 1>,
   };
-
-  const Type type;
 
 private:
   union {
@@ -140,20 +138,20 @@ private:
 
 public:
   constexpr KeyEvent(const std::shared_ptr<Component> &source, Type type, KeyCode key_code, Modifiers modifiers, const EventClock::time_point &when = EventClock::now()) :
-      InputEvent(source, modifiers, when), type(type), key_code(key_code) {
+      InputEvent(source, type, modifiers, when), key_code(key_code) {
   }
 
   constexpr KeyEvent(const std::shared_ptr<Component> &source, const Char &c, Modifiers modifiers, const EventClock::time_point &when = EventClock::now()) :
-      InputEvent(source, modifiers, when), type(KEY_TYPED), char_code(c) {
+      InputEvent(source, KEY_TYPED, modifiers, when), char_code(c) {
   }
 
 public:
   constexpr KeyCode get_key_code() const {
-    return this->type != KEY_TYPED ? this->key_code : VK_UNDEFINED;
+    return this->id != KEY_TYPED ? this->key_code : VK_UNDEFINED;
   }
 
   constexpr Char get_key_char() const {
-    return this->type == KEY_TYPED ? this->char_code : CHAR_UNDEFINED;
+    return this->id == KEY_TYPED ? this->char_code : CHAR_UNDEFINED;
   }
 
   /**

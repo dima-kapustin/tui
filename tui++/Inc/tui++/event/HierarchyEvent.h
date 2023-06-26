@@ -1,10 +1,10 @@
 #pragma once
 
-#include <tui++/event/BasicEvent.h>
+#include <tui++/event/Event.h>
 
 namespace tui {
 
-class BasicHierarchyEvent: public BasicEvent {
+class BasicHierarchyEvent: public Event {
 public:
   /**
    * The Component at the top of the hierarchy which was changed.
@@ -17,25 +17,23 @@ public:
   std::shared_ptr<Component> changed_parent;
 
 protected:
-  BasicHierarchyEvent(const std::shared_ptr<Component> &source, const std::shared_ptr<Component> &changed, const std::shared_ptr<Component> &changed_parent) :
-      BasicEvent(source), changed(changed), changed_parent(changed_parent) {
+  template<typename Id>
+  BasicHierarchyEvent(const std::shared_ptr<Component> &source, const Id &id, const std::shared_ptr<Component> &changed, const std::shared_ptr<Component> &changed_parent) :
+      Event(source, id), changed(changed), changed_parent(changed_parent) {
   }
 };
 
 class HierarchyEvent: public BasicHierarchyEvent {
 public:
-  enum Type {
-    PARENT_CHANGED,
-    DISPLAYABILITY_CHANGED,
-    SHOWING_CHANGED
+  enum Type : unsigned {
+    PARENT_CHANGED = event_id_v<EventType::HIERARCHY, 0>,
+    DISPLAYABILITY_CHANGED = event_id_v<EventType::HIERARCHY, 1>,
+    SHOWING_CHANGED = event_id_v<EventType::HIERARCHY, 2>
   };
 
 public:
-  const Type type;
-
-public:
   HierarchyEvent(const std::shared_ptr<Component> &source, Type type, const std::shared_ptr<Component> &changed, const std::shared_ptr<Component> &changed_parent) :
-      BasicHierarchyEvent(source, changed, changed_parent), type(type) {
+      BasicHierarchyEvent(source, type, changed, changed_parent) {
   }
 };
 

@@ -10,8 +10,8 @@ void Window::add_notify() {
 }
 
 void Window::dispatch_event(Event &e) {
-  if (this->mouse_event_dispatcher and (MOUSE_EVENT_MASK & e.get_type())) {
-    this->mouse_event_dispatcher->dispatch_event(e);
+  if (this->mouse_event_dispatcher and (MOUSE_EVENT_MASK & e.id)) {
+    this->mouse_event_dispatcher->dispatch_event(static_cast<MouseEventBase&>(e));
     return;
   }
   base::dispatch_event(e);

@@ -1,10 +1,10 @@
 #pragma once
 
-#include <tui++/event/BasicEvent.h>
+#include <tui++/event/Event.h>
 
 namespace tui {
 
-class ContainerEvent: public BasicEvent {
+class ContainerEvent: public Event {
 };
 
 }

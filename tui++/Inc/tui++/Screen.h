@@ -51,7 +51,7 @@ protected:
 
   template<typename T, typename Component, typename ... Args>
   void post_system(const std::shared_ptr<Component> &source, Args &&... args) {
-    post_system(std::make_shared<Event>(std::in_place_type<T>, source, std::forward<Args>(args)...));
+    post_system(std::make_shared<T>(source, std::forward<Args>(args)...));
   }
 
   void paint(Graphics &g);
@@ -78,12 +78,14 @@ public:
   }
 
   void post(const std::shared_ptr<Event> &event);
+
   template<typename T, typename Component, typename ... Args>
   void post(const std::shared_ptr<Component> &source, Args &&... args) {
-    post(std::make_shared<Event>(std::in_place_type<T>, source, std::forward<Args>(args)...));
+    post(std::make_shared<T>(source, std::forward<Args>(args)...));
   }
+
   void post(std::function<void()> fn) {
-    post(std::make_shared<Event>(std::in_place_type<InvocationEvent>, fn));
+    post(std::make_shared<InvocationEvent>(fn));
   }
 
   std::shared_ptr<Component> get_component_at(int x, int y) const;
@@ -128,7 +130,7 @@ public:
 
   void notify_event_listeners(Event &e) {
     for (auto &&selective_event_listener : this->selective_event_listeners) {
-      if (selective_event_listener.event_mask & e.get_type()) {
+      if (selective_event_listener.event_mask & e.id) {
         selective_event_listener.event_listener->event_dispatched(e);
       }
     }

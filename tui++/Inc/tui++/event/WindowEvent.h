@@ -1,33 +1,32 @@
 #pragma once
 
-#include <tui++/event/BasicEvent.h>
+#include <tui++/event/Event.h>
 
 namespace tui {
 
 class Window;
 
-class WindowEvent: public BasicEvent {
+class WindowEvent: public Event {
 public:
   enum Type {
-    WINDOW_OPENED,
-    WINDOW_CLOSING,
-    WINDOW_CLOSED,
-    WINDOW_ACTIVATED,
-    WINDOW_DEACTIVATED,
-    WINDOW_GAINED_FOCUS,
-    WINDOW_LOST_FOCUS,
-    WINDOW_ICONIFIED,
-    WINDOW_DEICONIFIED,
+    WINDOW_OPENED = event_id_v<EventType::WINDOW, 0>,
+    WINDOW_CLOSING = event_id_v<EventType::WINDOW, 1>,
+    WINDOW_CLOSED = event_id_v<EventType::WINDOW, 2>,
+    WINDOW_ACTIVATED = event_id_v<EventType::WINDOW, 3>,
+    WINDOW_DEACTIVATED = event_id_v<EventType::WINDOW, 4>,
+    WINDOW_GAINED_FOCUS = event_id_v<EventType::WINDOW, 5>,
+    WINDOW_LOST_FOCUS = event_id_v<EventType::WINDOW, 6>,
+    WINDOW_ICONIFIED = event_id_v<EventType::WINDOW, 7>,
+    WINDOW_DEICONIFIED = event_id_v<EventType::WINDOW, 8>,
     /**
      * The window-state-changed event type.  This event is delivered
      * when a Window's state is changed by virtue of it being
      * iconified, maximized etc.
      */
-    WINDOW_STATE_CHANGED
+    WINDOW_STATE_CHANGED = event_id_v<EventType::WINDOW, 9>
   };
 
 public:
-  const Type type;
   /**
    * The other Window involved in this focus or activation change.
    * For a WINDOW_ACTIVATED or WINDOW_GAINED_FOCUS event, this is the Window

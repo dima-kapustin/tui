@@ -1,22 +1,19 @@
 #pragma once
 
-#include <tui++/event/BasicEvent.h>
+#include <tui++/event/Event.h>
 
 namespace tui {
 
-class ComponentEvent: public BasicEvent {
+class ComponentEvent: public Event {
 public:
-  enum Type {
-    COMPONENT_SHOWN,
-    COMPONENT_HIDDEN,
+  enum Type : unsigned {
+    COMPONENT_SHOWN = event_id_v<EventType::COMPONENT, 0>,
+    COMPONENT_HIDDEN = event_id_v<EventType::COMPONENT, 1>,
   };
 
 public:
-  const Type type;
-
-public:
   ComponentEvent(const std::shared_ptr<Component> &source, Type type) :
-      BasicEvent(source), type(type) {
+      Event(source, type) {
   }
 };
 

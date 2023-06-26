@@ -83,7 +83,7 @@ public:
 
   constexpr KeyStroke(const KeyEvent &event) :
       modifiers(event.modifiers) {
-    switch (event.type) {
+    switch (event.id) {
     case KeyEvent::KEY_TYPED:
       this->key_char = event.get_key_char();
       this->key_code = KeyEvent::VK_UNDEFINED;

@@ -12,7 +12,7 @@ public:
   }
 
   static void dispatch_event(const std::shared_ptr<EventListener<KeyEvent>> &event_listener, KeyEvent &e) {
-    switch (e.type) {
+    switch (e.id) {
     case KeyEvent::KEY_PRESSED:
       event_listener->key_pressed(e);
       break;
@@ -24,7 +24,7 @@ public:
   }
 
   static void dispatch_event(const std::shared_ptr<EventListener<MouseEvent>> &event_listener, MouseEvent &e) {
-    switch (e.type) {
+    switch (e.id) {
     case MouseEvent::MOUSE_PRESSED:
       event_listener->mouse_pressed(e);
       break;
@@ -52,7 +52,7 @@ public:
   }
 
   static void dispatch_event(const std::shared_ptr<EventListener<MouseOverEvent>> &event_listener, MouseOverEvent &e) {
-    switch (e.type) {
+    switch (e.id) {
     case MouseOverEvent::MOUSE_ENTERED:
       event_listener->mouse_entered(e);
       break;
@@ -68,7 +68,7 @@ public:
   }
 
   static void dispatch_event(const std::shared_ptr<EventListener<FocusEvent>> &event_listener, FocusEvent &e) {
-    switch (e.type) {
+    switch (e.id) {
     case FocusEvent::FOCUS_GAINED:
       event_listener->focus_gained(e);
       break;
@@ -80,7 +80,7 @@ public:
   }
 
   static void dispatch_event(const std::shared_ptr<EventListener<WindowEvent>> &event_listener, WindowEvent &e) {
-    switch (e.type) {
+    switch (e.id) {
     case WindowEvent::WINDOW_OPENED:
       event_listener->window_opened(e);
       break;

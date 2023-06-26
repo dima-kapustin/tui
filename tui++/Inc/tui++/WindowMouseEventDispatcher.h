@@ -21,13 +21,9 @@ private:
   void start_listening_for_other_drags();
   void stop_listening_for_other_drags();
 
-  template<typename E>
-  requires (is_mouse_event_v<E> )
-  std::shared_ptr<Component> retarget_mouse_enter_exit(const std::shared_ptr<Component> &target_over, E &e, const std::shared_ptr<Component> &last_entered, bool in_window);
+  std::shared_ptr<Component> retarget_mouse_enter_exit(const std::shared_ptr<Component> &target_over, MouseEventBase &e, const std::shared_ptr<Component> &last_entered, bool in_window);
 
-  template<typename E>
-  requires (is_mouse_event_v<E> )
-  void retarget_mouse_event(const std::shared_ptr<Component> &target, Event &e);
+  void retarget_mouse_event(const std::shared_ptr<Component> &target, MouseEventBase &e);
 
 public:
   WindowMouseEventDispatcher(Window *window) :
@@ -39,7 +35,7 @@ public:
     this->event_mask |= event_mask;
   }
 
-  bool dispatch_event(Event &e);
+  bool dispatch_event(MouseEventBase &e);
 
   void event_dispatched(Event &e) override;
 };

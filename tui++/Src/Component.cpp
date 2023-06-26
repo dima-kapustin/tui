@@ -118,7 +118,7 @@ bool Component::is_request_focus_accepted(bool temporary, bool focused_window_ch
 bool Component::request_focus(bool temporary, bool focused_window_change_allowed, FocusEvent::Cause cause) {
   // 1) Check if the event being dispatched is a system-generated mouse event.
   auto current_event = get_event_queue()->get_current_event();
-  if (auto mouse_event = std::get_if<MouseEvent>(current_event.get()); mouse_event and current_event->system_generated) {
+  if (auto mouse_event = dynamic_cast<MouseEvent*>(current_event.get()); mouse_event and current_event->system_generated) {
     // 2) Sanity check: if the mouse event component source belongs to the same containing window.
     auto source = mouse_event->source;
     if (not source or source->get_containing_window() == get_containing_window()) {
@@ -306,7 +306,7 @@ std::shared_ptr<Window> Component::get_containing_window() const {
 
 bool Component::process_key_bindings(KeyEvent &e) {
   auto const ks = [&e]() -> KeyStroke {
-    if (e.type == KeyEvent::KEY_TYPED) {
+    if (e.id == KeyEvent::KEY_TYPED) {
       return {e.get_key_char()};
     } else {
       return {e.get_key_code(), e.modifiers};
@@ -461,7 +461,7 @@ void Component::dispatch_event(Event &e) {
   // Component.  If the MouseWheelEvent needs to go to an ancestor,
   // the event is dispatched to the ancestor, and dispatching here
   // stops.
-  if (auto mouse_wheel_event = std::get_if<MouseWheelEvent>(&e)) {
+  if (auto mouse_wheel_event = dynamic_cast<MouseWheelEvent*>(&e)) {
     if (dispatch_mouse_wheel_to_ancestor(*mouse_wheel_event)) {
       return;
     }
@@ -471,7 +471,7 @@ void Component::dispatch_event(Event &e) {
    * 3. If no one has consumed a key event, allow the
    *    KeyboardFocusManager to process it.
    */
-  if (auto key_event = std::get_if<KeyEvent>(&e)) {
+  if (auto key_event = dynamic_cast<KeyEvent*>(&e)) {
     if (not key_event->consumed) {
       KeyboardFocusManager::process_key_event(shared_from_this(), *key_event);
       if (key_event->consumed) {
@@ -606,9 +606,9 @@ bool Component::dispatch_mouse_wheel_to_ancestor(MouseWheelEvent &e) {
   }
 
   if (ancestor and ancestor->is_event_enabled(EventType::MOUSE_WHEEL)) {
-    auto new_event = Event { std::in_place_type<MouseWheelEvent>, ancestor, e.modifiers, x, y, e.wheel_rotation, e.when };
+    auto new_event = make_event<MouseWheelEvent>(ancestor, e.modifiers, x, y, e.wheel_rotation, e.when);
     ancestor->dispatch_event(new_event);
-    if (new_event.is_consumed<MouseWheelEvent>()) {
+    if (new_event.consumed) {
       e.consumed = true;
     }
     return true;

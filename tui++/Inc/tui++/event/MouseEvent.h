@@ -18,13 +18,14 @@ public:
   int x, y;
 
 protected:
-  constexpr MouseEventBase(const std::shared_ptr<Component> &source, Button button, Modifiers modifiers, int x, int y, const EventClock::time_point &when = EventClock::now()) :
-      InputEvent(source, modifiers, when), button(button), x(x), y(y) {
+  template<typename Id>
+  constexpr MouseEventBase(const std::shared_ptr<Component> &source, const Id &id, Button button, Modifiers modifiers, int x, int y, const EventClock::time_point &when = EventClock::now()) :
+      InputEvent(source, id, modifiers, when), button(button), x(x), y(y) {
   }
 };
 
 constexpr InputEvent::Modifier to_modifier(MouseEventBase::Button button) {
-  return button == MouseEventBase::NO_BUTTON? InputEvent::NO_MODIFIERS : InputEvent::Modifier(1 << (std::to_underlying(button) + 5));
+  return button == MouseEventBase::NO_BUTTON ? InputEvent::NO_MODIFIERS : InputEvent::Modifier(1 << (std::to_underlying(button) + 5));
 }
 
 static_assert(InputEvent::Modifier::NO_MODIFIERS == to_modifier(MouseEventBase::NO_BUTTON));
@@ -35,66 +36,71 @@ static_assert(InputEvent::Modifier::RIGHT_BUTTON_DOWN == to_modifier(MouseEventB
 class MouseEvent: public MouseEventBase {
 public:
   enum Type {
-    MOUSE_PRESSED,
-    MOUSE_RELEASED
+    MOUSE_PRESSED = event_id_v<EventType::MOUSE, 0>,
+    MOUSE_RELEASED = event_id_v<EventType::MOUSE, 1>
   };
 
 public:
-  const Type type;
   bool is_popup_trigger;
 
 public:
   constexpr MouseEvent(const std::shared_ptr<Component> &source, Type type, Button button, Modifiers modifiers, int x, int y, bool is_popup_trigger, const EventClock::time_point &when = EventClock::now()) :
-      MouseEventBase(source, button, modifiers, x, y, when), type(type), is_popup_trigger(is_popup_trigger) {
+      MouseEventBase(source, type, button, modifiers, x, y, when), is_popup_trigger(is_popup_trigger) {
   }
 };
 
 class MouseOverEvent: public MouseEventBase {
 public:
   enum Type {
-    MOUSE_ENTERED,
-    MOUSE_EXITED,
+    MOUSE_ENTERED = event_id_v<EventType::MOUSE_OVER, 0>,
+    MOUSE_EXITED = event_id_v<EventType::MOUSE_OVER, 1> ,
   };
 
 public:
-  const Type type;
-public:
   constexpr MouseOverEvent(const std::shared_ptr<Component> &source, Type type, Button button, Modifiers modifiers, int x, int y, const EventClock::time_point &when = EventClock::now()) :
-      MouseEventBase(source, button, modifiers, x, y, when), type(type) {
+      MouseEventBase(source, type, button, modifiers, x, y, when) {
   }
 };
 
 class MouseClickEvent: public MouseEventBase {
+public:
+  constexpr static unsigned MOUSE_CLICKED = event_id_v<EventType::MOUSE_CLICK>;
 public:
   unsigned click_count;
   bool is_popup_trigger;
 
 public:
   constexpr MouseClickEvent(const std::shared_ptr<Component> &source, Button button, Modifiers modifiers, int x, int y, unsigned click_count, bool is_popup_trigger, const EventClock::time_point &when = EventClock::now()) :
-      MouseEventBase(source, button, modifiers, x, y, when), click_count(click_count), is_popup_trigger(is_popup_trigger) {
+      MouseEventBase(source, EventType::MOUSE_CLICK, button, modifiers, x, y, when), click_count(click_count), is_popup_trigger(is_popup_trigger) {
   }
 };
 
 class MouseWheelEvent: public MouseEventBase {
 public:
+  constexpr static unsigned MOUSE_WHEEL = event_id_v<EventType::MOUSE_WHEEL>;
+public:
   int wheel_rotation;
 public:
   constexpr MouseWheelEvent(const std::shared_ptr<Component> &source, Modifiers modifiers, int x, int y, int wheel_rotation, const EventClock::time_point &when = EventClock::now()) :
-      MouseEventBase(source, NO_BUTTON, modifiers, x, y, when), wheel_rotation(wheel_rotation) {
+      MouseEventBase(source, EventType::MOUSE_WHEEL, NO_BUTTON, modifiers, x, y, when), wheel_rotation(wheel_rotation) {
   }
 };
 
 class MouseMoveEvent: public MouseEventBase {
 public:
+  constexpr static unsigned MOUSE_MOVED = event_id_v<EventType::MOUSE_MOVE>;
+public:
   constexpr MouseMoveEvent(const std::shared_ptr<Component> &source, Modifiers modifiers, int x, int y, const EventClock::time_point &when = EventClock::now()) :
-      MouseEventBase(source, NO_BUTTON, modifiers, x, y, when) {
+      MouseEventBase(source, EventType::MOUSE_MOVE, NO_BUTTON, modifiers, x, y, when) {
   }
 };
 
 class MouseDragEvent: public MouseEventBase {
 public:
+  constexpr static unsigned MOUSE_DRAGGED = event_id_v<EventType::MOUSE_DRAG>;
+public:
   constexpr MouseDragEvent(const std::shared_ptr<Component> &source, Button button, Modifiers modifiers, int x, int y, const EventClock::time_point &when = EventClock::now()) :
-      MouseEventBase(source, button, modifiers, x, y, when) {
+      MouseEventBase(source, EventType::MOUSE_DRAG, button, modifiers, x, y, when) {
   }
 };
 

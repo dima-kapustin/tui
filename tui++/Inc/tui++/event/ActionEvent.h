@@ -7,7 +7,7 @@ namespace tui {
 
 using ActionKey = u8string;
 
-struct ActionEvent: public BasicEvent {
+struct ActionEvent: public Event {
   constexpr static auto NO_MODIFIERS = InputEvent::NO_MODIFIERS;
   constexpr static auto SHIFT_DOWN = InputEvent::SHIFT_DOWN;
   constexpr static auto CTRL_DOWN = InputEvent::CTRL_DOWN;
@@ -21,7 +21,7 @@ struct ActionEvent: public BasicEvent {
 
 public:
   ActionEvent(const std::shared_ptr<Component> &source, const ActionKey &action_command, const Modifiers &modifiers, EventClock::time_point when = std::chrono::utc_clock::now()) :
-      BasicEvent(source), action_command(action_command), modifiers(modifiers), when(when) {
+      Event(source, EventType::ACTION), action_command(action_command), modifiers(modifiers), when(when) {
   }
 
 public:

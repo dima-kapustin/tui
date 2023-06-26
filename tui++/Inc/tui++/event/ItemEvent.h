@@ -1,21 +1,19 @@
 #pragma once
 
-#include <tui++/event/BasicEvent.h>
+#include <tui++/event/Event.h>
 
 namespace tui {
 
-class ItemEvent: public BasicEvent {
+class ItemEvent: public Event {
 public:
   enum Type {
-    SELECTED,
-    DESELECTED
+    SELECTED = event_id_v<EventType::ITEM, 0>,
+    DESELECTED = event_id_v<EventType::ITEM, 1>
   };
-
-  const Type type;
 
 public:
   constexpr ItemEvent(const std::shared_ptr<Component> &source, Type type) :
-      BasicEvent(source), type(type) {
+      Event(source, type) {
   }
 };
 

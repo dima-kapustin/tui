@@ -70,18 +70,18 @@ public:
 
 template<typename Event, std::enable_if_t<has_type_enum_v<Event>, bool> = true>
 class FunctionalEventAdapter: public BasicFunctionalEventAdapter<Event> {
-  std::vector<typename Event::Type> event_types;
+  std::vector<typename Event::Type> event_ids;
 
   template<typename >
   friend class SingleEventSource;
 
 public:
   FunctionalEventAdapter(std::vector<typename Event::Type> &&event_types, FunctionalEventListener<Event> &&event_listener) :
-      BasicFunctionalEventAdapter<Event>(std::move(event_listener)), event_types(std::move(event_types)) {
+      BasicFunctionalEventAdapter<Event>(std::move(event_listener)), event_ids(std::move(event_types)) {
   }
 
   FunctionalEventAdapter(std::vector<typename Event::Type> &&event_types, const FunctionalEventListener<Event> &event_listener) :
-      BasicFunctionalEventAdapter<Event>(event_listener), event_types(std::move(event_types)) {
+      BasicFunctionalEventAdapter<Event>(event_listener), event_ids(std::move(event_types)) {
   }
 
   FunctionalEventAdapter(const FunctionalEventAdapter&) = default;
@@ -90,7 +90,7 @@ public:
   FunctionalEventAdapter& operator=(FunctionalEventAdapter&&) = default;
 
   void operator()(Event &e) const {
-    if (std::ranges::contains(this->event_types, e.type)) {
+    if (std::ranges::contains(this->event_ids, e.id)) {
       this->event_listener(e);
     }
   }
@@ -181,7 +181,7 @@ protected:
 
   template<typename Callable, typename E = Event>
   requires (std::is_invocable_v<Callable, E&> and has_type_enum_v<E>)
-  constexpr bool add_event_listener(std::vector<typename E::Type> &&event_types, Callable &&callable) {
+  constexpr bool add_event_listener(std::vector<typename E::Type> &&event_ids, Callable &&callable) {
     for (auto &&l : this->event_listeners) {
       if (auto adapter = std::get_if<FunctionalEventAdapter<E>>(&l)) {
         if (auto target = adapter->event_listener.template target<std::decay_t<Callable>>()) {
@@ -190,9 +190,9 @@ protected:
               return false;
             }
           } else {
-            for (auto &&event_type : event_types) {
-              if (not std::ranges::contains(adapter->event_types, event_type)) {
-                adapter->event_types.emplace_back(event_type);
+            for (auto &&event_type : event_ids) {
+              if (not std::ranges::contains(adapter->event_ids, event_type)) {
+                adapter->event_ids.emplace_back(event_type);
               }
             }
             return false;
@@ -200,7 +200,7 @@ protected:
         }
       }
     }
-    this->event_listeners.emplace_back(std::in_place_type<FunctionalEventAdapter<E>>, std::move(event_types), std::forward<Callable>(callable));
+    this->event_listeners.emplace_back(std::in_place_type<FunctionalEventAdapter<E>>, std::move(event_ids), std::forward<Callable>(callable));
     return true;
   }
 
@@ -239,17 +239,17 @@ protected:
     for (auto l = this->event_listeners.begin(); l != this->event_listeners.end();) {
       if (auto adapter = std::get_if<FunctionalEventAdapter<E>>(&*l)) {
         if (adapter->event_listener.template target<std::decay_t<Callable>>()) {
-          if (types.empty() or adapter->event_types.empty()) {
+          if (types.empty() or adapter->event_ids.empty()) {
             l = this->event_listeners.erase(l);
             result = true;
             continue;
           } else {
-            auto end = adapter->event_types.end();
+            auto end = adapter->event_ids.end();
             for (auto &&type : types) {
-              end = std::remove(adapter->event_types.begin(), end, type);
+              end = std::remove(adapter->event_ids.begin(), end, type);
             }
-            adapter->event_types.erase(end, adapter->event_types.end());
-            if (adapter->event_types.empty()) {
+            adapter->event_ids.erase(end, adapter->event_ids.end());
+            if (adapter->event_ids.empty()) {
               l = this->event_listeners.erase(l);
               result = true;
               continue;

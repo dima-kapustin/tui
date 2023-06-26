@@ -1,17 +1,19 @@
 #pragma once
 
+#include <tui++/event/Event.h>
 #include <functional>
-
-#include <tui++/event/BasicEvent.h>
 
 namespace tui {
 
-class InvocationEvent: public BasicEvent {
+class InvocationEvent: public Event {
   std::function<void()> target;
 
 public:
+  constexpr static unsigned INVOCATION = event_id_v<EventType::INVOCATION>;
+
+public:
   InvocationEvent(const std::function<void()> &target) :
-      target(target) {
+      Event(nullptr, EventType::INVOCATION), target(target) {
   }
 
   void dispatch() const {

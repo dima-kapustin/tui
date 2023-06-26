@@ -14,94 +14,86 @@
 
 #include <tui++/event/EventListener.h>
 
-#include <tui++/util/EnumFlags.h>
-
 #include <variant>
 
 namespace tui {
 
-enum class EventType : unsigned {
-  KEY = 1 << 0,
-  ITEM = 1 << 1,
-  FOCUS = 1 << 2,
-  MOUSE = 1 << 3,
-  MOUSE_OVER = 1 << 4,
-  MOUSE_MOVE = 1 << 5,
-  MOUSE_DRAG = 1 << 6,
-  MOUSE_CLICK = 1 << 7,
-  MOUSE_WHEEL = 1 << 8,
-  ACTION = 1 << 9,
-  WINDOW = 1 << 10,
-  COMPONENT = 1 << 11,
-  CONTAINER = 1 << 12,
-  HIERARCHY = 1 << 13,
-  HIERARCHY_BOUNDS = 1 << 14,
-  INVOCATION = 1 << 15,
-};
-
-using EventVariant = std::variant<
-/**/KeyEvent,
-/**/ItemEvent,
-/**/FocusEvent,
-/**/MouseEvent,
-/**/MouseOverEvent,
-/**/MouseMoveEvent,
-/**/MouseDragEvent,
-/**/MouseClickEvent,
-/**/MouseWheelEvent,
-/**/ActionEvent,
-/**/WindowEvent,
-/**/ComponentEvent,
-/**/ContainerEvent,
-/**/HierarchyEvent,
-/**/HierarchyBoundsEvent,
-/**/InvocationEvent>;
-
-template<EventType event_type>
-struct event_alternative: std::variant_alternative<std::countr_zero(std::to_underlying(event_type)), EventVariant> {
-};
-
-template<EventType event_type>
-using event_alternative_t = typename event_alternative<event_type>::type;
-
-static_assert(std::is_same_v<KeyEvent, event_alternative_t<EventType::KEY>>);
-static_assert(std::is_same_v<ItemEvent, event_alternative_t<EventType::ITEM>>);
-static_assert(std::is_same_v<FocusEvent, event_alternative_t<EventType::FOCUS>>);
-static_assert(std::is_same_v<MouseEvent, event_alternative_t<EventType::MOUSE>>);
-static_assert(std::is_same_v<MouseOverEvent, event_alternative_t<EventType::MOUSE_OVER>>);
-static_assert(std::is_same_v<MouseMoveEvent, event_alternative_t<EventType::MOUSE_MOVE>>);
-static_assert(std::is_same_v<MouseDragEvent, event_alternative_t<EventType::MOUSE_DRAG>>);
-static_assert(std::is_same_v<MouseClickEvent, event_alternative_t<EventType::MOUSE_CLICK>>);
-static_assert(std::is_same_v<MouseWheelEvent, event_alternative_t<EventType::MOUSE_WHEEL>>);
-static_assert(std::is_same_v<ActionEvent, event_alternative_t<EventType::ACTION>>);
-static_assert(std::is_same_v<WindowEvent, event_alternative_t<EventType::WINDOW>>);
-static_assert(std::is_same_v<ComponentEvent, event_alternative_t<EventType::COMPONENT>>);
-static_assert(std::is_same_v<ContainerEvent, event_alternative_t<EventType::CONTAINER>>);
-static_assert(std::is_same_v<HierarchyEvent, event_alternative_t<EventType::HIERARCHY>>);
-static_assert(std::is_same_v<HierarchyBoundsEvent, event_alternative_t<EventType::HIERARCHY_BOUNDS>>);
-static_assert(std::is_same_v<InvocationEvent, event_alternative_t<EventType::INVOCATION>>);
-
-using EventTypeMask = util::EnumFlags<EventType>;
-
-constexpr EventTypeMask MOUSE_EVENT_MASK = EventType::MOUSE | EventType::MOUSE_CLICK | EventType::MOUSE_DRAG | EventType::MOUSE_MOVE | EventType::MOUSE_OVER | EventType::MOUSE_WHEEL;
-
-namespace detail {
-
-template<typename T, typename V>
-struct variant_alternative_index;
-
-template<typename T, typename ... Ts>
-struct variant_alternative_index<T, std::variant<Ts...>> : std::integral_constant<size_t, std::variant<std::type_identity<Ts>...>(std::type_identity<T>()).index()> {
-};
-
-template<typename T, typename ... Ts>
-constexpr size_t variant_alternative_index_v = variant_alternative_index<T, Ts...>::value;
-
-}
-
 template<typename Event>
-struct event_type {
-  constexpr static EventType value = EventType(std::underlying_type_t<EventType>(1) << detail::variant_alternative_index_v<Event, EventVariant>);
+struct event_type;
+
+template<>
+struct event_type<ActionEvent> {
+  constexpr static EventType value = EventType::ACTION;
+};
+
+template<>
+struct event_type<ComponentEvent> {
+  constexpr static EventType value = EventType::COMPONENT;
+};
+
+template<>
+struct event_type<ContainerEvent> {
+  constexpr static EventType value = EventType::CONTAINER;
+};
+
+template<>
+struct event_type<FocusEvent> {
+  constexpr static EventType value = EventType::FOCUS;
+};
+
+template<>
+struct event_type<HierarchyEvent> {
+  constexpr static EventType value = EventType::HIERARCHY;
+};
+
+template<>
+struct event_type<HierarchyBoundsEvent> {
+  constexpr static EventType value = EventType::HIERARCHY_BOUNDS;
+};
+
+template<>
+struct event_type<InvocationEvent> {
+  constexpr static EventType value = EventType::INVOCATION;
+};
+
+template<>
+struct event_type<ItemEvent> {
+  constexpr static EventType value = EventType::ITEM;
+};
+
+template<>
+struct event_type<KeyEvent> {
+  constexpr static EventType value = EventType::KEY;
+};
+
+template<>
+struct event_type<MouseEvent> {
+  constexpr static EventType value = EventType::MOUSE;
+};
+
+template<>
+struct event_type<MouseClickEvent> {
+  constexpr static EventType value = EventType::MOUSE_CLICK;
+};
+
+template<>
+struct event_type<MouseMoveEvent> {
+  constexpr static EventType value = EventType::MOUSE_MOVE;
+};
+
+template<>
+struct event_type<MouseDragEvent> {
+  constexpr static EventType value = EventType::MOUSE_DRAG;
+};
+
+template<>
+struct event_type<MouseOverEvent> {
+  constexpr static EventType value = EventType::MOUSE_OVER;
+};
+
+template<>
+struct event_type<WindowEvent> {
+  constexpr static EventType value = EventType::WINDOW;
 };
 
 template<typename Event>
@@ -110,6 +102,8 @@ constexpr EventType event_type_v = event_type<Event>::value;
 template<typename Event, typename ... Events>
 constexpr EventTypeMask event_mask_v = (event_type_v<Event> | ... | event_type_v<Events>);
 
+constexpr EventTypeMask MOUSE_EVENT_MASK = EventType::MOUSE | EventType::MOUSE_CLICK | EventType::MOUSE_DRAG | EventType::MOUSE_MOVE | EventType::MOUSE_OVER | EventType::MOUSE_WHEEL;
+
 template<typename E>
 struct is_mouse_event {
   constexpr static bool value = MOUSE_EVENT_MASK & event_type_v<E>;
@@ -117,36 +111,6 @@ struct is_mouse_event {
 
 template<typename E>
 constexpr bool is_mouse_event_v = is_mouse_event<E>::value;
-
-class Screen;
-class KeyboardFocusManager;
-
-class Event: public EventVariant {
-  unsigned system_generated :1 = false;
-  unsigned is_posted :1 = false;
-  unsigned focus_manager_is_dispatching :1 = false;
-
-  friend class Screen;
-  friend class Component;
-  friend class KeyboardFocusManager;
-
-public:
-  constexpr Event() = default;
-
-  template<typename T, typename ...Args>
-  constexpr Event(std::in_place_type_t<T>, Args ... args) :
-      EventVariant(std::in_place_type<T>, std::forward<Args>(args)...) {
-  }
-
-  constexpr EventType get_type() const {
-    return EventType(std::underlying_type_t<EventType>(1) << index());
-  }
-
-  template<typename E>
-  constexpr bool is_consumed() const {
-    return std::get<E>(*this).consumed;
-  }
-};
 
 std::ostream& operator<<(std::ostream &os, const Event &event);
 
@@ -157,8 +121,8 @@ public:
 };
 
 template<typename T, typename ...Args>
-constexpr auto make_event(Args ... args) {
-  return Event { std::in_place_type<T>, std::forward<Args>(args)... };
+constexpr auto make_event(Args &&... args) {
+  return T { std::forward<Args>(args)... };
 }
 
 }

@@ -56,11 +56,11 @@ private:
 
   static void consume_traversal_key(KeyEvent &e) {
     e.consumed = true;
-    consume_next_key_typed = (e.type == KeyEvent::KEY_PRESSED) and not e.is_action_key();
+    consume_next_key_typed = (e.id == KeyEvent::KEY_PRESSED) and not e.is_action_key();
   }
 
   static bool consume_processed_key_event(KeyEvent &e) {
-    if ((e.type == KeyEvent::KEY_TYPED) and consume_next_key_typed) {
+    if ((e.id == KeyEvent::KEY_TYPED) and consume_next_key_typed) {
       e.consumed = true;
       consume_next_key_typed = false;
       return true;
@@ -88,7 +88,7 @@ private:
 
   template<typename T, typename Component, typename ... Args>
   static void send_event(const std::shared_ptr<Component> &to, Args &&... args) {
-    auto e = Event { std::in_place_type<T>, to, std::forward<Args>(args)... };
+    auto e = T { to, std::forward<Args>(args)... };
     in_send_event += 1;
     to->dispatch_event(e);
     in_send_event -= 1;
@@ -96,7 +96,7 @@ private:
 
   template<typename T, typename Component, typename ... Args>
   static void redispatch_event(const std::shared_ptr<Component> &to, Args &&... args) {
-    auto e = Event { std::in_place_type<T>, to, std::forward<Args>(args)... };
+    auto e = T { to, std::forward<Args>(args)... };
     redispatch_event(to, e);
   }
 

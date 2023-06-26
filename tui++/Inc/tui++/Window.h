@@ -129,7 +129,7 @@ public:
 };
 
 constexpr WindowEvent::WindowEvent(const std::shared_ptr<Window> &source_window, Type type, const std::shared_ptr<Window> &opposite_window) :
-    BasicEvent(source_window), type(type), opposite_window(opposite_window) {
+    Event(source_window, type), opposite_window(opposite_window) {
 }
 
 constexpr WindowEvent::WindowEvent(const std::shared_ptr<Window> &source, Type type) :
