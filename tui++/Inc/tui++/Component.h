@@ -389,6 +389,14 @@ protected:
 public:
   virtual ~Component();
 
+  std::string get_name() const {
+    return this->name;
+  }
+
+  void set_name(std::string &name) {
+    this->name = name;
+  }
+
   template<typename T, typename ... Args>
   requires (is_component_v<T> )
   T& add(Args ... args) noexcept (false) {
@@ -717,6 +725,7 @@ public:
       parent->repaint(px, py, pwidth, pheight);
     } else {
       if (is_visible() and width > 0 and height > 0) {
+        // TODO
 //        PaintEvent e = new PaintEvent(this, new Rectangle(x, y, width, height));
 //        Toolkit.getDefaultToolkit().getSystemEventQueue().postEvent(e);
       }

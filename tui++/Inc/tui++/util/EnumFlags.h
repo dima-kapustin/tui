@@ -87,6 +87,17 @@ public:
     return result;
   }
 
+  constexpr EnumFlags operator^(const EnumFlags &other) const {
+    auto result = *this;
+    result ^= other;
+    return result;
+  }
+
+  constexpr EnumFlags& operator^=(const EnumFlags &other) {
+    this->flags ^= other.flags;
+    return *this;
+  }
+
   constexpr EnumFlags operator~() const {
     return {E(~this->flags)};
   }

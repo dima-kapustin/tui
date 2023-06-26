@@ -22,6 +22,9 @@ protected:
   constexpr MouseEventBase(const std::shared_ptr<Component> &source, const Id &id, Button button, Modifiers modifiers, int x, int y, const EventClock::time_point &when = EventClock::now()) :
       InputEvent(source, id, modifiers, when), button(button), x(x), y(y) {
   }
+
+public:
+  bool was_button_down_before() const;
 };
 
 constexpr InputEvent::Modifier to_modifier(MouseEventBase::Button button) {
@@ -103,5 +106,16 @@ public:
       MouseEventBase(source, EventType::MOUSE_DRAG, button, modifiers, x, y, when) {
   }
 };
+
+inline bool MouseEventBase::was_button_down_before() const {
+  constexpr auto BUTTON_DOWN_MASK = LEFT_BUTTON_DOWN | MIDDLE_BUTTON_DOWN | RIGHT_BUTTON_DOWN;
+
+  auto modifiers = this->modifiers;
+  if (this->id == MouseEvent::MOUSE_PRESSED or this->id == MouseEvent::MOUSE_RELEASED) {
+    modifiers ^= to_modifier(this->button);
+  }
+  /* modifiers now as just before event */
+  return (modifiers & BUTTON_DOWN_MASK);
+}
 
 }

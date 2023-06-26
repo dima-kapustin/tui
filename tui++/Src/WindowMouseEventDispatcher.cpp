@@ -2,7 +2,14 @@
 #include <tui++/Window.h>
 #include <tui++/WindowMouseEventDispatcher.h>
 
+#include <tui++/util/log.h>
+#include <tui++/util/typeid.h>
+
 namespace tui {
+
+WindowMouseEventDispatcher::~WindowMouseEventDispatcher() {
+  stop_listening_for_other_drags();
+}
 
 void WindowMouseEventDispatcher::retarget_mouse_event(const std::shared_ptr<Component> &target, MouseEventBase &e) {
   auto component = target;
@@ -57,24 +64,86 @@ std::shared_ptr<Component> WindowMouseEventDispatcher::retarget_mouse_enter_exit
   return target_enter;
 }
 
-bool WindowMouseEventDispatcher::dispatch_event(MouseEventBase &e) {
+void WindowMouseEventDispatcher::track_mouse_enter_exit(const std::shared_ptr<Component> &target_over, MouseEventBase &e) {
+  if (e.id != MouseOverEvent::MOUSE_EXITED and //
+      e.id != MouseDragEvent::MOUSE_DRAGGED and //
+      not this->mouse_over_window) {
+    // any event but an exit or drag means we're in the native container
+    this->mouse_over_window = true;
+    start_listening_for_other_drags();
+  } else if (e.id == MouseOverEvent::MOUSE_EXITED) {
+    this->mouse_over_window = false;
+    stop_listening_for_other_drags();
+  }
+
+  this->target_last_entered = retarget_mouse_enter_exit(target_over, e, target_last_entered.lock(), this->mouse_over_window);
+}
+
+bool WindowMouseEventDispatcher::dispatch_event(Event &e) {
   if (this->event_mask & e.id) {
-    auto target_over = this->window->get_mouse_event_target(e.x, e.y, true);
-
-    if (e.id != MouseOverEvent::MOUSE_EXITED and //
-        e.id != MouseDragEvent::MOUSE_DRAGGED and //
-        not this->mouse_over_window) {
-      // any event but an exit or drag means we're in the native container
-      this->mouse_over_window = true;
-      start_listening_for_other_drags();
-    } else if (e.id == MouseOverEvent::MOUSE_EXITED) {
-      this->mouse_over_window = false;
-      stop_listening_for_other_drags();
-    }
-
-    this->target_last_entered = retarget_mouse_enter_exit(target_over, e, target_last_entered.lock(), this->mouse_over_window);
+    dispatch_event(static_cast<MouseEventBase&>(e));
   }
   return false;
+}
+
+bool WindowMouseEventDispatcher::dispatch_event(MouseEventBase &e) {
+  auto mouse_over = this->window->get_mouse_event_target(e.x, e.y, true);
+  track_mouse_enter_exit(mouse_over, e);
+
+  auto mouse_event_target = this->mouse_event_target.lock();
+  // 4508327 : MOUSE_CLICKED should only go to the recipient of
+  // the accompanying MOUSE_PRESSED, so don't reset mouseEventTarget on a
+  // MOUSE_CLICKED.
+  if (not e.was_button_down_before() and e.id != MouseClickEvent::MOUSE_CLICKED) {
+    mouse_event_target = (mouse_over.get() != this->window) ? mouse_over : nullptr;
+    this->mouse_event_target = mouse_event_target;
+  }
+
+  if (mouse_event_target) {
+    switch (e.id) {
+    case MouseOverEvent::MOUSE_ENTERED:
+    case MouseOverEvent::MOUSE_EXITED:
+      break;
+    case MouseEvent::MOUSE_PRESSED:
+      retarget_mouse_event(mouse_event_target, e);
+      break;
+    case MouseEvent::MOUSE_RELEASED:
+      retarget_mouse_event(mouse_event_target, e);
+      break;
+    case MouseClickEvent::MOUSE_CLICKED:
+      // 4508327: MOUSE_CLICKED should never be dispatched to a Component
+      // other than that which received the MOUSE_PRESSED event.  If the
+      // mouse is now over a different Component, don't dispatch the event.
+      // The previous fix for a similar problem was associated with bug
+      // 4155217.
+      if (mouse_over == mouse_event_target) {
+        retarget_mouse_event(mouse_over, e);
+      }
+      break;
+    case MouseMoveEvent::MOUSE_MOVED:
+      retarget_mouse_event(mouse_event_target, e);
+      break;
+    case MouseDragEvent::MOUSE_DRAGGED:
+      if (e.was_button_down_before()) {
+        retarget_mouse_event(mouse_event_target, e);
+      }
+      break;
+    case MouseWheelEvent::MOUSE_WHEEL:
+      // This may send it somewhere that doesn't have MouseWheelEvents
+      // enabled.  In this case, Component::dispatch_event() will
+      // retarget the event to a parent that DOES have the events enabled.
+      log_event_ln("retargeting mouse wheel to " << mouse_over->get_name() << ", " << typeid(*mouse_over.get()))
+      ;
+      retarget_mouse_event(mouse_over, e);
+      break;
+    }
+    //Consuming of wheel events is implemented in "retargetMouseEvent".
+    if (e.id != MouseWheelEvent::MOUSE_WHEEL) {
+      e.consumed = true;
+    }
+  }
+
+  return e.consumed;
 }
 
 void WindowMouseEventDispatcher::start_listening_for_other_drags() {
