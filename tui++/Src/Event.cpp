@@ -1,4 +1,6 @@
 #include <tui++/Event.h>
+#include <tui++/Component.h>
+
 #include <tui++/util/utf-8.h>
 
 #include <format>
@@ -117,7 +119,7 @@ std::string to_string(KeyEvent::KeyCode key_code) {
 }
 
 std::ostream& operator<<(std::ostream &os, const ActionEvent &event) {
-  return os << "Action '" << event.action_command << "' Performed";
+  return os << "Action '" << event.action_command << "' PERFORMED";
 }
 
 std::ostream& operator<<(std::ostream &os, const ItemEvent &event) {
@@ -127,11 +129,11 @@ std::ostream& operator<<(std::ostream &os, const ItemEvent &event) {
 std::ostream& operator<<(std::ostream &os, const KeyEvent &event) {
   switch (event.id) {
   case KeyEvent::KEY_PRESSED:
-    os << "Key Pressed: ";
+    os << "Key PRESSED: ";
     break;
 
   case KeyEvent::KEY_TYPED:
-    os << "Key Typed: ";
+    os << "Key TYPED: ";
     break;
   }
 
@@ -174,10 +176,10 @@ std::ostream& operator<<(std::ostream &os, const MouseEvent &event) {
 
   switch (event.id) {
   case MouseEvent::MOUSE_PRESSED:
-    os << "Pressed";
+    os << "PRESSED";
     break;
   case MouseEvent::MOUSE_RELEASED:
-    os << "Released";
+    os << "RELEASED";
     break;
 
   default:
@@ -188,7 +190,7 @@ std::ostream& operator<<(std::ostream &os, const MouseEvent &event) {
 }
 
 std::ostream& operator<<(std::ostream &os, const MouseMoveEvent &event) {
-  os << "Mouse Moved";
+  os << "Mouse MOVED";
   os << " at " << event.x << "," << event.y;
   return os;
 }
@@ -216,21 +218,29 @@ std::ostream& operator<<(std::ostream &os, const MouseDragEvent &event) {
 std::ostream& operator<<(std::ostream &os, const MouseClickEvent &event) {
   os << "Mouse" << ' ';
   if (event.click_count == 2) {
-    os << "Double Clicked";
+    os << "DOUBLE CLICKED";
   } else {
-    os << "Clicked";
+    os << "CLICKED";
   }
   os << " at " << event.x << "," << event.y;
   return os;
 }
 
 std::ostream& operator<<(std::ostream &os, const MouseWheelEvent &event) {
-  os << "Mouse Wheel scrolled by " << event.wheel_rotation;
+  os << "Mouse WHEEL scrolled by " << event.wheel_rotation;
   os << " at " << event.x << "," << event.y;
   return os;
 }
 
 std::ostream& operator<<(std::ostream &os, const MouseOverEvent &event) {
+  switch (event.id) {
+  case MouseOverEvent::MOUSE_ENTERED:
+    os << "Mouse ENTERED " << event.source->get_name();
+    break;
+  case MouseOverEvent::MOUSE_EXITED:
+    os << "Mouse EXITED " << event.source->get_name();
+    break;
+  }
   return os;
 }
 
@@ -241,10 +251,10 @@ std::ostream& operator<<(std::ostream &os, const InvocationEvent &event) {
 std::ostream& operator<<(std::ostream &os, const FocusEvent &event) {
   switch (event.id) {
   case FocusEvent::FOCUS_GAINED:
-    os << "Focus Gained";
+    os << "Focus GAINED";
     break;
   case FocusEvent::FOCUS_LOST:
-    os << "Focus Lost";
+    os << "Focus LOST";
     break;
   }
   return os;
@@ -253,34 +263,34 @@ std::ostream& operator<<(std::ostream &os, const FocusEvent &event) {
 std::ostream& operator<<(std::ostream &os, const WindowEvent &event) {
   switch (event.id) {
   case WindowEvent::WINDOW_OPENED:
-    os << "Window Opened";
+    os << "Window OPENED";
     break;
   case WindowEvent::WINDOW_CLOSING:
-    os << "Window Closing";
+    os << "Window CLOSING";
     break;
   case WindowEvent::WINDOW_CLOSED:
-    os << "Window Closed";
+    os << "Window CLOSED";
     break;
   case WindowEvent::WINDOW_ACTIVATED:
-    os << "Window Activated";
+    os << "Window ACTIVATED";
     break;
   case WindowEvent::WINDOW_DEACTIVATED:
-    os << "Window Deactivated";
+    os << "Window DEACTIVATED";
     break;
   case WindowEvent::WINDOW_GAINED_FOCUS:
-    os << "Window Gained Focus";
+    os << "Window GAINED FOCUS";
     break;
   case WindowEvent::WINDOW_LOST_FOCUS:
-    os << "Window Gained Lost";
+    os << "Window LOST FOCUS";
     break;
   case WindowEvent::WINDOW_ICONIFIED:
-    os << "Window Iconified";
+    os << "Window ICONIFIED";
     break;
   case WindowEvent::WINDOW_DEICONIFIED:
-    os << "Window Deiconified";
+    os << "Window DEICONIFIED";
     break;
   case WindowEvent::WINDOW_STATE_CHANGED:
-    os << "Window State Changed";
+    os << "Window STATE CHANGED";
     break;
   }
   return os;
