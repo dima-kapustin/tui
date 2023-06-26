@@ -103,6 +103,8 @@ template<typename Event, typename ... Events>
 constexpr EventTypeMask event_mask_v = (event_type_v<Event> | ... | event_type_v<Events>);
 
 constexpr EventTypeMask MOUSE_EVENT_MASK = EventType::MOUSE | EventType::MOUSE_CLICK | EventType::MOUSE_DRAG | EventType::MOUSE_MOVE | EventType::MOUSE_OVER | EventType::MOUSE_WHEEL;
+constexpr EventTypeMask KEY_EVENT_MASK = EventType::KEY;
+constexpr EventTypeMask WINDOW_EVENT_MASK = EventType::WINDOW;
 
 template<typename E>
 struct is_mouse_event {
