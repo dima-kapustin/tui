@@ -98,13 +98,17 @@ public:
   template<typename F, typename ... Args>
   requires (std::is_convertible_v<F*, Frame*>)
   std::shared_ptr<F> create_frame(Args &&...args) {
-    return std::shared_ptr<F> { new F(*this, std::forward<Args>(args)...) };
+    auto frame = std::shared_ptr<F> { new F(*this, std::forward<Args>(args)...) };
+    frame->init();
+    return frame;
   }
 
   template<typename D, typename ... Args>
   requires (std::is_convertible_v<D*, Dialog*>)
   std::shared_ptr<D> create_dialog(Args &&...args) {
-    return std::shared_ptr<D> { new D(*this, std::forward<Args>(args)...) };
+    auto dialog = std::shared_ptr<D> { new D(*this, std::forward<Args>(args)...) };
+    dialog->init();
+    return dialog;
   }
 
   void add_event_listener(const std::shared_ptr<EventListener<Event>> &event_listener, const EventTypeMask &event_mask) {

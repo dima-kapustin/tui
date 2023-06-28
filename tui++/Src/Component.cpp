@@ -122,8 +122,7 @@ bool Component::request_focus(bool temporary, bool focused_window_change_allowed
     // 2) Sanity check: if the mouse event component source belongs to the same containing window.
     auto source = mouse_event->source;
     if (not source or source->get_containing_window() == get_containing_window()) {
-      // TODO
-      // focusLog.finest("requesting focus by mouse event \"in window\"");
+      log_focus_ln("requesting focus by mouse event \"in window\"");
 
       // If both the conditions are fulfilled the focus request should be strictly
       // bounded by the toplevel window. It's assumed that the mouse event activates
@@ -294,12 +293,10 @@ EventQueue* Component::get_event_queue() const {
 }
 
 std::shared_ptr<Window> Component::get_containing_window() const {
-  auto component = const_cast<Component*>(this)->shared_from_this();
-  while (component) {
+  for (auto component = const_cast<Component*>(this)->shared_from_this();; component = component->get_parent()) {
     if (auto window = std::dynamic_pointer_cast<Window>(component)) {
       return window;
     }
-    component = component->get_parent();
   }
   return {};
 }

@@ -228,6 +228,9 @@ protected:
   Component() {
   }
 
+  virtual void init() {
+  }
+
 protected:
   static bool is_window(const std::shared_ptr<Component> &component);
 
@@ -400,7 +403,9 @@ public:
   template<typename T, typename ... Args>
   requires (is_component_v<T> )
   T& add(Args ... args) noexcept (false) {
-    add(std::make_shared<T>(std::forward<Args>(args)...));
+    auto component = std::make_shared<T>(std::forward<Args>(args)...);
+    component->init();
+    add(component);
   }
 
   void add(const std::shared_ptr<Component> &component) noexcept (false) {

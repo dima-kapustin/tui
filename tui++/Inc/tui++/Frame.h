@@ -10,13 +10,12 @@ namespace tui {
 class Frame: public Window {
   Frame(Screen &screen) :
       Window(screen) {
-    init();
   }
 
   friend class Screen;
 
-private:
-  void init() {
+protected:
+  void init() override {
     enable_events(KEY_EVENT_MASK | WINDOW_EVENT_MASK);
   }
 

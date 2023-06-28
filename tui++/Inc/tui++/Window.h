@@ -62,18 +62,16 @@ private:
   friend class KeyboardFocusManager;
   friend class WindowMouseEventDispatcher;
 
-  void init();
-
 protected:
   Window(Screen &screen) :
       screen(screen) {
-    init();
   }
 
   Window(const std::shared_ptr<Window> &owner) :
       screen(owner->screen), owner(owner) {
-    init();
   }
+
+  void init() override;
 
   friend class Screen;
 

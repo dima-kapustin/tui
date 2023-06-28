@@ -1,5 +1,6 @@
 #include <tui++/Window.h>
 #include <tui++/Graphics.h>
+#include <tui++/BorderLayout.h>
 #include <tui++/KeyboardFocusManager.h>
 
 namespace tui {
@@ -121,6 +122,7 @@ void Window::hide() {
 
 void Window::init() {
   set_focus_traversal_policy(KeyboardFocusManager::get_default_focus_traversal_policy());
+  set_layout(std::make_shared<BorderLayout>());
 }
 
 void Window::pack() {

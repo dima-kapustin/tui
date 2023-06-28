@@ -15,7 +15,7 @@ public:
   virtual ~Layout() {
   }
 
-  virtual void add_layout_component(const std::shared_ptr<Component> &target, const std::any &constraints) = 0;
+  virtual void add_layout_component(const std::shared_ptr<Component> &target, const std::any &constraints = {}) = 0;
 
   virtual void remove_layout_component(const std::shared_ptr<Component> &target) = 0;
 
