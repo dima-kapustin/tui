@@ -29,9 +29,9 @@ int main(int argc, char *argv[]) {
   terminal.post([&terminal] {
     auto g = terminal.get_graphics();
     g->set_foreground_color(GREEN_COLOR);
-    g->draw_string("Привет, мир!", 1, 1, Attribute::STANDOUT);
+    g->draw_string("Привет, мир!", 1, 7, Attribute::STANDOUT);
     g->set_stroke(Stroke::DOUBLE);
-    g->draw_rounded_rect(0, 0, 14, 3);
+    g->draw_rounded_rect(0, 6, 14, 3);
     g->flush();
   });
 
