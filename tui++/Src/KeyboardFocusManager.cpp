@@ -3,6 +3,7 @@
 #include <tui++/Dialog.h>
 #include <tui++/Window.h>
 #include <tui++/KeyboardFocusManager.h>
+#include <tui++/DefaultFocusTraversalPolicy.h>
 
 #include <tui++/util/log.h>
 
@@ -13,7 +14,7 @@ std::atomic<std::shared_ptr<Component>> KeyboardFocusManager::permanent_focus_ow
 std::atomic<std::shared_ptr<Window>> KeyboardFocusManager::focused_window;
 std::atomic<std::shared_ptr<Window>> KeyboardFocusManager::active_window;
 std::atomic<std::shared_ptr<Component>> KeyboardFocusManager::current_focus_cycle_root;
-std::atomic<std::shared_ptr<FocusTraversalPolicy>> KeyboardFocusManager::default_focus_traversal_policy;
+std::atomic<std::shared_ptr<FocusTraversalPolicy>> KeyboardFocusManager::default_focus_traversal_policy { std::make_shared<DefaultFocusTraversalPolicy>() };
 std::atomic<std::weak_ptr<Component>> KeyboardFocusManager::realOppositeComponent;
 std::atomic<std::weak_ptr<Window>> KeyboardFocusManager::realOppositeWindow;
 std::atomic<std::shared_ptr<Component>> KeyboardFocusManager::restoreFocusTo;

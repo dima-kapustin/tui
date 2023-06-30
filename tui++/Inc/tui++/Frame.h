@@ -16,6 +16,7 @@ class Frame: public Window {
 
 protected:
   void init() override {
+    Window::init();
     enable_events(KEY_EVENT_MASK | WINDOW_EVENT_MASK);
   }
 

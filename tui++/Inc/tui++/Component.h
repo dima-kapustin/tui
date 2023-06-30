@@ -91,7 +91,7 @@ protected:
   mutable std::shared_ptr<ActionMap> action_map;
 
   Property<std::shared_ptr<FocusTraversalPolicy>> focus_traversal_policy { this, "focus_traversal_policy" };
-  bool focus_traversal_policy_provider;
+  bool focus_traversal_policy_provider = false;
 
   /**
    * Indicates whether this Component is the root of a focus traversal cycle. Once focus enters a traversal cycle, typically it cannot
@@ -344,14 +344,6 @@ protected:
     }
 
     return get_focus_cycle_root_ancestor();
-  }
-
-  bool can_be_focus_owner() const {
-    // It is enabled, visible, focusable.
-    if (is_enabled() and is_displayable() and is_visible() and is_focusable()) {
-      return true;
-    }
-    return false;
   }
 
   std::shared_ptr<Component> get_next_focus_candidate() const;
@@ -935,6 +927,14 @@ public:
     return callable();
   }
 
+  bool can_be_focus_owner() const {
+    // It is enabled, visible, focusable.
+    if (is_enabled() and is_displayable() and is_visible() and is_focusable()) {
+      return true;
+    }
+    return false;
+  }
+
   bool is_focus_owner() const {
     return KeyboardFocusManager::get_focus_owner().get() == this;
   }
@@ -945,7 +945,7 @@ public:
    * this Container's descendants that are not descendants of inferior focus cycle roots. Note that a FocusTraversalPolicy may bend these
    * restrictions, however. For example, ContainerOrderFocusTraversalPolicy supports implicit down-cycle traversal.
    */
-  bool is_focus_cycle_root() const {
+  virtual bool is_focus_cycle_root() const {
     return this->focus_cycle_root;
   }
 
@@ -1066,6 +1066,16 @@ public:
 
   std::shared_ptr<const std::unordered_set<KeyStroke>> get_focus_traversal_keys(KeyboardFocusManager::FocusTraversalKeys id) const;
   void set_focus_traversal_keys(KeyboardFocusManager::FocusTraversalKeys id, const std::shared_ptr<const std::unordered_set<KeyStroke>> &keyStrokes);
+
+  /**
+   * Returns whether the specified Container is the focus cycle root of this
+   * Component's focus traversal cycle. Each focus traversal cycle has only
+   * a single focus cycle root and each Component which is not a Container
+   * belongs to only a single focus traversal cycle.
+   */
+  bool is_focus_cycle_root(const std::shared_ptr<const Component> &container) const {
+    return (get_focus_cycle_root_ancestor() == container);
+  }
 };
 
 template<typename BaseComponent, typename ... Events>

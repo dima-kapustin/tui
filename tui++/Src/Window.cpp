@@ -1,3 +1,5 @@
+#include <tui++/Frame.h>
+#include <tui++/Dialog.h>
 #include <tui++/Window.h>
 #include <tui++/Graphics.h>
 #include <tui++/BorderLayout.h>
@@ -38,7 +40,7 @@ std::shared_ptr<Component> Window::get_most_recent_focus_owner() const {
   } else if (auto most_recent = KeyboardFocusManager::get_most_recent_focus_owner(std::dynamic_pointer_cast<const Window>(shared_from_this()))) {
     return most_recent;
   } else {
-    return is_focusable_window() ? get_focus_traversal_policy()->get_initial_component(std::dynamic_pointer_cast<const Window>(shared_from_this())) : nullptr;
+    return is_focusable_window() ? get_focus_traversal_policy()->get_initial_component(std::dynamic_pointer_cast<Window>(const_cast<Window*>(this)->shared_from_this())) : nullptr;
   }
 }
 
@@ -50,14 +52,13 @@ bool Window::is_focusable_window() const {
   }
 
   // All other tests apply only to Windows.
-  // TODO
-//  if (this instanceof Frame or this instanceof Dialog) {
-//    return true;
-//  }
+  if (dynamic_cast<const Frame*>(this) or dynamic_cast<const Dialog*>(this)) {
+    return true;
+  }
 
   // A Window must have at least one Component in its root focus
   // traversal cycle to be focusable.
-  if (not get_focus_traversal_policy()->get_default_component(shared_from_this())) {
+  if (not get_focus_traversal_policy()->get_default_component(const_cast<Window*>(this)->shared_from_this())) {
     return false;
   }
 

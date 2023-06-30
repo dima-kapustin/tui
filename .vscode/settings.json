@@ -2,6 +2,9 @@
     "cmake.sourceDirectory": "${workspaceFolder}",
     "cmake.configureOnOpen": false,
     "files.associations": {
-        "type_traits": "cpp"
+        "type_traits": "cpp",
+        "chrono": "cpp",
+        "ranges": "cpp",
+        "variant": "cpp"
     }
 }

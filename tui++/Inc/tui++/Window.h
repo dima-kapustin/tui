@@ -17,7 +17,7 @@ class Window: public ComponentExtension<Component, WindowEvent> {
 
   std::shared_ptr<WindowMouseEventDispatcher> mouse_event_dispatcher;
 
-  Property<bool> focusable_window_state { this, "focusable_window_state", false };
+  Property<bool> focusable_window_state { this, "focusable_window_state", true };
 
   std::weak_ptr<Component> temporary_lost_component;
 
@@ -105,6 +105,10 @@ public:
   void paint(Graphics &g) override {
     validate();
     base::paint(g);
+  }
+
+  bool is_focus_cycle_root() const override {
+    return true;
   }
 
   bool is_focused() const {

@@ -165,7 +165,7 @@ bool Component::request_focus(bool temporary, bool focused_window_change_allowed
 
 std::shared_ptr<Component> Component::get_next_focus_candidate() const {
   auto root_ancestor = get_traversal_root();
-  auto comp = shared_from_this();
+  auto comp = const_cast<Component*>(this)->shared_from_this();
   while (root_ancestor and not (root_ancestor->is_showing() and root_ancestor->can_be_focus_owner())) {
     comp = root_ancestor;
     root_ancestor = comp->get_focus_cycle_root_ancestor();
