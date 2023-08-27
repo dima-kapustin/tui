@@ -88,9 +88,7 @@ public:
 
   constexpr Char(char32_t c) :
       bytes { } {
-    auto mb = util::c32_to_mb(c);
-    auto length = std::min(MAX_BYTE_LEN, mb.length());
-    std::char_traits<char>::copy(this->bytes, mb.data(), length);
+    auto length = util::c32_to_mb(c, this->bytes);
     this->len = length - 1;
     this->code = c;
   }

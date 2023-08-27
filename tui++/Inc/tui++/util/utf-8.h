@@ -85,16 +85,12 @@ constexpr int mb_to_c32(const u8string_view &str, char32_t *c32) {
   return mb_to_c32(str.data(), str.length(), c32);
 }
 
-constexpr u8string c32_to_mb(char32_t c) {
-  u8string mb;
-  mb.reserve(4);
-
+constexpr size_t c32_to_mb(char32_t c, char *mb) {
   // 1 byte UTF8
   if (c <= 0b000'0000'0111'1111) {
     auto const b1 = c;
-    mb.resize(1);
     mb[0] = u8string::value_type(b1);
-    return mb;
+    return 1;
   }
 
   // 2 bytes UTF8
@@ -102,10 +98,9 @@ constexpr u8string c32_to_mb(char32_t c) {
     auto const b2 = c & 0b111111;
     c >>= 6;
     auto const b1 = c;
-    mb.resize(2);
     mb[0] = u8string::value_type(0b11000000 + b1);
     mb[1] = u8string::value_type(0b10000000 + b2);
-    return mb;
+    return 2;
   }
 
   // 3 bytes UTF8
@@ -115,11 +110,10 @@ constexpr u8string c32_to_mb(char32_t c) {
     auto const b2 = c & 0b111111;
     c >>= 6;
     auto const b1 = c;
-    mb.resize(3);
     mb[0] = u8string::value_type(0b11100000 + b1);
     mb[1] = u8string::value_type(0b10000000 + b2);
     mb[2] = u8string::value_type(0b10000000 + b3);
-    return mb;
+    return 3;
   }
 
   // 4 bytes UTF8
@@ -131,14 +125,13 @@ constexpr u8string c32_to_mb(char32_t c) {
     auto const b2 = c & 0b111111;
     c >>= 6;
     auto const b1 = c;
-    mb.resize(4);
     mb[0] = u8string::value_type(0b11110000 + b1);
     mb[1] = u8string::value_type(0b10000000 + b2);
     mb[2] = u8string::value_type(0b10000000 + b3);
     mb[3] = u8string::value_type(0b10000000 + b4);
-    return mb;
+    return 4;
   }
-  return mb;
+  return 0;
 }
 
 constexpr std::size_t glyph_width(const char *utf8, std::size_t size) {
@@ -201,13 +194,15 @@ constexpr std::size_t prev_c32(const char *utf8, std::size_t size, std::size_t i
   return index;
 }
 
-constexpr int wc_to_c32(const wchar_t *ws, const wchar_t *we, char32_t *c32) {
+template<typename WChar>
+requires (std::is_same_v<WChar, wchar_t> or std::is_same_v<WChar, char16_t>)
+constexpr int wc_to_c32(const WChar *ws, const WChar *we, char32_t *c32) {
   if (ws >= we or *ws == 0) {
     return 0;
   }
 
   // UTF32
-  if constexpr (sizeof(wchar_t) == sizeof(char32_t)) {
+  if constexpr (sizeof(WChar) == sizeof(char32_t)) {
     *c32 = *ws;
     return 1;
   } else {
@@ -226,16 +221,24 @@ constexpr int wc_to_c32(const wchar_t *ws, const wchar_t *we, char32_t *c32) {
   }
 }
 
+template<typename WChar>
+requires (std::is_same_v<WChar, wchar_t> or std::is_same_v<WChar, char16_t>)
+constexpr size_t to_utf8(const WChar *ws, const WChar *we, char *s, char *e) {
+  auto *p = s;
+  auto wcount = 0U;
+  auto cp = char32_t {0}; // code point
+  while ((wcount = wc_to_c32(ws, we, &cp)) > 0) {
+    p += c32_to_mb(cp, p);
+    ws += wcount;
+  }
+  return p - s;
+}
+
 constexpr std::string to_utf8(const std::wstring &s) {
   std::string utf8;
-  utf8.reserve(4 * s.length());
-  auto cp = char32_t { 0 }; // code point
-  auto *p = s.data(), *q = s.data() + s.size();
-  auto count = 0U;
-  while ((count = wc_to_c32(p, q, &cp)) > 0) {
-    utf8 += c32_to_mb(cp);
-    p += count;
-  }
+  utf8.resize(4 * s.length());
+  auto utf8_size = to_utf8(s.data(), s.data() + s.size(), utf8.data(), utf8.data() + utf8.size());
+  utf8.resize(utf8_size);
   return utf8;
 }
 
