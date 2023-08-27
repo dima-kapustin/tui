@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <utility>
 #include <iostream>
+#include <string_view>
 
 #include <tui++/util/utf-8.h>
 #include <tui++/util/unicode.h>
