@@ -141,7 +141,7 @@ public:
   }
 };
 
-static_assert(sizeof(Char) == 8);
+static_assert(sizeof(Char) == sizeof(uint64_t));
 
 constexpr std::ostream& operator<<(std::ostream &os, const Char &c) {
   return os << std::string_view(c);
