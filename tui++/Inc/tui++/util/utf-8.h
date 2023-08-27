@@ -201,8 +201,8 @@ constexpr std::size_t prev_c32(const char *utf8, std::size_t size, std::size_t i
   return index;
 }
 
-constexpr int wc_to_c32(const wchar_t *ws, std::size_t size, char32_t *c32) {
-  if (size == 0 or *ws == 0) {
+constexpr int wc_to_c32(const wchar_t *ws, const wchar_t *we, char32_t *c32) {
+  if (ws >= we or *ws == 0) {
     return 0;
   }
 
@@ -216,7 +216,7 @@ constexpr int wc_to_c32(const wchar_t *ws, std::size_t size, char32_t *c32) {
     if (c0 < 0xD800 or c0 >= 0xDC00) {
       *c32 = c0;
       return 1;
-    } else if (size >= 2) {
+    } else if ((we - ws) >= 2) {
       auto c1 = ws[1];
       *c32 = ((c0 & 0x3FF) << 10) + (c1 & 0x3FF) + 0x10000;
       return 2;
@@ -230,8 +230,11 @@ constexpr std::string to_utf8(const std::wstring &s) {
   std::string utf8;
   utf8.reserve(4 * s.length());
   auto cp = char32_t { 0 }; // code point
-  while (wc_to_c32(s.data(), s.size(), &cp) > 0) {
+  auto *p = s.data(), *q = s.data() + s.size();
+  auto count = 0U;
+  while ((count = wc_to_c32(p, q, &cp)) > 0) {
     utf8 += c32_to_mb(cp);
+    p += count;
   }
   return utf8;
 }
