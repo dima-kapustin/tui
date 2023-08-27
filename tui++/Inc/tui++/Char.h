@@ -2,6 +2,7 @@
 
 #include <cstring>
 #include <cstdint>
+#include <utility>
 #include <iostream>
 
 #include <tui++/util/utf-8.h>
@@ -94,7 +95,7 @@ public:
   }
 
   constexpr Char(CharCode c) :
-      Char(char32_t(c)) {
+      Char(std::to_underlying(c)) {
   }
 
 public:
