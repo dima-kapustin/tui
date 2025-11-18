@@ -116,9 +116,9 @@ bool Terminal::read_input(const std::chrono::milliseconds &timeout, InputBuffer 
 }
 
 static Dimension get_default_size() {
-  // The terminal size in VT100 was 80x24. It is still used nowadays by
-  // default in many terminal emulator. That's a good choice for a fallback
-  // value.
+  // The terminal size in VT100 was 80x24.
+  // It is still used nowadays by default in many terminal emulators.
+  // That's a good choice for a fallback value.
   return {80, 24};
 }
 
