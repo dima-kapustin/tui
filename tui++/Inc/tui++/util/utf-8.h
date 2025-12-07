@@ -234,10 +234,22 @@ constexpr size_t to_utf8(const WChar *ws, const WChar *we, char *s, char *e) {
   return p - s;
 }
 
-constexpr std::string to_utf8(const std::wstring &s) {
+constexpr std::string to_utf8(const wchar_t *data, size_t size) {
   std::string utf8;
-  utf8.resize(4 * s.length());
-  auto utf8_size = to_utf8(s.data(), s.data() + s.size(), utf8.data(), utf8.data() + utf8.size());
+  utf8.resize(4 * size);
+  auto utf8_size = to_utf8(data, data + size, utf8.data(), utf8.data() + utf8.size());
+  utf8.resize(utf8_size);
+  return utf8;
+}
+
+constexpr std::string to_utf8(const std::wstring &s) {
+  return to_utf8(s.data(), s.length());
+}
+
+constexpr std::string to_utf8(wchar_t wc) {
+  std::string utf8;
+  utf8.resize(4);
+  auto utf8_size = to_utf8(&wc, &wc + 1, utf8.data(), utf8.data() + utf8.size());
   utf8.resize(utf8_size);
   return utf8;
 }

@@ -9,7 +9,6 @@
 
 #include <locale>
 #include <cstring>
-#include <codecvt>
 #include <iostream>
 
 #define WIN32_LEAN_AND_MEAN
@@ -29,7 +28,6 @@ class TerminalImpl {
   DWORD input_mode, output_mode;
 
   std::vector<INPUT_RECORD> input_records { 16 };
-  std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
 
 public:
   TerminalImpl(Terminal &terminal) :
@@ -65,19 +63,29 @@ public:
     this->input_records.resize(number_of_events);
 
     auto was_available = into.get_available();
-
-    for (auto &&record : input_records) {
+    auto wstring = std::wstring { };
+    for (auto &&record : this->input_records) {
       switch (record.EventType) {
       case KEY_EVENT: {
-        const auto &key_event = record.Event.KeyEvent;
-        if (not key_event.bKeyDown) { // ignore KEY UP events
+        if (auto const &key_event = record.Event.KeyEvent; not key_event.bKeyDown) { // ignore KEY UP events
           continue;
-        }
-
-        if (key_event.uChar.UnicodeChar) {
-          auto bytes = converter.to_bytes(key_event.uChar.UnicodeChar);
-          for (auto &&c : bytes) {
-            into.put(c);
+        } else if (auto wc = key_event.uChar.UnicodeChar) {
+          if (wc >= 0xD800 and wc <= 0xDBFF) {
+            // Wait for the Low Surrogate to arrive in the next record.
+            wstring.reserve(2); // assuming Small String Optimization (SSO)
+            wstring.clear();
+            wstring += wc;
+            continue;
+          } else if (wstring.empty()) {
+            for (auto &&c : util::to_utf8(wc)) {
+              into.put(c);
+            }
+          } else {
+            wstring += wc;
+            for (auto &&c : util::to_utf8(wstring)) {
+              into.put(c);
+            }
+            wstring.clear();
           }
         }
         break;
