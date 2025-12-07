@@ -10,13 +10,7 @@ namespace tui {
 struct ColorIndex {
   unsigned value;
 
-  constexpr bool operator==(const ColorIndex &other) const {
-    return this->value == other.value;
-  }
-
-  constexpr bool operator!=(const ColorIndex &other) const {
-    return this->value != other.value;
-  }
+  constexpr bool operator==(const ColorIndex &other) const = default;
 };
 
 constexpr ColorIndex BLACK_COLOR { 0 };
@@ -39,10 +33,6 @@ constexpr ColorIndex BRIGHT_WHITE_COLOR { 15 };
 struct DefaultColor {
   constexpr bool operator==(const DefaultColor&) const {
     return true;
-  }
-
-  constexpr bool operator!=(const DefaultColor&) const {
-    return false;
   }
 };
 
@@ -85,17 +75,17 @@ constexpr RGB hsl_to_rgb(HSL v) {
   const auto x_ = std::uint8_t((x + m) * 255);
   const auto m_ = std::uint8_t(m * 255);
 
-  if (v.hue < 60.)
+  if (v.hue < 60U)
     return {c_, x_, m_};
-  if (v.hue < 120.)
+  if (v.hue < 120U)
     return {x_, c_, m_};
-  if (v.hue < 180.)
+  if (v.hue < 180U)
     return {m_, c_, x_};
-  if (v.hue < 240.)
+  if (v.hue < 240U)
     return {m_, x_, c_};
-  if (v.hue < 300.)
+  if (v.hue < 300U)
     return {x_, m_, c_};
-  if (v.hue < 360.)
+  if (v.hue < 360U)
     return {c_, m_, x_};
   else
     return {0, 0, 0};
@@ -103,32 +93,32 @@ constexpr RGB hsl_to_rgb(HSL v) {
 
 /// Convert RGB to HSL
 constexpr HSL rgb_to_hsl(RGB x) {
-  const auto r_prime = x.red / 255.;
-  const auto g_prime = x.green / 255.;
-  const auto b_prime = x.blue / 255.;
+  const auto r_prime = x.red / 255.0;
+  const auto g_prime = x.green / 255.0;
+  const auto b_prime = x.blue / 255.0;
 
   const auto c_max = std::max( { r_prime, g_prime, b_prime });
   const auto c_min = std::min( { r_prime, g_prime, b_prime });
   const auto delta = c_max - c_min;
 
-  const auto lightness = (c_max + c_min) / 2.;
+  const auto lightness = (c_max + c_min) / 2.0;
   const auto saturation = [&] {
-    if (delta == 0.)
-      return 0.;
-    double const den = 1. - std::abs(2. * lightness - 1.);
+    if (delta == 0)
+      return 0.0;
+    auto den = 1 - std::abs(2 * lightness - 1);
     return delta / den;
   }();
 
   const auto hue = [&] {
-    if (delta == 0.)
-      return 0.;
+    if (delta == 0)
+      return 0.0;
     if (c_max == r_prime)
-      return 60. * std::fmod((g_prime - b_prime) / delta, 6.);
+      return 60 * std::fmod((g_prime - b_prime) / delta, 6);
     if (c_max == g_prime)
-      return 60. * (((b_prime - r_prime) / delta) + 2.);
+      return 60 * (((b_prime - r_prime) / delta) + 2);
     if (c_max == b_prime)
-      return 60. * (((r_prime - g_prime) / delta) + 4.);
-    return 0.;
+      return 60 * (((r_prime - g_prime) / delta) + 4);
+    return 0.0;
   }();
 
   return {std::uint16_t(hue), std::uint8_t(saturation * 100), std::uint8_t(lightness * 100)};
@@ -155,11 +145,6 @@ struct TrueColor {
   constexpr bool operator==(const TrueColor &other) const {
     return this->value == other.value;
   }
-
-  constexpr bool operator!=(const TrueColor &other) const {
-    return this->value != other.value;
-  }
-
 };
 
 using Color = std::variant<ColorIndex, DefaultColor, TrueColor>;

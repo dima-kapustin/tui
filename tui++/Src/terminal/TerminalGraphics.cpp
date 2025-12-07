@@ -152,7 +152,7 @@ void TerminalGraphics::clip_rect(int x, int y, int width, int height) {
 }
 
 std::unique_ptr<Graphics> TerminalGraphics::create() {
-  return std::unique_ptr<Graphics> { new TerminalGraphics(this->screen, this->clip, this->dx, this->dx) };
+  return std::make_unique<TerminalGraphics>(this->screen, this->clip, this->dx, this->dx);
 }
 
 std::unique_ptr<Graphics> TerminalGraphics::create(int x, int y, int width, int height) {

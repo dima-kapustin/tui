@@ -62,10 +62,6 @@ public:
   constexpr bool operator==(const BasicFunctionalEventAdapter &other) const {
     return false;
   }
-
-  constexpr bool operator!=(const BasicFunctionalEventAdapter &other) const {
-    return true;
-  }
 };
 
 template<typename Event, std::enable_if_t<has_type_enum_v<Event>, bool> = true>
@@ -97,10 +93,6 @@ public:
 
   constexpr bool operator==(const FunctionalEventAdapter &other) const {
     return false;
-  }
-
-  constexpr bool operator!=(const FunctionalEventAdapter &other) const {
-    return true;
   }
 };
 
