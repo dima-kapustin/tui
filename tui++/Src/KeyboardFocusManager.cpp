@@ -483,7 +483,7 @@ void KeyboardFocusManager::restore_focus(FocusEvent &e, const std::shared_ptr<Wi
   auto opposite_component = realOppositeComponent.load().lock();
   auto vetoed_component = e.source;
 
-  if (new_focused_window && restore_focus(new_focused_window, vetoed_component, false)) {
+  if (new_focused_window and restore_focus(new_focused_window, vetoed_component, false)) {
   } else if (opposite_component and do_restore_focus(opposite_component, vetoed_component, false)) {
   } else if (e.opposite and do_restore_focus(e.opposite, vetoed_component, false)) {
   } else {
@@ -521,7 +521,7 @@ bool KeyboardFocusManager::restore_focus(const std::shared_ptr<Window> &window, 
 
 bool KeyboardFocusManager::do_restore_focus(const std::shared_ptr<Component> &to_focus, const std::shared_ptr<Component> &vetoed_component, bool clear_on_failure) {
   auto success = true;
-  if (to_focus != vetoed_component && to_focus->is_showing() and to_focus->can_be_focus_owner() and (success = to_focus->request_focus(false, FocusEvent::Cause::ROLLBACK))) {
+  if (to_focus != vetoed_component and to_focus->is_showing() and to_focus->can_be_focus_owner() and (success = to_focus->request_focus(false, FocusEvent::Cause::ROLLBACK))) {
     return true;
   } else {
     if (not success and get_focused_window() != to_focus->get_containing_window()) {
