@@ -231,7 +231,7 @@ private:
 
   std::chrono::milliseconds read_input_timeout { 20 };
   std::chrono::milliseconds mouse_click_detection_timeout { 400 };
-  std::chrono::milliseconds mouse_double_click_detection_timeout { 500 };
+  std::chrono::milliseconds mouse_double_click_detection_timeout { 300 };
 
   std::unique_ptr<TerminalImpl> impl;
 

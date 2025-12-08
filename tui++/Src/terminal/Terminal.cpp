@@ -184,13 +184,14 @@ void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button,
       prev_mouse_press_time = Clock::now();
     } else if (type == MouseEvent::MOUSE_RELEASED) {
       if (prev_mouse_event.button == button and (Clock::now() - prev_mouse_press_time) < mouse_click_detection_timeout) {
+        auto click_count = 1;
         if ((Clock::now() - prev_mouse_click_time) < mouse_double_click_detection_timeout) {
-          this->screen.post_system<MouseClickEvent>(component, button, modifiers, p.x, p.y, false, 2);
+          click_count = 2;
           prev_mouse_click_time = { };
         } else {
-          this->screen.post_system<MouseClickEvent>(component, button, modifiers, p.x, p.y, false, 1);
           prev_mouse_click_time = Clock::now();
         }
+        this->screen.post_system<MouseClickEvent>(component, button, modifiers, p.x, p.y, click_count, false);
       }
     }
   }
