@@ -46,6 +46,12 @@ public:
       this->change_listeners.emplace_back(listener);
     }
   }
+
+  void remove_change_listener(const PropertyChangeListener &listener) const {
+    std::erase_if(this->change_listeners, [&listener](const PropertyChangeListener &e) {
+      return e.target<PropertyChangeListenerSignature>() == listener.target<PropertyChangeListenerSignature>();
+    });
+  }
 };
 
 class Object {
@@ -166,16 +172,8 @@ public:
     return this->raw_value == other.value;
   }
 
-  bool operator!=(const Property &other) const {
-    return this->raw_value != other.value;
-  }
-
   bool operator==(const T &other) const {
     return this->raw_value == other;
-  }
-
-  bool operator!=(const T &other) const {
-    return this->raw_value != other;
   }
 
   template<typename U = T, std::enable_if_t<detail::has_bool_operator_v<U>, bool> = true>
@@ -255,16 +253,8 @@ public:
     return this->optional == other.optional;
   }
 
-  bool operator!=(const Property &other) const {
-    return this->optional != other.optional;
-  }
-
   bool operator==(const std::optional<value_type> &other) const {
     return this->optional == other;
-  }
-
-  bool operator!=(const std::optional<value_type> &other) const {
-    return this->optional != other;
   }
 };
 

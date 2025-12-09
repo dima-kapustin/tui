@@ -117,22 +117,23 @@ bool Component::is_request_focus_accepted(bool temporary, bool focused_window_ch
 
 bool Component::request_focus(bool temporary, bool focused_window_change_allowed, FocusEvent::Cause cause) {
   // 1) Check if the event being dispatched is a system-generated mouse event.
-  auto current_event = get_event_queue()->get_current_event();
-  if (auto mouse_event = dynamic_cast<MouseEvent*>(current_event.get()); mouse_event and current_event->system_generated) {
-    // 2) Sanity check: if the mouse event component source belongs to the same containing window.
-    auto source = mouse_event->source;
-    if (not source or source->get_containing_window() == get_containing_window()) {
-      log_focus_ln("requesting focus by mouse event \"in window\"");
+  if (auto current_event = get_event_queue()->get_current_event(); current_event and current_event->system_generated) {
+    if (auto mouse_event = std::dynamic_pointer_cast<MouseEvent>(current_event)) {
+      // 2) Sanity check: if the mouse event component source belongs to the same containing window.
+      auto source = mouse_event->source;
+      if (not source or source->get_containing_window() == get_containing_window()) {
+        log_focus_ln("requesting focus by mouse event \"in window\"");
 
-      // If both the conditions are fulfilled the focus request should be strictly
-      // bounded by the toplevel window. It's assumed that the mouse event activates
-      // the window (if it wasn't active) and this makes it possible for a focus
-      // request with a strong in-window requirement to change focus in the bounds
-      // of the toplevel. If, by any means, due to asynchronous nature of the event
-      // dispatching mechanism, the window happens to be natively inactive by the time
-      // this focus request is eventually handled, it should not re-activate the
-      // toplevel. Otherwise the result may not meet user expectations. See 6981400.
-      focused_window_change_allowed = false;
+        // If both the conditions are fulfilled the focus request should be strictly
+        // bounded by the toplevel window. It's assumed that the mouse event activates
+        // the window (if it wasn't active) and this makes it possible for a focus
+        // request with a strong in-window requirement to change focus in the bounds
+        // of the toplevel. If, by any means, due to asynchronous nature of the event
+        // dispatching mechanism, the window happens to be natively inactive by the time
+        // this focus request is eventually handled, it should not re-activate the
+        // toplevel. Otherwise the result may not meet user expectations. See 6981400.
+        focused_window_change_allowed = false;
+      }
     }
   }
 
