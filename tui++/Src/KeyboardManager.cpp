@@ -72,9 +72,10 @@ void KeyboardManager::register_key_stroke(const KeyStroke &key_stroke, const std
 
 void KeyboardManager::unregister_key_storke(const KeyStroke &key_stroke, const std::shared_ptr<Component> &component) {
   if (auto &&top = get_top_ancestor(component)) {
-    std::erase_if(component_map[top][key_stroke], [&component](auto &candidate) {
-      return candidate == component;
-    });
+    auto &&components = component_map[top][key_stroke];
+    if (auto &&pos = std::find(components.begin(), components.end(), component); pos != components.end()) {
+      components.erase(pos);
+    }
   }
 }
 
@@ -88,7 +89,12 @@ void KeyboardManager::register_menu_bar(const std::shared_ptr<MenuBar> &menu_bar
 }
 
 void KeyboardManager::unregister_menu_bar(const std::shared_ptr<MenuBar> &menu_bar) {
-
+  if (auto &&top = get_top_ancestor(menu_bar)) {
+    auto &&menu_bars = menu_bar_map[top];
+    if (auto &&pos = std::find(menu_bars.begin(), menu_bars.end(), menu_bar); pos != menu_bars.end()) {
+      menu_bars.erase(pos);
+    }
+  }
 }
 
 }
