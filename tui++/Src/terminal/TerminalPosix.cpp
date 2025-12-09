@@ -47,13 +47,12 @@ public:
   }
 
   bool read_input(const std::chrono::milliseconds &timeout, Terminal::InputBuffer &into) {
-    if (is_stdin_empty(timeout)) {
-      return false;
-    }
-    char byte = '\0';
-    if ((::read(fileno(stdin), &byte, 1) == 1)) {
-      into.put(byte);
-      return true;
+    if (not is_stdin_empty(timeout)) {
+      auto byte = '\0';
+      if ((::read(fileno(stdin), &byte, 1) == 1)) {
+        into.put(byte);
+        return true;
+      }
     }
     return false;
   }
