@@ -31,6 +31,7 @@ class Window;
 class Graphics;
 class Component;
 class EventQueue;
+class KeyboardManager;
 
 template<typename T>
 constexpr bool is_component_v = std::is_base_of_v<Component, T>;
@@ -380,6 +381,7 @@ protected:
 
   friend class Window;
   friend class KeyboardFocusManager;
+  friend class KeyboardManager;
 
 public:
   virtual ~Component();

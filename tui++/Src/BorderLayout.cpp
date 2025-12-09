@@ -6,8 +6,8 @@
 namespace tui {
 
 void BorderLayout::add_layout_component(const std::shared_ptr<Component> &target, const std::any &constraints) {
-  if (auto name = std::any_cast<std::string_view>(&constraints); name or not constraints.has_value()) {
-    if (not name or *name == CENTER) {
+  if (auto name = std::any_cast<std::string_view>(&constraints)) {
+    if (*name == CENTER) {
       this->center = target;
     } else if (*name == NORTH) {
       this->north = target;
@@ -28,6 +28,8 @@ void BorderLayout::add_layout_component(const std::shared_ptr<Component> &target
     } else {
       throw std::runtime_error("Cannot add to layout: unknown constraint: " + std::string(*name));
     }
+  } else if (not constraints.has_value()) {
+    this->center = target;
   } else {
     throw std::runtime_error("Cannot add to layout: constraint must be a string_view (or null)");
   }
@@ -82,6 +84,8 @@ std::shared_ptr<Component> BorderLayout::get_layout_component(const std::any &co
     } else {
       throw std::runtime_error("Cannot get component: unknown constraint: " + std::string(*name));
     }
+  } else if (not constraints.has_value()) {
+    return this->center;
   } else {
     throw std::runtime_error("Cannot get component: constraint must be a string_view");
   }
