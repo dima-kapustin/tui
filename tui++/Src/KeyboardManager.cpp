@@ -6,6 +6,9 @@
 
 namespace tui {
 
+std::unordered_map<std::shared_ptr<Component>, KeyboardManager::KeyMap> KeyboardManager::component_map;
+std::unordered_map<std::shared_ptr<Component>, std::vector<std::shared_ptr<MenuBar>>> KeyboardManager::menu_bar_map;
+
 bool KeyboardManager::fire_keyboard_action(KeyEvent &e, const std::shared_ptr<Component> &top_ancestor) {
   if (auto key_map_pos = component_map.find(top_ancestor); key_map_pos != component_map.end()) {
     auto key_stroke = KeyStroke { e };
