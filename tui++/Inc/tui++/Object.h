@@ -130,25 +130,25 @@ class Property;
 
 template<typename T>
 class Property<T, std::enable_if_t<not detail::is_optional_v<T>>> : public PropertyBase {
-  T raw_value;
+  T value_;
 
 private:
   void set_value(const T &value) {
-    if (this->raw_value != value) {
-      auto old_value = this->raw_value;
-      this->raw_value = value;
-      fire_change_event(old_value, this->raw_value);
+    if (this->value_ != value) {
+      auto old_value = this->value_;
+      this->value_ = value;
+      fire_change_event(old_value, this->value_);
     }
   }
 
 public:
   constexpr Property(Object *object, const std::string_view &name, const T &default_value = T()) :
-      PropertyBase(object, name), raw_value(default_value) {
+      PropertyBase(object, name), value_(default_value) {
   }
 
 public:
   PropertyValue get_value() const {
-    return this->raw_value;
+    return this->value_;
   }
 
   void set_value(const PropertyValue &value) {
@@ -160,7 +160,7 @@ public:
   }
 
   const T& value() const {
-    return this->raw_value;
+    return this->value_;
   }
 
   Property& operator=(const T &value) {
@@ -169,16 +169,16 @@ public:
   }
 
   bool operator==(const Property &other) const {
-    return this->raw_value == other.value;
+    return this->value_ == other.value;
   }
 
   bool operator==(const T &other) const {
-    return this->raw_value == other;
+    return this->value_ == other;
   }
 
   template<typename U = T, std::enable_if_t<detail::has_bool_operator_v<U>, bool> = true>
   operator bool() const {
-    return bool(this->raw_value);
+    return bool(this->value_);
   }
 };
 

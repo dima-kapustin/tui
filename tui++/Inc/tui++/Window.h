@@ -1,10 +1,17 @@
 #pragma once
 
 #include <tui++/Component.h>
-#include <tui++/event/WindowEvent.h>
 #include <tui++/WindowMouseEventDispatcher.h>
 
+#include <tui++/event/WindowEvent.h>
+
 namespace tui {
+
+enum class WindowType {
+  NORMAL,
+  POPUP,
+  UTILITY
+};
 
 class Screen;
 class KeyboardFocusManager;
@@ -14,10 +21,13 @@ class Window: public ComponentExtension<Component, WindowEvent> {
 
   Screen &screen;
   std::shared_ptr<Window> owner;
+  const WindowType type;
 
+  std::vector<std::weak_ptr<Window>> owned_windows;
   std::shared_ptr<WindowMouseEventDispatcher> mouse_event_dispatcher;
 
   Property<bool> focusable_window_state { this, "focusable_window_state", true };
+  Property<bool> always_on_top { this, "always_on_top", false };
 
   std::weak_ptr<Component> temporary_lost_component;
 
@@ -58,17 +68,28 @@ private:
     }
   }
 
+  void add_owned_window(const std::shared_ptr<Window> &w);
+  void remove_owned_window(const std::shared_ptr<Window> &w);
+
   friend class Component;
   friend class KeyboardFocusManager;
   friend class WindowMouseEventDispatcher;
 
 protected:
-  Window(Screen &screen) :
-      screen(screen) {
+  Window(Screen &screen, WindowType type = WindowType::NORMAL) :
+      screen(screen), type(type) {
   }
 
-  Window(const std::shared_ptr<Window> &owner) :
-      screen(owner->screen), owner(owner) {
+  Window(const std::shared_ptr<Window> &owner, WindowType type = WindowType::NORMAL) :
+      screen(owner->screen), owner(owner), type(type) {
+  }
+
+  ~Window() {
+    if (this->owner) {
+      with_tree_locked([this] {
+        this->owner->remove_owned_window(std::static_pointer_cast<Window>(shared_from_this()));
+      });
+    }
   }
 
   void init() override;
@@ -88,6 +109,10 @@ protected:
   }
 
 public:
+  WindowType get_type() const {
+    return this->type;
+  }
+
   void dispatch_event(Event &e) override;
 
   std::shared_ptr<Window> get_owner() const {
@@ -124,8 +149,12 @@ public:
   bool get_focusable_window_state() const {
     return this->focusable_window_state;
   }
-
   void set_focusable_window_state(bool state);
+
+  void set_always_on_top(bool value);
+  bool is_always_on_top() const {
+    return this->always_on_top;
+  }
 
   void pack();
 };
@@ -139,7 +168,7 @@ constexpr WindowEvent::WindowEvent(const std::shared_ptr<Window> &source, Type t
 }
 
 constexpr std::shared_ptr<Window> WindowEvent::get_window() const {
-  return std::dynamic_pointer_cast<Window>(this->source);
+  return std::static_pointer_cast<Window>(this->source);
 }
 
 }

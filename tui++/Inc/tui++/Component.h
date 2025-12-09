@@ -336,7 +336,7 @@ protected:
 
   virtual bool process_key_binding(const KeyStroke &ks, KeyEvent &e, InputCondition condition);
 
-  static bool process_key_bindings_for_all_components(KeyEvent &e, const std::shared_ptr<Component> &container);
+  static bool process_key_bindings_for_all_components(KeyEvent &e, std::shared_ptr<Component> container);
   static bool notify_action(const std::shared_ptr<Action> &action, const KeyStroke &ks, KeyEvent &e, const std::shared_ptr<Component> &sender);
 
   std::shared_ptr<Component> get_traversal_root() const {

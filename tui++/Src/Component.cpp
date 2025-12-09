@@ -1,3 +1,4 @@
+#include <tui++/Popup.h>
 #include <tui++/Border.h>
 #include <tui++/Window.h>
 #include <tui++/Graphics.h>
@@ -360,17 +361,17 @@ bool Component::notify_action(const std::shared_ptr<Action> &action, const KeySt
   return true;
 }
 
-bool Component::process_key_bindings_for_all_components(KeyEvent &e, const std::shared_ptr<Component> &container) {
+bool Component::process_key_bindings_for_all_components(KeyEvent &e, std::shared_ptr<Component> container) {
   while (true) {
     if (KeyboardManager::fire_keyboard_action(e, container)) {
       return true;
     }
 
-//    TODO if (auto window = std::dynamic_pointer_cast<Popup.HeavyWeightWindow>(container)) {
-//      container = window.get_owner();
-//    } else {
-    return false;
-//    }
+    if (auto popup_window = std::dynamic_pointer_cast<Popup::PopupWindow>(container)) {
+      container = popup_window->get_owner();
+    } else {
+      return false;
+    }
   }
 }
 

@@ -91,6 +91,10 @@ void Window::set_focusable_window_state(bool state) {
   }
 }
 
+void Window::set_always_on_top(bool value) {
+  this->always_on_top = value;
+}
+
 void Window::to_front() {
   this->screen.to_front(std::dynamic_pointer_cast<Window>(shared_from_this()));
 }
@@ -104,7 +108,7 @@ void Window::show() {
     this->before_first_show = false;
     // TODO
     // close_splash_screen();
-    // Dialog::check_should_be_blocked(this);
+    // Dialog::check_should_be_blocked(shared_from_this());
     base::show();
     this->screen.show_window(std::dynamic_pointer_cast<Window>(shared_from_this()));
   }
@@ -122,6 +126,11 @@ void Window::hide() {
 }
 
 void Window::init() {
+  if (this->owner) {
+    this->owner->add_owned_window(std::static_pointer_cast<Window>(shared_from_this()));
+    set_always_on_top(this->owner->is_always_on_top());
+  }
+
   set_focus_traversal_policy(KeyboardFocusManager::get_default_focus_traversal_policy());
   set_layout(std::make_shared<BorderLayout>());
 }
@@ -144,6 +153,20 @@ void Window::pack() {
   }
 
   validate_unconditionally();
+}
+
+void Window::add_owned_window(const std::shared_ptr<Window> &w) {
+  with_tree_locked([&w, this] {
+    this->owned_windows.emplace_back(w);
+  });
+}
+
+void Window::remove_owned_window(const std::shared_ptr<Window> &w) {
+  with_tree_locked([&w, this] {
+    std::erase_if(this->owned_windows, [&w](auto const &candidate) {
+      return candidate.expired() or candidate.lock() == w;
+    });
+  });
 }
 
 }
