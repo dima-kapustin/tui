@@ -68,7 +68,7 @@ void WindowMouseEventDispatcher::track_mouse_enter_exit(const std::shared_ptr<Co
   if (e.id != MouseOverEvent::MOUSE_EXITED and //
       e.id != MouseDragEvent::MOUSE_DRAGGED and //
       not this->mouse_over_window) {
-    // any event but an exit or drag means we're in the native container
+    // any event but an exit or drag means we're in the window
     this->mouse_over_window = true;
     start_listening_for_other_drags();
   } else if (e.id == MouseOverEvent::MOUSE_EXITED) {
@@ -92,10 +92,10 @@ bool WindowMouseEventDispatcher::dispatch_event(MouseEventBase &e) {
 
   auto mouse_event_target = this->mouse_event_target.lock();
   // 4508327 : MOUSE_CLICKED should only go to the recipient of
-  // the accompanying MOUSE_PRESSED, so don't reset mouseEventTarget on a
+  // the accompanying MOUSE_PRESSED, so don't reset mouse_event_target on a
   // MOUSE_CLICKED.
   if (not e.was_button_down_before() and e.id != MouseClickEvent::MOUSE_CLICKED) {
-    mouse_event_target = (mouse_over.get() != this->window) ? mouse_over : nullptr;
+    mouse_event_target = mouse_over; // (mouse_over.get() != this->window) ? mouse_over : nullptr;
     this->mouse_event_target = mouse_event_target;
   }
 

@@ -88,9 +88,9 @@ public:
     post(std::make_shared<InvocationEvent>(fn));
   }
 
-  std::shared_ptr<Component> get_component_at(int x, int y) const;
-  std::shared_ptr<Component> get_component_at(const Point &p) const {
-    return get_component_at(p.x, p.y);
+  std::shared_ptr<Window> get_window_at(int x, int y) const;
+  std::shared_ptr<Window> get_window_at(const Point &p) const {
+    return get_window_at(p.x, p.y);
   }
 
   virtual void refresh() = 0;

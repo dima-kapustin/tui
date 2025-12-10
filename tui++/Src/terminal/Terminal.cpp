@@ -166,19 +166,19 @@ void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button,
 
   auto p = Point { x, y };
 
-  auto component = this->screen.get_component_at(p);
-  if (component) {
-    p = convert_point_from_screen(p, component);
+  auto window = this->screen.get_window_at(p);
+  if (window) {
+    p = convert_point_from_screen(p, window);
   }
 
   if (motion) {
     if (type == MouseEvent::MOUSE_PRESSED and button != MouseEvent::NO_BUTTON) {
-      this->screen.post_system<MouseDragEvent>(component, button, modifiers, p.x, p.y);
+      this->screen.post_system<MouseDragEvent>(window, button, modifiers, p.x, p.y);
     } else {
-      this->screen.post_system<MouseMoveEvent>(component, modifiers, p.x, p.y);
+      this->screen.post_system<MouseMoveEvent>(window, modifiers, p.x, p.y);
     }
   } else {
-    this->screen.post_system<MouseEvent>(component, type, button, modifiers, p.x, p.y, false);
+    this->screen.post_system<MouseEvent>(window, type, button, modifiers, p.x, p.y, false);
 
     if (type == MouseEvent::MOUSE_PRESSED) {
       prev_mouse_press_time = Clock::now();
@@ -191,7 +191,7 @@ void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button,
         } else {
           prev_mouse_click_time = Clock::now();
         }
-        this->screen.post_system<MouseClickEvent>(component, button, modifiers, p.x, p.y, click_count, false);
+        this->screen.post_system<MouseClickEvent>(window, button, modifiers, p.x, p.y, click_count, false);
       }
     }
   }
@@ -205,12 +205,12 @@ void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button,
 void Terminal::new_mouse_wheel_event(int wheel_rotation, InputEvent::Modifiers key_modifiers, int x, int y) {
   auto p = Point { x, y };
 
-  auto component = this->screen.get_component_at(p);
-  if (component) {
-    p = convert_point_from_screen(p, component);
+  auto window = this->screen.get_window_at(p);
+  if (window) {
+    p = convert_point_from_screen(p, window);
   }
 
-  this->screen.post_system<MouseWheelEvent>(component, key_modifiers, p.x, p.y, wheel_rotation);
+  this->screen.post_system<MouseWheelEvent>(window, key_modifiers, p.x, p.y, wheel_rotation);
 }
 
 std::shared_ptr<TerminalGraphics> Terminal::get_graphics() {

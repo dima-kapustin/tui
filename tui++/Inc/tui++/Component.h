@@ -1051,6 +1051,10 @@ public:
     return (this->event_mask & event_type) or has_event_listeners(event_type);
   }
 
+  bool is_event_enabled(Event &e) const {
+    return is_event_enabled(e.id.type);
+  }
+
   void set_focus_traversal_keys_enabled(bool focus_traversal_keys_enabled) {
     this->focus_traversal_keys_enabled = focus_traversal_keys_enabled;
   }

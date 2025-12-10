@@ -295,8 +295,20 @@ class MultipleEventSource: virtual public MultipleEventSourceBase, virtual prote
   virtual void event_listener_mask_updated(const EventTypeMask &removed, const EventTypeMask &added) {
   }
 
+  template<typename E, typename ... Es>
+  void process_event(Event &e) {
+    if (event_type_v<E> == e.id.type) {
+      SingleEventSource<E>::process_event(*dynamic_cast<E*>(&e));
+    } else if constexpr (sizeof...(Es)) {
+      process_event<Es...>(e);
+    }
+  }
+
 protected:
-//
+  void process_event(Event &e) {
+    process_event<Events...>(e);
+  }
+
   using SingleEventSource<Events>::process_event...;
 
   template<typename Event>

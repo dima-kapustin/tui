@@ -35,7 +35,7 @@ public:
     unsigned id;
     struct {
       unsigned sub_type :SUB_TYPE_BIT_LEN;
-      unsigned type :24;
+      EventType type :24;
     };
   };
 

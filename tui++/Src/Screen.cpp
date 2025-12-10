@@ -15,12 +15,11 @@ void Screen::post(const std::shared_ptr<Event> &event) {
   this->event_queue.push(event);
 }
 
-std::shared_ptr<Component> Screen::get_component_at(int x, int y) const {
+std::shared_ptr<Window> Screen::get_window_at(int x, int y) const {
   std::unique_lock lock(this->windows_mutex);
   for (auto &&window : this->windows) {
     if (window->contains(x, y)) {
-      auto component = window->get_component_at(x - window->get_x(), y - window->get_y());
-      return component ? component : window;
+      return window;
     }
   }
   return {};

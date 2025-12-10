@@ -92,6 +92,11 @@ struct event_type<MouseOverEvent> {
 };
 
 template<>
+struct event_type<MouseWheelEvent> {
+  constexpr static EventType value = EventType::MOUSE_WHEEL;
+};
+
+template<>
 struct event_type<WindowEvent> {
   constexpr static EventType value = EventType::WINDOW;
 };

@@ -31,7 +31,8 @@ int main(int argc, char *argv[]) {
     g->set_foreground_color(GREEN_COLOR);
     g->draw_string("Привет, мир!", 1, 7, Attribute::STANDOUT);
     g->set_stroke(Stroke::DOUBLE);
-    g->draw_rounded_rect(0, 6, 14, 3);
+    auto size = terminal.get_size();
+    g->draw_rounded_rect(0, 0, size.width, size.height);
     g->flush();
   });
 
@@ -41,6 +42,7 @@ int main(int argc, char *argv[]) {
   frame->set_visible(true);
 
   frame->add_event_listener([](MouseMoveEvent &e) {
+//    std::cout << e << std::endl;
   });
 
   terminal.run_event_loop();
