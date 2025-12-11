@@ -29,7 +29,7 @@ void Screen::show_window(const std::shared_ptr<Window> &window) {
   std::unique_lock lock(this->windows_mutex);
   this->windows.emplace_front(window);
   if (this->windows.size() == 1) {
-    focus(window);
+    focus(window, nullptr);
   }
 }
 
@@ -45,18 +45,20 @@ void Screen::hide_window(const std::shared_ptr<Window> &window) {
 void Screen::to_front(const std::shared_ptr<Window> &window) {
   std::unique_lock lock(this->windows_mutex);
   if (this->windows.front() != window) {
+    auto front = this->windows.front();
     if (auto pos = std::remove(this->windows.begin(), this->windows.end(), window); pos != this->windows.end()) {
       this->windows.erase(pos, this->windows.end());
       this->windows.emplace_front(window);
+      focus(window, front);
     } else {
       throw std::runtime_error("unknown window");
     }
   }
-  focus(window);
 }
 
-void Screen::focus(const std::shared_ptr<Window> &window) {
-  post_system<WindowEvent>(window, WindowEvent::WINDOW_GAINED_FOCUS);
+void Screen::focus(const std::shared_ptr<Window> &gained, const std::shared_ptr<Window> &lost) {
+  post_system<WindowEvent>(lost, WindowEvent::WINDOW_LOST_FOCUS, gained);
+  post_system<WindowEvent>(gained, WindowEvent::WINDOW_GAINED_FOCUS, lost);
 }
 
 void Screen::dispatch_event(Event &event) {

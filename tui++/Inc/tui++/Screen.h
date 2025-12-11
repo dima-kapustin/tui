@@ -37,7 +37,8 @@ private:
   void hide_window(const std::shared_ptr<Window> &window);
 
   void to_front(const std::shared_ptr<Window> &window);
-  void focus(const std::shared_ptr<Window> &window);
+
+  void focus(const std::shared_ptr<Window> &gained, const std::shared_ptr<Window> &lost);
 
   friend class Window;
 

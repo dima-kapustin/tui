@@ -541,9 +541,9 @@ bool KeyboardFocusManager::do_restore_focus(const std::shared_ptr<Component> &to
 }
 
 void KeyboardFocusManager::redispatch_event(const std::shared_ptr<Component> &target, Event &e) {
-  e.focus_manager_is_dispatching = true;
+  e.is_being_dispatched_by_focus_manager = true;
   target->dispatch_event(e);
-  e.focus_manager_is_dispatching = false;
+  e.is_being_dispatched_by_focus_manager = false;
 }
 
 }

@@ -14,7 +14,7 @@ class Event {
   struct {
     unsigned system_generated :1 = false;
     unsigned is_posted :1 = false;
-    unsigned focus_manager_is_dispatching :1 = false;
+    unsigned is_being_dispatched_by_focus_manager :1 = false;
   };
 
   friend class Screen;

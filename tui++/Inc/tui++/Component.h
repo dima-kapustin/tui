@@ -42,6 +42,12 @@ class Component: virtual public Object, public std::enable_shared_from_this<Comp
 protected:
   static std::recursive_mutex tree_mutex;
 
+  /**
+   * The event_mask is ONLY set by subclasses via enable_events().
+   * The mask should NOT be set when listeners are registered
+   * so that we can distinguish the difference between when
+   * listeners request events and subclasses request them.
+   */
   EventTypeMask event_mask = EventTypeMask::NONE;
 
   std::string name;

@@ -441,10 +441,7 @@ void Component::remove_notify() {
 void Component::dispatch_event(Event &e) {
   log_event_ln(e);
 
-  if (not e.focus_manager_is_dispatching) {
-    // Now, with the event properly targeted to a lightweight
-    // descendant if necessary, invoke the public focus retargeting
-    // and dispatching function
+  if (not e.is_being_dispatched_by_focus_manager) {
     if (KeyboardFocusManager::dispatch_event(e)) {
       return;
     }
@@ -633,13 +630,21 @@ void Component::create_hierarchy_bounds_events(HierarchyBoundsEvent::Type type, 
 }
 
 std::shared_ptr<Component> Component::get_mouse_event_target(int x, int y, bool include_self) const {
+  auto accept = [](const Component *c) -> bool {
+    return (c->event_mask & MOUSE_EVENT_MASK) or (c->get_event_listener_mask() & MOUSE_EVENT_MASK);
+  };
+
   std::unique_lock lock(this->tree_mutex);
   for (auto &&child : this->components) {
     if (child->visible and child->contains(x - child->get_x(), y - child->get_y())) {
-      auto grand_child = child->get_mouse_event_target(x - child->get_x(), y - child->get_y(), true);
+      if (auto descendant = child->get_mouse_event_target(x - child->get_x(), y - child->get_y(), true)) {
+        if (accept(descendant.get())) {
+          return descendant;
+        }
+      }
     }
   }
-  if (contains(x, y)) {
+  if (include_self and accept(this) and contains(x, y)) {
     return const_cast<Component*>(this)->shared_from_this();
   }
   return nullptr;
