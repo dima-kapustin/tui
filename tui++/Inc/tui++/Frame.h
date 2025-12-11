@@ -15,6 +15,8 @@ class Frame: public Window {
   friend class Screen;
 
 protected:
+  Property<std::string> title { this, "title" };
+
   void init() override {
     Window::init();
     enable_events(KEY_EVENT_MASK | WINDOW_EVENT_MASK);
@@ -23,7 +25,9 @@ protected:
 public:
   void paint(Graphics &g) override;
 
-  void set_title(const std::string &title);
+  void set_title(const std::string &title) {
+    this->title = title;
+  }
 };
 
 }

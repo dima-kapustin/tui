@@ -77,20 +77,32 @@ public:
     return this->properties;
   }
 
-  PropertyBase* get_property(const std::string_view &name) {
-    auto pos = std::lower_bound(this->properties.begin(), this->properties.end(), name, //
+  PropertyBase* get_property(const std::string_view &property_name) {
+    auto pos = std::lower_bound(this->properties.begin(), this->properties.end(), property_name, //
         [](const auto &a, const std::string_view &name) {
           return a->name < name;
         });
-    return pos == this->properties.end() or ((*pos)->name != name) ? nullptr : *pos;
+    return pos == this->properties.end() or ((*pos)->name != property_name) ? nullptr : *pos;
   }
 
-  const PropertyBase* get_property(const std::string_view &name) const {
-    auto pos = std::lower_bound(this->properties.begin(), this->properties.end(), name, //
+  const PropertyBase* get_property(const std::string_view &property_name) const {
+    auto pos = std::lower_bound(this->properties.begin(), this->properties.end(), property_name, //
         [](const auto &a, const std::string_view &name) {
           return a->name < name;
         });
-    return pos == this->properties.end() or ((*pos)->name != name) ? nullptr : *pos;
+    return pos == this->properties.end() or ((*pos)->name != property_name) ? nullptr : *pos;
+  }
+
+  void add_property_change_listener(const std::string_view &property_name, const PropertyChangeListener &listener) const {
+    if (auto property = get_property(property_name)) {
+      property->add_change_listener(listener);
+    }
+  }
+
+  void remove_property_change_listener(const std::string_view &property_name, const PropertyChangeListener &listener) const {
+    if (auto property = get_property(property_name)) {
+      property->remove_change_listener(listener);
+    }
   }
 };
 
