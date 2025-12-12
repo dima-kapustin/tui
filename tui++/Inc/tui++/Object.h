@@ -4,23 +4,23 @@
 #include <ranges>
 #include <vector>
 #include <cassert>
+#include <cstring>
 #include <variant>
 #include <concepts>
 #include <algorithm>
 #include <functional>
-#include <string_view>
 
 namespace tui {
 
 class Object;
 
 using PropertyValue = std::any;
-using PropertyChangeListenerSignature = void(Object*, const std::string_view &property_name, const PropertyValue& old_value, const PropertyValue &new_value);
+using PropertyChangeListenerSignature = void(Object*, const char* property_name, const PropertyValue& old_value, const PropertyValue &new_value);
 using PropertyChangeListener = std::function<PropertyChangeListenerSignature>;
 
 class PropertyBase {
   Object *object;
-  std::string_view name;
+  const char *name;
 
   mutable std::vector<PropertyChangeListener> change_listeners;
 
@@ -34,7 +34,7 @@ protected:
   }
 
 protected:
-  PropertyBase(Object *object, const std::string_view &name);
+  PropertyBase(Object *object, const char *name);
 
 public:
   void add_change_listener(const PropertyChangeListener &listener) const {
@@ -61,7 +61,7 @@ private:
   auto add_property(PropertyBase *property) {
     auto pos = std::lower_bound(this->properties.begin(), this->properties.end(), property, //
         [property](const auto &a, const auto &b) {
-          return a->name < b->name;
+          return std::strcmp(a->name, b->name) < 0;
         });
     this->properties.insert(pos, property);
   }
@@ -77,36 +77,36 @@ public:
     return this->properties;
   }
 
-  PropertyBase* get_property(const std::string_view &property_name) {
+  PropertyBase* get_property(const char *property_name) {
     auto pos = std::lower_bound(this->properties.begin(), this->properties.end(), property_name, //
-        [](const auto &a, const std::string_view &name) {
-          return a->name < name;
+        [](const auto &a, const char *property_name) {
+          return std::strcmp(a->name, property_name) < 0;
         });
-    return pos == this->properties.end() or ((*pos)->name != property_name) ? nullptr : *pos;
+    return pos == this->properties.end() or std::strcmp((*pos)->name, property_name) != 0 ? nullptr : *pos;
   }
 
-  const PropertyBase* get_property(const std::string_view &property_name) const {
+  const PropertyBase* get_property(const char *property_name) const {
     auto pos = std::lower_bound(this->properties.begin(), this->properties.end(), property_name, //
-        [](const auto &a, const std::string_view &name) {
-          return a->name < name;
+        [](const auto &a, const char *property_name) {
+          return std::strcmp(a->name, property_name) < 0;
         });
-    return pos == this->properties.end() or ((*pos)->name != property_name) ? nullptr : *pos;
+    return pos == this->properties.end() or std::strcmp((*pos)->name, property_name) != 0 ? nullptr : *pos;
   }
 
-  void add_property_change_listener(const std::string_view &property_name, const PropertyChangeListener &listener) const {
+  void add_property_change_listener(const char *property_name, const PropertyChangeListener &listener) const {
     if (auto property = get_property(property_name)) {
       property->add_change_listener(listener);
     }
   }
 
-  void remove_property_change_listener(const std::string_view &property_name, const PropertyChangeListener &listener) const {
+  void remove_property_change_listener(const char *property_name, const PropertyChangeListener &listener) const {
     if (auto property = get_property(property_name)) {
       property->remove_change_listener(listener);
     }
   }
 };
 
-inline PropertyBase::PropertyBase(Object *object, const std::string_view &name) :
+inline PropertyBase::PropertyBase(Object *object, const char *name) :
     object(object), name(name) {
   this->object->add_property(this);
 }
@@ -154,7 +154,7 @@ private:
   }
 
 public:
-  constexpr Property(Object *object, const std::string_view &name, const T &default_value = T()) :
+  constexpr Property(Object *object, const char *name, const T &default_value = T()) :
       PropertyBase(object, name), value_(default_value) {
   }
 
@@ -210,7 +210,7 @@ private:
   }
 
 public:
-  constexpr Property(Object *object, const std::string_view &name, const std::optional<value_type> &default_value = std::nullopt) :
+  constexpr Property(Object *object, const char *name, const std::optional<value_type> &default_value = std::nullopt) :
       PropertyBase(object, name), optional(default_value) {
   }
 
