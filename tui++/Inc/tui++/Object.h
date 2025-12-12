@@ -18,24 +18,11 @@ using PropertyValue = std::any;
 using PropertyChangeListenerSignature = void(Object*, const char* property_name, const PropertyValue& old_value, const PropertyValue &new_value);
 using PropertyChangeListener = std::function<PropertyChangeListenerSignature>;
 
-class PropertyBase {
-  Object *object;
-  const char *name;
+namespace detail {
 
+class PropertyChangeListenerContainer {
+protected:
   mutable std::vector<PropertyChangeListener> change_listeners;
-
-  friend class Object;
-
-protected:
-  void fire_change_event(const PropertyValue &old_value, const PropertyValue &new_value) {
-    for (auto &&change_listener : this->change_listeners) {
-      change_listener(this->object, this->name, old_value, new_value);
-    }
-  }
-
-protected:
-  PropertyBase(Object *object, const char *name);
-
 public:
   void add_change_listener(const PropertyChangeListener &listener) const {
     auto pos = std::find_if(this->change_listeners.begin(), this->change_listeners.end(), //
@@ -54,7 +41,21 @@ public:
   }
 };
 
-class Object {
+}
+
+class PropertyBase: public detail::PropertyChangeListenerContainer {
+  Object *object;
+  const char *name;
+
+  friend class Object;
+protected:
+  PropertyBase(Object *object, const char *name);
+
+protected:
+  void fire_change_event(const PropertyValue &old_value, const PropertyValue &new_value);
+};
+
+class Object: public detail::PropertyChangeListenerContainer {
   std::vector<PropertyBase*> properties;
 
 private:
@@ -105,11 +106,6 @@ public:
     }
   }
 };
-
-inline PropertyBase::PropertyBase(Object *object, const char *name) :
-    object(object), name(name) {
-  this->object->add_property(this);
-}
 
 namespace detail {
 

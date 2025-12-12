@@ -5,6 +5,7 @@
 #include <vector>
 #include <exception>
 #include <unordered_set>
+#include <unordered_map>
 
 #include <tui++/Point.h>
 #include <tui++/Color.h>
@@ -116,6 +117,8 @@ protected:
    * children and call the validate_tree() method on them.
    */
   static bool descend_unconditionally_when_validating;
+
+  std::unordered_map<std::string_view, PropertyValue> client_properties;
 
 public:
   constexpr static float TOP_ALIGNMENT = 0;
@@ -1087,6 +1090,21 @@ public:
    */
   bool is_focus_cycle_root(const std::shared_ptr<const Component> &container) const {
     return (get_focus_cycle_root_ancestor() == container);
+  }
+
+  template<typename T>
+  const T* get_client_property(const char *property_name) const {
+    if (auto pos = this->client_properties.find(property_name); pos != this->client_properties.end()) {
+      if (auto *value = std::any_cast<T>(&pos->second)) {
+        return value;
+      }
+    }
+    return nullptr;
+  }
+
+  template<typename T>
+  void set_client_property(const char *property_name, const T &value) {
+    this->client_properties[property_name].emplace(value);
   }
 };
 
