@@ -79,7 +79,8 @@ protected:
   Point location { };
   Dimension size { };
 
-  mutable std::optional<Dimension> minimum_size;
+  mutable Property<std::optional<Dimension>> minimum_size { this, "minimum_size" };
+  mutable Property<std::optional<Dimension>> maximum_size { this, "maximum_size" };
   mutable Property<std::optional<Dimension>> preferred_size { this, "preferred_size" };
 
   /**
@@ -245,6 +246,8 @@ protected:
 protected:
   static bool is_window(const std::shared_ptr<const Component> &component);
 
+  constexpr static auto npos = std::numeric_limits<size_t>::max();
+
   size_t get_component_index(const std::shared_ptr<const Component> &component) const {
     return get_component_index(component.get());
   }
@@ -255,7 +258,7 @@ protected:
         return index;
       }
     }
-    return size_t(-1);
+    return npos;
   }
 
   void enable_events(EventTypeMask event_mask);
@@ -577,13 +580,17 @@ public:
     return this->size;
   }
 
+  Rectangle get_bounds() const {
+    return {this->location, this->size};
+  }
+
   /**
    * Gets the preferred size of this component.
    *
    * @return a dimension object indicating this component's preferred size
    */
   Dimension get_preferred_size() const {
-    if (not this->valid and not this->preferred_size.has_vlaue()) {
+    if (not this->valid and not this->preferred_size.has_value()) {
       std::unique_lock lock(tree_mutex);
       if (this->layout) {
         this->preferred_size = this->layout->get_preferred_layout_size(shared_from_this());
@@ -601,6 +608,15 @@ public:
       this->minimum_size = this->layout->get_minimum_layout_size(shared_from_this());
     }
     return this->minimum_size.value_or(Dimension { });
+  }
+
+  Dimension get_maximum_size() const {
+    if (not this->layout) {
+      return this->size;
+    } else if (not this->valid or not this->maximum_size.has_value()) {
+      this->maximum_size = this->layout->get_maximum_layout_size(shared_from_this());
+    }
+    return this->maximum_size.value_or(Dimension { });
   }
 
   float get_alignment_x() const {
@@ -859,7 +875,7 @@ public:
   }
 
   std::optional<Color> get_background_color() const {
-    if (not this->background_color.has_vlaue()) {
+    if (not this->background_color.has_value()) {
       if (auto parent = get_parent()) {
         return parent->get_background_color();
       }
@@ -872,7 +888,7 @@ public:
   }
 
   std::optional<Color> get_foreground_color() const {
-    if (not this->foreground_color.has_vlaue()) {
+    if (not this->foreground_color.has_value()) {
       if (auto parent = get_parent()) {
         return parent->get_foreground_color();
       }
@@ -885,7 +901,7 @@ public:
   }
 
   std::optional<Cursor> get_cursor() const {
-    if (not this->cursor.has_vlaue()) {
+    if (not this->cursor.has_value()) {
       if (auto parent = get_parent()) {
         return parent->get_cursor();
       }

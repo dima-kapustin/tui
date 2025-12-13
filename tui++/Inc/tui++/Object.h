@@ -223,7 +223,7 @@ public:
     }
   }
 
-  bool has_vlaue() const {
+  bool has_value() const {
     return this->optional.has_value();
   }
 

@@ -23,6 +23,8 @@ public:
 
   virtual Dimension get_minimum_layout_size(const std::shared_ptr<const Component> &target) = 0;
 
+  virtual Dimension get_maximum_layout_size(const std::shared_ptr<const Component> &target) = 0;
+
   virtual Dimension get_preferred_layout_size(const std::shared_ptr<const Component> &target) = 0;
 
   /**
