@@ -493,10 +493,7 @@ void Component::dispatch_event(Event &e) {
     }
   }
 
-  // TODO
-//  if (auto focus_event = std::get_if<FocusEvent>(e.get()) and focusLog.isLoggable(PlatformLogger.Level.FINEST)) {
-//    focusLog.finest("" + e);
-//  }
+  log_focus_if_ln(dynamic_cast<FocusEvent*>(&e), *dynamic_cast<FocusEvent*>(&e));
 
   // MouseWheel may need to be retargeted here so that
   // AWTEventListener sees the event go to the correct
