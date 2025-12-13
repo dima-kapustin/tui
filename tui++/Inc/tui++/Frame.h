@@ -1,6 +1,7 @@
 #pragma once
 
 #include <tui++/Window.h>
+#include <tui++/RootPane.h>
 
 namespace tui {
 

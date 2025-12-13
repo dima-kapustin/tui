@@ -6,7 +6,9 @@ namespace tui {
 
 class DefaultFocusTraversalPolicy: public ContainerOrderFocusTraversalPolicy {
 protected:
-  bool accept(const std::shared_ptr<Component> &aComponent) const override;
+  bool accept(const std::shared_ptr<Component> &candidate) const override;
+
+  friend class Component;
 };
 
 }

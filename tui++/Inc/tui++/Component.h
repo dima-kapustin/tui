@@ -3,6 +3,7 @@
 #include <mutex>
 #include <memory>
 #include <vector>
+#include <concepts>
 #include <exception>
 #include <unordered_set>
 #include <unordered_map>
@@ -242,7 +243,20 @@ protected:
   }
 
 protected:
-  static bool is_window(const std::shared_ptr<Component> &component);
+  static bool is_window(const std::shared_ptr<const Component> &component);
+
+  size_t get_component_index(const std::shared_ptr<const Component> &component) const {
+    return get_component_index(component.get());
+  }
+
+  size_t get_component_index(const Component *component) const {
+    for (size_t index = 0; index != this->components.size(); ++index) {
+      if (this->components[index].get() == component) {
+        return index;
+      }
+    }
+    return size_t(-1);
+  }
 
   void enable_events(EventTypeMask event_mask);
   void disable_events(EventTypeMask event_mask);
@@ -252,13 +266,19 @@ protected:
   virtual void show();
   virtual void hide();
 
-  void add_impl(const std::shared_ptr<Component> &c, const std::any &constraints) noexcept (false);
+  void assert_adding_none_window(const std::shared_ptr<const Component> &c) noexcept (false);
+  void assert_adding_none_cyclic(const std::shared_ptr<const Component> &c) noexcept (false);
+
+  void add_impl(const std::shared_ptr<Component> &c, const std::any &constraints, int z_order) noexcept (false);
 
   virtual void add_notify();
 
   void remove_impl(const std::shared_ptr<Component> &component);
 
   virtual void remove_notify();
+
+  void add_delicately(const std::shared_ptr<Component> &c, const std::shared_ptr<Component> &parent, int z_order);
+  bool remove_delicately(const std::shared_ptr<Component> &c, const std::shared_ptr<Component> &new_parent, int new_z_order);
 
   /**
    * Set the parent container of this component. This is intended to be called by Container objects only. Note that we use a WeakReference
@@ -388,6 +408,9 @@ protected:
 
   std::shared_ptr<Component> get_mouse_event_target(int x, int y, bool include_self) const;
 
+  bool can_be_focus_owner_recursively();
+  bool can_contain_focus_owner(const std::shared_ptr<Component> &candidate);
+
   friend class Window;
   friend class KeyboardFocusManager;
   friend class KeyboardManager;
@@ -416,7 +439,7 @@ public:
   }
 
   void add(const std::shared_ptr<Component> &component, const std::any &constraints) noexcept (false) {
-    add_impl(component, constraints);
+    add_impl(component, constraints, -1);
   }
 
   /**
@@ -435,7 +458,7 @@ public:
 
   template<typename T, typename ... Args>
   void dispatch_event(Args &&... args) {
-    auto e = Event { std::in_place_type<T>, shared_from_this(), std::forward<Args>(args)... };
+    auto e = make_event<T>(shared_from_this(), std::forward<Args>(args)...);
     dispatch_event(e);
   }
 
@@ -479,18 +502,8 @@ public:
     return this->components[index];
   }
 
-  size_t get_component_index(const std::shared_ptr<const Component> &component) const {
-    return get_component_index(component.get());
-  }
-
-  size_t get_component_index(const Component *component) const {
-    for (size_t index = 0; index != this->components.size(); ++index) {
-      if (this->components[index].get() == component) {
-        return index;
-      }
-    }
-    return size_t(-1);
-  }
+  int get_component_z_order(const std::shared_ptr<const Component> &c) const;
+  void set_component_z_order(const std::shared_ptr<Component> &c, int new_z_order);
 
   /**
    * Return a reference to the (non-container) component inside this Container that has the keyboard input focus (or would have it, if the
@@ -528,6 +541,16 @@ public:
 
   std::shared_ptr<Component> get_parent() const {
     return this->parent.lock();
+  }
+
+  template<typename T, std::enable_if_t<std::derived_from<T, Component>, bool> = true>
+  std::shared_ptr<T> get_parent() const {
+    for (auto parent = get_parent(); parent; parent = parent->get_parent()) {
+      if (auto candidate = std::dynamic_pointer_cast<T>(parent)) {
+        return candidate;
+      }
+    }
+    return {};
   }
 
   int get_x() const {
@@ -1092,19 +1115,19 @@ public:
     return (get_focus_cycle_root_ancestor() == container);
   }
 
-  template<typename T>
-  const T* get_client_property(const char *property_name) const {
+  template<typename ValueType>
+  const ValueType* get_client_property(const char *property_name) const {
     if (auto pos = this->client_properties.find(property_name); pos != this->client_properties.end()) {
-      if (auto *value = std::any_cast<T>(&pos->second)) {
+      if (auto *value = std::any_cast<ValueType>(&pos->second)) {
         return value;
       }
     }
     return nullptr;
   }
 
-  template<typename T>
-  void set_client_property(const char *property_name, const T &value) {
-    this->client_properties[property_name].emplace(value);
+  template<typename ValueType>
+  void set_client_property(const char *property_name, const ValueType &value) {
+    this->client_properties[property_name].emplace<ValueType>(value);
   }
 };
 

@@ -5,6 +5,14 @@
 namespace tui {
 
 class ContainerEvent: public Event {
-};
+public:
+  enum Type : unsigned {
+    COMPONENT_ADDED = event_id_v<EventType::CONTAINER, 0>,
+    COMPONENT_REMOVED = event_id_v<EventType::CONTAINER, 1>
+  };
+public:
+  ContainerEvent(const std::shared_ptr<Component> &source, Type type, const std::shared_ptr<Component> &child) :
+    Event(source, type) {
+  }};
 
 }

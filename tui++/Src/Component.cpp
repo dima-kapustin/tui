@@ -5,12 +5,37 @@
 #include <tui++/Component.h>
 #include <tui++/KeyStroke.h>
 #include <tui++/KeyboardManager.h>
+#include <tui++/DefaultFocusTraversalPolicy.h>
 
 #include <tui++/Screen.h>
 
 #include <tui++/util/log.h>
 
 namespace tui {
+
+/**
+ * Convert a point from a screen coordinates to a component's coordinate system
+ */
+Point convert_point_from_screen(int x, int y, std::shared_ptr<Component> to) {
+  do {
+    x -= to->get_x();
+    y -= to->get_y();
+    to = to->get_parent();
+  } while (to);
+  return {x, y};
+}
+
+/**
+ * Convert a point from a component's coordinate system to screen coordinates.
+ */
+Point convert_point_to_screen(int x, int y, std::shared_ptr<Component> from) {
+  while (from) {
+    x += from->get_x();
+    y += from->get_y();
+    from = from->get_parent();
+  }
+  return {x, y};
+}
 
 std::recursive_mutex Component::tree_mutex;
 bool Component::descend_unconditionally_when_validating = false;
@@ -375,31 +400,46 @@ bool Component::process_key_bindings_for_all_components(KeyEvent &e, std::shared
   }
 }
 
-bool Component::is_window(const std::shared_ptr<Component> &component) {
-  return dynamic_cast<Window*>(component.get()) != nullptr;
+bool Component::is_window(const std::shared_ptr<const Component> &component) {
+  return dynamic_cast<const Window*>(component.get()) != nullptr;
 }
 
-void Component::add_impl(const std::shared_ptr<Component> &c, const std::any &constraints) noexcept (false) {
+void Component::assert_adding_none_window(const std::shared_ptr<const Component> &c) noexcept (false) {
   if (is_window(c)) {
     throw std::runtime_error("Adding a window to a container");
   }
+}
 
+void Component::assert_adding_none_cyclic(const std::shared_ptr<const Component> &c) noexcept (false) {
   for (auto parent = shared_from_this(); parent; parent = parent->get_parent()) {
     if (parent == c) {
       throw std::runtime_error("Adding component's parent to itself");
     }
   }
+}
+
+void Component::add_impl(const std::shared_ptr<Component> &c, const std::any &constraints, int z_order) noexcept (false) {
+  if (z_order > (int) this->components.size() or (z_order < 0 and z_order != -1)) {
+    throw std::runtime_error("Illegal component position");
+  }
+
+  assert_adding_none_window(c);
+  assert_adding_none_cyclic(c);
 
   // Reparent the component
   if (auto parent = c->get_parent()) {
     parent->remove(c);
+    if (z_order > (int) this->components.size()) {
+      throw std::runtime_error("Illegal component position");
+    }
   }
 
-  // Add the specified component to the list of components
-  // in this container
-  this->components.emplace_back(c);
+  if (z_order == -1) {
+    this->components.emplace_back(c);
+  } else {
+    this->components.emplace(std::next(this->components.begin(), z_order), c);
+  }
 
-  // Set this container as the parent of the component
   c->set_parent(shared_from_this());
 
   invalidate();
@@ -411,6 +451,12 @@ void Component::add_impl(const std::shared_ptr<Component> &c, const std::any &co
   if (this->layout) {
     this->layout->add_layout_component(c, constraints);
   }
+
+  if (is_event_enabled(EventType::CONTAINER)) {
+    dispatch_event<ContainerEvent>(ContainerEvent::COMPONENT_ADDED, c);
+  }
+
+  c->create_hierarchy_events(HierarchyEvent::PARENT_CHANGED, c, shared_from_this());
 }
 
 void Component::add_notify() {
@@ -650,28 +696,158 @@ std::shared_ptr<Component> Component::get_mouse_event_target(int x, int y, bool 
   return nullptr;
 }
 
-/**
- * Convert a point from a screen coordinates to a component's coordinate system
- */
-Point convert_point_from_screen(int x, int y, std::shared_ptr<Component> to) {
-  do {
-    x -= to->get_x();
-    y -= to->get_y();
-    to = to->get_parent();
-  } while (to);
-  return {x, y};
+int Component::get_component_z_order(const std::shared_ptr<const Component> &c) const {
+  if (c) {
+    std::unique_lock lock(this->tree_mutex);
+    if (c->get_parent().get() == this) {
+      return get_component_index(c);
+    }
+  }
+  return -1;
 }
 
-/**
- * Convert a point from a component's coordinate system to screen coordinates.
- */
-Point convert_point_to_screen(int x, int y, std::shared_ptr<Component> from) {
-  while (from) {
-    x += from->get_x();
-    y += from->get_y();
-    from = from->get_parent();
+void Component::set_component_z_order(const std::shared_ptr<Component> &c, int new_z_order) {
+  std::unique_lock lock(this->tree_mutex);
+  int old_z_order = get_component_z_order(c);
+  // Store parent because remove will clear it
+  auto parent = c->get_parent();
+  if (parent.get() == this and new_z_order == old_z_order) {
+    return;
   }
-  return {x, y};
+
+  if (new_z_order > (int) this->components.size() or new_z_order < 0) {
+    throw std::runtime_error("Illegal component position");
+  }
+
+  if (parent.get() == this) {
+    if (new_z_order >= (int) this->components.size()) {
+      throw std::runtime_error(std::format("Illegal component position {} should be less than {}", new_z_order, this->components.size()));
+    }
+  }
+
+  assert_adding_none_cyclic(c);
+  assert_adding_none_window(c);
+
+//  if (get_containing_window() != component->get_containing_window()) {
+//    throw std::runtime_error("Component and container should be in the same top-level window");
+//  }
+
+  parent->remove_delicately(c, shared_from_this(), new_z_order);
+  add_delicately(c, parent, new_z_order);
+}
+
+void Component::add_delicately(const std::shared_ptr<Component> &c, const std::shared_ptr<Component> &parent, int z_order) {
+  auto was_displayable = c->is_displayable(); // is_displayable() may change when parent changes
+
+  if (parent.get() != this) {
+    if (z_order == -1) {
+      this->components.emplace_back(c);
+    } else {
+      this->components.emplace(std::next(this->components.begin(), z_order), c);
+    }
+    c->parent = shared_from_this();
+  } else if (z_order < (int) this->components.size()) {
+    this->components[z_order] = c;
+  }
+
+  invalidate_if_valid();
+
+  if (is_displayable() and not was_displayable) {
+    c->add_notify();
+  }
+
+  if (parent.get() != this) {
+    if (this->layout) {
+      layout->add_layout_component(c);
+    }
+
+    if (is_event_enabled(EventType::CONTAINER)) {
+      dispatch_event<ContainerEvent>(ContainerEvent::COMPONENT_ADDED, c);
+    }
+
+    c->create_hierarchy_events(HierarchyEvent::PARENT_CHANGED, c, shared_from_this());
+
+    // If component is focus owner or parent container of focus owner check that after reparenting
+    // focus owner moved out if new container prohibit this kind of focus owner.
+    if (c->is_focus_owner() and not c->can_be_focus_owner_recursively()) {
+      c->transfer_focus();
+    } else if (auto focus_owner = KeyboardFocusManager::get_focus_owner()) {
+      if (focus_owner and is_parent_of(focus_owner) and not focus_owner->can_be_focus_owner_recursively()) {
+        focus_owner->transfer_focus();
+      }
+    }
+  } else {
+    c->create_hierarchy_events(HierarchyEvent::PARENT_CHANGED, c, shared_from_this());
+  }
+}
+
+bool Component::remove_delicately(const std::shared_ptr<Component> &c, const std::shared_ptr<Component> &new_parent, int new_z_order) {
+  auto old_z_order = get_component_z_order(c);
+  auto need_remove_notify = c->is_displayable() and not new_parent->is_displayable();
+  if (need_remove_notify) {
+    c->remove_notify();
+  }
+
+  if (new_parent.get() != this) {
+    if (this->layout) {
+      this->layout->remove_layout_component(c);
+    }
+    c->parent.reset();
+
+    this->components.erase(std::next(this->components.begin(), old_z_order));
+
+    invalidate_if_valid();
+  } else {
+    // We should remove component and then
+    // add it at the new_z_order without new_z_order decrement if even we shift components to the left
+    // after remove. Consult the rules below:
+    // 2->4: 012345 -> 013425, 2->5: 012345 -> 013452
+    // 4->2: 012345 -> 014235
+    this->components.erase(std::next(this->components.begin(), old_z_order));
+    this->components.emplace(std::next(this->components.begin(), new_z_order), c);
+  }
+
+  if (c->parent.expired()) { // was actually removed
+    if (is_event_enabled(EventType::CONTAINER)) {
+      dispatch_event<ContainerEvent>(ContainerEvent::COMPONENT_REMOVED, c);
+    }
+
+    c->create_hierarchy_events(HierarchyEvent::PARENT_CHANGED, c, shared_from_this());
+  }
+
+  return need_remove_notify;
+}
+
+bool Component::can_contain_focus_owner(const std::shared_ptr<Component> &candidate) {
+  if (not (is_enabled() and is_displayable() and is_visible() and is_focusable())) {
+    return false;
+  }
+
+  if (is_focus_cycle_root()) {
+    if (auto policy = std::dynamic_pointer_cast<DefaultFocusTraversalPolicy>(get_focus_traversal_policy()); policy and not policy->accept(candidate)) {
+      return false;
+    }
+  }
+
+  std::unique_lock lock(this->tree_mutex);
+  if (auto parent = get_parent()) {
+    return parent->can_contain_focus_owner(candidate);
+  }
+  return true;
+
+}
+
+bool Component::can_be_focus_owner_recursively() {
+  if (not can_be_focus_owner()) {
+    return false;
+  }
+
+  std::unique_lock lock(this->tree_mutex);
+  if (auto parent = get_parent()) {
+    return parent->can_contain_focus_owner(shared_from_this());
+  }
+
+  return true;
 }
 
 }

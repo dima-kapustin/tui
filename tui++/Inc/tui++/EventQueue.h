@@ -48,6 +48,7 @@ public:
     });
     auto event = std::move(this->queue.front());
     this->queue.pop_front();
+    this->current_event = event;
     return event;
   }
 

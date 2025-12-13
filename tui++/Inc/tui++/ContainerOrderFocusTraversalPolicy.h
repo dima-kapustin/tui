@@ -92,7 +92,7 @@ protected:
    * focus owner. By default, this method will accept a Component if and
    * only if it is visible, displayable, enabled, and focusable.
    */
-  virtual bool accept(const std::shared_ptr<Component> &aComponent) const;
+  virtual bool accept(const std::shared_ptr<Component> &candidate) const;
 
 public:
   std::shared_ptr<Component> get_component_after(const std::shared_ptr<Component> &container, const std::shared_ptr<Component> &component) const override;
