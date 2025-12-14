@@ -53,6 +53,14 @@ public:
   }
   void set_default_dutton(const std::shared_ptr<Button> &button);
 
+  WindowDecorationStyle get_window_decoration_style() const {
+    return this->window_decoration_style;
+  }
+
+  void set_window_decoration_style(WindowDecorationStyle window_decoration_style) {
+    this->window_decoration_style = window_decoration_style;
+  }
+
 protected:
   virtual void init() override;
 

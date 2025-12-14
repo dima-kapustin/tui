@@ -9,6 +9,7 @@ void Frame::init() {
   Window::init();
   enable_events(KEY_EVENT_MASK | WINDOW_EVENT_MASK);
   set_root_pane(create_root_pane());
+  this->root_pane->set_window_decoration_style(RootPane::FRAME);
 }
 
 void Frame::add_impl(const std::shared_ptr<Component> &c, const std::any &constraints, int z_order) noexcept (false) {
