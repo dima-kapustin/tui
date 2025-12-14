@@ -1,12 +1,15 @@
 #pragma once
 
-#include <tui++/Button.h>
-#include <tui++/MenuBar.h>
-#include <tui++/LayeredPane.h>
+#include <tui++/Component.h>
 
 namespace tui {
 
+class Button;
+class MenuBar;
+class LayeredPane;
+
 class RootPane: public Component {
+  using base = Component;
 public:
   enum WindowDecorationStyle {
     NONE = 0,
@@ -21,19 +24,44 @@ public:
   };
 
 public:
+  virtual bool is_validate_root() const override {
+    return true;
+  }
+
+  std::shared_ptr<MenuBar> get_menu_bar() const {
+    return this->menu_bar;
+  }
   void set_menu_bar(const std::shared_ptr<MenuBar> &menu_bar);
+
+  std::shared_ptr<Component> get_content_pane() const {
+    return this->content_pane;
+  }
   void set_content_pane(const std::shared_ptr<Component> &content_pane);
+
+  std::shared_ptr<LayeredPane> get_layered_pane() const {
+    return this->layered_pane;
+  }
   void set_layered_pane(const std::shared_ptr<LayeredPane> &layered_pane);
+
+  std::shared_ptr<Component> get_glass_pane() const {
+    return this->glass_pane;
+  }
   void set_glass_pane(const std::shared_ptr<Component> &glass_pane);
+
+  std::shared_ptr<Button> get_default_button() const {
+    return this->default_button;
+  }
   void set_default_dutton(const std::shared_ptr<Button> &button);
 
 protected:
   virtual void init() override;
 
-  virtual std::shared_ptr<Component> create_class_pane();
-  virtual std::shared_ptr<LayeredPane> create_layered_pane();
-  virtual std::shared_ptr<Component> create_content_pane();
-  virtual std::shared_ptr<Layout> create_root_layout();
+  virtual void add_notify() override;
+
+  virtual std::shared_ptr<Component> create_class_pane() const;
+  virtual std::shared_ptr<LayeredPane> create_layered_pane() const;
+  virtual std::shared_ptr<Component> create_content_pane() const;
+  virtual std::shared_ptr<Layout> create_root_layout() const;
 
 private:
   Property<WindowDecorationStyle> window_decoration_style { this, "window_decoration_style", WindowDecorationStyle::NONE };
@@ -46,5 +74,22 @@ private:
 
   friend class RootLayout;
 };
+
+class RootPaneContainer {
+protected:
+  virtual ~RootPaneContainer() {
+  }
+
+public:
+  virtual std::shared_ptr<RootPane> get_root_pane() const = 0;
+  virtual std::shared_ptr<Component> get_content_pane() const = 0;
+  virtual void set_content_pane(const std::shared_ptr<Component> &content_pane) = 0;
+  virtual std::shared_ptr<LayeredPane> get_layered_pane() const = 0;
+  virtual void set_layered_pane(const std::shared_ptr<LayeredPane> &layered_pane) = 0;
+  virtual std::shared_ptr<Component> get_glass_pane() const = 0;
+  virtual void set_glass_pane(const std::shared_ptr<Component> &glass_pane) = 0;
+};
+
+std::shared_ptr<RootPane> get_root_pane(const std::shared_ptr<Component> &c);
 
 }

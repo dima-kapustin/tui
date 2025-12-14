@@ -11,6 +11,10 @@ struct Dimension {
     return {std::numeric_limits<int>::max(), std::numeric_limits<int>::max()};
   }
 
+  static constexpr Dimension zero() {
+    return {0, 0};
+  }
+
   constexpr bool operator==(const Dimension &other) const {
     return this->width == other.width and this->height == other.height;
   }

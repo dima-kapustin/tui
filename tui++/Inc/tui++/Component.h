@@ -272,7 +272,7 @@ protected:
   void assert_adding_none_window(const std::shared_ptr<const Component> &c) noexcept (false);
   void assert_adding_none_cyclic(const std::shared_ptr<const Component> &c) noexcept (false);
 
-  void add_impl(const std::shared_ptr<Component> &c, const std::any &constraints, int z_order) noexcept (false);
+  virtual void add_impl(const std::shared_ptr<Component> &c, const std::any &constraints, int z_order) noexcept (false);
 
   virtual void add_notify();
 
@@ -456,9 +456,9 @@ public:
   /**
    * Removes the specified component from this container.
    */
-  void remove(const std::shared_ptr<Component> &component) {
-    remove_impl(component);
-    if (this->focus_component.lock() == component) {
+  virtual void remove(const std::shared_ptr<Component> &c) {
+    remove_impl(c);
+    if (this->focus_component.lock() == c) {
       this->focus_component.reset();
       this->focus_component = get_focus_component();
     }
@@ -708,6 +708,10 @@ public:
     return this->valid;
   }
 
+  virtual bool is_validate_root() const {
+    return false;
+  }
+
   bool is_visible() const {
     return this->visible;
   }
@@ -717,8 +721,11 @@ public:
    */
   void invalidate() {
     this->valid = false;
-    if (auto parent = this->parent.lock()) {
-      parent->invalidate_if_valid();
+
+    if (not is_validate_root()) {
+      if (auto parent = this->parent.lock()) {
+        parent->invalidate_if_valid();
+      }
     }
   }
 
@@ -857,7 +864,7 @@ public:
     repaint_parent_if_needed(old_x, old_y, old_width, old_height);
   }
 
-  void set_layout(const std::shared_ptr<Layout> &layout) {
+  virtual void set_layout(const std::shared_ptr<Layout> &layout) {
     if (this->layout != layout) {
       this->layout = layout;
       invalidate();
@@ -1152,6 +1159,10 @@ public:
   template<typename ValueType>
   void set_client_property(const char *property_name, const ValueType &value) {
     this->client_properties[property_name].emplace<ValueType>(value);
+  }
+
+  void update_ui() {
+    // TODO
   }
 };
 
