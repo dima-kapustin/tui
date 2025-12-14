@@ -63,13 +63,14 @@ public:
   }
 
   std::vector<KeyStroke> get_keys() const {
-    std::vector<KeyStroke> keys;
+    auto keys = std::vector<KeyStroke> { };
+    keys.reserve(this->map.size());
     std::ranges::copy(this->map | std::views::keys, std::back_inserter(keys));
     return keys;
   }
 
   std::vector<KeyStroke> get_all_keys() const {
-    std::vector<KeyStroke> keys;
+    auto keys = std::vector<KeyStroke> { };
     keys.reserve(count_all_keys());
     get_all_keys(keys);
     return keys;

@@ -120,9 +120,9 @@ public:
     return current_focus_cycle_root.load();
   }
 
-  static void get_current_focus_cycle_root(const std::shared_ptr<Component> &component) {
+  static void set_current_focus_cycle_root(const std::shared_ptr<Component> &component) {
     auto old_focus_cycle_root = current_focus_cycle_root.exchange(component);
-//      firePropertyChange("currentFocusCycleRoot", oldFocusCycleRoot, newFocusCycleRoot);
+//      firePropertyChange("current_focus_cycle_root", old_focus_cycle_root, component);
   }
 
   static std::shared_ptr<Component> get_focus_owner() {

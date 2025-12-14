@@ -287,12 +287,12 @@ void Component::transfer_focus_up_cycle() {
     auto root_ancestor_root_ancestor = root_ancestor->get_focus_cycle_root_ancestor();
     auto fcr = root_ancestor_root_ancestor ? root_ancestor_root_ancestor : root_ancestor;
 
-    KeyboardFocusManager::get_current_focus_cycle_root(fcr);
+    KeyboardFocusManager::set_current_focus_cycle_root(fcr);
     root_ancestor->request_focus(FocusEvent::Cause::TRAVERSAL_UP);
   } else {
     if (auto window = get_containing_window()) {
       if (auto to_focus = window->get_focus_traversal_policy()->get_default_component(window)) {
-        KeyboardFocusManager::get_current_focus_cycle_root(window);
+        KeyboardFocusManager::set_current_focus_cycle_root(window);
         to_focus->request_focus(FocusEvent::Cause::TRAVERSAL_UP);
       }
     }
@@ -301,7 +301,7 @@ void Component::transfer_focus_up_cycle() {
 
 void Component::transfer_focus_down_cycle() {
   if (is_focus_cycle_root()) {
-    KeyboardFocusManager::get_current_focus_cycle_root(shared_from_this());
+    KeyboardFocusManager::set_current_focus_cycle_root(shared_from_this());
     if (auto to_focus = get_focus_traversal_policy()->get_default_component(shared_from_this())) {
       to_focus->request_focus(FocusEvent::Cause::TRAVERSAL_DOWN);
     }
@@ -638,7 +638,7 @@ bool Component::is_parent_of(std::shared_ptr<Component> component) const {
 void Component::clear_current_focus_cycle_root_on_hide() {
   auto focus_cycle_root = KeyboardFocusManager::get_current_focus_cycle_root();
   if (this == focus_cycle_root.get() or is_parent_of(focus_cycle_root)) {
-    KeyboardFocusManager::get_current_focus_cycle_root(nullptr);
+    KeyboardFocusManager::set_current_focus_cycle_root(nullptr);
   }
 }
 
@@ -845,6 +845,53 @@ bool Component::can_be_focus_owner_recursively() {
   }
 
   return true;
+}
+
+std::shared_ptr<InputMap> Component::get_input_map(InputCondition condition, bool create) const {
+  switch (condition) {
+  case WHEN_FOCUSED:
+    if (not this->focus_input_map and create) {
+      this->focus_input_map = std::make_shared<InputMap>();
+    }
+    return this->focus_input_map;
+  case WHEN_ANCESTOR_OF_FOCUSED_COMPONENT:
+    if (not this->ancestor_input_map and create) {
+      this->ancestor_input_map = std::make_shared<InputMap>();
+    }
+    return this->ancestor_input_map;
+  case WHEN_IN_FOCUSED_WINDOW:
+    if (not this->window_input_map and create) {
+      this->window_input_map = std::make_shared<ComponentInputMap>(const_cast<Component*>(this)->shared_from_this());
+    }
+    return this->window_input_map;
+  }
+  return {};
+}
+
+std::shared_ptr<Component> Component::find_traversal_root() const {
+  // I potentially have two roots, myself and my root parent
+  // If I am the current root, then use me
+  // If none of my parents are roots, then use me
+  // If my root parent is the current root, then use my root parent
+  // If neither I nor my root parent is the current root, then
+  // use my root parent (a guess)
+
+  auto current_focus_cycle_root = KeyboardFocusManager::get_current_focus_cycle_root();
+  auto root = std::shared_ptr<Component> { };
+
+  if (current_focus_cycle_root.get() == this) {
+    root = current_focus_cycle_root;
+  } else {
+    root = get_focus_cycle_root_ancestor();
+    if (not root) {
+      root = const_cast<Component*>(this)->shared_from_this();
+    }
+  }
+
+  if (root != current_focus_cycle_root) {
+    KeyboardFocusManager::set_current_focus_cycle_root(root);
+  }
+  return root;
 }
 
 }

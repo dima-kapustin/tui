@@ -32,6 +32,7 @@ namespace tui {
 class Window;
 class Graphics;
 class Component;
+class PopupMenu;
 class EventQueue;
 class KeyboardManager;
 
@@ -69,6 +70,7 @@ protected:
 
   struct {
     int was_focus_owner :1 = false;
+    int inherits_popup_menu :1 = false;
   };
 
   float alignment_x = CENTER_ALIGNMENT;
@@ -121,6 +123,8 @@ protected:
   static bool descend_unconditionally_when_validating;
 
   std::unordered_map<std::string_view, PropertyValue> client_properties;
+
+  Property<std::shared_ptr<PopupMenu>> component_popup_menu { this, "component_popup_menu" };
 
 public:
   constexpr static float TOP_ALIGNMENT = 0;
@@ -179,52 +183,9 @@ private:
     descend_unconditionally_when_validating = false;
   }
 
-  std::shared_ptr<InputMap> get_input_map(InputCondition condition, bool create) const {
-    switch (condition) {
-    case WHEN_FOCUSED:
-      if (not this->focus_input_map and create) {
-        this->focus_input_map = std::make_shared<InputMap>();
-      }
-      return this->focus_input_map;
-    case WHEN_ANCESTOR_OF_FOCUSED_COMPONENT:
-      if (not this->ancestor_input_map and create) {
-        this->ancestor_input_map = std::make_shared<InputMap>();
-      }
-      return this->ancestor_input_map;
-    case WHEN_IN_FOCUSED_WINDOW:
-      if (not this->window_input_map and create) {
-        this->window_input_map = std::make_shared<ComponentInputMap>(const_cast<Component*>(this)->shared_from_this());
-      }
-      return this->window_input_map;
-    }
-    return {};
-  }
+  std::shared_ptr<InputMap> get_input_map(InputCondition condition, bool create) const;
 
-  std::shared_ptr<Component> find_traversal_root() const {
-    // I potentially have two roots, myself and my root parent
-    // If I am the current root, then use me
-    // If none of my parents are roots, then use me
-    // If my root parent is the current root, then use my root parent
-    // If neither I nor my root parent is the current root, then
-    // use my root parent (a guess)
-
-    auto current_focus_cycle_root = KeyboardFocusManager::get_current_focus_cycle_root();
-    std::shared_ptr<Component> root;
-
-    if (current_focus_cycle_root == shared_from_this()) {
-      root = current_focus_cycle_root;
-    } else {
-      root = get_focus_cycle_root_ancestor();
-      if (not root) {
-        root = const_cast<Component*>(this)->shared_from_this();
-      }
-    }
-
-    if (root != current_focus_cycle_root) {
-      KeyboardFocusManager::get_current_focus_cycle_root(root);
-    }
-    return root;
-  }
+  std::shared_ptr<Component> find_traversal_root() const;
 
   std::shared_ptr<Window> get_containing_window() const;
 
@@ -1163,6 +1124,22 @@ public:
 
   void update_ui() {
     // TODO
+  }
+
+  std::shared_ptr<PopupMenu> get_component_popup_menu() const {
+    if (not this->component_popup_menu and this->inherits_popup_menu) {
+      if (auto parent = get_parent()) {
+        return parent->get_component_popup_menu();
+      }
+    }
+    return this->component_popup_menu;
+  }
+
+  void set_component_popup_menu(const std::shared_ptr<PopupMenu> &popup_menu) {
+    if (popup_menu) {
+      enable_events(MOUSE_EVENT_MASK);
+    }
+    this->component_popup_menu = popup_menu;
   }
 };
 
