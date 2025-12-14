@@ -441,8 +441,16 @@ public:
     add(component, { });
   }
 
+  void add(const std::shared_ptr<Component> &component, int index) noexcept (false) {
+    add(component, { }, index);
+  }
+
   void add(const std::shared_ptr<Component> &component, const std::any &constraints) noexcept (false) {
-    add_impl(component, constraints, -1);
+    add(component, constraints, -1);
+  }
+
+  void add(const std::shared_ptr<Component> &component, const std::any &constraints, int index) noexcept (false) {
+    add_impl(component, constraints, index);
   }
 
   /**

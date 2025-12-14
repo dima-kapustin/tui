@@ -131,6 +131,17 @@ struct has_bool_operator<T, std::void_t<decltype(std::declval<T>().operator bool
 template<typename T>
 constexpr bool has_bool_operator_v = has_bool_operator<T>::value;
 
+template<typename, typename = void>
+struct has_member_access_operator: std::false_type {
+};
+
+template<typename T>
+struct has_member_access_operator<T, std::void_t<decltype(std::declval<T>().operator ->())>> : std::true_type {
+};
+
+template<typename T>
+constexpr bool has_member_access_operator_v = has_member_access_operator<T>::value;
+
 }
 
 template<typename T, typename = void>
@@ -187,6 +198,16 @@ public:
   template<typename U = T, std::enable_if_t<detail::has_bool_operator_v<U>, bool> = true>
   operator bool() const {
     return bool(this->value_);
+  }
+
+  template<typename U = T, std::enable_if_t<detail::has_member_access_operator_v<U>, bool> = true>
+  U& operator ->() {
+    return this->value_;
+  }
+
+  template<typename U = T, std::enable_if_t<detail::has_member_access_operator_v<U>, bool> = true>
+  const U& operator ->() const {
+    return this->value_;
   }
 };
 

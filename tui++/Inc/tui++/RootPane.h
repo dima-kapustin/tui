@@ -25,7 +25,7 @@ public:
   void set_content_pane(const std::shared_ptr<Component> &content_pane);
   void set_layered_pane(const std::shared_ptr<LayeredPane> &layered_pane);
   void set_glass_pane(const std::shared_ptr<Component> &glass_pane);
-  void set_default_dutton(const std::shared_ptr<Button> &default_dutton);
+  void set_default_dutton(const std::shared_ptr<Button> &button);
 
 protected:
   virtual void init() override;
@@ -36,13 +36,13 @@ protected:
   virtual std::shared_ptr<Layout> create_root_layout();
 
 private:
-  Property<WindowDecorationStyle> window_decoration_style { this, "window_decoration_style", WindowDecorationStyle::NONE};
+  Property<WindowDecorationStyle> window_decoration_style { this, "window_decoration_style", WindowDecorationStyle::NONE };
 
   std::shared_ptr<MenuBar> menu_bar;
   std::shared_ptr<Component> content_pane;
   std::shared_ptr<LayeredPane> layered_pane;
   std::shared_ptr<Component> glass_pane;
-  std::shared_ptr<Button> default_dutton;
+  Property<std::shared_ptr<Button>> default_button { this, "default_button" };
 
   friend class RootLayout;
 };

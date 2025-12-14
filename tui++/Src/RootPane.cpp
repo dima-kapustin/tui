@@ -94,25 +94,53 @@ void RootPane::set_menu_bar(const std::shared_ptr<MenuBar> &menu_bar) {
   this->menu_bar = menu_bar;
 
   if (this->menu_bar) {
-//    menu_bar.updateUI();
+//    menu_bar->update_ui();
     this->layered_pane->add(this->menu_bar, LayeredPane::FRAME_CONTENT_LAYER);
   }
 }
 
 void RootPane::set_content_pane(const std::shared_ptr<Component> &content_pane) {
-
+  if (this->content_pane and this->content_pane->get_parent() == this->layered_pane) {
+    this->layered_pane->remove(this->content_pane);
+  }
+  this->content_pane = content_pane;
+  this->layered_pane->add(this->content_pane, LayeredPane::FRAME_CONTENT_LAYER);
 }
 
 void RootPane::set_layered_pane(const std::shared_ptr<LayeredPane> &layered_pane) {
-
+  if (this->layered_pane and this->layered_pane->get_parent().get() == this) {
+    remove(this->layered_pane);
+  }
+  this->layered_pane = layered_pane;
+  add(this->layered_pane, -1);
 }
 
 void RootPane::set_glass_pane(const std::shared_ptr<Component> &glass_pane) {
+  auto visible = false;
+  if (this->glass_pane and this->glass_pane->get_parent().get() == this) {
+    visible = this->glass_pane->is_visible();
+    remove(this->glass_pane);
+  }
 
+  glass_pane->set_visible(visible);
+  this->glass_pane = glass_pane;
+  add(glass_pane, 0);
+  if (visible) {
+    repaint();
+  }
 }
 
-void RootPane::set_default_dutton(const std::shared_ptr<Button> &default_dutton) {
-
+void RootPane::set_default_dutton(const std::shared_ptr<Button> &button) {
+  auto old_default_button = this->default_button.value();
+  if (old_default_button != button) {
+    this->default_button = button;
+    if (old_default_button) {
+      old_default_button->repaint();
+    }
+    if (this->default_button) {
+      this->default_button->repaint();
+    }
+  }
 }
 
 std::shared_ptr<Component> RootPane::create_class_pane() {
