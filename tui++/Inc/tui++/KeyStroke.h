@@ -132,12 +132,7 @@ namespace std {
 
 template<>
 struct hash<tui::KeyStroke> {
-public:
-  using argument_type = tui::KeyStroke;
-  using result_type = std::size_t;
-
-public:
-  result_type operator()(argument_type const &key_stroke) const noexcept {
+  std::size_t operator()(tui::KeyStroke const &key_stroke) const noexcept {
     return (key_stroke.get_key_char().get_code() + 1) * (key_stroke.get_key_code() + 1) * (key_stroke.get_modifiers() + 1) * 2;
   }
 };
