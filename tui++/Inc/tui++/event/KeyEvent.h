@@ -127,7 +127,7 @@ public:
 
   enum Type {
     KEY_TYPED = event_id_v<EventType::KEY, 0>,
-    KEY_PRESSED = event_id_v<EventType::KEY, 1>,
+    KEY_PRESSED = event_id_v<EventType::KEY, 1> ,
   };
 
 private:
@@ -201,13 +201,8 @@ namespace std {
 
 template<>
 struct hash<tui::KeyEvent::KeyCode> {
-public:
-  using argument_type = tui::KeyEvent::KeyCode;
-  using result_type = std::size_t;
-
-public:
-  result_type operator()(argument_type const &key) const noexcept {
-    return std::hash<std::underlying_type_t<argument_type>> { }(std::to_underlying(key));
+  std::size_t operator()(tui::KeyEvent::KeyCode const &key) const noexcept {
+    return std::hash<std::underlying_type_t<tui::KeyEvent::KeyCode>> { }(std::to_underlying(key));
   }
 };
 

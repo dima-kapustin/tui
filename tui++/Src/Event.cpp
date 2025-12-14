@@ -196,7 +196,7 @@ std::ostream& operator<<(std::ostream &os, const MouseMoveEvent &event) {
 }
 
 std::ostream& operator<<(std::ostream &os, const MouseDragEvent &event) {
-  os << "Mouse Dragged with ";
+  os << "Mouse DRAGGED with ";
   switch (event.button) {
   case MouseEvent::LEFT_BUTTON:
     os << "Left Button";
