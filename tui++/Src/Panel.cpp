@@ -11,7 +11,7 @@ Panel::Panel() :
 
 void Panel::paint(Graphics &g) {
   if (auto parent = get_parent()) {
-    if (this->background_color.has_vlaue() and this->background_color != parent->get_background_color()) {
+    if (this->background_color.has_value() and this->background_color != parent->get_background_color()) {
       g.set_background_color(this->background_color.value());
       g.fill_rect(0, 0, get_width(), get_height());
     }

@@ -1,5 +1,8 @@
 #include <tui++/RootPane.h>
 
+#include <tui++/BorderLayout.h>
+#include <tui++/Panel.h>
+
 namespace tui {
 
 class RootLayout: public Layout {
@@ -84,7 +87,16 @@ void RootPane::init() {
 }
 
 void RootPane::set_menu_bar(const std::shared_ptr<MenuBar> &menu_bar) {
+  if (this->menu_bar and this->menu_bar->get_parent() == this->layered_pane) {
+    this->layered_pane->remove(this->menu_bar);
+  }
 
+  this->menu_bar = menu_bar;
+
+  if (this->menu_bar) {
+//    menu_bar.updateUI();
+    this->layered_pane->add(this->menu_bar, LayeredPane::FRAME_CONTENT_LAYER);
+  }
 }
 
 void RootPane::set_content_pane(const std::shared_ptr<Component> &content_pane) {
@@ -104,7 +116,10 @@ void RootPane::set_default_dutton(const std::shared_ptr<Button> &default_dutton)
 }
 
 std::shared_ptr<Component> RootPane::create_class_pane() {
-
+  auto glass_pane = std::make_shared<Panel>();
+  glass_pane->set_visible(false);
+  glass_pane->set_opaque(false);
+  return glass_pane;
 }
 
 std::shared_ptr<LayeredPane> RootPane::create_layered_pane() {
@@ -112,7 +127,7 @@ std::shared_ptr<LayeredPane> RootPane::create_layered_pane() {
 }
 
 std::shared_ptr<Component> RootPane::create_content_pane() {
-
+  return std::make_shared<Panel>(std::make_shared<BorderLayout>());
 }
 
 std::shared_ptr<Layout> RootPane::create_root_layout() {

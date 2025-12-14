@@ -206,6 +206,10 @@ Dimension BorderLayout::get_minimum_layout_size(const std::shared_ptr<const Comp
   });
 }
 
+Dimension BorderLayout::get_maximum_layout_size(const std::shared_ptr<const Component> &target) {
+  return Dimension::max();
+}
+
 Dimension BorderLayout::get_preferred_layout_size(const std::shared_ptr<const Component> &target) {
   return target->with_tree_locked([target, this] {
     auto dim = Dimension { };

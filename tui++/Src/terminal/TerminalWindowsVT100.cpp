@@ -26,6 +26,7 @@ class TerminalImpl {
 
   HANDLE input_handle, output_handle;
   DWORD input_mode, output_mode;
+  UINT input_cp, output_cp; // code pages
 
   std::vector<INPUT_RECORD> input_records { 16 };
 
@@ -37,15 +38,18 @@ public:
     this->input_handle = ::GetStdHandle(STD_INPUT_HANDLE);
 
     ::GetConsoleMode(this->input_handle, &this->input_mode);
-    auto input_mode = (this->input_mode & ~(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT)) | (ENABLE_VIRTUAL_TERMINAL_INPUT | ENABLE_WINDOW_INPUT);
+    auto input_mode = (this->input_mode & ~(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_QUICK_EDIT_MODE)) | (ENABLE_VIRTUAL_TERMINAL_INPUT | ENABLE_WINDOW_INPUT | ENABLE_EXTENDED_FLAGS);
     ::SetConsoleMode(this->input_handle, input_mode);
 
     ::GetConsoleMode(this->output_handle, &this->output_mode);
     auto output_mode = this->output_mode | (ENABLE_VIRTUAL_TERMINAL_PROCESSING | DISABLE_NEWLINE_AUTO_RETURN);
     ::SetConsoleMode(this->output_handle, output_mode);
 
+    this->input_cp = ::GetConsoleCP();
+    this->output_cp = ::GetConsoleOutputCP();
     ::SetConsoleOutputCP(CP_UTF8);
     ::SetConsoleCP(CP_UTF8);
+    setlocale(LC_ALL, ".utf8");
   }
 
   bool read_input(const std::chrono::milliseconds &timeout, Terminal::InputBuffer &into) {
@@ -93,11 +97,6 @@ public:
       case WINDOW_BUFFER_SIZE_EVENT:
         this->terminal.new_resize_event();
         break;
-      case MENU_EVENT:
-      case FOCUS_EVENT:
-      case MOUSE_EVENT:
-        // TODO(mauve): Implement later.
-        break;
       }
     }
 
@@ -107,6 +106,8 @@ public:
   ~TerminalImpl() {
     ::SetConsoleMode(this->output_handle, this->output_mode);
     ::SetConsoleMode(this->input_handle, this->input_mode);
+    ::SetConsoleOutputCP(this->output_cp);
+    ::SetConsoleCP(this->input_cp);
   }
 };
 
