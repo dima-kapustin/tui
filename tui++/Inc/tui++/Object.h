@@ -15,35 +15,10 @@ namespace tui {
 class Object;
 
 using PropertyValue = std::any;
-using PropertyChangeListenerSignature = void(Object*, const char* property_name, const PropertyValue& old_value, const PropertyValue &new_value);
+using PropertyChangeListenerSignature = void(Object*, const std::string_view &property_name, const PropertyValue& old_value, const PropertyValue &new_value);
 using PropertyChangeListener = std::function<PropertyChangeListenerSignature>;
 
-namespace detail {
-
-class PropertyChangeListenerContainer {
-protected:
-  mutable std::vector<PropertyChangeListener> change_listeners;
-public:
-  void add_change_listener(const PropertyChangeListener &listener) const {
-    auto pos = std::find_if(this->change_listeners.begin(), this->change_listeners.end(), //
-        [&listener](const PropertyChangeListener &e) {
-          return e.target<PropertyChangeListenerSignature>() == listener.target<PropertyChangeListenerSignature>();
-        });
-    if (pos == this->change_listeners.end()) {
-      this->change_listeners.emplace_back(listener);
-    }
-  }
-
-  void remove_change_listener(const PropertyChangeListener &listener) const {
-    std::erase_if(this->change_listeners, [&listener](const PropertyChangeListener &e) {
-      return e.target<PropertyChangeListenerSignature>() == listener.target<PropertyChangeListenerSignature>();
-    });
-  }
-};
-
-}
-
-class PropertyBase: public detail::PropertyChangeListenerContainer {
+class PropertyBase {
   Object *object;
   const char *name;
 
@@ -55,8 +30,9 @@ protected:
   void fire_change_event(const PropertyValue &old_value, const PropertyValue &new_value);
 };
 
-class Object: public detail::PropertyChangeListenerContainer {
+class Object {
   std::vector<PropertyBase*> properties;
+  mutable std::unordered_map<std::string_view, std::vector<PropertyChangeListener>> property_change_listeners;
 
 private:
   auto add_property(PropertyBase *property) {
@@ -66,6 +42,8 @@ private:
         });
     this->properties.insert(pos, property);
   }
+
+  void fire_property_change_event(const std::string_view &property_name, const PropertyValue &old_value, const PropertyValue &new_value);
 
   friend class PropertyBase;
 
@@ -95,17 +73,36 @@ public:
   }
 
   void add_property_change_listener(const char *property_name, const PropertyChangeListener &listener) const {
-    if (auto property = get_property(property_name)) {
-      property->add_change_listener(listener);
+    auto &&change_listeners = this->property_change_listeners[property_name];
+    auto pos = std::find_if(change_listeners.begin(), change_listeners.end(), //
+        [&listener](const PropertyChangeListener &e) {
+          return e.target<PropertyChangeListenerSignature>() == listener.target<PropertyChangeListenerSignature>();
+        });
+    if (pos == change_listeners.end()) {
+      change_listeners.emplace_back(listener);
     }
   }
 
   void remove_property_change_listener(const char *property_name, const PropertyChangeListener &listener) const {
-    if (auto property = get_property(property_name)) {
-      property->remove_change_listener(listener);
+    auto &&change_listeners = this->property_change_listeners[property_name];
+    auto pos = std::find_if(change_listeners.begin(), change_listeners.end(), //
+        [&listener](const PropertyChangeListener &e) {
+          return e.target<PropertyChangeListenerSignature>() == listener.target<PropertyChangeListenerSignature>();
+        });
+    if (pos != change_listeners.end()) {
+      change_listeners.erase(pos);
     }
   }
 };
+
+inline PropertyBase::PropertyBase(Object *object, const char *name) :
+    object(object), name(name) {
+  this->object->add_property(this);
+}
+
+inline void PropertyBase::fire_change_event(const PropertyValue &old_value, const PropertyValue &new_value) {
+  this->object->fire_property_change_event(this->name, old_value, new_value);
+}
 
 namespace detail {
 

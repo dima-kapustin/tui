@@ -1,10 +1,10 @@
 #pragma once
 
-#include <tui++/Component.h>
+#include <tui++/MenuItem.h>
 
 namespace tui {
 
-class Menu: public Component {
+class Menu: public MenuItem {
 
 };
 

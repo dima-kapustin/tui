@@ -2,18 +2,13 @@
 
 namespace tui {
 
-PropertyBase::PropertyBase(Object *object, const char *name) :
-    object(object), name(name) {
-  this->object->add_property(this);
-}
-
-void PropertyBase::fire_change_event(const PropertyValue &old_value, const PropertyValue &new_value) {
-  for (auto &&change_listener : this->change_listeners) {
-    change_listener(this->object, this->name, old_value, new_value);
-  }
-
-  for (auto &&change_listener : this->object->change_listeners) {
-    change_listener(this->object, this->name, old_value, new_value);
+void Object::fire_property_change_event(const std::string_view &property_name, const PropertyValue &old_value, const PropertyValue &new_value) {
+  if (not this->property_change_listeners.empty()) {
+    if (auto pos = this->property_change_listeners.find(property_name); pos != this->property_change_listeners.end()) {
+      for (auto &&listener : pos->second) {
+        listener(this, property_name, old_value, new_value);
+      }
+    }
   }
 }
 

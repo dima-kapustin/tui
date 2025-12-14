@@ -82,17 +82,7 @@ public:
   }
 
   constexpr KeyStroke(const KeyEvent &event) :
-      modifiers(event.modifiers) {
-    switch (event.id) {
-    case KeyEvent::KEY_TYPED:
-      this->key_char = event.get_key_char();
-      this->key_code = KeyEvent::VK_UNDEFINED;
-      break;
-    case KeyEvent::KEY_PRESSED:
-      this->key_char = KeyEvent::CHAR_UNDEFINED;
-      this->key_code = event.get_key_code();
-      break;
-    }
+      key_char(event.get_key_char()), key_code(event.get_key_code()), modifiers(event.modifiers) {
   }
 
   constexpr KeyStroke(const KeyStroke&) = default;
