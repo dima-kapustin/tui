@@ -37,63 +37,55 @@ void MenuSelectionManager::process_mouse_event(MouseEventBase &e) {
     return;
   }
 
-  if ((e.id == MouseOverEvent::MOUSE_ENTERED or e.id == MouseOverEvent::MOUSE_EXITED) and (e.modifiers & (InputEvent::LEFT_BUTTON_DOWN | InputEvent::RIGHT_BUTTON_DOWN | InputEvent::MIDDLE_BUTTON_DOWN))) {
-    return;
-  }
-
+  auto done = false;
+  auto selection = this->selection;
   auto&& [screen_x, screen_y] = e.source ? convert_point_to_screen(e.point, e.source) : e.point;
 
-  auto success = false;
-  auto selection = this->selection;
-
-  for (auto i = (int) selection.size() - 1; not success and i >= 0; --i) {
+  for (auto i = (int) selection.size() - 1; not done and i >= 0; --i) {
     auto path = std::vector<std::shared_ptr<MenuElement>> { };
     for (auto &&sub_element : selection[i]->get_sub_elements()) {
       if (sub_element) {
-        auto c = sub_element->get_component();
-        if (not c->is_showing())
-          continue;
+        if (auto c = sub_element->get_component(); c->is_showing()) {
+          auto p = convert_point_from_screen(screen_x, screen_y, c);
 
-        auto p = convert_point_from_screen(screen_x, screen_y, c);
-
-        /** Send the event to visible menu element if menu element currently in
-         *  the selected path or contains the event location
-         */
-        if ((p.x >= 0 and p.x < c->get_width() and p.y >= 0 and p.y < c->get_height())) {
-          if (path.empty()) {
-            path.reserve(i + 2);
-            for (auto k = 0; k <= i; ++k) {
-              path[k] = selection[k];
+          /** Send the event to visible menu element if menu element currently in
+           *  the selected path or contains the event location
+           */
+          if ((p.x >= 0 and p.x < c->get_width() and p.y >= 0 and p.y < c->get_height())) {
+            if (path.empty()) {
+              path.reserve(i + 2);
+              for (auto k = 0; k <= i; ++k) {
+                path[k] = selection[k];
+              }
             }
-          }
 
-          path[i + 1] = sub_element;
+            path[i + 1] = sub_element;
 
-          // Enter/exit detection -- needs tuning...
-          if (selection[selection.size() - 1] != path[i + 1] and (selection.size() < 2 or selection[selection.size() - 2] != path[i + 1])) {
-            auto oldMC = selection[selection.size() - 1]->get_component();
-            auto exitEvent = make_event<MouseOverEvent>(oldMC, MouseOverEvent::MOUSE_EXITED, e.modifiers, p.x, p.y, e.when);
-            selection[selection.size() - 1]->process_mouse_event(exitEvent, path, *this);
+            // Enter/exit detection -- needs tuning...
+            if (selection[selection.size() - 1] != path[i + 1] and (selection.size() < 2 or selection[selection.size() - 2] != path[i + 1])) {
+              auto exit_event = make_event<MouseOverEvent>(selection[selection.size() - 1]->get_component(), MouseOverEvent::MOUSE_EXITED, e.modifiers, p.x, p.y, e.when);
+              selection[selection.size() - 1]->process_mouse_event(exit_event, path, *this);
 
-            auto enterEvent = make_event<MouseOverEvent>(c, MouseOverEvent::MOUSE_ENTERED, e.modifiers, p.x, p.y, e.when);
-            sub_element->process_mouse_event(enterEvent, path, *this);
-          }
+              auto enter_event = make_event<MouseOverEvent>(c, MouseOverEvent::MOUSE_ENTERED, e.modifiers, p.x, p.y, e.when);
+              sub_element->process_mouse_event(enter_event, path, *this);
+            }
 
-          std::swap(e.point, p);
-          try {
-            sub_element->process_mouse_event(e, path, *this);
-          } catch (std::exception const&) {
             std::swap(e.point, p);
-            throw;
+            try {
+              sub_element->process_mouse_event(e, path, *this);
+            } catch (std::exception const&) {
+              std::swap(e.point, p);
+              throw;
+            }
+
+            std::swap(e.point, p);
+            done = true;
+            e.consume();
           }
 
-          std::swap(e.point, p);
-          success = true;
-          e.consume();
-        }
-
-        if (success) {
-          break;
+          if (done) {
+            break;
+          }
         }
       }
     }
