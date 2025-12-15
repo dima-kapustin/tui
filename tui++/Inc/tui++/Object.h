@@ -15,7 +15,18 @@ namespace tui {
 class Object;
 
 using PropertyValue = std::any;
-using PropertyChangeListenerSignature = void(Object*, const std::string_view &property_name, const PropertyValue& old_value, const PropertyValue &new_value);
+struct PropertyChangeEvent {
+  Object *const source;
+  const std::string_view &property_name;
+  const PropertyValue &old_value;
+  const PropertyValue &new_value;
+
+  constexpr PropertyChangeEvent(Object *source, const std::string_view &property_name, const PropertyValue &old_value, const PropertyValue &new_value) :
+      source(source), property_name(property_name), old_value(old_value), new_value(new_value) {
+  }
+};
+
+using PropertyChangeListenerSignature = void(PropertyChangeEvent& e);
 using PropertyChangeListener = std::function<PropertyChangeListenerSignature>;
 
 class PropertyBase {
@@ -32,12 +43,12 @@ protected:
 
 class Object {
   std::vector<PropertyBase*> properties;
-  mutable std::unordered_map<std::string_view, std::vector<PropertyChangeListener>> property_change_listeners;
+  mutable std::vector<std::pair<std::string_view, std::vector<PropertyChangeListener>>> property_change_listeners;
 
 private:
   auto add_property(PropertyBase *property) {
     auto pos = std::lower_bound(this->properties.begin(), this->properties.end(), property, //
-        [property](const auto &a, const auto &b) {
+        [](const auto &a, const auto &b) {
           return std::strcmp(a->name, b->name) < 0;
         });
     this->properties.insert(pos, property);
@@ -73,25 +84,44 @@ public:
   }
 
   void add_property_change_listener(const char *property_name, const PropertyChangeListener &listener) const {
-    auto &&change_listeners = this->property_change_listeners[property_name];
-    auto pos = std::find_if(change_listeners.begin(), change_listeners.end(), //
-        [&listener](const PropertyChangeListener &e) {
-          return e.target<PropertyChangeListenerSignature>() == listener.target<PropertyChangeListenerSignature>();
+    auto listeners_pos = std::lower_bound(this->property_change_listeners.begin(), this->property_change_listeners.end(), property_name, //
+        [](const auto &a, const char *property_name) {
+          return a.first < property_name;
         });
-    if (pos == change_listeners.end()) {
-      change_listeners.emplace_back(listener);
+
+    if (listeners_pos == this->property_change_listeners.end() or listeners_pos->first != property_name) {
+      listeners_pos = this->property_change_listeners.insert(listeners_pos, std::make_pair(property_name, std::vector<PropertyChangeListener> { }));
     }
+
+    listeners_pos->second.emplace_back(listener);
   }
 
   void remove_property_change_listener(const char *property_name, const PropertyChangeListener &listener) const {
-    auto &&change_listeners = this->property_change_listeners[property_name];
-    auto pos = std::find_if(change_listeners.begin(), change_listeners.end(), //
-        [&listener](const PropertyChangeListener &e) {
-          return e.target<PropertyChangeListenerSignature>() == listener.target<PropertyChangeListenerSignature>();
-        });
-    if (pos != change_listeners.end()) {
-      change_listeners.erase(pos);
+    if (not this->property_change_listeners.empty()) {
+      auto listeners_pos = std::lower_bound(this->property_change_listeners.begin(), this->property_change_listeners.end(), property_name, //
+          [](const auto &a, const char *property_name) {
+            return a.first < property_name;
+          });
+
+      if (listeners_pos != this->property_change_listeners.end() and listeners_pos->first == property_name) {
+        auto &&change_listeners = listeners_pos->second;
+        auto pos = std::find_if(change_listeners.begin(), change_listeners.end(), //
+            [&listener](const PropertyChangeListener &e) {
+              return e.target<PropertyChangeListenerSignature>() == listener.target<PropertyChangeListenerSignature>();
+            });
+        if (pos != change_listeners.end()) {
+          change_listeners.erase(pos);
+        }
+      }
     }
+  }
+
+  void add_property_change_listener(const PropertyChangeListener &listener) const {
+    add_property_change_listener("*", listener);
+  }
+
+  void remove_property_change_listener(const PropertyChangeListener &listener) const {
+    remove_property_change_listener("*", listener);
   }
 };
 

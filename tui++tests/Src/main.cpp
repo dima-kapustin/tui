@@ -4,6 +4,8 @@
 #include <tui++/terminal/Terminal.h>
 #include <tui++/terminal/TerminalGraphics.h>
 
+#include <iostream>
+
 using namespace tui;
 using namespace tui::terminal;
 
@@ -37,6 +39,9 @@ int main(int argc, char *argv[]) {
   });
 
   auto frame = terminal.create_frame<Frame>();
+  frame->add_property_change_listener("visible", [](PropertyChangeEvent &e) {
+    std::cout << e.property_name << std::endl;
+  });
   frame->set_size(terminal.get_size());
   frame->pack();
   frame->set_visible(true);
