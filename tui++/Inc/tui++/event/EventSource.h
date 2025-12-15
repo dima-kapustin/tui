@@ -123,6 +123,10 @@ class SingleEventSource {
   friend class MultipleEventSource;
 
 protected:
+  void fire_event(Event &e) {
+    process_event(e);
+  }
+
   virtual void process_event(Event &e) {
     for (auto &&event_listener : this->event_listeners) {
       std::visit([&e](auto &&event_listener) {
@@ -323,7 +327,9 @@ public:
   requires (is_one_of_v<Event, Events...> and std::is_convertible_v<Listener*, EventListener<Event>*>)
   constexpr void add_event_listener(const std::shared_ptr<Listener> &listener) {
     if (SingleEventSource<Event>::add_event_listener(std::static_pointer_cast<EventListener<Event>>(listener))) {
-      update_event_listener_mask<Event>();
+      if constexpr (has_type_enum_v<Event>) {
+        update_event_listener_mask<Event>();
+      }
     }
   }
 
@@ -331,7 +337,9 @@ public:
   requires (is_one_of_v<Event, Events...> and std::is_invocable_v<Callable, Event&>)
   constexpr void add_event_listener(Callable &&callable) {
     if (SingleEventSource<Event>::add_event_listener(std::forward<Callable>(callable))) {
-      update_event_listener_mask<Event>();
+      if constexpr (has_type_enum_v<Event>) {
+        update_event_listener_mask<Event>();
+      }
     }
   }
 

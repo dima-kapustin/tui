@@ -36,6 +36,10 @@ public:
   virtual ~Event() {
   }
 
+  void consume() {
+    this->consumed = true;
+  }
+
 public:
   const EventId id;
   std::shared_ptr<Component> source;

@@ -4,6 +4,8 @@
 #include <tui++/terminal/Terminal.h>
 #include <tui++/terminal/TerminalGraphics.h>
 
+#include <tui++/MenuSelectionManager.h>
+
 #include <iostream>
 
 using namespace tui;

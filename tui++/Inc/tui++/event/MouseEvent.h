@@ -1,6 +1,7 @@
 #pragma once
 
 #include <tui++/event/InputEvent.h>
+#include <tui++/Point.h>
 
 namespace tui {
 
@@ -15,7 +16,12 @@ public:
 
 public:
   Button button = NO_BUTTON;
-  int x, y;
+  union {
+    struct {
+      int x, y;
+    };
+    Point point;
+  };
 
 protected:
   template<typename Id>
@@ -60,8 +66,8 @@ public:
   };
 
 public:
-  constexpr MouseOverEvent(const std::shared_ptr<Component> &source, Type type, Button button, Modifiers modifiers, int x, int y, const EventClock::time_point &when = EventClock::now()) :
-      MouseEventBase(source, type, button, modifiers, x, y, when) {
+  constexpr MouseOverEvent(const std::shared_ptr<Component> &source, Type type, Modifiers modifiers, int x, int y, const EventClock::time_point &when = EventClock::now()) :
+      MouseEventBase(source, type, MouseEventBase::NO_BUTTON, modifiers, x, y, when) {
   }
 };
 

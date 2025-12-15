@@ -1,33 +1,13 @@
 #pragma once
 
-#include <any>
-#include <ranges>
 #include <vector>
-#include <cassert>
 #include <cstring>
-#include <variant>
 #include <concepts>
 #include <algorithm>
-#include <functional>
+
+#include <tui++/event/PropertyChangeEvent.h>
 
 namespace tui {
-
-class Object;
-
-using PropertyValue = std::any;
-struct PropertyChangeEvent {
-  Object *const source;
-  const std::string_view &property_name;
-  const PropertyValue &old_value;
-  const PropertyValue &new_value;
-
-  constexpr PropertyChangeEvent(Object *source, const std::string_view &property_name, const PropertyValue &old_value, const PropertyValue &new_value) :
-      source(source), property_name(property_name), old_value(old_value), new_value(new_value) {
-  }
-};
-
-using PropertyChangeListenerSignature = void(PropertyChangeEvent& e);
-using PropertyChangeListener = std::function<PropertyChangeListenerSignature>;
 
 class PropertyBase {
   Object *object;
@@ -57,6 +37,10 @@ private:
   void fire_property_change_event(const std::string_view &property_name, const PropertyValue &old_value, const PropertyValue &new_value);
 
   friend class PropertyBase;
+
+protected:
+  virtual ~Object() {
+  }
 
 public:
   auto get_properties() {

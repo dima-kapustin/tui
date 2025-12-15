@@ -1,0 +1,103 @@
+#include <tui++/MenuSelectionManager.h>
+#include <tui++/Component.h>
+
+namespace tui {
+
+void MenuSelectionManager::set_selection_path(std::vector<std::shared_ptr<MenuElement>> const &path) {
+  auto first_diff_index = 0;
+  for (auto i = size_t { }, n = path.size(); i != n; ++i) {
+    if (i < this->selection.size() and this->selection[i] == path[i]) {
+      first_diff_index += 1;
+    } else {
+      break;
+    }
+  }
+
+  for (auto i = (int) this->selection.size() - 1; i >= first_diff_index; --i) {
+    auto element = this->selection[i];
+    this->selection.erase(std::next(this->selection.begin(), i));
+    element->menu_selection_changed(false);
+  }
+
+  this->selection.reserve(first_diff_index + path.size());
+  for (auto i = size_t(first_diff_index), n = path.size(); i < n; ++i) {
+    if (path[i]) {
+      this->selection.emplace_back(path[i]);
+      path[i]->menu_selection_changed(true);
+    }
+  }
+
+  fire_state_changed();
+}
+
+void MenuSelectionManager::process_mouse_event(MouseEventBase &e) {
+  if (e.source and not e.source->is_showing()) {
+    // This can happen if a mouseReleased removes the
+    // containing component -- bug 4146684
+    return;
+  }
+
+  if ((e.id == MouseOverEvent::MOUSE_ENTERED or e.id == MouseOverEvent::MOUSE_EXITED) and (e.modifiers & (InputEvent::LEFT_BUTTON_DOWN | InputEvent::RIGHT_BUTTON_DOWN | InputEvent::MIDDLE_BUTTON_DOWN))) {
+    return;
+  }
+
+  auto&& [screen_x, screen_y] = e.source ? convert_point_to_screen(e.point, e.source) : e.point;
+
+  auto success = false;
+  auto selection = this->selection;
+
+  for (auto i = (int) selection.size() - 1; not success and i >= 0; --i) {
+    auto path = std::vector<std::shared_ptr<MenuElement>> { };
+    for (auto &&sub_element : selection[i]->get_sub_elements()) {
+      if (sub_element) {
+        auto c = sub_element->get_component();
+        if (not c->is_showing())
+          continue;
+
+        auto p = convert_point_from_screen(screen_x, screen_y, c);
+
+        /** Send the event to visible menu element if menu element currently in
+         *  the selected path or contains the event location
+         */
+        if ((p.x >= 0 and p.x < c->get_width() and p.y >= 0 and p.y < c->get_height())) {
+          if (path.empty()) {
+            path.reserve(i + 2);
+            for (auto k = 0; k <= i; ++k) {
+              path[k] = selection[k];
+            }
+          }
+
+          path[i + 1] = sub_element;
+
+          // Enter/exit detection -- needs tuning...
+          if (selection[selection.size() - 1] != path[i + 1] and (selection.size() < 2 or selection[selection.size() - 2] != path[i + 1])) {
+            auto oldMC = selection[selection.size() - 1]->get_component();
+            auto exitEvent = make_event<MouseOverEvent>(oldMC, MouseOverEvent::MOUSE_EXITED, e.modifiers, p.x, p.y, e.when);
+            selection[selection.size() - 1]->process_mouse_event(exitEvent, path, *this);
+
+            auto enterEvent = make_event<MouseOverEvent>(c, MouseOverEvent::MOUSE_ENTERED, e.modifiers, p.x, p.y, e.when);
+            sub_element->process_mouse_event(enterEvent, path, *this);
+          }
+
+          std::swap(e.point, p);
+          try {
+            sub_element->process_mouse_event(e, path, *this);
+          } catch (std::exception const&) {
+            std::swap(e.point, p);
+            throw;
+          }
+
+          std::swap(e.point, p);
+          success = true;
+          e.consume();
+        }
+
+        if (success) {
+          break;
+        }
+      }
+    }
+  }
+}
+
+}
