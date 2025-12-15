@@ -11,6 +11,9 @@
 
 namespace tui {
 
+struct Point;
+class Component;
+
 class MenuSelectionManager: virtual public Object, public EventSource<ChangeEvent> {
   ChangeEvent change_event { this };
   std::vector<std::shared_ptr<MenuElement>> selection;
@@ -34,6 +37,9 @@ public:
   }
 
   void process_mouse_event(MouseEventBase &e);
+  void process_key_event(KeyEvent &e);
+
+  std::shared_ptr<Component> component_for_point(const std::shared_ptr<Component> &source, const Point &source_point);
 };
 
 }

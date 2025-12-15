@@ -41,8 +41,10 @@ void MenuSelectionManager::process_mouse_event(MouseEventBase &e) {
   auto selection = this->selection;
   auto&& [screen_x, screen_y] = e.source ? convert_point_to_screen(e.point, e.source) : e.point;
 
+  auto path = std::vector<std::shared_ptr<MenuElement>> { };
+  path.reserve(selection.size());
   for (auto i = (int) selection.size() - 1; not done and i >= 0; --i) {
-    auto path = std::vector<std::shared_ptr<MenuElement>> { };
+    path.clear();
     for (auto &&sub_element : selection[i]->get_sub_elements()) {
       if (sub_element) {
         if (auto c = sub_element->get_component(); c->is_showing()) {
@@ -53,32 +55,30 @@ void MenuSelectionManager::process_mouse_event(MouseEventBase &e) {
            */
           if ((p.x >= 0 and p.x < c->get_width() and p.y >= 0 and p.y < c->get_height())) {
             if (path.empty()) {
-              path.reserve(i + 2);
-              for (auto k = 0; k <= i; ++k) {
-                path[k] = selection[k];
-              }
+              std::copy_n(selection.begin(), i, std::back_inserter(path));
             }
 
-            path[i + 1] = sub_element;
+            path.push_back(sub_element);
 
             // Enter/exit detection -- needs tuning...
             if (selection[selection.size() - 1] != path[i + 1] and (selection.size() < 2 or selection[selection.size() - 2] != path[i + 1])) {
-              auto exit_event = make_event<MouseOverEvent>(selection[selection.size() - 1]->get_component(), MouseOverEvent::MOUSE_EXITED, e.modifiers, p.x, p.y, e.when);
+              auto exit_event = make_event < MouseOverEvent > (selection[selection.size() - 1]->get_component(), MouseOverEvent::MOUSE_EXITED, e.modifiers, p.x, p.y, e.when);
               selection[selection.size() - 1]->process_mouse_event(exit_event, path, *this);
 
-              auto enter_event = make_event<MouseOverEvent>(c, MouseOverEvent::MOUSE_ENTERED, e.modifiers, p.x, p.y, e.when);
+              auto enter_event = make_event < MouseOverEvent > (c, MouseOverEvent::MOUSE_ENTERED, e.modifiers, p.x, p.y, e.when);
               sub_element->process_mouse_event(enter_event, path, *this);
             }
 
-            std::swap(e.point, p);
+            auto temp_point = e.point;
+            e.point = p;
             try {
               sub_element->process_mouse_event(e, path, *this);
             } catch (std::exception const&) {
-              std::swap(e.point, p);
+              e.point = temp_point;
               throw;
             }
 
-            std::swap(e.point, p);
+            e.point = temp_point;
             done = true;
             e.consume();
           }
@@ -90,6 +90,57 @@ void MenuSelectionManager::process_mouse_event(MouseEventBase &e) {
       }
     }
   }
+}
+
+void MenuSelectionManager::process_key_event(KeyEvent &e) {
+  auto selection = this->selection;
+  if (selection.size() < 1) {
+    return;
+  }
+
+  auto path = std::vector<std::shared_ptr<MenuElement>> { };
+  path.reserve(selection.size());
+  for (auto i = (int) selection.size() - 1; i >= 0; --i) {
+    path.clear();
+    for (auto &&sub_element : selection[i]->get_sub_elements()) {
+      if (sub_element and sub_element->get_component()->is_showing() and sub_element->get_component()->is_enabled()) {
+        if (path.empty()) {
+          std::copy_n(selection.begin(), i + 1, std::back_inserter(path));
+        }
+        path.push_back(sub_element);
+        sub_element->process_key_event(e, path, *this);
+        if (e.consumed) {
+          return;
+        }
+      }
+    }
+  }
+
+  // finally dispatch event to the first component in path
+  path.clear();
+  path.push_back(selection[0]);
+  path[0]->process_key_event(e, path, *this);
+}
+
+std::shared_ptr<Component> MenuSelectionManager::component_for_point(const std::shared_ptr<Component> &source, const Point &source_point) {
+  auto selection = this->selection;
+  auto&& [screenX, screenY] = convert_point_to_screen(source_point, source);
+  for (auto i = (int) selection.size() - 1; i >= 0; --i) {
+    for (auto &&sub_element : selection[i]->get_sub_elements()) {
+      if (sub_element) {
+        if (auto c = sub_element->get_component(); c->is_showing()) {
+          auto p = convert_point_from_screen(screenX, screenY, c);
+          /** Return the deepest component on the selection
+           *  path in whose bounds the event's point occurs
+           */
+          if (p.x >= 0 and p.x < c->get_width() and p.y >= 0 and p.y < c->get_height()) {
+            return c;
+          }
+        }
+      }
+    }
+  }
+  return nullptr;
 }
 
 }
