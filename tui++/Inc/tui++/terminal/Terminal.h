@@ -184,8 +184,8 @@ class Terminal {
       if (this->csi_params[0] & 64) {
         this->terminal.new_mouse_wheel_event(button == 0 ? -1 : 1, key_modifiers, x, y);
       } else {
-        auto type = pressed ? MouseEvent::MOUSE_PRESSED : MouseEvent::MOUSE_RELEASED;
-        this->terminal.new_mouse_event(type, MouseEvent::Button(button), key_modifiers, x, y);
+        auto type = pressed ? MousePressEvent::MOUSE_PRESSED : MousePressEvent::MOUSE_RELEASED;
+        this->terminal.new_mouse_event(type, MousePressEvent::Button(button), key_modifiers, x, y);
       }
     }
 
@@ -221,8 +221,8 @@ private:
   std::vector<Option> set_options;
 
   struct {
-    MouseEvent::Type type;
-    MouseEvent::Button button = MouseEvent::NO_BUTTON;
+    MousePressEvent::Type type;
+    MousePressEvent::Button button = MousePressEvent::NO_BUTTON;
     int x, y;
   } prev_mouse_event;
   InputEvent::Modifiers modifiers = InputEvent::NO_MODIFIERS;
@@ -248,11 +248,11 @@ private:
   void new_resize_event();
   void new_key_event(const Char &c, InputEvent::Modifiers key_modifiers);
   void new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers key_modifiers);
-  void new_mouse_event(MouseEvent::Type type, MouseEvent::Button button, InputEvent::Modifiers key_modifiers, int x, int y);
+  void new_mouse_event(MousePressEvent::Type type, MousePressEvent::Button button, InputEvent::Modifiers key_modifiers, int x, int y);
   void new_mouse_wheel_event(int wheel_rotation, InputEvent::Modifiers key_modifiers, int x, int y);
 //  void new_mouse_move_event(InputEvent::Modifiers modifiers, int x, int y);
-//  void new_mouse_drag_event(MouseEvent::Button button, InputEvent::Modifiers modifiers, int x, int y);
-//  void new_mouse_click_event(MouseEvent::Button button, InputEvent::Modifiers modifiers, int x, int y);
+//  void new_mouse_drag_event(MousePressEvent::Button button, InputEvent::Modifiers modifiers, int x, int y);
+//  void new_mouse_click_event(MousePressEvent::Button button, InputEvent::Modifiers modifiers, int x, int y);
 
   friend class TerminalImpl;
   friend class InputParser;

@@ -144,9 +144,9 @@ void Terminal::new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers k
   this->screen.post_system<KeyEvent>(KeyboardFocusManager::get_focused_window(), KeyEvent::KEY_PRESSED, key_code, key_modifiers);
 }
 
-void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button, InputEvent::Modifiers key_modifiers, int x, int y) {
+void Terminal::new_mouse_event(MousePressEvent::Type type, MousePressEvent::Button button, InputEvent::Modifiers key_modifiers, int x, int y) {
   auto motion = false;
-  if ((prev_mouse_event.type == type and prev_mouse_event.button == button) or button == MouseEvent::NO_BUTTON) {
+  if ((prev_mouse_event.type == type and prev_mouse_event.button == button) or button == MousePressEvent::NO_BUTTON) {
     if (prev_mouse_event.x == x and prev_mouse_event.y == y) {
       return;
     } else {
@@ -156,11 +156,11 @@ void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button,
 
   modifiers = (modifiers & ~(InputEvent::SHIFT_DOWN | InputEvent::CTRL_DOWN | InputEvent::ALT_DOWN | InputEvent::META_DOWN)) | key_modifiers;
 
-  if (type == MouseEvent::MOUSE_PRESSED) {
-    if (button != MouseEvent::NO_BUTTON) {
+  if (type == MousePressEvent::MOUSE_PRESSED) {
+    if (button != MousePressEvent::NO_BUTTON) {
       modifiers |= to_modifier(button);
     }
-  } else if (type == MouseEvent::MOUSE_RELEASED) {
+  } else if (type == MousePressEvent::MOUSE_RELEASED) {
     modifiers &= ~to_modifier(button);
   }
 
@@ -172,17 +172,17 @@ void Terminal::new_mouse_event(MouseEvent::Type type, MouseEvent::Button button,
   }
 
   if (motion) {
-    if (type == MouseEvent::MOUSE_PRESSED and button != MouseEvent::NO_BUTTON) {
+    if (type == MousePressEvent::MOUSE_PRESSED and button != MousePressEvent::NO_BUTTON) {
       this->screen.post_system<MouseDragEvent>(window, button, modifiers, p.x, p.y);
     } else {
       this->screen.post_system<MouseMoveEvent>(window, modifiers, p.x, p.y);
     }
   } else {
-    this->screen.post_system<MouseEvent>(window, type, button, modifiers, p.x, p.y, false);
+    this->screen.post_system<MousePressEvent>(window, type, button, modifiers, p.x, p.y, false);
 
-    if (type == MouseEvent::MOUSE_PRESSED) {
+    if (type == MousePressEvent::MOUSE_PRESSED) {
       prev_mouse_press_time = Clock::now();
-    } else if (type == MouseEvent::MOUSE_RELEASED) {
+    } else if (type == MousePressEvent::MOUSE_RELEASED) {
       if (prev_mouse_event.button == button and (Clock::now() - prev_mouse_press_time) < mouse_click_detection_timeout) {
         auto click_count = 1;
         if ((Clock::now() - prev_mouse_click_time) < mouse_double_click_detection_timeout) {

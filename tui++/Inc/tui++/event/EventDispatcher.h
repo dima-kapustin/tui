@@ -23,13 +23,13 @@ public:
     }
   }
 
-  static void dispatch_event(const std::shared_ptr<EventListener<MouseEvent>> &event_listener, MouseEvent &e) {
+  static void dispatch_event(const std::shared_ptr<EventListener<MousePressEvent>> &event_listener, MousePressEvent &e) {
     switch (e.id) {
-    case MouseEvent::MOUSE_PRESSED:
+    case MousePressEvent::MOUSE_PRESSED:
       event_listener->mouse_pressed(e);
       break;
 
-    case MouseEvent::MOUSE_RELEASED:
+    case MousePressEvent::MOUSE_RELEASED:
       event_listener->mouse_released(e);
       break;
     }
@@ -121,7 +121,7 @@ public:
       dispatch_event(event_listener, e);
     } else if constexpr (std::is_same_v<KeyEvent, Event>) {
       dispatch_event(event_listener, e);
-    } else if constexpr (std::is_same_v<MouseEvent, Event>) {
+    } else if constexpr (std::is_same_v<MousePressEvent, Event>) {
       dispatch_event(event_listener, e);
     } else if constexpr (std::is_same_v<MouseClickEvent, Event>) {
       dispatch_event(event_listener, e);

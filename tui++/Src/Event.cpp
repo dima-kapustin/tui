@@ -155,19 +155,19 @@ std::ostream& operator<<(std::ostream &os, const KeyEvent &event) {
   return os;
 }
 
-std::ostream& operator<<(std::ostream &os, const MouseEvent &event) {
+std::ostream& operator<<(std::ostream &os, const MousePressEvent &event) {
   os << "Mouse" << ' ';
   switch (event.button) {
-  case MouseEvent::LEFT_BUTTON:
+  case MousePressEvent::LEFT_BUTTON:
     os << "Left Button";
     break;
-  case MouseEvent::MIDDLE_BUTTON:
+  case MousePressEvent::MIDDLE_BUTTON:
     os << "Middle Button";
     break;
-  case MouseEvent::RIGHT_BUTTON:
+  case MousePressEvent::RIGHT_BUTTON:
     os << "Right Button";
     break;
-  case MouseEvent::NO_BUTTON:
+  case MousePressEvent::NO_BUTTON:
     os << "No Button";
     break;
   }
@@ -175,10 +175,10 @@ std::ostream& operator<<(std::ostream &os, const MouseEvent &event) {
   os << ' ';
 
   switch (event.id) {
-  case MouseEvent::MOUSE_PRESSED:
+  case MousePressEvent::MOUSE_PRESSED:
     os << "PRESSED";
     break;
-  case MouseEvent::MOUSE_RELEASED:
+  case MousePressEvent::MOUSE_RELEASED:
     os << "RELEASED";
     break;
 
@@ -198,16 +198,16 @@ std::ostream& operator<<(std::ostream &os, const MouseMoveEvent &event) {
 std::ostream& operator<<(std::ostream &os, const MouseDragEvent &event) {
   os << "Mouse DRAGGED with ";
   switch (event.button) {
-  case MouseEvent::LEFT_BUTTON:
+  case MousePressEvent::LEFT_BUTTON:
     os << "Left Button";
     break;
-  case MouseEvent::MIDDLE_BUTTON:
+  case MousePressEvent::MIDDLE_BUTTON:
     os << "Middle Button";
     break;
-  case MouseEvent::RIGHT_BUTTON:
+  case MousePressEvent::RIGHT_BUTTON:
     os << "Right Button";
     break;
-  case MouseEvent::NO_BUTTON:
+  case MousePressEvent::NO_BUTTON:
     os << "No Button";
     break;
   }
@@ -341,8 +341,8 @@ std::ostream& operator<<(std::ostream &os, const Event &event) {
   case EventType::KEY:
     os << static_cast<const KeyEvent&>(event);
     break;
-  case EventType::MOUSE:
-    os << static_cast<const MouseEvent&>(event);
+  case EventType::MOUSE_PRESS:
+    os << static_cast<const MousePressEvent&>(event);
     break;
   case EventType::MOUSE_MOVE:
     os << static_cast<const MouseMoveEvent&>(event);

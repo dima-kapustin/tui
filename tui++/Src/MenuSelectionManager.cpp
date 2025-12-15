@@ -30,7 +30,7 @@ void MenuSelectionManager::set_selection_path(std::vector<std::shared_ptr<MenuEl
   fire_state_changed();
 }
 
-void MenuSelectionManager::process_mouse_event(MouseEventBase &e) {
+void MenuSelectionManager::process_mouse_event(MouseEvent &e) {
   if (e.source and not e.source->is_showing()) {
     // This can happen if a mouseReleased removes the
     // containing component -- bug 4146684
@@ -119,7 +119,7 @@ void MenuSelectionManager::process_key_event(KeyEvent &e) {
   // finally dispatch event to the first component in path
   path.clear();
   path.push_back(selection[0]);
-  path[0]->process_key_event(e, path, *this);
+  selection[0]->process_key_event(e, path, *this);
 }
 
 std::shared_ptr<Component> MenuSelectionManager::component_for_point(const std::shared_ptr<Component> &source, const Point &source_point) {

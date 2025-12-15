@@ -36,7 +36,7 @@ public:
     }
   }
 
-  void process_mouse_event(MouseEventBase &e);
+  void process_mouse_event(MouseEvent &e);
   void process_key_event(KeyEvent &e);
 
   std::shared_ptr<Component> component_for_point(const std::shared_ptr<Component> &source, const Point &source_point);

@@ -39,8 +39,8 @@ class KeyboardManager;
 template<typename T>
 constexpr bool is_component_v = std::is_base_of_v<Component, T>;
 
-class Component: virtual public Object, public std::enable_shared_from_this<Component>, public EventSource<ComponentEvent, FocusEvent, HierarchyEvent, HierarchyBoundsEvent, KeyEvent, MouseEvent, MouseClickEvent, MouseMoveEvent, MouseOverEvent, MouseWheelEvent> {
-  using base = EventSource<ComponentEvent, FocusEvent, HierarchyEvent, HierarchyBoundsEvent, KeyEvent, MouseEvent, MouseClickEvent, MouseMoveEvent, MouseOverEvent, MouseWheelEvent>;
+class Component: virtual public Object, public std::enable_shared_from_this<Component>, public EventSource<ComponentEvent, FocusEvent, HierarchyEvent, HierarchyBoundsEvent, KeyEvent, MousePressEvent, MouseClickEvent, MouseMoveEvent, MouseOverEvent, MouseWheelEvent> {
+  using base = EventSource<ComponentEvent, FocusEvent, HierarchyEvent, HierarchyBoundsEvent, KeyEvent, MousePressEvent, MouseClickEvent, MouseMoveEvent, MouseOverEvent, MouseWheelEvent>;
 
 protected:
   static std::recursive_mutex tree_mutex;
@@ -314,7 +314,7 @@ protected:
     base::process_event(e);
   }
 
-  virtual void process_event(MouseEvent &e) override {
+  virtual void process_event(MousePressEvent &e) override {
     base::process_event(e);
   }
 

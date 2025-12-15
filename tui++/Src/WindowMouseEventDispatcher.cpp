@@ -11,7 +11,7 @@ WindowMouseEventDispatcher::~WindowMouseEventDispatcher() {
   stop_listening_for_other_drags();
 }
 
-void WindowMouseEventDispatcher::retarget_mouse_event(const std::shared_ptr<Component> &target, MouseEventBase &e) {
+void WindowMouseEventDispatcher::retarget_mouse_event(const std::shared_ptr<Component> &target, MouseEvent &e) {
   auto component = target;
   for (; component and component.get() != this->window; component = component->get_parent()) {
     e.x -= component->get_x();
@@ -37,12 +37,12 @@ void WindowMouseEventDispatcher::retarget_mouse_event(const std::shared_ptr<Comp
   }
 }
 
-std::shared_ptr<Component> WindowMouseEventDispatcher::retarget_mouse_enter_exit(const std::shared_ptr<Component> &target_over, MouseEventBase &e, const std::shared_ptr<Component> &last_entered, bool mouse_over_window) {
+std::shared_ptr<Component> WindowMouseEventDispatcher::retarget_mouse_enter_exit(const std::shared_ptr<Component> &target_over, MouseEvent &e, const std::shared_ptr<Component> &last_entered, bool mouse_over_window) {
   auto target_enter = mouse_over_window ? target_over : nullptr;
 
   if (last_entered != target_enter) {
     if (last_entered) {
-      auto mouse_exited = make_event<MouseOverEvent>(last_entered, MouseOverEvent::MOUSE_EXITED, e.button, e.modifiers, e.x, e.y, e.when);
+      auto mouse_exited = make_event<MouseOverEvent>(last_entered, MouseOverEvent::MOUSE_EXITED, e.modifiers, e.x, e.y, e.when);
       retarget_mouse_event(last_entered, mouse_exited);
     }
 
@@ -52,7 +52,7 @@ std::shared_ptr<Component> WindowMouseEventDispatcher::retarget_mouse_enter_exit
     }
 
     if (target_enter) {
-      auto mouse_entered = make_event<MouseOverEvent>(target_enter, MouseOverEvent::MOUSE_ENTERED, e.button, e.modifiers, e.x, e.y, e.when);
+      auto mouse_entered = make_event<MouseOverEvent>(target_enter, MouseOverEvent::MOUSE_ENTERED, e.modifiers, e.x, e.y, e.when);
       retarget_mouse_event(target_enter, mouse_entered);
     }
 
@@ -64,7 +64,7 @@ std::shared_ptr<Component> WindowMouseEventDispatcher::retarget_mouse_enter_exit
   return target_enter;
 }
 
-void WindowMouseEventDispatcher::track_mouse_enter_exit(const std::shared_ptr<Component> &target_over, MouseEventBase &e) {
+void WindowMouseEventDispatcher::track_mouse_enter_exit(const std::shared_ptr<Component> &target_over, MouseEvent &e) {
   if (e.id != MouseOverEvent::MOUSE_EXITED and //
       e.id != MouseDragEvent::MOUSE_DRAGGED and //
       not this->mouse_over_window) {
@@ -81,12 +81,12 @@ void WindowMouseEventDispatcher::track_mouse_enter_exit(const std::shared_ptr<Co
 
 bool WindowMouseEventDispatcher::dispatch_event(Event &e) {
   if (this->event_mask & e.id) {
-    dispatch_event(static_cast<MouseEventBase&>(e));
+    dispatch_event(static_cast<MouseEvent&>(e));
   }
   return false;
 }
 
-bool WindowMouseEventDispatcher::dispatch_event(MouseEventBase &e) {
+bool WindowMouseEventDispatcher::dispatch_event(MouseEvent &e) {
   auto mouse_over = this->window->get_mouse_event_target(e.x, e.y, true);
   track_mouse_enter_exit(mouse_over, e);
 
@@ -104,10 +104,10 @@ bool WindowMouseEventDispatcher::dispatch_event(MouseEventBase &e) {
     case MouseOverEvent::MOUSE_ENTERED:
     case MouseOverEvent::MOUSE_EXITED:
       break;
-    case MouseEvent::MOUSE_PRESSED:
+    case MousePressEvent::MOUSE_PRESSED:
       retarget_mouse_event(mouse_event_target, e);
       break;
-    case MouseEvent::MOUSE_RELEASED:
+    case MousePressEvent::MOUSE_RELEASED:
       retarget_mouse_event(mouse_event_target, e);
       break;
     case MouseClickEvent::MOUSE_CLICKED:
@@ -136,7 +136,7 @@ bool WindowMouseEventDispatcher::dispatch_event(MouseEventBase &e) {
       retarget_mouse_event(mouse_over, e);
       break;
     }
-    //Consuming of wheel events is implemented in "retargetMouseEvent".
+    //Consuming of wheel events is implemented in "retargetMousePressEvent".
     if (e.id != MouseWheelEvent::MOUSE_WHEEL) {
       e.consumed = true;
     }
@@ -146,7 +146,7 @@ bool WindowMouseEventDispatcher::dispatch_event(MouseEventBase &e) {
 }
 
 void WindowMouseEventDispatcher::start_listening_for_other_drags() {
-  constexpr auto event_mask = EventType::MOUSE | EventType::MOUSE_MOVE | EventType::MOUSE_DRAG | EventType::MOUSE_OVER | EventType::MOUSE_WHEEL;
+  constexpr auto event_mask = EventType::MOUSE_PRESS | EventType::MOUSE_MOVE | EventType::MOUSE_DRAG | EventType::MOUSE_OVER | EventType::MOUSE_WHEEL;
   this->window->get_screen()->add_event_listener(shared_from_this(), event_mask);
 }
 

@@ -22,12 +22,12 @@ private:
   void start_listening_for_other_drags();
   void stop_listening_for_other_drags();
 
-  void track_mouse_enter_exit(const std::shared_ptr<Component> &target_over, MouseEventBase &e);
-  std::shared_ptr<Component> retarget_mouse_enter_exit(const std::shared_ptr<Component> &target_over, MouseEventBase &e, const std::shared_ptr<Component> &last_entered, bool in_window);
+  void track_mouse_enter_exit(const std::shared_ptr<Component> &target_over, MouseEvent &e);
+  std::shared_ptr<Component> retarget_mouse_enter_exit(const std::shared_ptr<Component> &target_over, MouseEvent &e, const std::shared_ptr<Component> &last_entered, bool in_window);
 
-  void retarget_mouse_event(const std::shared_ptr<Component> &target, MouseEventBase &e);
+  void retarget_mouse_event(const std::shared_ptr<Component> &target, MouseEvent &e);
 
-  bool dispatch_event(MouseEventBase &e);
+  bool dispatch_event(MouseEvent &e);
 
 public:
   WindowMouseEventDispatcher(Window *window) :

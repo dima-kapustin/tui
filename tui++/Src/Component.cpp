@@ -144,7 +144,7 @@ bool Component::is_request_focus_accepted(bool temporary, bool focused_window_ch
 bool Component::request_focus(bool temporary, bool focused_window_change_allowed, FocusEvent::Cause cause) {
   // 1) Check if the event being dispatched is a system-generated mouse event.
   if (auto current_event = get_event_queue()->get_current_event(); current_event and current_event->system_generated) {
-    if (auto mouse_event = std::dynamic_pointer_cast<MouseEvent>(current_event)) {
+    if (auto mouse_event = std::dynamic_pointer_cast<MousePressEvent>(current_event)) {
       // 2) Sanity check: if the mouse event component source belongs to the same containing window.
       auto source = mouse_event->source;
       if (not source or source->get_containing_window() == get_containing_window()) {

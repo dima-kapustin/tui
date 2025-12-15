@@ -44,10 +44,10 @@ public:
 };
 
 template<>
-class EventListener<MouseEvent> : public BasicEventListener<MouseEvent> {
+class EventListener<MousePressEvent> : public BasicEventListener<MousePressEvent> {
 public:
-  virtual void mouse_pressed(MouseEvent &e) = 0;
-  virtual void mouse_released(MouseEvent &e) = 0;
+  virtual void mouse_pressed(MousePressEvent &e) = 0;
+  virtual void mouse_released(MousePressEvent &e) = 0;
 };
 
 template<>
