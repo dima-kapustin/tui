@@ -1,10 +1,10 @@
 #pragma once
 
-#include <tui++/event/Event.h>
+#include <tui++/event/ComponentEvent.h>
 
 namespace tui {
 
-class FocusEvent: public Event {
+class FocusEvent: public ComponentEvent {
 public:
   enum Type : unsigned {
     FOCUS_LOST = event_id_v<EventType::FOCUS, 0>,
@@ -69,7 +69,7 @@ public:
   }
 
   FocusEvent(const std::shared_ptr<Component> &source, Type type, Cause cause, bool temporary, const std::shared_ptr<Component> &opposite) :
-      Event(source, type), cause(cause), temporary(temporary), opposite(opposite) {
+      ComponentEvent(source, type), cause(cause), temporary(temporary), opposite(opposite) {
   }
 };
 

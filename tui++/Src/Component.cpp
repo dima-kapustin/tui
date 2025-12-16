@@ -143,10 +143,10 @@ bool Component::is_request_focus_accepted(bool temporary, bool focused_window_ch
 
 bool Component::request_focus(bool temporary, bool focused_window_change_allowed, FocusEvent::Cause cause) {
   // 1) Check if the event being dispatched is a system-generated mouse event.
-  if (auto current_event = get_event_queue()->get_current_event(); current_event and current_event->system_generated) {
+  if (auto current_event = Screen::get_event_queue().get_current_event(); current_event and current_event->system_generated) {
     if (auto mouse_event = std::dynamic_pointer_cast<MousePressEvent>(current_event)) {
       // 2) Sanity check: if the mouse event component source belongs to the same containing window.
-      auto source = mouse_event->source;
+      auto source = mouse_event->component();
       if (not source or source->get_containing_window() == get_containing_window()) {
         log_focus_ln("requesting focus by mouse event \"in window\"");
 
@@ -308,17 +308,6 @@ void Component::transfer_focus_down_cycle() {
   }
 }
 
-Screen* Component::get_screen() const {
-  if (auto window = get_containing_window()) {
-    return window->get_screen();
-  }
-  return nullptr;
-}
-
-EventQueue* Component::get_event_queue() const {
-  return &get_screen()->get_event_queue();
-}
-
 std::shared_ptr<Window> Component::get_containing_window() const {
   for (auto component = const_cast<Component*>(this)->shared_from_this();; component = component->get_parent()) {
     if (auto window = std::dynamic_pointer_cast<Window>(component)) {
@@ -398,6 +387,16 @@ bool Component::process_key_bindings_for_all_components(KeyEvent &e, std::shared
       return false;
     }
   }
+}
+
+bool Component::is_showing() const {
+  if (this->visible) {
+    if (auto parent = this->parent.lock()) {
+      return parent->is_showing();
+    }
+    return get_containing_window() != nullptr;
+  }
+  return false;
 }
 
 bool Component::is_window(const std::shared_ptr<const Component> &component) {
@@ -892,6 +891,17 @@ std::shared_ptr<Component> Component::find_traversal_root() const {
     KeyboardFocusManager::set_current_focus_cycle_root(root);
   }
   return root;
+}
+
+void Component::revalidate() {
+  if (not this->parent.expired()) {
+    if (Screen::is_event_dispatching_thread()) {
+      invalidate();
+      // TODO RepaintManager::add_invalid_component(shared_from_this());
+    } else {
+
+    }
+  }
 }
 
 }

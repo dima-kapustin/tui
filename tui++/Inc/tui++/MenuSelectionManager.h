@@ -14,7 +14,7 @@ namespace tui {
 struct Point;
 class Component;
 
-class MenuSelectionManager: virtual public Object, public EventSource<ChangeEvent> {
+class MenuSelectionManager: virtual public Object, public std::enable_shared_from_this<MenuSelectionManager>, public EventSource<ChangeEvent> {
   ChangeEvent change_event { this };
   std::vector<std::shared_ptr<MenuElement>> selection;
 

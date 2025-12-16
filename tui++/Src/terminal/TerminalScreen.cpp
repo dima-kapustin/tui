@@ -139,6 +139,8 @@ static void escape_foreground_color(std::ostream &os, const Color &color) {
 TerminalScreen::CharView TerminalScreen::EMPTY_CHAR_VIEW;
 
 void TerminalScreen::run_event_loop() {
+  event_dispatching_thread_id = std::this_thread::get_id();
+
   while (not this->quit) {
     this->terminal.read_events();
     if (auto event = this->event_queue.pop(WAIT_EVENT_TIMEOUT)) {

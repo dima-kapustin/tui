@@ -7,12 +7,11 @@
 
 namespace tui {
 
+std::thread::id Screen::event_dispatching_thread_id;
+EventQueue Screen::event_queue;
+
 void Screen::paint(Graphics &g) {
 
-}
-
-void Screen::post(const std::shared_ptr<Event> &event) {
-  this->event_queue.push(event);
 }
 
 std::shared_ptr<Window> Screen::get_window_at(int x, int y) const {
@@ -65,7 +64,7 @@ void Screen::dispatch_event(Event &event) {
   if (event.id == InvocationEvent::INVOCATION) {
     static_cast<InvocationEvent&>(event).dispatch();
   } else if (event.source) {
-    event.source->dispatch_event(event);
+    std::dynamic_pointer_cast<Component>(event.source)->dispatch_event(event);
   }
 }
 

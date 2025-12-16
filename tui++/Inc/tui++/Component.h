@@ -15,7 +15,6 @@
 #include <tui++/Insets.h>
 #include <tui++/Layout.h>
 #include <tui++/Object.h>
-#include <tui++/Screen.h>
 #include <tui++/Dimension.h>
 #include <tui++/Rectangle.h>
 #include <tui++/ActionMap.h>
@@ -263,11 +262,6 @@ protected:
     }
   }
 
-  /**
-   * Determines whether this component will be displayed on the screen, if it's displayable
-   *
-   * @return <code>true</code> if the component and all of its ancestors are visible, <code>false</code> otherwise
-   */
   bool is_recursively_visible() const {
     if (this->visible) {
       if (auto parent = get_parent()) {
@@ -305,10 +299,6 @@ protected:
       parent->set_focus(shared_from_this());
     }
   }
-
-  virtual Screen* get_screen() const;
-
-  EventQueue* get_event_queue() const;
 
   virtual void process_event(FocusEvent &e) override {
     base::process_event(e);
@@ -357,18 +347,10 @@ protected:
   virtual void create_hierarchy_bounds_events(HierarchyBoundsEvent::Type type, const std::shared_ptr<Component> &changed, const std::shared_ptr<Component> &changed_parent);
 
   template<typename T, typename ... Args>
-  void post_event(Args &&... args) {
-    if (is_event_enabled<T>()) {
-      get_screen()->post<T>(shared_from_this(), std::forward<Args>(args)...);
-    }
-  }
+  void post_event(Args &&... args);
 
   template<typename T, typename Component, typename ... Args>
-  void post_event(Args &&... args) {
-    if (is_event_enabled<T>()) {
-      get_screen()->post<T>(std::dynamic_pointer_cast<Component>(shared_from_this()), std::forward<Args>(args)...);
-    }
-  }
+  void post_event(Args &&... args);
 
   std::shared_ptr<Component> get_mouse_event_target(int x, int y, bool include_self) const;
 
@@ -640,30 +622,11 @@ public:
     return this->enabled;
   }
 
-  /**
-   * Indicates whether this component can be traversed using Tab or Shift-Tab keyboard focus traversal. If this method returns "false" it
-   * can still request focus using requestFocus(), but it will not automatically be assigned focus during keyboard focus traversal.
-   */
   bool is_focusable() const {
     return is_enabled() and is_recursively_visible();
   }
 
-  /**
-   * Determines whether this component is showing on screen. This means that the component must be visible, and it must be in a container
-   * that is visible and showing.
-   *
-   * @return <code>true</code> if the component is showing, <code>false</code> otherwise
-   * @see #setVisible
-   */
-  bool is_showing() const {
-    if (this->visible) {
-      if (auto parent = this->parent.lock()) {
-        return parent->is_showing();
-      }
-      return true;
-    }
-    return false;
-  }
+  bool is_showing() const;
 
   bool is_valid() const {
     return this->valid;
@@ -675,19 +638,6 @@ public:
 
   bool is_visible() const {
     return this->visible;
-  }
-
-  /**
-   * Marks the component and all parents above it as needing to be laid out again. This method is overridden by Container.
-   */
-  void invalidate() {
-    this->valid = false;
-
-    if (not is_validate_root()) {
-      if (auto parent = this->parent.lock()) {
-        parent->invalidate_if_valid();
-      }
-    }
   }
 
   virtual void paint(Graphics &g) {
@@ -840,15 +790,23 @@ public:
     this->preferred_size = preferred_size;
   }
 
-  /**
-   * Ensures that this component is laid out correctly. This method is primarily intended to be used on instances of Container. The
-   * default implementation does nothing; it is overridden by Container.
-   */
+  void invalidate() {
+    this->valid = false;
+
+    if (not is_validate_root()) {
+      if (auto parent = this->parent.lock()) {
+        parent->invalidate_if_valid();
+      }
+    }
+  }
+
   void validate() {
     if (not this->valid or descend_unconditionally_when_validating) {
       validate_tree();
     }
   }
+
+  void revalidate();
 
   std::optional<Color> get_background_color() const {
     if (not this->background_color.has_value()) {
@@ -1146,6 +1104,19 @@ public:
 template<typename BaseComponent, typename ... Events>
 using ComponentExtension = EventSourceExtension<BaseComponent, Events...>;
 
+template<typename Id>
+constexpr ComponentEvent::ComponentEvent(const std::shared_ptr<Component> &source, const Id &id) :
+    Event(std::dynamic_pointer_cast<Object>(source), id) {
+}
+
+constexpr ComponentEvent::ComponentEvent(const std::shared_ptr<Component> &source, Type type) :
+    Event(std::dynamic_pointer_cast<Object>(source), type) {
+}
+
+inline std::shared_ptr<Component> ComponentEvent::component() const {
+  return std::dynamic_pointer_cast<Component>(this->source);
+}
+
 /**
  * Convert a point from a screen coordinates to a component's coordinate system
  */
@@ -1163,3 +1134,5 @@ inline Point convert_point_to_screen(const Point &p, std::shared_ptr<Component> 
 }
 
 }
+
+#include <tui++/Screen.h>

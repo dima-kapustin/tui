@@ -1,10 +1,10 @@
 #pragma once
 
-#include <tui++/event/Event.h>
+#include <tui++/event/ComponentEvent.h>
 
 namespace tui {
 
-class BasicHierarchyEvent: public Event {
+class BasicHierarchyEvent: public ComponentEvent {
 public:
   /**
    * The Component at the top of the hierarchy which was changed.
@@ -19,7 +19,7 @@ public:
 protected:
   template<typename Id>
   BasicHierarchyEvent(const std::shared_ptr<Component> &source, const Id &id, const std::shared_ptr<Component> &changed, const std::shared_ptr<Component> &changed_parent) :
-      Event(source, id), changed(changed), changed_parent(changed_parent) {
+      ComponentEvent(source, id), changed(changed), changed_parent(changed_parent) {
   }
 };
 

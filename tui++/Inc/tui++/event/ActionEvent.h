@@ -3,6 +3,8 @@
 #include <tui++/event/InputEvent.h>
 #include <tui++/util/string.h>
 
+#include <functional>
+
 namespace tui {
 
 using ActionKey = u8string;
@@ -20,7 +22,7 @@ struct ActionEvent: public Event {
   using Modifiers = InputEvent::Modifiers;
 
 public:
-  ActionEvent(const std::shared_ptr<Component> &source, const ActionKey &action_command, const Modifiers &modifiers, EventClock::time_point when = std::chrono::utc_clock::now()) :
+  ActionEvent(const std::shared_ptr<Object> &source, const ActionKey &action_command, const Modifiers &modifiers, EventClock::time_point when = std::chrono::utc_clock::now()) :
       Event(source, EventType::ACTION), action_command(action_command), modifiers(modifiers), when(when) {
   }
 
@@ -29,5 +31,7 @@ public:
   Modifiers modifiers;
   EventClock::time_point when;
 };
+
+using ActionListener = std::function<void(ActionEvent &e)>;
 
 }

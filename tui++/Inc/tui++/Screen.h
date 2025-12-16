@@ -22,10 +22,12 @@ class Screen {
   };
 
 protected:
+  static std::thread::id event_dispatching_thread_id;
+  static EventQueue event_queue;
+
   std::list<SelectiveEventListener> selective_event_listeners;
 
   bool quit = false;
-  EventQueue event_queue;
 
   mutable std::mutex windows_mutex;
   std::list<std::shared_ptr<Window>> windows;
@@ -44,6 +46,11 @@ private:
 
 protected:
   Screen() = default;
+  Screen(Screen const&) = delete;
+  Screen(Screen&&) = delete;
+
+  Screen& operator=(Screen const&) = delete;
+  Screen& operator=(Screen&&) = delete;
 
   void post_system(const std::shared_ptr<Event> &event) {
     event->system_generated = true;
@@ -60,8 +67,15 @@ protected:
   void dispatch_event(Event &event);
 
 public:
-  EventQueue& get_event_queue() {
-    return this->event_queue;
+  static EventQueue& get_event_queue() {
+    return event_queue;
+  }
+
+  /**
+   * @return true iff the calling thread is the event dispatching thread
+   */
+  static bool is_event_dispatching_thread() {
+    return std::this_thread::get_id() == event_dispatching_thread_id;
   }
 
   virtual void run_event_loop() = 0;
@@ -78,14 +92,16 @@ public:
     return this->size;
   }
 
-  void post(const std::shared_ptr<Event> &event);
+  static void post(const std::shared_ptr<Event> &event) {
+    event_queue.push(event);
+  }
 
   template<typename T, typename Component, typename ... Args>
-  void post(const std::shared_ptr<Component> &source, Args &&... args) {
+  static void post(const std::shared_ptr<Component> &source, Args &&... args) {
     post(std::make_shared<T>(source, std::forward<Args>(args)...));
   }
 
-  void post(std::function<void()> fn) {
+  static void post(std::function<void()> fn) {
     post(std::make_shared<InvocationEvent>(fn));
   }
 
@@ -141,5 +157,25 @@ public:
     }
   }
 };
+
+}
+
+#include <tui++/Component.h>
+
+namespace tui {
+
+template<typename T, typename ... Args>
+inline void Component::post_event(Args &&... args) {
+  if (is_event_enabled<T>()) {
+    Screen::post<T>(shared_from_this(), std::forward<Args>(args)...);
+  }
+}
+
+template<typename T, typename DerivedComponent, typename ... Args>
+inline void Component::post_event(Args &&... args) {
+  if (is_event_enabled<T>()) {
+    Screen::post<T>(std::dynamic_pointer_cast<DerivedComponent>(shared_from_this()), std::forward<Args>(args)...);
+  }
+}
 
 }

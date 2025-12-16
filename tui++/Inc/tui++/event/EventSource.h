@@ -313,6 +313,19 @@ protected:
     process_event<Events...>(e);
   }
 
+  template<typename Event, typename ... Args>
+  requires (is_one_of_v<Event, Events...> )
+  void fire_event(Args &&...args) {
+    auto e = Event { std::forward<Args>(args)... };
+    SingleEventSource<Event>::process_event(e);
+  }
+
+  template<typename Event>
+  requires (is_one_of_v<Event, Events...> )
+  void fire_event(Event &e) {
+    SingleEventSource<Event>::process_event(e);
+  }
+
   using SingleEventSource<Events>::process_event...;
 
   template<typename Event>

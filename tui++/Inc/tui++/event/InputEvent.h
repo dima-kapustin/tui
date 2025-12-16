@@ -1,7 +1,6 @@
 #pragma once
 
-#include <tui++/event/Event.h>
-#include <tui++/util/EnumFlags.h>
+#include <tui++/event/ComponentEvent.h>
 
 #include <chrono>
 
@@ -9,7 +8,7 @@ namespace tui {
 
 using EventClock = std::chrono::utc_clock;
 
-class InputEvent: public Event {
+class InputEvent: public ComponentEvent {
 public:
   enum Modifier {
     NO_MODIFIERS = 0,
@@ -31,7 +30,7 @@ protected:
   constexpr InputEvent() = default;
   template<typename Id>
   constexpr InputEvent(const std::shared_ptr<Component> &source, const Id &id, Modifiers modifiers, const EventClock::time_point &when = EventClock::now()) :
-      Event(source, id), modifiers(modifiers), when(when) {
+      ComponentEvent(source, id), modifiers(modifiers), when(when) {
   }
 
 public:

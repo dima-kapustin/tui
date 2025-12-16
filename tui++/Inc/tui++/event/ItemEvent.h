@@ -2,7 +2,11 @@
 
 #include <tui++/event/Event.h>
 
+#include <functional>
+
 namespace tui {
+
+class Object;
 
 class ItemEvent: public Event {
 public:
@@ -12,10 +16,13 @@ public:
   };
 
 public:
-  constexpr ItemEvent(const std::shared_ptr<Component> &source, Type type) :
+  constexpr ItemEvent(const std::shared_ptr<Object> &source, Type type) :
       Event(source, type) {
   }
 };
+
+
+using ItemListener = std::function<void(ItemEvent &e)>;
 
 }
 

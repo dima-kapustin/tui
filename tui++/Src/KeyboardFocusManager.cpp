@@ -296,7 +296,7 @@ bool KeyboardFocusManager::dispatch_event(Event &e) {
     restoreFocusTo = nullptr;
     auto &fe = static_cast<FocusEvent&>(e);
     auto oldFocusOwner = get_focus_owner();
-    auto newFocusOwner = e.source;
+    auto newFocusOwner = fe.component();
     if (oldFocusOwner == newFocusOwner) {
       log_focus_ln("Skipping " << fe << " because focus owner is the same");
       break;
@@ -481,7 +481,7 @@ std::shared_ptr<const std::unordered_set<KeyStroke>> KeyboardFocusManager::get_d
 
 void KeyboardFocusManager::restore_focus(FocusEvent &e, const std::shared_ptr<Window> &new_focused_window) {
   auto opposite_component = realOppositeComponent.load().lock();
-  auto vetoed_component = e.source;
+  auto vetoed_component = e.component();
 
   if (new_focused_window and restore_focus(new_focused_window, vetoed_component, false)) {
   } else if (opposite_component and do_restore_focus(opposite_component, vetoed_component, false)) {

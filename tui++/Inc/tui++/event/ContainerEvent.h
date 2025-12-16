@@ -1,10 +1,10 @@
 #pragma once
 
-#include <tui++/event/Event.h>
+#include <tui++/event/ComponentEvent.h>
 
 namespace tui {
 
-class ContainerEvent: public Event {
+class ContainerEvent: public ComponentEvent {
 public:
   enum Type : unsigned {
     COMPONENT_ADDED = event_id_v<EventType::CONTAINER, 0>,
@@ -12,7 +12,8 @@ public:
   };
 public:
   ContainerEvent(const std::shared_ptr<Component> &source, Type type, const std::shared_ptr<Component> &child) :
-    Event(source, type) {
-  }};
+      ComponentEvent(source, type) {
+  }
+};
 
 }

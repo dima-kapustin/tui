@@ -6,8 +6,8 @@
 
 namespace tui {
 
+class Object;
 class Screen;
-class Component;
 class KeyboardFocusManager;
 
 class Event {
@@ -23,7 +23,7 @@ class Event {
 
 protected:
   template<typename Id>
-  constexpr Event(const std::shared_ptr<Component> &source, const Id &id) :
+  constexpr Event(const std::shared_ptr<Object> &source, const Id &id) :
       id(id), source(source) {
   }
 
@@ -42,7 +42,7 @@ public:
 
 public:
   const EventId id;
-  std::shared_ptr<Component> source;
+  std::shared_ptr<Object> source;
   bool consumed = false;
 };
 

@@ -8,6 +8,7 @@
 #include <tui++/Event.h>
 #include <tui++/Cursor.h>
 #include <tui++/Dimension.h>
+
 #include <tui++/terminal/TerminalScreen.h>
 
 namespace tui::terminal {

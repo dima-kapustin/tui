@@ -22,10 +22,10 @@ class EventQueue {
 public:
   EventQueue() = default;
 
-  EventQueue(const EventQueue&) = delete;
+  EventQueue(EventQueue const&) = delete;
   EventQueue(EventQueue&&) = delete;
 
-  EventQueue& operator=(const EventQueue&) = delete;
+  EventQueue& operator=(EventQueue const&) = delete;
   EventQueue& operator=(EventQueue&&) = delete;
 
 public:

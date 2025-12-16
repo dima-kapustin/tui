@@ -235,10 +235,10 @@ std::ostream& operator<<(std::ostream &os, const MouseWheelEvent &event) {
 std::ostream& operator<<(std::ostream &os, const MouseOverEvent &event) {
   switch (event.id) {
   case MouseOverEvent::MOUSE_ENTERED:
-    os << "Mouse ENTERED " << event.source->get_name();
+    os << "Mouse ENTERED " << event.component()->get_name();
     break;
   case MouseOverEvent::MOUSE_EXITED:
-    os << "Mouse EXITED " << event.source->get_name();
+    os << "Mouse EXITED " << event.component()->get_name();
     break;
   }
   return os;

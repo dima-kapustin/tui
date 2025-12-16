@@ -31,60 +31,56 @@ void MenuSelectionManager::set_selection_path(std::vector<std::shared_ptr<MenuEl
 }
 
 void MenuSelectionManager::process_mouse_event(MouseEvent &e) {
-  if (e.source and not e.source->is_showing()) {
-    // This can happen if a mouseReleased removes the
-    // containing component -- bug 4146684
-    return;
-  }
+  if (auto component = e.component(); component and component->is_showing()) {
+    auto done = false;
+    auto selection = this->selection;
+    auto&& [screen_x, screen_y] = e.source ? convert_point_to_screen(e.point, component) : e.point;
 
-  auto done = false;
-  auto selection = this->selection;
-  auto&& [screen_x, screen_y] = e.source ? convert_point_to_screen(e.point, e.source) : e.point;
+    auto path = std::vector<std::shared_ptr<MenuElement>> { };
+    path.reserve(selection.size());
+    for (auto i = (int) selection.size() - 1; not done and i >= 0; --i) {
+      path.clear();
+      for (auto &&sub_element : selection[i]->get_sub_elements()) {
+        if (sub_element) {
+          if (auto c = sub_element->get_component(); c->is_showing()) {
+            auto p = convert_point_from_screen(screen_x, screen_y, c);
 
-  auto path = std::vector<std::shared_ptr<MenuElement>> { };
-  path.reserve(selection.size());
-  for (auto i = (int) selection.size() - 1; not done and i >= 0; --i) {
-    path.clear();
-    for (auto &&sub_element : selection[i]->get_sub_elements()) {
-      if (sub_element) {
-        if (auto c = sub_element->get_component(); c->is_showing()) {
-          auto p = convert_point_from_screen(screen_x, screen_y, c);
+            /** Send the event to visible menu element if menu element currently in
+             *  the selected path or contains the event location
+             */
+            if ((p.x >= 0 and p.x < c->get_width() and p.y >= 0 and p.y < c->get_height())) {
+              if (path.empty()) {
+                std::copy_n(selection.begin(), i, std::back_inserter(path));
+              }
 
-          /** Send the event to visible menu element if menu element currently in
-           *  the selected path or contains the event location
-           */
-          if ((p.x >= 0 and p.x < c->get_width() and p.y >= 0 and p.y < c->get_height())) {
-            if (path.empty()) {
-              std::copy_n(selection.begin(), i, std::back_inserter(path));
-            }
+              path.push_back(sub_element);
 
-            path.push_back(sub_element);
+              // Enter/exit detection -- needs tuning...
+              if (selection[selection.size() - 1] != path[i + 1] and (selection.size() < 2 or selection[selection.size() - 2] != path[i + 1])) {
+                auto exit_event = make_event < MouseOverEvent > (selection[selection.size() - 1]->get_component(), MouseOverEvent::MOUSE_EXITED, e.modifiers, p.x, p.y, e.when);
+                selection[selection.size() - 1]->process_mouse_event(exit_event, path, shared_from_this());
 
-            // Enter/exit detection -- needs tuning...
-            if (selection[selection.size() - 1] != path[i + 1] and (selection.size() < 2 or selection[selection.size() - 2] != path[i + 1])) {
-              auto exit_event = make_event < MouseOverEvent > (selection[selection.size() - 1]->get_component(), MouseOverEvent::MOUSE_EXITED, e.modifiers, p.x, p.y, e.when);
-              selection[selection.size() - 1]->process_mouse_event(exit_event, path, *this);
+                auto enter_event = make_event < MouseOverEvent > (c, MouseOverEvent::MOUSE_ENTERED, e.modifiers, p.x, p.y, e.when);
+                sub_element->process_mouse_event(enter_event, path, shared_from_this());
+              }
 
-              auto enter_event = make_event < MouseOverEvent > (c, MouseOverEvent::MOUSE_ENTERED, e.modifiers, p.x, p.y, e.when);
-              sub_element->process_mouse_event(enter_event, path, *this);
-            }
+              auto temp_point = e.point;
+              e.point = p;
+              try {
+                sub_element->process_mouse_event(e, path, shared_from_this());
+              } catch (std::exception const&) {
+                e.point = temp_point;
+                throw;
+              }
 
-            auto temp_point = e.point;
-            e.point = p;
-            try {
-              sub_element->process_mouse_event(e, path, *this);
-            } catch (std::exception const&) {
               e.point = temp_point;
-              throw;
+              done = true;
+              e.consume();
             }
 
-            e.point = temp_point;
-            done = true;
-            e.consume();
-          }
-
-          if (done) {
-            break;
+            if (done) {
+              break;
+            }
           }
         }
       }
@@ -108,7 +104,7 @@ void MenuSelectionManager::process_key_event(KeyEvent &e) {
           std::copy_n(selection.begin(), i + 1, std::back_inserter(path));
         }
         path.push_back(sub_element);
-        sub_element->process_key_event(e, path, *this);
+        sub_element->process_key_event(e, path, shared_from_this());
         if (e.consumed) {
           return;
         }
@@ -119,7 +115,7 @@ void MenuSelectionManager::process_key_event(KeyEvent &e) {
   // finally dispatch event to the first component in path
   path.clear();
   path.push_back(selection[0]);
-  selection[0]->process_key_event(e, path, *this);
+  selection[0]->process_key_event(e, path, shared_from_this());
 }
 
 std::shared_ptr<Component> MenuSelectionManager::component_for_point(const std::shared_ptr<Component> &source, const Point &source_point) {

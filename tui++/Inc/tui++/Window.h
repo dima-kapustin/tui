@@ -119,7 +119,7 @@ public:
     return this->owner;
   }
 
-  Screen* get_screen() const override {
+  Screen* get_screen() const {
     return &this->screen;
   }
 
@@ -168,7 +168,7 @@ constexpr WindowEvent::WindowEvent(const std::shared_ptr<Window> &source, Type t
 }
 
 constexpr std::shared_ptr<Window> WindowEvent::get_window() const {
-  return std::static_pointer_cast<Window>(this->source);
+  return std::dynamic_pointer_cast<Window>(this->source);
 }
 
 }

@@ -5,6 +5,7 @@
 #include <tui++/event/FocusEvent.h>
 #include <tui++/event/MouseEvent.h>
 #include <tui++/event/ActionEvent.h>
+#include <tui++/event/ChangeEvent.h>
 #include <tui++/event/WindowEvent.h>
 #include <tui++/event/ComponentEvent.h>
 #include <tui++/event/ContainerEvent.h>
@@ -127,9 +128,9 @@ public:
   virtual void event_dispatched(Event &e) = 0;
 };
 
-template<typename T, typename ...Args>
+template<typename Event, typename ...Args>
 constexpr auto make_event(Args &&... args) {
-  return T { std::forward<Args>(args)... };
+  return Event { std::forward<Args>(args)... };
 }
 
 }
