@@ -20,6 +20,10 @@ public:
 public:
   constexpr ComponentEvent(const std::shared_ptr<Component> &source, Type type);
 
+  constexpr Type type() const {
+    return Type(std::underlying_type_t<Type>(this->id));
+  }
+
   std::shared_ptr<Component> component() const;
 };
 

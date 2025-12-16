@@ -7,16 +7,22 @@
 
 namespace tui {
 
-class AbstractButton: public ComponentExtension<Component, ActionEvent, ItemEvent> {
+class AbstractButton: public ComponentExtension<Component, ChangeEvent, ItemEvent, ActionEvent> {
+  using base = ComponentExtension<Component, ChangeEvent, ItemEvent, ActionEvent>;
+
   Property<std::shared_ptr<Action>> action { this, "action" };
   Property<std::shared_ptr<ButtonModel>> model { this, "model" };
   Property<std::string> text { this, "text" };
 
-  ChangeListener state_listener = std::bind(state_changed, this, std::placeholders::_1);
-  ItemListener item_listener = std::bind(item_state_changed, this, std::placeholders::_1);
-  ActionListener action_listener = std::bind(action_performed, this, std::placeholders::_1);
+  ChangeEventListener change_event_listener = std::bind(state_changed, this, std::placeholders::_1);
+  ItemEventListener item_event_listener = std::bind(item_state_changed, this, std::placeholders::_1);
+  ActionEventListener action_event_listener = std::bind(action_performed, this, std::placeholders::_1);
+
+  Char mnemonic;
 
 protected:
+  using base::fire_event;
+
 //  void process_event(FocusEvent &e) override {
 //
 //  }
@@ -25,26 +31,16 @@ protected:
 //
 //  }
 
-  void state_changed(ChangeEvent &e) {
-
-  }
-
-  void item_state_changed(ItemEvent &e) {
-
-  }
-
-  void action_performed(ActionEvent &e) {
-
-  }
+  void state_changed(ChangeEvent &e);
+  void item_state_changed(ItemEvent &e);
+  void action_performed(ActionEvent &e);
 
 public:
   std::shared_ptr<ButtonModel> get_model() const {
     return this->model;
   }
 
-  void set_model(std::shared_ptr<ButtonModel> const &model) {
-
-  }
+  void set_model(std::shared_ptr<ButtonModel> const &model);
 
   std::string const& get_text() const {
     return this->text;
@@ -58,6 +54,13 @@ public:
       revalidate();
       repaint();
     }
+  }
+
+  ActionKey const& get_action_command() const {
+    if (auto &action_command = this->model->get_action_command(); not action_command.empty()) {
+      return action_command;
+    }
+    return get_text();
   }
 
   bool is_selected() const {

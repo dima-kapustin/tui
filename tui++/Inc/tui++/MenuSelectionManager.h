@@ -15,12 +15,15 @@ struct Point;
 class Component;
 
 class MenuSelectionManager: virtual public Object, public std::enable_shared_from_this<MenuSelectionManager>, public EventSource<ChangeEvent> {
-  ChangeEvent change_event { this };
+  std::unique_ptr<ChangeEvent> change_event;
   std::vector<std::shared_ptr<MenuElement>> selection;
 
 private:
   void fire_state_changed() {
-    fire_event(this->change_event);
+    if (not this->change_event) {
+      this->change_event = std::make_unique<ChangeEvent>(shared_from_this());
+    }
+    fire_event(*this->change_event);
   }
 
 public:

@@ -7,13 +7,13 @@ namespace tui {
 class Object;
 
 struct ChangeEvent {
-  Object *const source;
+ const std::shared_ptr<Object> source;
 
-  constexpr ChangeEvent(Object *source) :
+  constexpr ChangeEvent(const std::shared_ptr<Object> &source) :
       source(source) {
   }
 };
 
-using ChangeListener = std::function<void(ChangeEvent &e)>;
+using ChangeEventListener = std::function<void(ChangeEvent &e)>;
 
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <tui++/Char.h>
 #include <tui++/Event.h>
 #include <tui++/Object.h>
 
@@ -17,6 +18,9 @@ class ButtonModel: public Object, public EventSource<ChangeEvent, ItemEvent, Act
   struct {
     unsigned is_selected :1;
   } state;
+
+  Char mnemonic;
+  ActionKey action_command;
 
 public:
   std::shared_ptr<ButtonGroup> get_group() const {
@@ -37,6 +41,23 @@ public:
 
       fire_event<ItemEvent>(shared_from_this(), value ? ItemEvent::SELECTED : ItemEvent::DESELECTED);
     }
+  }
+
+  Char const& get_mnemonic() const {
+    return this->mnemonic;
+  }
+
+  void set_mnemonic(Char const &mnemonic) {
+    this->mnemonic = mnemonic;
+    fire_event<ChangeEvent>(shared_from_this());
+  }
+
+  ActionKey const& get_action_command() const {
+    return this->action_command;
+  }
+
+  void set_action_command(ActionKey const &action_command) {
+    this->action_command = action_command;
   }
 };
 

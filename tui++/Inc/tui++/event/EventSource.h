@@ -384,7 +384,9 @@ public:
   requires (is_one_of_v<Event, Events...> and std::is_invocable_v<Callable, Event&>)
   constexpr void remove_event_listener(const Callable &callable) {
     if (SingleEventSource<Event>::remove_event_listener(callable)) {
-      update_event_listener_mask<Event>();
+      if constexpr (has_type_enum_v<Event>) {
+        update_event_listener_mask<Event>();
+      }
     }
   }
 
@@ -407,6 +409,9 @@ class EventSourceExtension: public BaseEventSource, EventSource<Events...> {
 protected:
   using BaseEventSource::get_event_listener_count;
   using EventSource<Events...>::get_event_listener_count;
+
+  using BaseEventSource::fire_event;
+  using EventSource<Events...>::fire_event;
 
 public:
   using BaseEventSource::add_event_listener;

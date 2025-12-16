@@ -146,6 +146,10 @@ public:
   }
 
 public:
+  constexpr Type type() const {
+    return Type(std::underlying_type_t<Type>(this->id));
+  }
+
   constexpr KeyCode get_key_code() const {
     return this->id != KEY_TYPED ? this->key_code : VK_UNDEFINED;
   }

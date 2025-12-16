@@ -56,6 +56,10 @@ public:
   constexpr MousePressEvent(const std::shared_ptr<Component> &source, Type type, Button button, Modifiers modifiers, int x, int y, bool is_popup_trigger, const EventClock::time_point &when = EventClock::now()) :
       MouseEvent(source, type, button, modifiers, x, y, when), is_popup_trigger(is_popup_trigger) {
   }
+
+  constexpr Type type() const {
+    return Type(std::underlying_type_t<Type>(this->id));
+  }
 };
 
 class MouseOverEvent: public MouseEvent {
@@ -68,6 +72,10 @@ public:
 public:
   constexpr MouseOverEvent(const std::shared_ptr<Component> &source, Type type, Modifiers modifiers, int x, int y, const EventClock::time_point &when = EventClock::now()) :
       MouseEvent(source, type, MouseEvent::NO_BUTTON, modifiers, x, y, when) {
+  }
+
+  constexpr Type type() const {
+    return Type(std::underlying_type_t<Type>(this->id));
   }
 };
 

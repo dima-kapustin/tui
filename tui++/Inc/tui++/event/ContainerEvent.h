@@ -14,6 +14,10 @@ public:
   ContainerEvent(const std::shared_ptr<Component> &source, Type type, const std::shared_ptr<Component> &child) :
       ComponentEvent(source, type) {
   }
+
+  constexpr Type type() const {
+    return Type(std::underlying_type_t<Type>(this->id));
+  }
 };
 
 }

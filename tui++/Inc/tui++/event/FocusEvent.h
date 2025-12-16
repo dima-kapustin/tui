@@ -71,6 +71,10 @@ public:
   FocusEvent(const std::shared_ptr<Component> &source, Type type, Cause cause, bool temporary, const std::shared_ptr<Component> &opposite) :
       ComponentEvent(source, type), cause(cause), temporary(temporary), opposite(opposite) {
   }
+
+  constexpr Type type() const {
+    return Type(std::underlying_type_t<Type>(this->id));
+  }
 };
 
 }
