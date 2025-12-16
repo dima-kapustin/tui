@@ -19,11 +19,17 @@ protected:
 
 protected:
   void fire_change_event(const PropertyValue &old_value, const PropertyValue &new_value);
+
+public:
+  virtual PropertyValue get_value() const = 0;
+  virtual void set_value(const PropertyValue&) = 0;
 };
 
 class Object {
   std::vector<PropertyBase*> properties;
   mutable std::vector<std::pair<std::string_view, std::vector<PropertyChangeListener>>> property_change_listeners;
+
+  constexpr static auto ANY_PROPERTY_NAME = "*";
 
 private:
   auto add_property(PropertyBase *property) {
@@ -101,11 +107,24 @@ public:
   }
 
   void add_property_change_listener(const PropertyChangeListener &listener) const {
-    add_property_change_listener("*", listener);
+    add_property_change_listener(ANY_PROPERTY_NAME, listener);
   }
 
   void remove_property_change_listener(const PropertyChangeListener &listener) const {
     remove_property_change_listener("*", listener);
+  }
+
+  PropertyValue get_property_value(const char *property_name) const {
+    if (auto *property = get_property(property_name)) {
+      return property->get_value();
+    }
+    return {};
+  }
+
+  void set_property_value(const char *property_name, PropertyValue const &value) {
+    if (auto *property = get_property(property_name)) {
+      property->set_value(value);
+    }
   }
 };
 
@@ -177,12 +196,12 @@ public:
   }
 
 public:
-  PropertyValue get_value() const {
+  PropertyValue get_value() const override final {
     return this->value_;
   }
 
-  void set_value(const PropertyValue &value) {
-    set_value(*std::any_cast<T*>(&value));
+  void set_value(const PropertyValue &value) override final {
+    set_value(*std::any_cast<T>(&value));
   }
 
   operator const T&() const {
@@ -243,15 +262,15 @@ public:
   }
 
 public:
-  PropertyValue get_value() const {
-    return this->optional.has_value() ? this->optional.value() : std::nullopt;
+  PropertyValue get_value() const override final {
+    return this->optional.has_value() ? this->optional.value() : PropertyValue { };
   }
 
-  void set_value(const PropertyValue &value) {
+  void set_value(const PropertyValue &value) override final {
     if (value.has_value()) {
       set_optional_value(std::nullopt);
     } else {
-      set_optional_value(*std::any_cast<value_type*>(&value));
+      set_optional_value(std::make_optional<value_type>(*std::any_cast<value_type>(&value)));
     }
   }
 

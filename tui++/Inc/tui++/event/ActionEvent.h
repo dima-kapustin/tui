@@ -32,6 +32,6 @@ public:
   EventClock::time_point when;
 };
 
-using ActionEventListener = std::function<void(ActionEvent &e)>;
+using ActionListener = std::function<void(ActionEvent &e)>;
 
 }

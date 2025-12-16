@@ -4,6 +4,7 @@
 #include <tui++/Graphics.h>
 #include <tui++/Component.h>
 #include <tui++/KeyStroke.h>
+#include <tui++/ToolTipManager.h>
 #include <tui++/KeyboardManager.h>
 #include <tui++/DefaultFocusTraversalPolicy.h>
 
@@ -361,16 +362,14 @@ bool Component::notify_action(const std::shared_ptr<Action> &action, const KeySt
     return false;
   }
 
-  std::string command;
+  auto action_command = action->get_action_command();
   // Get the command object.
-  if (auto any = action->get_value(Action::ACTION_COMMAND_KEY)) {
-    command = std::any_cast<decltype(command)>(*any);
-  } else if (e.get_key_char() != KeyEvent::CHAR_UNDEFINED) {
-    command = e.get_key_char();
+  if (action_command.empty() and e.get_key_char() != KeyEvent::CHAR_UNDEFINED) {
+    action_command = e.get_key_char();
   } else {
     return false;
   }
-  auto event = ActionEvent { sender, command, e.modifiers, e.when };
+  auto event = ActionEvent { sender, action_command, e.modifiers, e.when };
   action->action_performed(event);
   return true;
 }
@@ -901,6 +900,15 @@ void Component::revalidate() {
     } else {
 
     }
+  }
+}
+
+void Component::set_tool_tip_text(std::string const& tool_tip_text) {
+  this->tool_tip_text = tool_tip_text;
+  if (not this->tool_tip_text.value().empty()) {
+    ToolTipManager::register_component(shared_from_this());
+  } else {
+    ToolTipManager::unregister_component(shared_from_this());
   }
 }
 

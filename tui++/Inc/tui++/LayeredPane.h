@@ -5,7 +5,7 @@
 namespace tui {
 
 class LayeredPane: public Component {
-  constexpr static auto LAYER_PROPERTY = "layered_pane_layer";
+  constexpr static auto LAYER_PROPERTY = "layered-pane-layer";
 
 public:
   constexpr static auto DEFAULT_LAYER = 0;

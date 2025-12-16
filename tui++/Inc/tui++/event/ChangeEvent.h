@@ -14,6 +14,6 @@ struct ChangeEvent {
   }
 };
 
-using ChangeEventListener = std::function<void(ChangeEvent &e)>;
+using ChangeListener = std::function<void(ChangeEvent &e)>;
 
 }

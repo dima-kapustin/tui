@@ -13,27 +13,27 @@ class AbstractButton: public ComponentExtension<Component, ChangeEvent, ItemEven
   Property<std::shared_ptr<Action>> action { this, "action" };
   Property<std::shared_ptr<ButtonModel>> model { this, "model" };
   Property<std::string> text { this, "text" };
+  Property<bool> hide_action_text { this, "hide-action-text" };
+  Property<int> displayed_mnemonic_index { this, "displayed-mnemonic-index", -1 };
 
-  ChangeEventListener change_event_listener = std::bind(state_changed, this, std::placeholders::_1);
-  ItemEventListener item_event_listener = std::bind(item_state_changed, this, std::placeholders::_1);
-  ActionEventListener action_event_listener = std::bind(action_performed, this, std::placeholders::_1);
+  ChangeListener change_listener = std::bind(state_changed, this, std::placeholders::_1);
+  ItemListener item_listener = std::bind(item_state_changed, this, std::placeholders::_1);
+  ActionListener action_listener = std::bind(action_performed, this, std::placeholders::_1);
+  PropertyChangeListener action_property_change_listener = std::bind(action_property_changed, this, std::placeholders::_1);
 
   Char mnemonic;
 
 protected:
   using base::fire_event;
 
-//  void process_event(FocusEvent &e) override {
-//
-//  }
-//
-//  void process_event(ItemEvent &e) override {
-//
-//  }
-
   void state_changed(ChangeEvent &e);
   void item_state_changed(ItemEvent &e);
   void action_performed(ActionEvent &e);
+  void action_property_changed(PropertyChangeEvent &e);
+
+  virtual bool should_update_selected_state_from_action() const {
+    return false;
+  }
 
 public:
   std::shared_ptr<ButtonModel> get_model() const {
@@ -41,6 +41,14 @@ public:
   }
 
   void set_model(std::shared_ptr<ButtonModel> const &model);
+
+  void set_enabled(bool value) override {
+    if (not value and this->model->is_rollover()) {
+      this->model->set_rollover(false);
+    }
+    base::set_enabled(value);
+    this->model->set_enabled(value);
+  }
 
   std::string const& get_text() const {
     return this->text;
@@ -63,6 +71,10 @@ public:
     return get_text();
   }
 
+  void set_action_command(ActionKey const &action_command) {
+    this->model->set_action_command(action_command);
+  }
+
   bool is_selected() const {
     return this->model->is_selected();
   }
@@ -71,25 +83,50 @@ public:
     this->model->set_selected(value);
   }
 
-  void set_action(const std::shared_ptr<Action> &action) {
-//    this->action = action;
-    static_assert(detail::has_bool_operator_v<std::shared_ptr<Action>>);
-    if (this->action != action) {
-      if (this->action) {
-        remove_event_listener(this->action.value());
-//            oldValue->removePropertyChangeListener(actionPropertyChangeListener);
-//            actionPropertyChangeListener = null;
-      }
-//        configurePropertiesFromAction(action);
-      this->action = action;
-      if (action) {
-        add_event_listener(this->action.value());
-        // Reverse linkage:
-//            actionPropertyChangeListener = createActionPropertyChangeListener(action);
-//            action.addPropertyChangeListener(actionPropertyChangeListener);
-      }
+  bool get_hide_action_text() const {
+    return this->hide_action_text;
+  }
+
+  void set_hide_action_text(bool hide_action_text) {
+    if (this->hide_action_text != hide_action_text) {
+      set_text(this->action and not hide_action_text ? this->action->get_name() : "");
+      this->hide_action_text == hide_action_text;
     }
   }
+
+  int get_displayed_mnemonic_index() const {
+    return this->displayed_mnemonic_index;
+  }
+
+  void set_displayed_mnemonic_index(int index) {
+    auto const &text = get_text();
+    if (index < -1 or index >= (int) text.length()) {
+      throw std::invalid_argument(std::format("index == {}", index));
+    }
+
+    auto old_index = this->displayed_mnemonic_index;
+    this->displayed_mnemonic_index = index;
+    if (old_index != index) {
+      revalidate();
+      repaint();
+    }
+  }
+
+  std::shared_ptr<Action> get_action() const {
+    return this->action;
+  }
+
+  void set_action(const std::shared_ptr<Action> &action);
+
+  Char const& get_mnemonic() const {
+    return this->mnemonic;
+  }
+
+  void set_mnemonic(Char const &mnemonic);
+
+private:
+  void update_mnemonic_properties();
+  void update_displayed_mnemonic_index(std::string const &text, Char const &mnemonic);
 };
 
 }

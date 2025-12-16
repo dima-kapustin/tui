@@ -1,5 +1,6 @@
 #include <tui++/event/EventSource.h>
 #include <tui++/event/MouseEvent.h>
+#include <tui++/Component.h>
 
 #include <memory>
 #include <cassert>

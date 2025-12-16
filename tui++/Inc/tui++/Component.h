@@ -80,9 +80,9 @@ protected:
   Point location { };
   Dimension size { };
 
-  mutable Property<std::optional<Dimension>> minimum_size { this, "minimum_size" };
-  mutable Property<std::optional<Dimension>> maximum_size { this, "maximum_size" };
-  mutable Property<std::optional<Dimension>> preferred_size { this, "preferred_size" };
+  mutable Property<std::optional<Dimension>> minimum_size { this, "minimum-size" };
+  mutable Property<std::optional<Dimension>> maximum_size { this, "maximum-size" };
+  mutable Property<std::optional<Dimension>> preferred_size { this, "preferred-size" };
 
   /**
    * A flag that is set to true when the container is laid out, and set to false when a component is added or removed from the container
@@ -93,15 +93,15 @@ protected:
   Property<bool> enabled { this, "enabled" };
   Property<bool> visible { this, "visible" };
   Property<std::optional<Cursor>> cursor { this, "cursor" };
-  Property<std::optional<Color>> background_color { this, "background_color" };
-  Property<std::optional<Color>> foreground_color { this, "foreground_color" };
+  Property<std::optional<Color>> background_color { this, "background-color" };
+  Property<std::optional<Color>> foreground_color { this, "foreground-color" };
 
   mutable std::shared_ptr<InputMap> focus_input_map;
   mutable std::shared_ptr<InputMap> ancestor_input_map;
   mutable std::shared_ptr<ComponentInputMap> window_input_map;
   mutable std::shared_ptr<ActionMap> action_map;
 
-  Property<std::shared_ptr<FocusTraversalPolicy>> focus_traversal_policy { this, "focus_traversal_policy" };
+  Property<std::shared_ptr<FocusTraversalPolicy>> focus_traversal_policy { this, "focus-traversal-policy" };
   bool focus_traversal_policy_provider = false;
 
   /**
@@ -109,10 +109,10 @@ protected:
    * leave it via focus traversal unless one of the up- or down-cycle keys is pressed. Normal traversal is limited to this Container, and
    * all of this Container's descendants that are not descendants of inferior focus cycle roots.
    */
-  Property<bool> focus_cycle_root { this, "focus_cycle_root", false };
+  Property<bool> focus_cycle_root { this, "focus-cycle-root", false };
   Property<bool> opaque { this, "opaque" };
 
-  Property<bool> focus_traversal_keys_enabled { this, "focus_traversal_keys_enabled" };
+  Property<bool> focus_traversal_keys_enabled { this, "focus-traversal-keys-enabled" };
   std::vector<std::shared_ptr<const std::unordered_set<KeyStroke>>> focus_traversal_keys;
 
   /**
@@ -123,7 +123,8 @@ protected:
 
   std::unordered_map<std::string_view, PropertyValue> client_properties;
 
-  Property<std::shared_ptr<PopupMenu>> component_popup_menu { this, "component_popup_menu" };
+  Property<std::shared_ptr<PopupMenu>> component_popup_menu { this, "component-popup-menu" };
+  Property<std::string> tool_tip_text { this, "tool-tip-text" };
 
 public:
   constexpr static float TOP_ALIGNMENT = 0;
@@ -622,6 +623,14 @@ public:
     return this->enabled;
   }
 
+  virtual void set_enabled(bool value) {
+    auto old_enabled = this->enabled.value();
+    this->enabled = value;
+    if (old_enabled != this->enabled.value()) {
+      repaint();
+    }
+  }
+
   bool is_focusable() const {
     return is_enabled() and is_recursively_visible();
   }
@@ -1099,6 +1108,12 @@ public:
     }
     this->component_popup_menu = popup_menu;
   }
+
+  std::string const& get_tool_tip_text() const {
+    return this->tool_tip_text;
+  }
+
+  void set_tool_tip_text(std::string const& tool_tip_text);
 };
 
 template<typename BaseComponent, typename ... Events>

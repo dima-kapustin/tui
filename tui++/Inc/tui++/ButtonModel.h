@@ -17,6 +17,10 @@ class ButtonModel: public Object, public EventSource<ChangeEvent, ItemEvent, Act
 
   struct {
     unsigned is_selected :1;
+    unsigned is_enabled :1;
+    unsigned is_pressed :1;
+    unsigned is_armed :1;
+    unsigned is_rollover :1;
   } state;
 
   Char mnemonic;
@@ -31,6 +35,19 @@ public:
     this->group = group;
   }
 
+  bool is_enabled() const {
+    return this->state.is_enabled;
+  }
+
+  void set_enabled(bool value) {
+    if (value != this->state.is_enabled) {
+      this->state.is_enabled = value;
+      this->state.is_pressed &= value;
+      this->state.is_armed &= value;
+      fire_state_changed();
+    }
+  }
+
   bool is_selected() const {
     return this->state.is_selected;
   }
@@ -43,13 +60,24 @@ public:
     }
   }
 
+  bool is_rollover() const {
+    return this->state.is_rollover;
+  }
+
+  void set_rollover(bool value) {
+    if (is_rollover() != value and is_enabled()) {
+      this->state.is_rollover = value;
+      fire_state_changed();
+    }
+  }
+
   Char const& get_mnemonic() const {
     return this->mnemonic;
   }
 
   void set_mnemonic(Char const &mnemonic) {
     this->mnemonic = mnemonic;
-    fire_event<ChangeEvent>(shared_from_this());
+    fire_state_changed();
   }
 
   ActionKey const& get_action_command() const {
@@ -58,6 +86,11 @@ public:
 
   void set_action_command(ActionKey const &action_command) {
     this->action_command = action_command;
+  }
+
+private:
+  void fire_state_changed() {
+    fire_event<ChangeEvent>(shared_from_this());
   }
 };
 

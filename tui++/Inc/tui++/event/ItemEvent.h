@@ -31,7 +31,7 @@ public:
   const std::shared_ptr<Object> item;
 };
 
-using ItemEventListener = std::function<void(ItemEvent &e)>;
+using ItemListener = std::function<void(ItemEvent &e)>;
 
 }
 

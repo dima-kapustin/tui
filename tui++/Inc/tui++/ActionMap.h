@@ -15,27 +15,23 @@ class ActionMap {
   std::unordered_map<ActionKey, std::shared_ptr<Action>> map;
 
 private:
-  class FunctionAdapter: public Action {
-    std::function<void(const ActionEvent&)> action;
+  class FunctionalAdapter: public Action {
+    ActionListener action_listener;
   public:
-    FunctionAdapter(const std::function<void(const ActionEvent&)> &action) :
-        action(action) {
+    FunctionalAdapter(const ActionListener &action_listener) :
+        action_listener(action_listener) {
+      set_enabled(true);
     }
 
   public:
-    bool is_enabled() const override {
-      return true;
-    }
-
     void action_performed(ActionEvent &e) override {
-      this->action(e);
+      this->action_listener(e);
     }
   };
 
 public:
   std::shared_ptr<Action> at(const ActionKey &key) const {
-    auto pos = this->map.find(key);
-    if (pos != this->map.end()) {
+    if (auto pos = this->map.find(key); pos != this->map.end()) {
       return pos->second;
     } else if (auto parent = get_parent()) {
       return parent->at(key);
@@ -47,8 +43,8 @@ public:
     return this->parent.lock();
   }
 
-  void emplace(const ActionKey &key, const std::function<void(const ActionEvent&)> &action) {
-    emplace(key, std::make_shared<FunctionAdapter>(action));
+  void emplace(const ActionKey &key, const ActionListener &action_listener) {
+    emplace(key, std::make_shared<FunctionalAdapter>(action_listener));
   }
 
   void emplace(const ActionKey &key, const std::shared_ptr<Action> &action) {
