@@ -98,19 +98,7 @@ public:
     return this->displayed_mnemonic_index;
   }
 
-  void set_displayed_mnemonic_index(int index) {
-    auto const &text = get_text();
-    if (index < -1 or index >= (int) text.length()) {
-      throw std::invalid_argument(std::format("index == {}", index));
-    }
-
-    auto old_index = this->displayed_mnemonic_index;
-    this->displayed_mnemonic_index = index;
-    if (old_index != index) {
-      revalidate();
-      repaint();
-    }
-  }
+  void set_displayed_mnemonic_index(int index);
 
   std::shared_ptr<Action> get_action() const {
     return this->action;
@@ -127,6 +115,10 @@ public:
 private:
   void update_mnemonic_properties();
   void update_displayed_mnemonic_index(std::string const &text, Char const &mnemonic);
+
+  void set_enabled_from_action();
+  void set_selected_from_action();
+  void set_displayed_mnemonic_index_from_action();
 };
 
 }
