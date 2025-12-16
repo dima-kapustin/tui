@@ -16,8 +16,8 @@ class Window;
 class Graphics;
 
 class Screen {
-  struct SelectiveEventListener {
-    std::shared_ptr<EventListener<Event>> event_listener;
+  struct SelectiveListener {
+    std::shared_ptr<EventListener<Event>> listener;
     EventTypeMask event_mask;
   };
 
@@ -25,7 +25,7 @@ protected:
   static std::thread::id event_dispatching_thread_id;
   static EventQueue event_queue;
 
-  std::list<SelectiveEventListener> selective_event_listeners;
+  std::list<SelectiveListener> selective_listeners;
 
   bool quit = false;
 
@@ -128,20 +128,20 @@ public:
     return dialog;
   }
 
-  void add_event_listener(const std::shared_ptr<EventListener<Event>> &event_listener, const EventTypeMask &event_mask) {
-    for (auto i = this->selective_event_listeners.begin(); i != this->selective_event_listeners.end(); ++i) {
-      if (i->event_listener == event_listener) {
+  void add_listener(const std::shared_ptr<EventListener<Event>> &listener, const EventTypeMask &event_mask) {
+    for (auto i = this->selective_listeners.begin(); i != this->selective_listeners.end(); ++i) {
+      if (i->listener == listener) {
         i->event_mask |= event_mask;
         return;
       }
     }
-    this->selective_event_listeners.emplace_back(event_listener, event_mask);
+    this->selective_listeners.emplace_back(listener, event_mask);
   }
 
-  void remove_event_listener(const std::shared_ptr<EventListener<Event>> &event_listener) {
-    for (auto i = this->selective_event_listeners.begin(); i != this->selective_event_listeners.end();) {
-      if (i->event_listener == event_listener) {
-        this->selective_event_listeners.erase(i);
+  void remove_listener(const std::shared_ptr<EventListener<Event>> &listener) {
+    for (auto i = this->selective_listeners.begin(); i != this->selective_listeners.end();) {
+      if (i->listener == listener) {
+        this->selective_listeners.erase(i);
         break;
       } else {
         ++i;
@@ -150,9 +150,9 @@ public:
   }
 
   void notify_event_listeners(Event &e) {
-    for (auto &&selective_event_listener : this->selective_event_listeners) {
-      if (selective_event_listener.event_mask & e.id) {
-        selective_event_listener.event_listener->event_dispatched(e);
+    for (auto &&selective_listener : this->selective_listeners) {
+      if (selective_listener.event_mask & e.id) {
+        selective_listener.listener->event_dispatched(e);
       }
     }
   }

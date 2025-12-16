@@ -34,64 +34,64 @@ template<typename >
 class SingleEventSource;
 
 template<typename Event>
-class BasicFunctionalEventAdapter {
+class BasicFunctionalAdapter {
 protected:
-  FunctionalEventListener<Event> event_listener;
+  FunctionalEventListener<Event> listener;
 
   template<typename >
   friend class SingleEventSource;
 
 public:
-  BasicFunctionalEventAdapter(FunctionalEventListener<Event> &&event_listener) :
-      event_listener(std::move(event_listener)) {
+  BasicFunctionalAdapter(FunctionalEventListener<Event> &&listener) :
+      listener(std::move(listener)) {
   }
 
-  BasicFunctionalEventAdapter(const FunctionalEventListener<Event> &event_listener) :
-      event_listener(event_listener) {
+  BasicFunctionalAdapter(const FunctionalEventListener<Event> &listener) :
+      listener(listener) {
   }
 
-  BasicFunctionalEventAdapter(const BasicFunctionalEventAdapter&) = default;
-  BasicFunctionalEventAdapter(BasicFunctionalEventAdapter&&) = default;
-  BasicFunctionalEventAdapter& operator=(const BasicFunctionalEventAdapter&) = default;
-  BasicFunctionalEventAdapter& operator=(BasicFunctionalEventAdapter&&) = default;
+  BasicFunctionalAdapter(const BasicFunctionalAdapter&) = default;
+  BasicFunctionalAdapter(BasicFunctionalAdapter&&) = default;
+  BasicFunctionalAdapter& operator=(const BasicFunctionalAdapter&) = default;
+  BasicFunctionalAdapter& operator=(BasicFunctionalAdapter&&) = default;
 
   void operator()(Event &e) const {
-    this->event_listener(e);
+    this->listener(e);
   }
 
-  constexpr bool operator==(const BasicFunctionalEventAdapter &other) const {
+  constexpr bool operator==(const BasicFunctionalAdapter &other) const {
     return false;
   }
 };
 
 template<typename Event, std::enable_if_t<has_type_enum_v<Event>, bool> = true>
-class FunctionalEventAdapter: public BasicFunctionalEventAdapter<Event> {
+class FunctionalAdapter: public BasicFunctionalAdapter<Event> {
   std::vector<typename Event::Type> event_ids;
 
   template<typename >
   friend class SingleEventSource;
 
 public:
-  FunctionalEventAdapter(std::vector<typename Event::Type> &&event_types, FunctionalEventListener<Event> &&event_listener) :
-      BasicFunctionalEventAdapter<Event>(std::move(event_listener)), event_ids(std::move(event_types)) {
+  FunctionalAdapter(std::vector<typename Event::Type> &&event_types, FunctionalEventListener<Event> &&listener) :
+      BasicFunctionalAdapter<Event>(std::move(listener)), event_ids(std::move(event_types)) {
   }
 
-  FunctionalEventAdapter(std::vector<typename Event::Type> &&event_types, const FunctionalEventListener<Event> &event_listener) :
-      BasicFunctionalEventAdapter<Event>(event_listener), event_ids(std::move(event_types)) {
+  FunctionalAdapter(std::vector<typename Event::Type> &&event_types, const FunctionalEventListener<Event> &listener) :
+      BasicFunctionalAdapter<Event>(listener), event_ids(std::move(event_types)) {
   }
 
-  FunctionalEventAdapter(const FunctionalEventAdapter&) = default;
-  FunctionalEventAdapter(FunctionalEventAdapter&&) = default;
-  FunctionalEventAdapter& operator=(const FunctionalEventAdapter&) = default;
-  FunctionalEventAdapter& operator=(FunctionalEventAdapter&&) = default;
+  FunctionalAdapter(const FunctionalAdapter&) = default;
+  FunctionalAdapter(FunctionalAdapter&&) = default;
+  FunctionalAdapter& operator=(const FunctionalAdapter&) = default;
+  FunctionalAdapter& operator=(FunctionalAdapter&&) = default;
 
   void operator()(Event &e) const {
     if (std::ranges::contains(this->event_ids, e.id)) {
-      this->event_listener(e);
+      this->listener(e);
     }
   }
 
-  constexpr bool operator==(const FunctionalEventAdapter &other) const {
+  constexpr bool operator==(const FunctionalAdapter &other) const {
     return false;
   }
 };
@@ -101,12 +101,12 @@ struct event_listener_variant;
 
 template<typename Event>
 struct event_listener_variant<Event, std::enable_if_t<not has_type_enum_v<Event>>> {
-  using type = std::variant<std::shared_ptr<EventListener<Event>>, BasicFunctionalEventAdapter<Event>>;
+  using type = std::variant<std::shared_ptr<EventListener<Event>>, BasicFunctionalAdapter<Event>>;
 };
 
 template<typename Event>
 struct event_listener_variant<Event, std::enable_if_t<has_type_enum_v<Event>>> {
-  using type = std::variant<std::shared_ptr<EventListener<Event>>, BasicFunctionalEventAdapter<Event>, FunctionalEventAdapter<Event>>;
+  using type = std::variant<std::shared_ptr<EventListener<Event>>, BasicFunctionalAdapter<Event>, FunctionalAdapter<Event>>;
 };
 
 template<typename Event>
@@ -128,39 +128,39 @@ protected:
   }
 
   virtual void process_event(Event &e) {
-    for (auto &&event_listener : this->event_listeners) {
-      std::visit([&e](auto &&event_listener) {
-        using T = std::decay_t<decltype(event_listener)>;
+    for (auto &&listener : this->event_listeners) {
+      std::visit([&e](auto &&listener) {
+        using T = std::decay_t<decltype(listener)>;
         if constexpr (std::is_same_v<T, std::shared_ptr<EventListener<Event>>>) {
-          EventDispatcher::dispatch_event(event_listener, e);
-        } else if constexpr (std::is_same_v<T, BasicFunctionalEventAdapter<Event>>) {
-          event_listener(e);
-        } else if constexpr (std::is_same_v<T, FunctionalEventAdapter<Event>>) {
-          event_listener(e);
+          EventDispatcher::dispatch_event(listener, e);
+        } else if constexpr (std::is_same_v<T, BasicFunctionalAdapter<Event>>) {
+          listener(e);
+        } else if constexpr (std::is_same_v<T, FunctionalAdapter<Event>>) {
+          listener(e);
         }
-      }, event_listener);
+      }, listener);
     }
   }
 
 protected:
-  constexpr bool add_event_listener(const std::shared_ptr<EventListener<Event>> &event_listener) {
+  constexpr bool add_listener(const std::shared_ptr<EventListener<Event>> &listener) {
     for (auto &&l : this->event_listeners) {
       if (auto event_listener_ptr = std::get_if<std::shared_ptr<EventListener<Event>>>(&l)) {
-        if (*event_listener_ptr == event_listener) {
+        if (*event_listener_ptr == listener) {
           return false;
         }
       }
     }
-    this->event_listeners.emplace_back(event_listener);
+    this->event_listeners.emplace_back(listener);
     return true;
   }
 
   template<typename Callable>
   requires (std::is_invocable_v<Callable, Event&>)
-  constexpr bool add_event_listener(Callable &&callable) {
+  constexpr bool add_listener(Callable &&callable) {
     for (auto &&l : this->event_listeners) {
-      if (auto adapter = std::get_if<BasicFunctionalEventAdapter<Event>>(&l)) {
-        if (auto target = adapter->event_listener.template target<std::decay_t<Callable>>()) {
+      if (auto adapter = std::get_if<BasicFunctionalAdapter<Event>>(&l)) {
+        if (auto target = adapter->listener.template target<std::decay_t<Callable>>()) {
           if constexpr (is_global_function_v<Callable, Event>) {
             if (*target == callable) {
               return false;
@@ -171,16 +171,16 @@ protected:
         }
       }
     }
-    this->event_listeners.emplace_back(std::in_place_type<BasicFunctionalEventAdapter<Event>>, std::forward<Callable>(callable));
+    this->event_listeners.emplace_back(std::in_place_type<BasicFunctionalAdapter<Event>>, std::forward<Callable>(callable));
     return true;
   }
 
   template<typename Callable, typename E = Event>
   requires (std::is_invocable_v<Callable, E&> and has_type_enum_v<E>)
-  constexpr bool add_event_listener(std::vector<typename E::Type> &&event_ids, Callable &&callable) {
+  constexpr bool add_listener(std::vector<typename E::Type> &&event_ids, Callable &&callable) {
     for (auto &&l : this->event_listeners) {
-      if (auto adapter = std::get_if<FunctionalEventAdapter<E>>(&l)) {
-        if (auto target = adapter->event_listener.template target<std::decay_t<Callable>>()) {
+      if (auto adapter = std::get_if<FunctionalAdapter<E>>(&l)) {
+        if (auto target = adapter->listener.template target<std::decay_t<Callable>>()) {
           if constexpr (is_global_function_v<Callable, E>) {
             if (*target == callable) {
               return false;
@@ -196,14 +196,14 @@ protected:
         }
       }
     }
-    this->event_listeners.emplace_back(std::in_place_type<FunctionalEventAdapter<E>>, std::move(event_ids), std::forward<Callable>(callable));
+    this->event_listeners.emplace_back(std::in_place_type<FunctionalAdapter<E>>, std::move(event_ids), std::forward<Callable>(callable));
     return true;
   }
 
-  constexpr bool remove_event_listener(const std::shared_ptr<EventListener<Event>> &event_listener) {
+  constexpr bool remove_listener(const std::shared_ptr<EventListener<Event>> &listener) {
     for (auto l = this->event_listeners.begin(); l != this->event_listeners.end(); ++l) {
       if (auto event_listener_ptr = std::get_if<std::shared_ptr<EventListener<Event>>>(&*l)) {
-        if (*event_listener_ptr == event_listener) {
+        if (*event_listener_ptr == listener) {
           this->event_listeners.erase(l);
           return true;
         }
@@ -213,11 +213,11 @@ protected:
   }
 
   template<typename Callable>
-  constexpr bool remove_event_listener(const Callable &callable) {
+  constexpr bool remove_listener(const Callable &callable) {
     auto result = false;
     for (auto l = this->event_listeners.begin(); l != this->event_listeners.end();) {
-      if (auto adapter = std::get_if<BasicFunctionalEventAdapter<Event>>(&*l)) {
-        if (adapter->event_listener.template target<std::decay_t<Callable>>()) {
+      if (auto adapter = std::get_if<BasicFunctionalAdapter<Event>>(&*l)) {
+        if (adapter->listener.template target<std::decay_t<Callable>>()) {
           l = this->event_listeners.erase(l);
           result = true;
           continue;
@@ -230,11 +230,11 @@ protected:
 
   template<typename Callable, typename E = Event>
   requires (has_type_enum_v<E> )
-  constexpr bool remove_event_listener(const std::vector<typename E::Type> &types, const Callable &callable) {
+  constexpr bool remove_listener(const std::vector<typename E::Type> &types, const Callable &callable) {
     auto result = false;
     for (auto l = this->event_listeners.begin(); l != this->event_listeners.end();) {
-      if (auto adapter = std::get_if<FunctionalEventAdapter<E>>(&*l)) {
-        if (adapter->event_listener.template target<std::decay_t<Callable>>()) {
+      if (auto adapter = std::get_if<FunctionalAdapter<E>>(&*l)) {
+        if (adapter->listener.template target<std::decay_t<Callable>>()) {
           if (types.empty() or adapter->event_ids.empty()) {
             l = this->event_listeners.erase(l);
             result = true;
@@ -338,8 +338,8 @@ public:
 
   template<typename Listener, typename Event = event_type_from_listener_t<Listener>>
   requires (is_one_of_v<Event, Events...> and std::is_convertible_v<Listener*, EventListener<Event>*>)
-  constexpr void add_event_listener(const std::shared_ptr<Listener> &listener) {
-    if (SingleEventSource<Event>::add_event_listener(std::static_pointer_cast<EventListener<Event>>(listener))) {
+  constexpr void add_listener(const std::shared_ptr<Listener> &listener) {
+    if (SingleEventSource<Event>::add_listener(std::static_pointer_cast<EventListener<Event>>(listener))) {
       if constexpr (has_type_enum_v<Event>) {
         update_event_listener_mask<Event>();
       }
@@ -348,8 +348,8 @@ public:
 
   template<typename Callable, typename Event = event_type_from_callable_t<Callable, Events...>>
   requires (is_one_of_v<Event, Events...> and std::is_invocable_v<Callable, Event&>)
-  constexpr void add_event_listener(Callable &&callable) {
-    if (SingleEventSource<Event>::add_event_listener(std::forward<Callable>(callable))) {
+  constexpr void add_listener(Callable &&callable) {
+    if (SingleEventSource<Event>::add_listener(std::forward<Callable>(callable))) {
       if constexpr (has_type_enum_v<Event>) {
         update_event_listener_mask<Event>();
       }
@@ -358,32 +358,32 @@ public:
 
   template<typename Callable, typename Event = event_type_from_callable_t<Callable, Events...>>
   requires (is_one_of_v<Event, Events...> and std::is_invocable_v<Callable, Event&> and has_type_enum_v<Event>)
-  constexpr void add_event_listener(typename Event::Type type, Callable &&callable) {
-    if (SingleEventSource<Event>::add_event_listener(std::vector<typename Event::Type> {1, type}, std::forward<Callable>(callable))) {
+  constexpr void add_listener(typename Event::Type type, Callable &&callable) {
+    if (SingleEventSource<Event>::add_listener(std::vector<typename Event::Type> {1, type}, std::forward<Callable>(callable))) {
       update_event_listener_mask<Event>();
     }
   }
 
   template<typename Callable, typename Event = event_type_from_callable_t<Callable, Events...>>
   requires (is_one_of_v<Event, Events...> and std::is_invocable_v<Callable, Event&> and has_type_enum_v<Event>)
-  constexpr void add_event_listener(std::initializer_list<typename Event::Type> types, Callable &&callable) {
-    if (SingleEventSource<Event>::add_event_listener(std::vector<typename Event::Type> {types.begin(), types.end()}, std::forward<Callable>(callable))) {
+  constexpr void add_listener(std::initializer_list<typename Event::Type> types, Callable &&callable) {
+    if (SingleEventSource<Event>::add_listener(std::vector<typename Event::Type> {types.begin(), types.end()}, std::forward<Callable>(callable))) {
       update_event_listener_mask<Event>();
     }
   }
 
   template<typename Listener, typename Event = event_type_from_listener_t<Listener>>
   requires (is_one_of_v<Event, Events...> and std::is_convertible_v<Listener*, EventListener<Event>*>)
-  constexpr void remove_event_listener(const std::shared_ptr<Listener> &listener) {
-    if (SingleEventSource<Event>::remove_event_listener(std::static_pointer_cast<EventListener<Event>>(listener))) {
+  constexpr void remove_listener(const std::shared_ptr<Listener> &listener) {
+    if (SingleEventSource<Event>::remove_listener(std::static_pointer_cast<EventListener<Event>>(listener))) {
       update_event_listener_mask<Event>();
     }
   }
 
   template<typename Callable, typename Event = event_type_from_callable_t<Callable, Events...>>
   requires (is_one_of_v<Event, Events...> and std::is_invocable_v<Callable, Event&>)
-  constexpr void remove_event_listener(const Callable &callable) {
-    if (SingleEventSource<Event>::remove_event_listener(callable)) {
+  constexpr void remove_listener(const Callable &callable) {
+    if (SingleEventSource<Event>::remove_listener(callable)) {
       if constexpr (has_type_enum_v<Event>) {
         update_event_listener_mask<Event>();
       }
@@ -392,8 +392,8 @@ public:
 
   template<typename Callable, typename Event = event_type_from_callable_t<Callable, Events...>>
   requires (is_one_of_v<Event, Events...> and std::is_invocable_v<Callable, Event&> and has_type_enum_v<Event>)
-  constexpr void remove_event_listener(typename Event::Type type, const Callable &callable) {
-    if (SingleEventSource<Event>::remove_event_listener(std::vector<typename Event::Type> {1, type}, callable)) {
+  constexpr void remove_listener(typename Event::Type type, const Callable &callable) {
+    if (SingleEventSource<Event>::remove_listener(std::vector<typename Event::Type> {1, type}, callable)) {
       update_event_listener_mask<Event>();
     }
   }
@@ -414,11 +414,11 @@ protected:
   using EventSource<Events...>::fire_event;
 
 public:
-  using BaseEventSource::add_event_listener;
-  using BaseEventSource::remove_event_listener;
+  using BaseEventSource::add_listener;
+  using BaseEventSource::remove_listener;
 
-  using EventSource<Events...>::add_event_listener;
-  using EventSource<Events...>::remove_event_listener;
+  using EventSource<Events...>::add_listener;
+  using EventSource<Events...>::remove_listener;
 };
 
 }

@@ -78,51 +78,51 @@ void test_EventSource() {
   auto event_source_b = std::make_unique<EventSource_B>();
   auto ml = std::make_shared<ML>();
 
-  event_source_b->add_event_listener(ml);
+  event_source_b->add_listener(ml);
   assert(event_source_b->get_mouse_event_listener_count() == 1);
 
-  event_source_b->add_event_listener(mouse_listener);
+  event_source_b->add_listener(mouse_listener);
   assert(event_source_b->get_mouse_event_listener_count() == 2);
 
-  event_source_b->add_event_listener(std::static_pointer_cast<EventListener<MousePressEvent>>(ml));
+  event_source_b->add_listener(std::static_pointer_cast<EventListener<MousePressEvent>>(ml));
   assert(event_source_b->get_mouse_event_listener_count() == 2);
 
-  event_source_b->add_event_listener(g);
+  event_source_b->add_listener(g);
   assert(event_source_b->get_mouse_event_listener_count() == 3);
 
-  event_source_b->add_event_listener(f);
+  event_source_b->add_listener(f);
   assert(event_source_b->get_mouse_event_listener_count() == 4);
 
-  event_source_b->add_event_listener(f);
+  event_source_b->add_listener(f);
   assert(event_source_b->get_mouse_event_listener_count() == 4);
 
-  event_source_b->add_event_listener(MousePressEvent::MOUSE_PRESSED, mouse_listener);
+  event_source_b->add_listener(MousePressEvent::MOUSE_PRESSED, mouse_listener);
   assert(event_source_b->get_mouse_event_listener_count() == 5);
 
-  event_source_b->add_event_listener(MousePressEvent::MOUSE_RELEASED, mouse_listener);
+  event_source_b->add_listener(MousePressEvent::MOUSE_RELEASED, mouse_listener);
   assert(event_source_b->get_mouse_event_listener_count() == 5);
 
-  event_source_b->add_event_listener(MousePressEvent::MOUSE_RELEASED, mouse_listener2);
+  event_source_b->add_listener(MousePressEvent::MOUSE_RELEASED, mouse_listener2);
   assert(event_source_b->get_mouse_event_listener_count() == 6);
 
-  event_source_b->add_event_listener(MousePressEvent::MOUSE_PRESSED, [](MousePressEvent &e) {
+  event_source_b->add_listener(MousePressEvent::MOUSE_PRESSED, [](MousePressEvent &e) {
   });
   assert(event_source_b->get_mouse_event_listener_count() == 7);
 
-  event_source_b->add_event_listener( { MousePressEvent::MOUSE_PRESSED }, [](MousePressEvent &e) {
+  event_source_b->add_listener( { MousePressEvent::MOUSE_PRESSED }, [](MousePressEvent &e) {
   });
   assert(event_source_b->get_mouse_event_listener_count() == 8);
 
-  event_source_b->remove_event_listener(MousePressEvent::MOUSE_PRESSED, mouse_listener);
+  event_source_b->remove_listener(MousePressEvent::MOUSE_PRESSED, mouse_listener);
   assert(event_source_b->get_mouse_event_listener_count() == 8);
 
-  event_source_b->remove_event_listener(mouse_listener);
+  event_source_b->remove_listener(mouse_listener);
   assert(event_source_b->get_mouse_event_listener_count() == 7);
 
-  event_source_b->remove_event_listener(std::static_pointer_cast<EventListener<MousePressEvent>>(ml));
+  event_source_b->remove_listener(std::static_pointer_cast<EventListener<MousePressEvent>>(ml));
   assert(event_source_b->get_mouse_event_listener_count() == 6);
 
-  event_source_b->remove_event_listener(ml);
+  event_source_b->remove_listener(ml);
   assert(event_source_b->get_mouse_event_listener_count() == 6);
 
   assert(event_source_b->get_event_listener_mask() == EventType::MOUSE_PRESS);
@@ -130,11 +130,11 @@ void test_EventSource() {
   auto window_listener = [](WindowEvent &e) {
   };
 
-  event_source_b->add_event_listener(WindowEvent::WINDOW_ACTIVATED, window_listener);
+  event_source_b->add_listener(WindowEvent::WINDOW_ACTIVATED, window_listener);
   assert(event_source_b->get_event_listener_mask() == (EventType::MOUSE_PRESS | EventType::WINDOW));
   assert(event_source_b->has_event_listeners(EventType::MOUSE_PRESS | EventType::WINDOW));
 
-  event_source_b->remove_event_listener(WindowEvent::WINDOW_ACTIVATED, window_listener);
+  event_source_b->remove_listener(WindowEvent::WINDOW_ACTIVATED, window_listener);
   assert(event_source_b->get_event_listener_mask() == EventType::MOUSE_PRESS);
   assert(event_source_b->has_event_listeners(EventType::MOUSE_PRESS));
   assert(not event_source_b->has_event_listeners(EventType::WINDOW));

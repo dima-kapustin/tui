@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
   frame->pack();
   frame->set_visible(true);
 
-  frame->add_event_listener([](MouseMoveEvent &e) {
+  frame->add_listener([](MouseMoveEvent &e) {
 //    std::cout << e << std::endl;
   });
 

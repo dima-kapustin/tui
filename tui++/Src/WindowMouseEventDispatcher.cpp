@@ -147,11 +147,11 @@ bool WindowMouseEventDispatcher::dispatch_event(MouseEvent &e) {
 
 void WindowMouseEventDispatcher::start_listening_for_other_drags() {
   constexpr auto event_mask = EventType::MOUSE_PRESS | EventType::MOUSE_MOVE | EventType::MOUSE_DRAG | EventType::MOUSE_OVER | EventType::MOUSE_WHEEL;
-  this->window->get_screen()->add_event_listener(shared_from_this(), event_mask);
+  this->window->get_screen()->add_listener(shared_from_this(), event_mask);
 }
 
 void WindowMouseEventDispatcher::stop_listening_for_other_drags() {
-  this->window->get_screen()->remove_event_listener(shared_from_this());
+  this->window->get_screen()->remove_listener(shared_from_this());
 }
 
 void WindowMouseEventDispatcher::event_dispatched(Event &e) {

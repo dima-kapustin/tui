@@ -6,15 +6,15 @@ namespace tui {
 
 void AbstractButton::set_model(std::shared_ptr<ButtonModel> const &model) {
   if (this->model) {
-    this->model->remove_event_listener(this->change_listener);
-    this->model->remove_event_listener(this->action_listener);
-    this->model->remove_event_listener(this->item_listener);
+    this->model->remove_listener(this->change_listener);
+    this->model->remove_listener(this->action_listener);
+    this->model->remove_listener(this->item_listener);
   }
 
   if (model) {
-    model->add_event_listener(this->change_listener);
-    model->add_event_listener(this->action_listener);
-    model->add_event_listener(this->item_listener);
+    model->add_listener(this->change_listener);
+    model->add_listener(this->action_listener);
+    model->add_listener(this->item_listener);
   }
 
   this->model = model;
@@ -80,12 +80,12 @@ void AbstractButton::set_action(const std::shared_ptr<Action> &action) {
     auto old_action = this->action.value();
     this->action = action;
     if (old_action) {
-      remove_event_listener(old_action);
+      remove_listener(old_action);
       old_action->remove_property_change_listener(this->action_property_change_listener);
     }
 //        configurePropertiesFromAction(action);
     if (action) {
-      add_event_listener(this->action.value());
+      add_listener(this->action.value());
       this->action->add_property_change_listener(this->action_property_change_listener);
     }
   }
