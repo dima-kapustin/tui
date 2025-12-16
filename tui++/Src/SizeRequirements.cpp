@@ -15,32 +15,32 @@ SizeRequirements SizeRequirements::get_tiled_size_requirements(std::vector<SizeR
 }
 
 SizeRequirements SizeRequirements::get_aligned_size_requirements(std::vector<SizeRequirements> const &children) {
-  auto totalAscent = SizeRequirements { };
-  auto totalDescent = SizeRequirements { };
+  auto total_ascent = SizeRequirements { };
+  auto total_descent = SizeRequirements { };
   for (auto &&req : children) {
     int ascent = (req.alignment * req.minimum);
     int descent = req.minimum - ascent;
-    totalAscent.minimum = std::max(ascent, totalAscent.minimum);
-    totalDescent.minimum = std::max(descent, totalDescent.minimum);
+    total_ascent.minimum = std::max(ascent, total_ascent.minimum);
+    total_descent.minimum = std::max(descent, total_descent.minimum);
 
     ascent = (req.alignment * req.preferred);
     descent = req.preferred - ascent;
-    totalAscent.preferred = std::max(ascent, totalAscent.preferred);
-    totalDescent.preferred = std::max(descent, totalDescent.preferred);
+    total_ascent.preferred = std::max(ascent, total_ascent.preferred);
+    total_descent.preferred = std::max(descent, total_descent.preferred);
 
     ascent = (req.alignment * req.maximum);
     descent = req.maximum - ascent;
-    totalAscent.maximum = std::max(ascent, totalAscent.maximum);
-    totalDescent.maximum = std::max(descent, totalDescent.maximum);
+    total_ascent.maximum = std::max(ascent, total_ascent.maximum);
+    total_descent.maximum = std::max(descent, total_descent.maximum);
   }
 
-  int min = std::min(totalAscent.minimum + totalDescent.minimum, std::numeric_limits<int>::max());
-  int pref = std::min(totalAscent.preferred + totalDescent.preferred, std::numeric_limits<int>::max());
-  int max = std::min(totalAscent.maximum + totalDescent.maximum, std::numeric_limits<int>::max());
-  float alignment = 0.0f;
+  auto min = std::min(total_ascent.minimum + total_descent.minimum, std::numeric_limits<int>::max());
+  auto pref = std::min(total_ascent.preferred + total_descent.preferred, std::numeric_limits<int>::max());
+  auto max = std::min(total_ascent.maximum + total_descent.maximum, std::numeric_limits<int>::max());
+  auto alignment = 0.0f;
 
   if (min > 0) {
-    alignment = (float) totalAscent.minimum / min;
+    alignment = (float) total_ascent.minimum / min;
     alignment = alignment > 1.0f ? 1.0f : alignment < 0.0f ? 0.0f : alignment;
   }
   return {min, pref, max, alignment};
@@ -66,18 +66,18 @@ void SizeRequirements::calculate_aligned_positions(int allocated, const SizeRequ
   offsets.resize(children.size());
   spans.resize(children.size());
 
-  auto totalAlignment = normal ? total.alignment : 1.0f - total.alignment;
-  auto totalAscent = int(allocated * totalAlignment);
-  auto totalDescent = allocated - totalAscent;
+  auto total_alignment = normal ? total.alignment : 1.0f - total.alignment;
+  auto total_ascent = int(allocated * total_alignment);
+  auto total_descent = allocated - total_ascent;
   for (auto i = 0U; i < children.size(); ++i) {
     auto &&req = children[i];
     auto alignment = normal ? req.alignment : 1.0f - req.alignment;
-    auto maxAscent = int(req.maximum * alignment);
-    auto maxDescent = req.maximum - maxAscent;
-    auto ascent = std::min(totalAscent, maxAscent);
-    auto descent = std::min(totalDescent, maxDescent);
+    auto max_ascent = int(req.maximum * alignment);
+    auto max_descent = req.maximum - max_ascent;
+    auto ascent = std::min(total_ascent, max_ascent);
+    auto descent = std::min(total_descent, max_descent);
 
-    offsets[i] = totalAscent - ascent;
+    offsets[i] = total_ascent - ascent;
     spans[i] = std::min(ascent + descent, std::numeric_limits<int>::max());
   }
 }
@@ -87,30 +87,30 @@ void SizeRequirements::compressed_tile(int allocated, int min, int pref, int max
   spans.resize(request.size());
 
   // ---- determine what we have to work with ----
-  auto totalPlay = std::min(pref - allocated, pref - min);
-  auto factor = (pref - min == 0) ? 0.0f : totalPlay / (pref - min);
+  auto total_play = std::min(pref - allocated, pref - min);
+  auto factor = (pref - min == 0) ? 0.0f : total_play / (pref - min);
 
   // ---- make the adjustments ----
-  auto totalOffset = 0;
+  auto total_offset = 0;
   if (forward) {
     // lay out with offsets increasing from 0
-    totalOffset = 0;
+    total_offset = 0;
     for (auto i = 0U; i < request.size(); ++i) {
-      offsets[i] = totalOffset;
+      offsets[i] = total_offset;
       auto &&req = request[i];
       auto play = factor * (req.preferred - req.minimum);
       spans[i] = (req.preferred - play);
-      totalOffset = std::min(totalOffset + spans[i], std::numeric_limits<int>::max());
+      total_offset = std::min(total_offset + spans[i], std::numeric_limits<int>::max());
     }
   } else {
     // lay out with offsets decreasing from the end of the allocation
-    totalOffset = allocated;
+    total_offset = allocated;
     for (auto i = 0U; i < request.size(); ++i) {
       auto &&req = request[i];
       auto play = factor * (req.preferred - req.minimum);
       spans[i] = (req.preferred - play);
-      offsets[i] = totalOffset - spans[i];
-      totalOffset = std::max(totalOffset - spans[i], 0);
+      offsets[i] = total_offset - spans[i];
+      total_offset = std::max(total_offset - spans[i], 0);
     }
   }
 }
@@ -124,26 +124,26 @@ void SizeRequirements::expanded_tile(int allocated, int min, int pref, int max, 
   auto factor = (max - pref == 0) ? 0.0f : totalPlay / (max - pref);
 
   // ---- make the adjustments ----
-  auto totalOffset = 0;
+  auto total_offset = 0;
   if (forward) {
     // lay out with offsets increasing from 0
-    totalOffset = 0;
+    total_offset = 0;
     for (auto i = 0U; i < request.size(); ++i) {
-      offsets[i] = totalOffset;
+      offsets[i] = total_offset;
       auto &&req = request[i];
       auto play = int(factor * (req.maximum - req.preferred));
       spans[i] = std::min(req.preferred + play, std::numeric_limits<int>::max());
-      totalOffset = std::min(totalOffset + spans[i], std::numeric_limits<int>::max());
+      total_offset = std::min(total_offset + spans[i], std::numeric_limits<int>::max());
     }
   } else {
     // lay out with offsets decreasing from the end of the allocation
-    totalOffset = allocated;
+    total_offset = allocated;
     for (auto i = 0U; i < request.size(); ++i) {
       auto &&req = request[i];
       auto play = int(factor * (req.maximum - req.preferred));
       spans[i] = std::min(req.preferred + play, std::numeric_limits<int>::max());
-      offsets[i] = totalOffset - spans[i];
-      totalOffset = std::max(totalOffset - spans[i], 0);
+      offsets[i] = total_offset - spans[i];
+      total_offset = std::max(total_offset - spans[i], 0);
     }
   }
 }
