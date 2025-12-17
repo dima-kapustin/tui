@@ -1,20 +1,34 @@
-#include <tui++/ButtonModel.h>
+#include <tui++/ToggleButtonModel.h>
+#include <tui++/ButtonGroup.h>
+
 #include <tui++/Screen.h>
 
 namespace tui {
 
-void ButtonModel::set_selected(bool value) {
-  if (value != is_selected()) {
-    this->state.is_selected = value;
+void ToggleButtonModel::set_selected(bool value) {
+  if (auto group = get_group()) {
+    // use the group model instead
+    group->set_selected(shared_from_this(), value);
+    value = group->is_selected(shared_from_this());
+  }
 
-    fire_event<ItemEvent>(shared_from_this(), value ? ItemEvent::SELECTED : ItemEvent::DESELECTED);
+  if (value != is_selected()) {
+    state.is_selected = value;
+
     fire_event<ChangeEvent>(shared_from_this());
+    fire_event<ItemEvent>(shared_from_this(), value ? ItemEvent::SELECTED : ItemEvent::DESELECTED);
   }
 }
 
-void ButtonModel::set_pressed(bool value) {
-  if (value != is_pressed() and is_enabled()) {
-    this->state.is_pressed = value;
+void ToggleButtonModel::set_pressed(bool value) {
+  if (is_pressed() != value and is_enabled()) {
+    if (not value and is_armed()) {
+      set_selected(not is_selected());
+    }
+
+    state.is_pressed = value;
+
+    fire_event<ChangeEvent>(shared_from_this());
 
     if (not is_pressed() and is_armed()) {
       auto modifiers = InputEvent::Modifiers { };
@@ -27,15 +41,6 @@ void ButtonModel::set_pressed(bool value) {
 
       fire_event<ActionEvent>(shared_from_this(), get_action_command(), modifiers, Screen::get_event_queue().get_most_recent_event_time());
     }
-
-    fire_event<ChangeEvent>(shared_from_this());
-  }
-}
-
-void ButtonModel::set_armed(bool value) {
-  if (is_armed() != value and (is_enabled() or (is_menu_item() and false/*and UIManager.getBoolean("MenuItem.disabledAreNavigable")*/))) {
-    this->state.is_armed = value;
-    fire_event<ChangeEvent>(shared_from_this());
   }
 }
 

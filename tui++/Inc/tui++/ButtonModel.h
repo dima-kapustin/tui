@@ -16,6 +16,10 @@ class ButtonGroup;
 class ButtonModel: public Object, public EventSource<ChangeEvent, ItemEvent, ActionEvent>, public std::enable_shared_from_this<ButtonModel> {
   std::weak_ptr<ButtonGroup> group;
 
+  Char mnemonic;
+  ActionKey action_command;
+
+protected:
   struct {
     unsigned is_selected :1;
     unsigned is_enabled :1;
@@ -24,9 +28,6 @@ class ButtonModel: public Object, public EventSource<ChangeEvent, ItemEvent, Act
     unsigned is_rollover :1;
     unsigned is_menu_item :1;
   } state;
-
-  Char mnemonic;
-  ActionKey action_command;
 
 public:
   std::shared_ptr<ButtonGroup> get_group() const {
@@ -54,20 +55,13 @@ public:
     return this->state.is_selected;
   }
 
-  virtual void set_selected(bool value) {
-    if (value != is_selected()) {
-      this->state.is_selected = value;
-
-      fire_event<ItemEvent>(shared_from_this(), value ? ItemEvent::SELECTED : ItemEvent::DESELECTED);
-    }
-  }
+  virtual void set_selected(bool value);
 
   bool is_pressed() const {
     return this->state.is_pressed;
   }
 
   virtual void set_pressed(bool value);
-
 
   bool is_armed() const {
     return this->state.is_armed;
