@@ -120,8 +120,8 @@ void SizeRequirements::expanded_tile(int allocated, int min, int pref, int max, 
   spans.resize(request.size());
 
   // ---- determine what we have to work with ----
-  auto totalPlay = std::min(allocated - pref, max - pref);
-  auto factor = (max - pref == 0) ? 0.0f : totalPlay / (max - pref);
+  auto total_play = std::min(allocated - pref, max - pref);
+  auto factor = (max - pref == 0) ? 0.0f : total_play / (max - pref);
 
   // ---- make the adjustments ----
   auto total_offset = 0;
