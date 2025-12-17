@@ -108,8 +108,8 @@ public:
   }
 
 public:
-  void add_layout_component(const std::shared_ptr<Component> &target, const std::any &constraints) noexcept (false) override;
-  void remove_layout_component(const std::shared_ptr<Component> &target) override;
+  void add_layout_component(const std::shared_ptr<Component> &c, const std::any &constraints) noexcept (false) override;
+  void remove_layout_component(const std::shared_ptr<Component> &c) override;
 
   /**
    * Gets the component that was added using the given constraint

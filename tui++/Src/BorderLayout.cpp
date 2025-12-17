@@ -5,57 +5,57 @@
 
 namespace tui {
 
-void BorderLayout::add_layout_component(const std::shared_ptr<Component> &target, const std::any &constraints) {
+void BorderLayout::add_layout_component(const std::shared_ptr<Component> &c, const std::any &constraints) {
   if (auto name = std::any_cast<std::string_view>(&constraints)) {
     if (*name == CENTER) {
-      this->center = target;
+      this->center = c;
     } else if (*name == NORTH) {
-      this->north = target;
+      this->north = c;
     } else if (*name == WEST) {
-      this->west = target;
+      this->west = c;
     } else if (*name == SOUTH) {
-      this->south = target;
+      this->south = c;
     } else if (*name == EAST) {
-      this->east = target;
+      this->east = c;
     } else if (*name == PAGE_START) {
-      this->first_line = target;
+      this->first_line = c;
     } else if (*name == PAGE_END) {
-      this->last_line = target;
+      this->last_line = c;
     } else if (*name == LINE_START) {
-      this->first_item = target;
+      this->first_item = c;
     } else if (*name == LINE_END) {
-      this->last_item = target;
+      this->last_item = c;
     } else {
       throw std::runtime_error("Cannot add to layout: unknown constraint: " + std::string(*name));
     }
   } else if (not constraints.has_value()) {
-    this->center = target;
+    this->center = c;
   } else {
     throw std::runtime_error("Cannot add to layout: constraint must be a string_view (or null)");
   }
 }
 
-void BorderLayout::remove_layout_component(const std::shared_ptr<Component> &target) {
-  target->with_tree_locked([target, this] {
-    if (target == this->center) {
+void BorderLayout::remove_layout_component(const std::shared_ptr<Component> &c) {
+  c->with_tree_locked([c, this] {
+    if (c == this->center) {
       this->center = nullptr;
-    } else if (target == this->north) {
+    } else if (c == this->north) {
       this->north = nullptr;
-    } else if (target == this->south) {
+    } else if (c == this->south) {
       this->south = nullptr;
-    } else if (target == this->east) {
+    } else if (c == this->east) {
       this->east = nullptr;
-    } else if (target == this->west) {
+    } else if (c == this->west) {
       this->west = nullptr;
     }
 
-    if (target == this->first_line) {
+    if (c == this->first_line) {
       this->first_line = nullptr;
-    } else if (target == this->last_line) {
+    } else if (c == this->last_line) {
       this->last_line = nullptr;
-    } else if (target == this->first_item) {
+    } else if (c == this->first_item) {
       this->first_item = nullptr;
-    } else if (target == this->last_item) {
+    } else if (c == this->last_item) {
       this->last_item = nullptr;
     }
   });

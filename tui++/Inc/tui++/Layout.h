@@ -15,9 +15,9 @@ public:
   virtual ~Layout() {
   }
 
-  virtual void add_layout_component(const std::shared_ptr<Component> &target, const std::any &constraints = { }) = 0;
+  virtual void add_layout_component(const std::shared_ptr<Component> &c, const std::any &constraints = { }) = 0;
 
-  virtual void remove_layout_component(const std::shared_ptr<Component> &target) = 0;
+  virtual void remove_layout_component(const std::shared_ptr<Component> &c) = 0;
 
   virtual void layout(const std::shared_ptr<Component> &target) = 0;
 
@@ -49,8 +49,8 @@ public:
 
 class AbstractLayout: public Layout {
 public:
-  void add_layout_component(const std::shared_ptr<Component> &target, const std::any &constraints) override;
-  void remove_layout_component(const std::shared_ptr<Component> &target) override;
+  void add_layout_component(const std::shared_ptr<Component> &c, const std::any &constraints) override;
+  void remove_layout_component(const std::shared_ptr<Component> &c) override;
 
   virtual Dimension get_maximum_layout_size(const std::shared_ptr<const Component> &target) override {
     return Dimension::max();
