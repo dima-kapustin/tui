@@ -16,7 +16,7 @@ void ButtonModel::set_pressed(bool value) {
         modifiers = action_event->modifiers;
       }
 
-      fire_event<ActionEvent>(shared_from_this(), get_action_command(), modifiers);//, EventQueue.getMostRecentEventTime());
+      fire_event<ActionEvent>(shared_from_this(), get_action_command(), modifiers, Screen::get_event_queue().get_most_recent_event_time());
     }
 
     fire_event<ChangeEvent>(shared_from_this());
@@ -24,6 +24,10 @@ void ButtonModel::set_pressed(bool value) {
 }
 
 void ButtonModel::set_armed(bool value) {
+  if (is_armed() != value and (is_enabled() or (is_menu_item() and false/*and UIManager.getBoolean("MenuItem.disabledAreNavigable")*/))) {
+    this->state.is_armed = value;
+    fire_event<ChangeEvent>(shared_from_this());
+  }
 }
 
 }

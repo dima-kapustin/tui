@@ -10,6 +10,7 @@
 
 namespace tui {
 
+class MenuItem;
 class ButtonGroup;
 
 class ButtonModel: public Object, public EventSource<ChangeEvent, ItemEvent, ActionEvent>, public std::enable_shared_from_this<ButtonModel> {
@@ -21,6 +22,7 @@ class ButtonModel: public Object, public EventSource<ChangeEvent, ItemEvent, Act
     unsigned is_pressed :1;
     unsigned is_armed :1;
     unsigned is_rollover :1;
+    unsigned is_menu_item :1;
   } state;
 
   Char mnemonic;
@@ -104,6 +106,14 @@ public:
 private:
   void fire_state_changed() {
     fire_event<ChangeEvent>(shared_from_this());
+  }
+
+  bool is_menu_item() const {
+    return this->state.is_menu_item;
+  }
+
+  void make_menu_item() {
+    this->state.is_menu_item = true;
   }
 };
 
