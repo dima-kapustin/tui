@@ -49,6 +49,10 @@ public:
       id(std::to_underlying(id)) {
   }
 
+  explicit constexpr EventId(unsigned id) :
+      id(id) {
+  }
+
   constexpr operator unsigned() const {
     return this->id;
   }

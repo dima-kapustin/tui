@@ -52,13 +52,26 @@ public:
     return this->state.is_selected;
   }
 
-  void set_selected(bool value) {
-    if (value != this->state.is_selected) {
+  virtual void set_selected(bool value) {
+    if (value != is_selected()) {
       this->state.is_selected = value;
 
       fire_event<ItemEvent>(shared_from_this(), value ? ItemEvent::SELECTED : ItemEvent::DESELECTED);
     }
   }
+
+  bool is_pressed() const {
+    return this->state.is_pressed;
+  }
+
+  virtual void set_pressed(bool value);
+
+
+  bool is_armed() const {
+    return this->state.is_armed;
+  }
+
+  virtual void set_armed(bool value);
 
   bool is_rollover() const {
     return this->state.is_rollover;

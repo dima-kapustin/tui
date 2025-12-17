@@ -9,7 +9,11 @@ class Component;
 class ComponentEvent: public Event {
 protected:
   template<typename Id>
-  constexpr ComponentEvent(const std::shared_ptr<Component> &source, const Id &id);
+  constexpr ComponentEvent(const std::shared_ptr<Component> &source, Id id, const EventClock::time_point &when = EventClock::now()) :
+      ComponentEvent(source, std::to_underlying(id), when) {
+  }
+
+  ComponentEvent(const std::shared_ptr<Component> &source, unsigned id, const EventClock::time_point &when = EventClock::now());
 
 public:
   enum Type : unsigned {
@@ -18,7 +22,7 @@ public:
   };
 
 public:
-  constexpr ComponentEvent(const std::shared_ptr<Component> &source, Type type);
+  ComponentEvent(const std::shared_ptr<Component> &source, Type type, const EventClock::time_point &when = EventClock::now());
 
   constexpr Type type() const {
     return Type(std::underlying_type_t<Type>(this->id));

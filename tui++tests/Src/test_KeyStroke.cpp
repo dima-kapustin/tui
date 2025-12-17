@@ -1,5 +1,4 @@
 #include <tui++/KeyStroke.h>
-#include <tui++/Component.h>
 
 #include <cassert>
 

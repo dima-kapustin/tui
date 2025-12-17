@@ -38,7 +38,7 @@ class KeyboardManager;
 template<typename T>
 constexpr bool is_component_v = std::is_base_of_v<Component, T>;
 
-class Component: virtual public Object, public std::enable_shared_from_this<Component>, public EventSource<ComponentEvent, FocusEvent, HierarchyEvent, HierarchyBoundsEvent, KeyEvent, MousePressEvent, MouseClickEvent, MouseMoveEvent, MouseOverEvent, MouseWheelEvent> {
+class Component: public Object, public std::enable_shared_from_this<Component>, public EventSource<ComponentEvent, FocusEvent, HierarchyEvent, HierarchyBoundsEvent, KeyEvent, MousePressEvent, MouseClickEvent, MouseMoveEvent, MouseOverEvent, MouseWheelEvent> {
   using base = EventSource<ComponentEvent, FocusEvent, HierarchyEvent, HierarchyBoundsEvent, KeyEvent, MousePressEvent, MouseClickEvent, MouseMoveEvent, MouseOverEvent, MouseWheelEvent>;
 
 protected:
@@ -1118,19 +1118,6 @@ public:
 
 template<typename BaseComponent, typename ... Events>
 using ComponentExtension = EventSourceExtension<BaseComponent, Events...>;
-
-template<typename Id>
-constexpr ComponentEvent::ComponentEvent(const std::shared_ptr<Component> &source, const Id &id) :
-    Event(std::dynamic_pointer_cast<Object>(source), id) {
-}
-
-constexpr ComponentEvent::ComponentEvent(const std::shared_ptr<Component> &source, Type type) :
-    Event(std::dynamic_pointer_cast<Object>(source), type) {
-}
-
-inline std::shared_ptr<Component> ComponentEvent::component() const {
-  return std::dynamic_pointer_cast<Component>(this->source);
-}
 
 /**
  * Convert a point from a screen coordinates to a component's coordinate system

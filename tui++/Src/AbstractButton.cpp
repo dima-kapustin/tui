@@ -1,8 +1,16 @@
 #include <tui++/AbstractButton.h>
 
 #include <tui++/ButtonGroup.h>
+#include <tui++/OverlayLayout.h>
 
 namespace tui {
+
+void AbstractButton::add_impl(const std::shared_ptr<Component> &c, const std::any &constraints, int z_order) {
+  if (not this->layout) {
+    set_layout(std::make_shared<OverlayLayout>(this));
+  }
+  base::add_impl(c, constraints, z_order);
+}
 
 void AbstractButton::set_model(std::shared_ptr<ButtonModel> const &model) {
   if (this->model) {

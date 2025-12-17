@@ -2,11 +2,7 @@
 
 #include <tui++/event/ComponentEvent.h>
 
-#include <chrono>
-
 namespace tui {
-
-using EventClock = std::chrono::utc_clock;
 
 class InputEvent: public ComponentEvent {
 public:
@@ -30,12 +26,11 @@ protected:
   constexpr InputEvent() = default;
   template<typename Id>
   constexpr InputEvent(const std::shared_ptr<Component> &source, const Id &id, Modifiers modifiers, const EventClock::time_point &when = EventClock::now()) :
-      ComponentEvent(source, id), modifiers(modifiers), when(when) {
+      ComponentEvent(source, id, when), modifiers(modifiers) {
   }
 
 public:
   Modifiers modifiers;
-  EventClock::time_point when = EventClock::now();
 };
 
 }

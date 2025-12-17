@@ -23,6 +23,13 @@ class AbstractButton: public ComponentExtension<Component, ChangeEvent, ItemEven
 
   Char mnemonic;
 
+  struct {
+    unsigned is_border_painted_set :1;
+    unsigned is_rollover_enabled_set :1;
+    unsigned is_icon_text_gap_set :1;
+    unsigned is_content_area_filled_set :1;
+  } flags { };
+
 protected:
   using base::fire_event;
 
@@ -34,6 +41,8 @@ protected:
   virtual bool should_update_selected_state_from_action() const {
     return false;
   }
+
+  void add_impl(const std::shared_ptr<Component> &c, const std::any &constraints, int z_order) override;
 
 public:
   std::shared_ptr<ButtonModel> get_model() const {

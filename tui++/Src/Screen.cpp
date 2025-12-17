@@ -1,9 +1,8 @@
 #include <tui++/Screen.h>
-#include <chrono>
-#include <stdexcept>
-
 #include <tui++/Window.h>
 #include <tui++/KeyboardFocusManager.h>
+
+#include <stdexcept>
 
 namespace tui {
 
