@@ -2,6 +2,8 @@
 
 #include <tui++/Component.h>
 
+#include <tui++/lookandfeel/LookAndFeel.h>
+
 namespace tui {
 
 class Button;
@@ -62,6 +64,8 @@ public:
   }
 
 protected:
+  std::shared_ptr<laf::ComponentUI> create_ui() override;
+
   virtual void init() override;
 
   virtual void add_notify() override;

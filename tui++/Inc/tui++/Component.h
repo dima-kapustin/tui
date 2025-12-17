@@ -26,6 +26,8 @@
 
 #include <tui++/event/EventSource.h>
 
+#include <tui++/lookandfeel/ComponentUI.h>
+
 namespace tui {
 
 class Window;
@@ -126,6 +128,8 @@ protected:
   Property<std::shared_ptr<PopupMenu>> component_popup_menu { this, "component-popup-menu" };
   Property<std::string> tool_tip_text { this, "tool-tip-text" };
 
+  Property<std::shared_ptr<laf::ComponentUI>> ui { this, "ui" };
+
 public:
   constexpr static float TOP_ALIGNMENT = 0;
   constexpr static float BOTTOM_ALIGNMENT = 1.0;
@@ -197,12 +201,17 @@ private:
 
   bool contains_focus() const;
 
+  void set_ui(std::shared_ptr<laf::ComponentUI> const &ui);
+
 protected:
   Component() {
   }
 
-  virtual void init() {
-  }
+  virtual void init();
+
+  template<typename T, typename ... Args>
+  requires (is_component_v<T> )
+  friend auto make_component(Args&&...);
 
 protected:
   static bool is_window(const std::shared_ptr<const Component> &component);
@@ -358,6 +367,10 @@ protected:
   bool can_be_focus_owner_recursively();
   bool can_contain_focus_owner(const std::shared_ptr<Component> &candidate);
 
+  virtual std::shared_ptr<laf::ComponentUI> create_ui() {
+    return {};
+  }
+
   friend class Window;
   friend class KeyboardFocusManager;
   friend class KeyboardManager;
@@ -373,20 +386,12 @@ public:
     this->name = name;
   }
 
-  template<typename T, typename ... Args>
-  requires (is_component_v<T> )
-  T& add(Args ... args) noexcept (false) {
-    auto component = std::make_shared<T>(std::forward<Args>(args)...);
-    component->init();
-    add(component);
-  }
-
   void add(const std::shared_ptr<Component> &component) noexcept (false) {
-    add(component, { });
+    add(component, {});
   }
 
   void add(const std::shared_ptr<Component> &component, int index) noexcept (false) {
-    add(component, { }, index);
+    add(component, {}, index);
   }
 
   void add(const std::shared_ptr<Component> &component, const std::any &constraints) noexcept (false) {
@@ -418,7 +423,7 @@ public:
   }
 
   bool contains(int x, int y) const {
-    return (x >= 0 and x < get_width() and y >= 0 and y < get_height());
+    return this->ui ? this->ui->contains(shared_from_this(), x, y) : (x >= 0 and x < get_width() and y >= 0 and y < get_height());
   }
 
   bool contains(const Point &p) const {
@@ -550,7 +555,7 @@ public:
         this->preferred_size = this->minimum_size;
       }
     }
-    return this->preferred_size.value_or(Dimension { });
+    return this->preferred_size.value_or(Dimension {});
   }
 
   Dimension get_minimum_size() const {
@@ -559,7 +564,7 @@ public:
     } else if (not this->valid or not this->minimum_size.has_value()) {
       this->minimum_size = this->layout->get_minimum_layout_size(shared_from_this());
     }
-    return this->minimum_size.value_or(Dimension { });
+    return this->minimum_size.value_or(Dimension {});
   }
 
   Dimension get_maximum_size() const {
@@ -568,7 +573,7 @@ public:
     } else if (not this->valid or not this->maximum_size.has_value()) {
       this->maximum_size = this->layout->get_maximum_layout_size(shared_from_this());
     }
-    return this->maximum_size.value_or(Dimension { });
+    return this->maximum_size.value_or(Dimension {});
   }
 
   float get_alignment_x() const {
@@ -817,7 +822,7 @@ public:
 
   void revalidate();
 
-  std::optional<Color> get_background_color() const {
+  std::optional<Color> const& get_background_color() const {
     if (not this->background_color.has_value()) {
       if (auto parent = get_parent()) {
         return parent->get_background_color();
@@ -826,11 +831,11 @@ public:
     return this->background_color;
   }
 
-  void set_background_color(std::optional<Color> color) {
+  void set_background_color(std::optional<Color> const& color) {
     this->background_color = color;
   }
 
-  std::optional<Color> get_foreground_color() const {
+  std::optional<Color> const& get_foreground_color() const {
     if (not this->foreground_color.has_value()) {
       if (auto parent = get_parent()) {
         return parent->get_foreground_color();
@@ -839,7 +844,7 @@ public:
     return this->foreground_color;
   }
 
-  void set_foreground_color(std::optional<Color> color) {
+  void set_foreground_color(std::optional<Color>const& color) {
     this->foreground_color = color;
   }
 
@@ -877,7 +882,7 @@ public:
 
   void set_input_map(InputCondition condition, const std::shared_ptr<InputMap> &map) {
     switch (condition) {
-    case WHEN_IN_FOCUSED_WINDOW:
+      case WHEN_IN_FOCUSED_WINDOW:
       if (auto component_input_map = std::dynamic_pointer_cast<ComponentInputMap>(map)) {
         this->window_input_map = component_input_map;
       } else {
@@ -885,10 +890,10 @@ public:
       }
       //registerWithKeyboardManager(false);
       break;
-    case WHEN_ANCESTOR_OF_FOCUSED_COMPONENT:
+      case WHEN_ANCESTOR_OF_FOCUSED_COMPONENT:
       this->ancestor_input_map = map;
       break;
-    case WHEN_FOCUSED:
+      case WHEN_FOCUSED:
       this->focus_input_map = map;
       break;
     }
@@ -911,7 +916,7 @@ public:
   }
 
   auto get_tree_lock() const -> decltype(std::unique_lock {tree_mutex}) {
-    return std::unique_lock { tree_mutex };
+    return std::unique_lock {tree_mutex};
   }
 
   template<typename Callable>
@@ -1090,7 +1095,7 @@ public:
   }
 
   void update_ui() {
-    // TODO
+    set_ui(create_ui());
   }
 
   std::shared_ptr<PopupMenu> get_component_popup_menu() const {
@@ -1113,11 +1118,19 @@ public:
     return this->tool_tip_text;
   }
 
-  void set_tool_tip_text(std::string const& tool_tip_text);
+  void set_tool_tip_text(std::string const &tool_tip_text);
 };
 
 template<typename BaseComponent, typename ... Events>
 using ComponentExtension = EventSourceExtension<BaseComponent, Events...>;
+
+template<typename T, typename ... Args>
+requires (is_component_v<T> )
+inline auto make_component(Args &&... args) noexcept (false) {
+  auto component = std::shared_ptr<T> {new T(std::forward<Args>(args)...)};
+  component->init();
+  return component;
+}
 
 /**
  * Convert a point from a screen coordinates to a component's coordinate system

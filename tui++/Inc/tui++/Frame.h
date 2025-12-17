@@ -3,6 +3,8 @@
 #include <tui++/Window.h>
 #include <tui++/RootPane.h>
 
+#include <tui++/lookandfeel/LookAndFeel.h>
+
 namespace tui {
 
 class MenuBar;
@@ -16,7 +18,9 @@ class Frame: public Window, public RootPaneContainer {
       Window(screen) {
   }
 
-  friend class Screen;
+  template<typename T, typename ... Args>
+  requires (is_component_v<T> )
+  friend auto make_component(Args&&...);
 
 protected:
   Property<std::string> title { this, "title" };
@@ -26,6 +30,8 @@ protected:
   void add_impl(const std::shared_ptr<Component> &c, const std::any &constraints, int z_order) noexcept (false) override;
 
   virtual std::shared_ptr<RootPane> create_root_pane() const;
+
+  std::shared_ptr<laf::ComponentUI> create_ui() override;
 
 public:
   void remove(const std::shared_ptr<Component> &c) override;

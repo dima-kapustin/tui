@@ -6,7 +6,12 @@
 namespace tui {
 
 class MenuItem: public AbstractButton, public MenuElement {
+protected:
+  MenuItem(std::string const& text);
 
+  template<typename T, typename ... Args>
+  requires (is_component_v<T> )
+  friend auto make_component(Args&&...);
 
 public:
   void process_mouse_event(MouseEvent &e, std::vector<std::shared_ptr<MenuElement>> const &path, std::shared_ptr<MenuSelectionManager> const &manager) override;

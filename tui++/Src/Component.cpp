@@ -44,6 +44,10 @@ bool Component::descend_unconditionally_when_validating = false;
 Component::~Component() {
 }
 
+void Component::init() {
+  update_ui();
+}
+
 void Component::paint_border(Graphics &g) {
   if (this->border) {
     this->border->paint_border(*this, g, 0, 0, get_width(), get_height());
@@ -903,13 +907,25 @@ void Component::revalidate() {
   }
 }
 
-void Component::set_tool_tip_text(std::string const& tool_tip_text) {
+void Component::set_tool_tip_text(std::string const &tool_tip_text) {
   this->tool_tip_text = tool_tip_text;
   if (not this->tool_tip_text.value().empty()) {
     ToolTipManager::register_component(shared_from_this());
   } else {
     ToolTipManager::unregister_component(shared_from_this());
   }
+}
+
+void Component::set_ui(std::shared_ptr<laf::ComponentUI> const &ui) {
+  if (this->ui) {
+    this->ui->uninstall_ui(shared_from_this());
+  }
+  this->ui = ui;
+  if (this->ui) {
+    this->ui->install_ui(shared_from_this());
+  }
+  revalidate();
+  repaint();
 }
 
 }

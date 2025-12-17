@@ -3,6 +3,8 @@
 #include <tui++/Graphics.h>
 #include <tui++/FlowLayout.h>
 
+#include <tui++/lookandfeel/LookAndFeel.h>
+
 namespace tui {
 
 Panel::Panel() :
@@ -18,5 +20,10 @@ void Panel::paint(Graphics &g) {
   }
   base::paint(g);
 }
+
+std::shared_ptr<laf::ComponentUI> Panel::create_ui() {
+  return laf::LookAndFeel::get_ui(this);
+}
+
 
 }

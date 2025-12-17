@@ -126,6 +126,7 @@ void Window::hide() {
 }
 
 void Window::init() {
+  Component::init();
   if (this->owner) {
     this->owner->add_owned_window(std::static_pointer_cast<Window>(shared_from_this()));
     set_always_on_top(this->owner->is_always_on_top());

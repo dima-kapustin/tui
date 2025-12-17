@@ -12,6 +12,10 @@ void Frame::init() {
   this->root_pane->set_window_decoration_style(RootPane::FRAME);
 }
 
+std::shared_ptr<laf::ComponentUI> Frame::create_ui() {
+  return laf::LookAndFeel::get_ui(this);
+}
+
 void Frame::add_impl(const std::shared_ptr<Component> &c, const std::any &constraints, int z_order) noexcept (false) {
   if (c == this->root_pane) {
     base::add_impl(c, constraints, z_order);

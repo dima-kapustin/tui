@@ -152,22 +152,26 @@ void RootPane::set_default_dutton(const std::shared_ptr<Button> &button) {
 }
 
 std::shared_ptr<Component> RootPane::create_class_pane() const {
-  auto glass_pane = std::make_shared<Panel>();
+  auto glass_pane = make_component<Panel>();
   glass_pane->set_visible(false);
   glass_pane->set_opaque(false);
   return glass_pane;
 }
 
 std::shared_ptr<LayeredPane> RootPane::create_layered_pane() const {
-  return std::make_shared<LayeredPane>();
+  return make_component<LayeredPane>();
 }
 
 std::shared_ptr<Component> RootPane::create_content_pane() const {
-  return std::make_shared<Panel>(std::make_shared<BorderLayout>());
+  return make_component<Panel>(std::make_shared<BorderLayout>());
 }
 
 std::shared_ptr<Layout> RootPane::create_root_layout() const {
   return std::make_shared<RootLayout>();
+}
+
+std::shared_ptr<laf::ComponentUI> RootPane::create_ui() {
+  return laf::LookAndFeel::get_ui(this);
 }
 
 std::shared_ptr<RootPane> get_root_pane(const std::shared_ptr<Component> &c) {

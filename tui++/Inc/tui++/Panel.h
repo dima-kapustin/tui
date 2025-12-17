@@ -16,6 +16,9 @@ public:
 
 public:
   void paint(Graphics &g);
+
+protected:
+  std::shared_ptr<laf::ComponentUI> create_ui() override;
 };
 
 }
