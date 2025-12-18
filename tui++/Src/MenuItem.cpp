@@ -61,4 +61,9 @@ void MenuItem::set_model(std::shared_ptr<ButtonModel> const &model) {
   model->make_menu_item();
 }
 
+void MenuItem::configure_properties_from_action() {
+  base::configure_properties_from_action();
+  set_accelerator(this->action->get_accelerator());
+}
+
 }

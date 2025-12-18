@@ -65,6 +65,8 @@ protected:
   bool always_on_top() const override {
     return true;
   }
+
+  void configure_properties_from_action() override;
 };
 
 }

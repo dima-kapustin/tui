@@ -77,6 +77,18 @@ void AbstractButton::action_property_changed(PropertyChangeEvent &e) {
   }
 }
 
+void AbstractButton::configure_properties_from_action() {
+  set_mnemonic(this->action->get_mnemonic());
+  set_text(not get_hide_action_text() ? this->action->get_name() : std::string { });
+  set_tool_tip_text(this->action->get_short_description());
+  set_action_command(this->action->get_action_command());
+  set_enabled_from_action();
+  set_displayed_mnemonic_index_from_action();
+  if (should_update_selected_state_from_action()) {
+    set_selected_from_action();
+  }
+}
+
 void AbstractButton::set_action(const std::shared_ptr<Action> &action) {
   static_assert(detail::has_bool_operator_v<std::shared_ptr<Action>>);
   if (this->action != action) {
@@ -87,15 +99,7 @@ void AbstractButton::set_action(const std::shared_ptr<Action> &action) {
       old_action->remove_property_change_listener(this->action_property_change_listener);
     }
 
-    set_mnemonic(this->action->get_mnemonic());
-    set_text(not get_hide_action_text() ? this->action->get_name() : std::string { });
-    set_tool_tip_text(this->action->get_short_description());
-    set_action_command(this->action->get_action_command());
-    set_enabled_from_action();
-    set_displayed_mnemonic_index_from_action();
-    if (should_update_selected_state_from_action()) {
-      set_selected_from_action();
-    }
+    configure_properties_from_action();
 
     if (action) {
       add_listener(this->action.value());

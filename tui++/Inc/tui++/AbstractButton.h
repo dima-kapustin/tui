@@ -15,6 +15,7 @@ namespace tui {
 class AbstractButton: public ComponentExtension<Component, ChangeEvent, ItemEvent, ActionEvent> {
   using base = ComponentExtension<Component, ChangeEvent, ItemEvent, ActionEvent>;
 
+protected:
   Property<std::shared_ptr<Action>> action { this, "action" };
   Property<std::shared_ptr<ButtonModel>> model { this, "model" };
   Property<std::string> text { this, "text" };
@@ -65,6 +66,8 @@ protected:
   }
 
   void add_impl(const std::shared_ptr<Component> &c, const std::any &constraints, int z_order) override;
+
+  virtual void configure_properties_from_action();
 
 public:
   std::shared_ptr<ButtonModel> get_model() const {

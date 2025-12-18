@@ -15,7 +15,7 @@ public:
   constexpr static auto LONG_DESCRIPTION = "LongDescription";
   constexpr static auto ACTION_COMMAND = "ActionCommand";
   constexpr static auto MNEMONIC = "Mnemonic";
-  constexpr static auto ACCELERATION = "Acceleration";
+  constexpr static auto ACCELERATOR = "Accelerator";
   constexpr static auto SELECTED = "Selected";
   constexpr static auto DISPLAYED_MNEMONIC_INDEX = "DisplayedMnemonicIndex";
 
@@ -72,12 +72,12 @@ public:
     this->mnemonic = mnemonic;
   }
 
-  KeyStroke const& get_acceleration() const {
-    return this->acceleration;
+  KeyStroke const& get_accelerator() const {
+    return this->accelerator;
   }
 
-  void set_acceleration(KeyStroke const &acceleration) {
-    this->acceleration = acceleration;
+  void set_accelerator(KeyStroke const &accelerator) {
+    this->accelerator = accelerator;
   }
 
   bool is_selected() const {
@@ -103,7 +103,7 @@ private:
   Property<std::string> long_description { this, LONG_DESCRIPTION };
   Property<ActionKey> action_command { this, ACTION_COMMAND };
   Property<Char> mnemonic { this, MNEMONIC };
-  Property<KeyStroke> acceleration { this, ACCELERATION };
+  Property<KeyStroke> accelerator { this, ACCELERATOR };
   Property<bool> selected { this, SELECTED };
   Property<int> displayed_mnemonic_index { this, DISPLAYED_MNEMONIC_INDEX, -1 };
 };
