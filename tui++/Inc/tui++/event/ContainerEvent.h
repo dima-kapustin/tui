@@ -20,4 +20,6 @@ public:
   }
 };
 
+using ContainerListener = std::function<void(ContainerEvent &e)>;
+
 }

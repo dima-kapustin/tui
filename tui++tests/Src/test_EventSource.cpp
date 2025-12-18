@@ -63,16 +63,16 @@ void test_EventSource() {
   std::function fg = g;
   assert(*fg.target<void (*)(MousePressEvent&)>() == g);
 
-  auto mouse_listener = [&fg](MousePressEvent &e) {
+  auto mouse_press_listener = [&fg](MousePressEvent &e) {
   };
 
-  static_assert(std::is_convertible_v<decltype(mouse_listener), FunctionalEventListener<MousePressEvent>>);
+  static_assert(std::is_convertible_v<decltype(mouse_press_listener), FunctionalEventListener<MousePressEvent>>);
 
-  auto mouse_listener2 = [&fg](MousePressEvent &e) {
+  auto mouse_press_listener_2 = [&fg](MousePressEvent &e) {
   };
 
 // std::function uses typeid() in template<F> std::function::target();
-  static_assert(typeid(mouse_listener) != typeid(mouse_listener2));
+  static_assert(typeid(mouse_press_listener) != typeid(mouse_press_listener_2));
 
   auto event_source_b = std::make_unique<EventSource_B>();
   auto ml = std::make_shared<ML>();
@@ -80,7 +80,7 @@ void test_EventSource() {
   event_source_b->add_listener(ml);
   assert(event_source_b->get_mouse_event_listener_count() == 1);
 
-  event_source_b->add_listener(mouse_listener);
+  event_source_b->add_listener(mouse_press_listener);
   assert(event_source_b->get_mouse_event_listener_count() == 2);
 
   event_source_b->add_listener(std::static_pointer_cast<EventListener<MousePressEvent>>(ml));
@@ -95,13 +95,13 @@ void test_EventSource() {
   event_source_b->add_listener(f);
   assert(event_source_b->get_mouse_event_listener_count() == 4);
 
-  event_source_b->add_listener(MousePressEvent::MOUSE_PRESSED, mouse_listener);
+  event_source_b->add_listener(MousePressEvent::MOUSE_PRESSED, mouse_press_listener);
   assert(event_source_b->get_mouse_event_listener_count() == 5);
 
-  event_source_b->add_listener(MousePressEvent::MOUSE_RELEASED, mouse_listener);
+  event_source_b->add_listener(MousePressEvent::MOUSE_RELEASED, mouse_press_listener);
   assert(event_source_b->get_mouse_event_listener_count() == 5);
 
-  event_source_b->add_listener(MousePressEvent::MOUSE_RELEASED, mouse_listener2);
+  event_source_b->add_listener(MousePressEvent::MOUSE_RELEASED, mouse_press_listener_2);
   assert(event_source_b->get_mouse_event_listener_count() == 6);
 
   event_source_b->add_listener(MousePressEvent::MOUSE_PRESSED, [](MousePressEvent &e) {
@@ -112,10 +112,10 @@ void test_EventSource() {
   });
   assert(event_source_b->get_mouse_event_listener_count() == 8);
 
-  event_source_b->remove_listener(MousePressEvent::MOUSE_PRESSED, mouse_listener);
+  event_source_b->remove_listener(MousePressEvent::MOUSE_PRESSED, mouse_press_listener);
   assert(event_source_b->get_mouse_event_listener_count() == 8);
 
-  event_source_b->remove_listener(mouse_listener);
+  event_source_b->remove_listener(mouse_press_listener);
   assert(event_source_b->get_mouse_event_listener_count() == 7);
 
   event_source_b->remove_listener(std::static_pointer_cast<EventListener<MousePressEvent>>(ml));

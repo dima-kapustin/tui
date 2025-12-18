@@ -5,6 +5,12 @@
 
 namespace tui {
 
+void AbstractButton::init() {
+  base::init();
+  set_alignment_x(LEFT_ALIGNMENT);
+  set_alignment_y(CENTER_ALIGNMENT);
+}
+
 void AbstractButton::add_impl(const std::shared_ptr<Component> &c, const std::any &constraints, int z_order) {
   if (not this->layout) {
     set_layout(std::make_shared<OverlayLayout>(this));

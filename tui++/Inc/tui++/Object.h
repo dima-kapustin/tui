@@ -315,6 +315,10 @@ public:
   bool operator==(const std::optional<value_type> &other) const {
     return this->optional == other;
   }
+
+  bool operator==(const value_type &other) const {
+    return this->optional.has_value() and this->optional.value() == other;
+  }
 };
 
 }

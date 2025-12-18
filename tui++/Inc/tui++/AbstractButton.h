@@ -5,6 +5,11 @@
 #include <tui++/Component.h>
 #include <tui++/ButtonModel.h>
 
+#include <tui++/VerticalAlignment.h>
+#include <tui++/HorizontalAlignment.h>
+#include <tui++/VerticalTextPosition.h>
+#include <tui++/HorizontalTextPosition.h>
+
 namespace tui {
 
 class AbstractButton: public ComponentExtension<Component, ChangeEvent, ItemEvent, ActionEvent> {
@@ -15,6 +20,14 @@ class AbstractButton: public ComponentExtension<Component, ChangeEvent, ItemEven
   Property<std::string> text { this, "text" };
   Property<bool> hide_action_text { this, "hide-action-text" };
   Property<int> displayed_mnemonic_index { this, "displayed-mnemonic-index", -1 };
+  Property<bool> focus_painted { this, "focus-painted", true };
+  Property<bool> border_painted { this, "border-painted", true };
+
+  Property<VerticalAlignment> vertical_alignment { this, "vertical-alignment", VerticalAlignment::CENTER };
+  Property<HorizontalAlignment> horizontal_alignment { this, "horizontal-alignment", HorizontalAlignment::CENTER };
+
+  Property<VerticalTextPosition> vertical_text_position { this, "vertical-text-position", VerticalTextPosition::CENTER };
+  Property<HorizontalTextPosition> horizontal_text_position { this, "horizontal-text-position", HorizontalTextPosition::TRAILING };
 
   ChangeListener change_listener = std::bind(state_changed, this, std::placeholders::_1);
   ItemListener item_listener = std::bind(item_state_changed, this, std::placeholders::_1);
@@ -31,6 +44,15 @@ class AbstractButton: public ComponentExtension<Component, ChangeEvent, ItemEven
   } flags { };
 
 protected:
+  AbstractButton() {
+  }
+
+  AbstractButton(std::string const &text) {
+    this->text = text;
+  }
+
+  void init() override;
+
   using base::fire_event;
 
   void state_changed(ChangeEvent &e);
@@ -49,7 +71,7 @@ public:
     return this->model;
   }
 
-  void set_model(std::shared_ptr<ButtonModel> const &model);
+  virtual void set_model(std::shared_ptr<ButtonModel> const &model);
 
   void set_enabled(bool value) override {
     if (not value and this->model->is_rollover()) {
@@ -120,6 +142,76 @@ public:
   }
 
   void set_mnemonic(Char const &mnemonic);
+
+  bool is_focus_painted() const {
+    return this->focus_painted;
+  }
+
+  void set_focus_painted(bool value) {
+    if (this->focus_painted != value) {
+      this->focus_painted = value;
+      revalidate();
+      repaint();
+    }
+  }
+
+  bool is_border_painted() const {
+    return this->border_painted;
+  }
+
+  void set_border_painted(bool value) {
+    if (this->border_painted != value) {
+      this->border_painted = value;
+      revalidate();
+      repaint();
+    }
+  }
+
+  VerticalAlignment get_vertical_alignment() const {
+    return this->vertical_alignment;
+  }
+
+  void set_vertical_alignment(VerticalAlignment value) {
+    if (this->vertical_alignment != value) {
+      this->vertical_alignment = value;
+      repaint();
+    }
+  }
+
+  HorizontalAlignment get_horizontal_alignment() const {
+    return this->horizontal_alignment;
+  }
+
+  void set_horizontal_alignment(HorizontalAlignment value) {
+    if (this->horizontal_alignment != value) {
+      this->horizontal_alignment = value;
+      repaint();
+    }
+  }
+
+  VerticalTextPosition get_vertical_text_position() const {
+    return this->vertical_text_position;
+  }
+
+  void set_vertical_text_position(VerticalTextPosition value) {
+    if (this->vertical_text_position != value) {
+      this->vertical_text_position = value;
+      revalidate();
+      repaint();
+    }
+  }
+
+  HorizontalTextPosition get_horizontal_text_position() const {
+    return this->horizontal_text_position;
+  }
+
+  void set_horizontal_text_position(HorizontalTextPosition value) {
+    if (this->horizontal_text_position != value) {
+      this->horizontal_text_position = value;
+      revalidate();
+      repaint();
+    }
+  }
 
 private:
   void update_mnemonic_properties();

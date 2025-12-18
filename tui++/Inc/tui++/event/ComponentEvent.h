@@ -2,6 +2,8 @@
 
 #include <tui++/event/Event.h>
 
+#include <functional>
+
 namespace tui {
 
 class Component;
@@ -30,5 +32,7 @@ public:
 
   std::shared_ptr<Component> component() const;
 };
+
+using ComponentListener = std::function<void(ComponentEvent &e)>;
 
 }

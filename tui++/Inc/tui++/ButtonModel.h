@@ -109,6 +109,8 @@ private:
   void make_menu_item() {
     this->state.is_menu_item = true;
   }
+
+  friend class MenuItem;
 };
 
 }

@@ -4,3 +4,4 @@
 build
 *.user
 /build.log
+/.cache

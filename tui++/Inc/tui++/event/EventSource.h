@@ -300,33 +300,33 @@ class MultipleEventSource: virtual public MultipleEventSourceBase, virtual prote
   }
 
   template<typename E, typename ... Es>
-  void process_event(Event &e) {
+  void invoke_process_event(Event &e) {
     if (event_type_v<E> == e.id.type) {
       SingleEventSource<E>::process_event(*dynamic_cast<E*>(&e));
     } else if constexpr (sizeof...(Es)) {
-      process_event<Es...>(e);
+      invoke_process_event<Es...>(e);
     }
   }
 
 protected:
   void process_event(Event &e) {
-    process_event<Events...>(e);
+    invoke_process_event<Events...>(e);
   }
+
+  using SingleEventSource<Events>::process_event...;
 
   template<typename Event, typename ... Args>
   requires (is_one_of_v<Event, Events...> )
   void fire_event(Args &&...args) {
     auto e = Event { std::forward<Args>(args)... };
-    SingleEventSource<Event>::process_event(e);
+    process_event(e);
   }
 
   template<typename Event>
   requires (is_one_of_v<Event, Events...> )
   void fire_event(Event &e) {
-    SingleEventSource<Event>::process_event(e);
+    process_event(e);
   }
-
-  using SingleEventSource<Events>::process_event...;
 
   template<typename Event>
   requires (is_one_of_v<Event, Events...> )
@@ -407,6 +407,9 @@ using EventSource = detail::MultipleEventSource<Events...>;
 template<typename BaseEventSource, typename ...Events>
 class EventSourceExtension: public BaseEventSource, EventSource<Events...> {
 protected:
+  using BaseEventSource::process_event;
+  using EventSource<Events...>::process_event;
+
   using BaseEventSource::get_event_listener_count;
   using EventSource<Events...>::get_event_listener_count;
 

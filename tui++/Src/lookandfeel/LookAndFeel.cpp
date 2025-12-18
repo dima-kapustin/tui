@@ -7,10 +7,6 @@
 
 namespace tui::laf {
 
-  std::shared_ptr<RootPaneUI> LookAndFeel::create_ui(RootPane *c) {
-  return {};
-}
-
 std::shared_ptr<FrameUI> LookAndFeel::create_ui(Frame *c) {
   return {};
 }
@@ -20,6 +16,14 @@ std::shared_ptr<PanelUI> LookAndFeel::create_ui(Panel *c) {
 }
 
 std::shared_ptr<ButtonUI> LookAndFeel::create_ui(Button *c) {
+  return {};
+}
+
+std::shared_ptr<MenuItemUI> LookAndFeel::create_ui(MenuItem *c) {
+  return {};
+}
+
+std::shared_ptr<RootPaneUI> LookAndFeel::create_ui(RootPane *c) {
   return {};
 }
 

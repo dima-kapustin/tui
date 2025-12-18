@@ -86,11 +86,11 @@ protected:
   mutable Property<std::optional<Dimension>> maximum_size { this, "maximum-size" };
   mutable Property<std::optional<Dimension>> preferred_size { this, "preferred-size" };
 
-  /**
-   * A flag that is set to true when the container is laid out, and set to false when a component is added or removed from the container
-   * (indicating that it needs to be laid out again).
-   */
-  bool valid = false;
+  struct {
+    unsigned is_valid :1;
+    unsigned is_alignment_x_set :1;
+    unsigned is_alignment_y_set :1;
+  } flags;
 
   Property<bool> enabled { this, "enabled" };
   Property<bool> visible { this, "visible" };
@@ -166,7 +166,7 @@ private:
   }
 
   void validate_tree() {
-    if (not this->valid or descend_unconditionally_when_validating) {
+    if (not this->flags.is_valid or descend_unconditionally_when_validating) {
       do_layout();
       for (auto &&c : this->components) {
         if (not c->is_valid() or descend_unconditionally_when_validating) {
@@ -178,7 +178,7 @@ private:
         }
       }
     }
-    this->valid = true;
+    this->flags.is_valid = true;
   }
 
   void validate_unconditionally() {
@@ -371,6 +371,10 @@ protected:
     return {};
   }
 
+  virtual bool always_on_top() const {
+    return false;
+  }
+
   friend class Window;
   friend class KeyboardFocusManager;
   friend class KeyboardManager;
@@ -547,7 +551,7 @@ public:
    * @return a dimension object indicating this component's preferred size
    */
   Dimension get_preferred_size() const {
-    if (not this->valid and not this->preferred_size.has_value()) {
+    if (not this->flags.is_valid and not this->preferred_size.has_value()) {
       std::unique_lock lock(tree_mutex);
       if (this->layout) {
         this->preferred_size = this->layout->get_preferred_layout_size(shared_from_this());
@@ -561,7 +565,7 @@ public:
   Dimension get_minimum_size() const {
     if (not this->layout) {
       return this->size;
-    } else if (not this->valid or not this->minimum_size.has_value()) {
+    } else if (not this->flags.is_valid or not this->minimum_size.has_value()) {
       this->minimum_size = this->layout->get_minimum_layout_size(shared_from_this());
     }
     return this->minimum_size.value_or(Dimension {});
@@ -570,33 +574,44 @@ public:
   Dimension get_maximum_size() const {
     if (not this->layout) {
       return this->size;
-    } else if (not this->valid or not this->maximum_size.has_value()) {
+    } else if (not this->flags.is_valid or not this->maximum_size.has_value()) {
       this->maximum_size = this->layout->get_maximum_layout_size(shared_from_this());
     }
     return this->maximum_size.value_or(Dimension {});
   }
 
   float get_alignment_x() const {
-    if (this->layout) {
-      std::unique_lock lock(tree_mutex);
-      return this->layout->get_layout_alignment_x(shared_from_this());
-    } else {
-      return this->alignment_x;
+    if (not this->flags.is_alignment_x_set) {
+      if (this->layout) {
+        std::unique_lock lock(tree_mutex);
+        return this->layout->get_layout_alignment_x(shared_from_this());
+      }
     }
+    return this->alignment_x;
   }
 
-  /**
-   * Returns the alignment along the y axis. This specifies how the component would like to be aligned relative to other components. The
-   * value should be a number between 0 and 1 where 0 represents alignment along the origin, 1 is aligned the furthest away from the
-   * origin, 0.5 is centered, etc.
-   */
+  static float to_valid_alignment(float value) {
+    return value > 1.0f ? 1.0f : value < 0.0f ? 0.0f : value;
+  }
+
+  void set_alignment_x(float value) {
+    this->alignment_x = to_valid_alignment(value);
+    this->flags.is_alignment_x_set = true;
+  }
+
   float get_alignment_y() {
-    if (this->layout) {
-      std::unique_lock lock(tree_mutex);
-      return this->layout->get_layout_alignment_y(shared_from_this());
-    } else {
-      return this->alignment_y;
+    if (not this->flags.is_alignment_y_set) {
+      if (this->layout) {
+        std::unique_lock lock(tree_mutex);
+        return this->layout->get_layout_alignment_y(shared_from_this());
+      }
     }
+    return this->alignment_y;
+  }
+
+  void set_alignment_y(float value) {
+    this->alignment_y = to_valid_alignment(value);
+    this->flags.is_alignment_y_set = true;
   }
 
   bool has_children() const {
@@ -643,7 +658,7 @@ public:
   bool is_showing() const;
 
   bool is_valid() const {
-    return this->valid;
+    return this->flags.is_valid;
   }
 
   virtual bool is_validate_root() const {
@@ -805,7 +820,7 @@ public:
   }
 
   void invalidate() {
-    this->valid = false;
+    this->flags.is_valid = false;
 
     if (not is_validate_root()) {
       if (auto parent = this->parent.lock()) {
@@ -815,7 +830,7 @@ public:
   }
 
   void validate() {
-    if (not this->valid or descend_unconditionally_when_validating) {
+    if (not this->flags.is_valid or descend_unconditionally_when_validating) {
       validate_tree();
     }
   }
