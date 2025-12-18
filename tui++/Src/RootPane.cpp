@@ -177,7 +177,7 @@ std::shared_ptr<laf::RootPaneUI> RootPane::get_ui() const {
 }
 
 std::shared_ptr<laf::ComponentUI> RootPane::create_ui() {
-  return laf::LookAndFeel::get_ui(this);
+  return laf::LookAndFeel::create_ui(this);
 }
 
 std::shared_ptr<RootPane> get_root_pane(const std::shared_ptr<Component> &c) {

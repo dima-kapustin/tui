@@ -19,10 +19,10 @@ class RootPaneUI;
 
 class LookAndFeel {
 public:
-  static std::shared_ptr<FrameUI> get_ui(Frame *c);
-  static std::shared_ptr<PanelUI> get_ui(Panel *c);
-  static std::shared_ptr<ButtonUI> get_ui(Button *c);
-  static std::shared_ptr<RootPaneUI> get_ui(RootPane *c);
+  static std::shared_ptr<FrameUI> create_ui(Frame *c);
+  static std::shared_ptr<PanelUI> create_ui(Panel *c);
+  static std::shared_ptr<ButtonUI> create_ui(Button *c);
+  static std::shared_ptr<RootPaneUI> create_ui(RootPane *c);
 };
 
 }

@@ -8,7 +8,7 @@ std::shared_ptr<laf::ButtonUI> Button::get_ui() const {
 }
 
 std::shared_ptr<laf::ComponentUI> Button::create_ui() {
-  return laf::LookAndFeel::get_ui(this);
+  return laf::LookAndFeel::create_ui(this);
 }
 
 }

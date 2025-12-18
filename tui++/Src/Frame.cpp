@@ -19,7 +19,7 @@ std::shared_ptr<laf::FrameUI> Frame::get_ui() const {
 }
 
 std::shared_ptr<laf::ComponentUI> Frame::create_ui() {
-  return laf::LookAndFeel::get_ui(this);
+  return laf::LookAndFeel::create_ui(this);
 }
 
 void Frame::add_impl(const std::shared_ptr<Component> &c, const std::any &constraints, int z_order) noexcept (false) {
