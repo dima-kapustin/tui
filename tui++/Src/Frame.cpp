@@ -3,6 +3,8 @@
 #include <tui++/RootPane.h>
 #include <tui++/BorderLayout.h>
 
+#include <tui++/lookandfeel/FrameUI.h>
+
 namespace tui {
 
 void Frame::init() {
@@ -10,6 +12,10 @@ void Frame::init() {
   enable_events(KEY_EVENT_MASK | WINDOW_EVENT_MASK);
   set_root_pane(create_root_pane());
   this->root_pane->set_window_decoration_style(RootPane::FRAME);
+}
+
+std::shared_ptr<laf::FrameUI> Frame::get_ui() const {
+  return std::static_pointer_cast<laf::FrameUI>(this->ui.value());
 }
 
 std::shared_ptr<laf::ComponentUI> Frame::create_ui() {

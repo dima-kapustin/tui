@@ -2,9 +2,10 @@
 
 #include <tui++/Component.h>
 
-#include <tui++/lookandfeel/LookAndFeel.h>
-
 namespace tui {
+namespace laf {
+class RootPaneUI;
+}
 
 class Button;
 class MenuBar;
@@ -62,6 +63,8 @@ public:
   void set_window_decoration_style(WindowDecorationStyle window_decoration_style) {
     this->window_decoration_style = window_decoration_style;
   }
+
+  std::shared_ptr<laf::RootPaneUI> get_ui() const;
 
 protected:
   std::shared_ptr<laf::ComponentUI> create_ui() override;

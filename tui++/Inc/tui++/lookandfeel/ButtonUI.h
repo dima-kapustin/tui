@@ -4,7 +4,7 @@
 
 namespace tui::laf {
 
-class RootPaneUI: public ComponentUI {
+class ButtonUI: public ComponentUI {
 
 };
 

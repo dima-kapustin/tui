@@ -3,9 +3,10 @@
 #include <tui++/Window.h>
 #include <tui++/RootPane.h>
 
-#include <tui++/lookandfeel/LookAndFeel.h>
-
 namespace tui {
+namespace laf {
+class FrameUI;
+}
 
 class MenuBar;
 
@@ -57,6 +58,8 @@ public:
   void set_glass_pane(const std::shared_ptr<Component> &glass_pane) override final;
 
   void set_root_pane(const std::shared_ptr<RootPane> &root_pane);
+
+  std::shared_ptr<laf::FrameUI> get_ui() const;
 };
 
 }

@@ -6,6 +6,8 @@
 #include <tui++/LayeredPane.h>
 #include <tui++/BorderLayout.h>
 
+#include <tui++/lookandfeel/RootPaneUI.h>
+
 namespace tui {
 
 class RootLayout: public Layout {
@@ -168,6 +170,10 @@ std::shared_ptr<Component> RootPane::create_content_pane() const {
 
 std::shared_ptr<Layout> RootPane::create_root_layout() const {
   return std::make_shared<RootLayout>();
+}
+
+std::shared_ptr<laf::RootPaneUI> RootPane::get_ui() const {
+  return std::static_pointer_cast<laf::RootPaneUI>(this->ui.value());
 }
 
 std::shared_ptr<laf::ComponentUI> RootPane::create_ui() {
