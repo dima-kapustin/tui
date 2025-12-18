@@ -723,7 +723,7 @@ public:
     repaint(rect.x, rect.y, rect.width, rect.height);
   }
 
-  void request_focus(FocusEvent::Cause cause) {
+  virtual void request_focus(FocusEvent::Cause cause) {
     request_focus(false, true, cause);
   }
 

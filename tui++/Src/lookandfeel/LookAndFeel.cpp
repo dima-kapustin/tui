@@ -23,4 +23,8 @@ std::shared_ptr<ButtonUI> LookAndFeel::create_ui(Button *c) {
   return {};
 }
 
+std::shared_ptr<ToggleButtonUI> LookAndFeel::create_ui(ToggleButton *c) {
+  return {};
+}
+
 }
