@@ -6,6 +6,7 @@ namespace tui {
 namespace laf {
 class ToggleButtonUI;
 }
+
 class ToggleButton: public AbstractButton {
   using base = AbstractButton;
 public:
