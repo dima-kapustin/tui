@@ -727,7 +727,7 @@ public:
     request_focus(false, true, cause);
   }
 
-  bool request_focus_in_window(FocusEvent::Cause cause) {
+  virtual bool request_focus_in_window(FocusEvent::Cause cause) {
     return request_focus(false, false, cause);
   }
 
