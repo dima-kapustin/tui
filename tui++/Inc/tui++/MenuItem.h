@@ -67,6 +67,7 @@ protected:
   }
 
   void configure_properties_from_action() override;
+  void action_property_changed(PropertyChangeEvent &e) override;
 };
 
 }

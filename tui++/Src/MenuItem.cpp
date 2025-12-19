@@ -66,4 +66,12 @@ void MenuItem::configure_properties_from_action() {
   set_accelerator(this->action->get_accelerator());
 }
 
+void MenuItem::action_property_changed(PropertyChangeEvent &e) {
+  if (e.property_name == Action::ACCELERATOR) {
+    set_accelerator(this->action->get_accelerator());
+  } else {
+    base::action_property_changed(e);
+  }
+}
+
 }

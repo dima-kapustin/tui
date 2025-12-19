@@ -59,7 +59,7 @@ protected:
   void state_changed(ChangeEvent &e);
   void item_state_changed(ItemEvent &e);
   void action_performed(ActionEvent &e);
-  void action_property_changed(PropertyChangeEvent &e);
+  virtual void action_property_changed(PropertyChangeEvent &e);
 
   virtual bool should_update_selected_state_from_action() const {
     return false;
