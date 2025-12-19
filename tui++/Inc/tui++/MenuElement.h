@@ -22,9 +22,9 @@ public:
 
   virtual void menu_selection_changed(bool is_included) = 0;
 
-  virtual std::vector<std::shared_ptr<MenuElement>> get_sub_elements() = 0;
+  virtual std::vector<std::shared_ptr<MenuElement>> get_sub_elements() const = 0;
 
-  virtual std::shared_ptr<Component> get_component() = 0;
+  virtual std::shared_ptr<Component> get_component() const = 0;
 };
 
 }

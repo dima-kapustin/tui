@@ -20,17 +20,19 @@ class MenuItem: public ComponentExtension<AbstractButton, MenuKeyEvent, MenuDrag
 public:
   std::shared_ptr<laf::MenuItemUI> get_ui() const;
 
-  void process_mouse_event(MouseEvent &e, std::vector<std::shared_ptr<MenuElement>> const &path, std::shared_ptr<MenuSelectionManager> const &manager) override;
+  virtual void process_mouse_event(MouseEvent &e, std::vector<std::shared_ptr<MenuElement>> const &path, std::shared_ptr<MenuSelectionManager> const &manager) override;
 
-  void process_key_event(KeyEvent &e, std::vector<std::shared_ptr<MenuElement>> const &path, std::shared_ptr<MenuSelectionManager> const &manager) override;
+  virtual void process_key_event(KeyEvent &e, std::vector<std::shared_ptr<MenuElement>> const &path, std::shared_ptr<MenuSelectionManager> const &manager) override;
 
-  void menu_selection_changed(bool is_included) override;
+  virtual void menu_selection_changed(bool is_included) override;
 
-  std::vector<std::shared_ptr<MenuElement>> get_sub_elements() override;
+  virtual std::vector<std::shared_ptr<MenuElement>> get_sub_elements() const override;
 
-  std::shared_ptr<Component> get_component() override;
+  virtual std::shared_ptr<Component> get_component() const override;
 
-  void set_enabled(bool value) override;
+  virtual void set_enabled(bool value) override;
+
+  virtual void set_model(std::shared_ptr<ButtonModel> const &model) override;
 
   bool is_armed() const {
     return get_model()->is_armed();
@@ -39,8 +41,6 @@ public:
   void set_armed(bool value) {
     get_model()->set_armed(value);
   }
-
-  void set_model(std::shared_ptr<ButtonModel> const &model) override;
 
   std::optional<KeyStroke> const& get_accelerator() const {
     return this->accelerator;
@@ -55,28 +55,31 @@ public:
   }
 
 protected:
-  MenuItem(std::string const &text);
+  MenuItem(std::string const &text = "") :
+      base(text) {
+  }
 
   template<typename T, typename ... Args>
   requires (is_component_v<T> )
   friend auto make_component(Args&&...);
 
-  void init() override;
-  std::shared_ptr<laf::ComponentUI> create_ui() override;
+  virtual void init() override;
+  virtual void init_focusability();
+  virtual std::shared_ptr<laf::ComponentUI> create_ui() override;
 
   using base::process_event;
-  void process_event(FocusEvent &e) override;
-  void process_event(MenuKeyEvent &e) override;
-  void process_event(MenuDragMouseEvent<MousePressEvent> &e) override;
-  void process_event(MenuDragMouseEvent<MouseDragEvent> &e) override;
-  void process_event(MenuDragMouseEvent<MouseOverEvent> &e) override;
+  virtual void process_event(FocusEvent &e) override;
+  virtual void process_event(MenuKeyEvent &e) override;
+  virtual void process_event(MenuDragMouseEvent<MousePressEvent> &e) override;
+  virtual void process_event(MenuDragMouseEvent<MouseDragEvent> &e) override;
+  virtual void process_event(MenuDragMouseEvent<MouseOverEvent> &e) override;
 
-  bool always_on_top() const override {
+  virtual bool always_on_top() const override {
     return true;
   }
 
-  void configure_properties_from_action() override;
-  void action_property_changed(PropertyChangeEvent &e) override;
+  virtual void configure_properties_from_action() override;
+  virtual void action_property_changed(PropertyChangeEvent &e) override;
 };
 
 }

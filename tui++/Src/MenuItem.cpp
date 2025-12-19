@@ -14,10 +14,6 @@ std::shared_ptr<laf::ComponentUI> MenuItem::create_ui() {
   return laf::LookAndFeel::create_ui(this);
 }
 
-MenuItem::MenuItem(std::string const &text) {
-
-}
-
 void MenuItem::process_mouse_event(MouseEvent &e, std::vector<std::shared_ptr<MenuElement>> const &path, std::shared_ptr<MenuSelectionManager> const &manager) {
   switch (e.id) {
   case MousePressEvent::MOUSE_RELEASED: {
@@ -71,21 +67,25 @@ void MenuItem::menu_selection_changed(bool is_included) {
   set_armed(is_included);
 }
 
-std::vector<std::shared_ptr<MenuElement>> MenuItem::get_sub_elements() {
+std::vector<std::shared_ptr<MenuElement>> MenuItem::get_sub_elements() const {
   return {};
 }
 
-std::shared_ptr<Component> MenuItem::get_component() {
-  return shared_from_this();
+std::shared_ptr<Component> MenuItem::get_component() const {
+  return const_cast<MenuItem*>(this)->shared_from_this();
 }
 
 void MenuItem::init() {
-  set_focusable(false);
   set_focus_painted(false);
   set_border_painted(false);
   set_horizontal_text_position(HorizontalTextPosition::TRAILING);
   set_horizontal_alignment(HorizontalAlignment::LEADING);
+  init_focusability();
   update_ui();
+}
+
+void MenuItem::init_focusability() {
+  set_focusable(false);
 }
 
 void MenuItem::process_event(FocusEvent &e) {

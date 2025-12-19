@@ -940,4 +940,18 @@ void Component::set_focusable(bool value) {
   }
 }
 
+Point Component::get_location_on_screen() const {
+  auto lock = get_tree_lock();
+  if (is_showing()) {
+    auto p = get_location();
+    for (auto parent = get_parent(); parent; parent = parent->get_parent()) {
+      p.x += parent->get_x();
+      p.y += parent->get_y();
+    }
+    return p;
+  } else {
+    throw std::runtime_error("component must be showing on the screen to determine its location");
+  }
+}
+
 }

@@ -539,6 +539,8 @@ public:
     return this->location;
   }
 
+  Point get_location_on_screen() const;
+
   const Dimension& get_size() const {
     return this->size;
   }
@@ -1113,7 +1115,7 @@ public:
     this->client_properties[property_name].emplace<ValueType>(value);
   }
 
-  void update_ui() {
+  virtual void update_ui() {
     set_ui(create_ui());
   }
 

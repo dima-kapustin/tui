@@ -406,6 +406,19 @@ using EventSource = detail::MultipleEventSource<Events...>;
 
 template<typename BaseEventSource, typename ...Events>
 class EventSourceExtension: public BaseEventSource, EventSource<Events...> {
+public:
+  using BaseEventSource::add_listener;
+  using BaseEventSource::remove_listener;
+
+  using EventSource<Events...>::add_listener;
+  using EventSource<Events...>::remove_listener;
+
+protected:
+  template<typename ... Args>
+  EventSourceExtension(Args &&...args) :
+      BaseEventSource(std::forward<Args>(args)...) {
+  }
+
 protected:
   using BaseEventSource::process_event;
   using EventSource<Events...>::process_event;
@@ -415,13 +428,6 @@ protected:
 
   using BaseEventSource::fire_event;
   using EventSource<Events...>::fire_event;
-
-public:
-  using BaseEventSource::add_listener;
-  using BaseEventSource::remove_listener;
-
-  using EventSource<Events...>::add_listener;
-  using EventSource<Events...>::remove_listener;
 };
 
 }

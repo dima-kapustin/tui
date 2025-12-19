@@ -45,10 +45,7 @@ protected:
   } flags { };
 
 protected:
-  AbstractButton() {
-  }
-
-  AbstractButton(std::string const &text) {
+  AbstractButton(std::string const &text = "") {
     this->text = text;
   }
 
@@ -56,9 +53,9 @@ protected:
 
   using base::fire_event;
 
-  void state_changed(ChangeEvent &e);
-  void item_state_changed(ItemEvent &e);
-  void action_performed(ActionEvent &e);
+  virtual void state_changed(ChangeEvent &e);
+  virtual void item_state_changed(ItemEvent &e);
+  virtual void action_performed(ActionEvent &e);
   virtual void action_property_changed(PropertyChangeEvent &e);
 
   virtual bool should_update_selected_state_from_action() const {
