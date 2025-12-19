@@ -29,6 +29,8 @@ protected:
       ComponentEvent(source, id, when), modifiers(modifiers) {
   }
 
+  InputEvent(InputEvent const&) = default;
+
 public:
   Modifiers modifiers;
 };

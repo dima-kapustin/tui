@@ -15,8 +15,8 @@ std::atomic<std::shared_ptr<Window>> KeyboardFocusManager::focused_window;
 std::atomic<std::shared_ptr<Window>> KeyboardFocusManager::active_window;
 std::atomic<std::shared_ptr<Component>> KeyboardFocusManager::current_focus_cycle_root;
 std::atomic<std::shared_ptr<FocusTraversalPolicy>> KeyboardFocusManager::default_focus_traversal_policy { std::make_shared<DefaultFocusTraversalPolicy>() };
-std::atomic<std::weak_ptr<Component>> KeyboardFocusManager::realOppositeComponent;
-std::atomic<std::weak_ptr<Window>> KeyboardFocusManager::realOppositeWindow;
+std::atomic<std::weak_ptr<Component>> KeyboardFocusManager::real_opposite_component;
+std::atomic<std::weak_ptr<Window>> KeyboardFocusManager::real_opposite_window;
 std::atomic<std::shared_ptr<Component>> KeyboardFocusManager::restoreFocusTo;
 std::atomic<unsigned> KeyboardFocusManager::in_send_event = false;
 
@@ -179,7 +179,7 @@ bool KeyboardFocusManager::dispatch_event(Event &e) {
 
     restoreFocusTo = nullptr;
 
-    auto oppositeWindow = realOppositeWindow.load().lock();
+    auto oppositeWindow = real_opposite_window.load().lock();
     if (oppositeWindow != we.opposite_window) {
       redispatch_event<WindowEvent>(newFocusedWindow, WindowEvent::WINDOW_GAINED_FOCUS, oppositeWindow);
     } else {
@@ -276,9 +276,9 @@ bool KeyboardFocusManager::dispatch_event(Event &e) {
     e.source = currentFocusedWindow;
 
     if (oppositeWindow) {
-      realOppositeWindow = currentFocusedWindow;
+      real_opposite_window = currentFocusedWindow;
     } else {
-      realOppositeWindow.store( { });
+      real_opposite_window.store( { });
     }
 
     redispatch_event(currentFocusedWindow, e);
@@ -348,7 +348,7 @@ bool KeyboardFocusManager::dispatch_event(Event &e) {
       set_permanent_focus_owner(newFocusOwner);
     }
 
-    auto oppositeComponent = realOppositeComponent.load().lock();
+    auto oppositeComponent = real_opposite_component.load().lock();
     if (oppositeComponent and oppositeComponent != fe.opposite) {
       // TODO
 //          ((AWTEvent) fe).isPosted = true;
@@ -386,9 +386,9 @@ bool KeyboardFocusManager::dispatch_event(Event &e) {
     fe.source = currentFocusOwner;
 
     if (fe.opposite) {
-      realOppositeComponent = currentFocusOwner;
+      real_opposite_component = currentFocusOwner;
     } else {
-      realOppositeComponent.store( { });
+      real_opposite_component.store( { });
     }
 
     redispatch_event(currentFocusOwner, fe);
@@ -480,7 +480,7 @@ std::shared_ptr<const std::unordered_set<KeyStroke>> KeyboardFocusManager::get_d
 }
 
 void KeyboardFocusManager::restore_focus(FocusEvent &e, const std::shared_ptr<Window> &new_focused_window) {
-  auto opposite_component = realOppositeComponent.load().lock();
+  auto opposite_component = real_opposite_component.load().lock();
   auto vetoed_component = e.component();
 
   if (new_focused_window and restore_focus(new_focused_window, vetoed_component, false)) {
@@ -492,7 +492,7 @@ void KeyboardFocusManager::restore_focus(FocusEvent &e, const std::shared_ptr<Wi
 }
 
 void KeyboardFocusManager::restore_focus(WindowEvent &e) {
-  auto opposite_window = realOppositeWindow.load().lock();
+  auto opposite_window = real_opposite_window.load().lock();
   if (opposite_window and restore_focus(opposite_window, nullptr, false)) {
     // do nothing, everything is done in restoreFocus()
   } else if (e.opposite_window and restore_focus(e.opposite_window, nullptr, false)) {
@@ -546,4 +546,27 @@ void KeyboardFocusManager::redispatch_event(const std::shared_ptr<Component> &ta
   e.is_being_dispatched_by_focus_manager = false;
 }
 
+void KeyboardFocusManager::clear_most_recent_focus_owner(const std::shared_ptr<Component> &c) {
+  if (c) {
+    auto window = c->with_tree_locked([&c]() {
+      for (auto parent = c->get_parent(); parent; parent = parent->get_parent()) {
+        if (auto window = std::dynamic_pointer_cast<Window>(parent)) {
+          return window;
+        }
+      }
+      return std::shared_ptr<Window> { };
+    });
+
+    if (window) {
+      std::scoped_lock lock(mutex);
+      if (get_most_recent_focus_owner(window) == c) {
+        set_most_recent_focus_owner(window, nullptr);
+      }
+      // Also clear temporary lost component stored in Window
+      if (window->get_temporary_lost_component() == c) {
+        window->set_temporary_lost_component(nullptr);
+      }
+    }
+  }
+}
 }

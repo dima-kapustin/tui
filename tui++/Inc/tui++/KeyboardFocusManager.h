@@ -1,6 +1,7 @@
 #pragma once
 
 #include <map>
+#include <mutex>
 #include <memory>
 #include <atomic>
 
@@ -11,14 +12,15 @@ class Component;
 class FocusTraversalPolicy;
 
 class KeyboardFocusManager {
+  static std::mutex mutex;
   static std::atomic<std::shared_ptr<Component>> focus_owner;
   static std::atomic<std::shared_ptr<Component>> permanent_focus_owner;
   static std::atomic<std::shared_ptr<Window>> focused_window;
   static std::atomic<std::shared_ptr<Window>> active_window;
   static std::atomic<std::shared_ptr<Component>> current_focus_cycle_root;
   static std::atomic<std::shared_ptr<FocusTraversalPolicy>> default_focus_traversal_policy;
-  static std::atomic<std::weak_ptr<Component>> realOppositeComponent;
-  static std::atomic<std::weak_ptr<Window>> realOppositeWindow;
+  static std::atomic<std::weak_ptr<Component>> real_opposite_component;
+  static std::atomic<std::weak_ptr<Window>> real_opposite_window;
   static std::atomic<std::shared_ptr<Component>> restoreFocusTo;
   static std::atomic<unsigned> in_send_event;
 
@@ -144,6 +146,8 @@ public:
   static std::shared_ptr<const std::unordered_set<KeyStroke>> get_default_focus_traversal_keys(FocusTraversalKeys id);
 
   static void redispatch_event(const std::shared_ptr<Component> &target, Event &e);
+
+  static void clear_most_recent_focus_owner(const std::shared_ptr<Component> &c);
 };
 
 }

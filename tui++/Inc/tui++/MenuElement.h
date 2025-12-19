@@ -10,7 +10,8 @@ namespace tui {
 class Component;
 class MenuSelectionManager;
 
-struct MenuElement {
+class MenuElement {
+public:
   virtual ~MenuElement() {
   }
 

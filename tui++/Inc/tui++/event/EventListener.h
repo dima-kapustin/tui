@@ -11,6 +11,24 @@ class EventListener;
 template<typename Event>
 using FunctionalEventListener = std::function<void(Event &e)>;
 
+class ActionEvent;
+class ComponentEvent;
+class ContainerEvent;
+class FocusEvent;
+class ItemEvent;
+class KeyEvent;
+class MouseDragEvent;
+class MouseMoveEvent;
+class MouseOverEvent;
+class MouseClickEvent;
+class MousePressEvent;
+class MouseWheelEvent;
+class WindowEvent;
+
+template<typename MouseEvent>
+requires (std::is_base_of_v<MousePressEvent, MouseEvent> or std::is_base_of_v<MouseDragEvent, MouseEvent> or std::is_base_of_v<MouseOverEvent, MouseEvent>)
+class MenuDragMouseEvent;
+
 template<typename Event>
 class BasicEventListener {
 public:
@@ -101,6 +119,30 @@ public:
   virtual void window_iconified(WindowEvent &e) = 0;
   virtual void window_deiconified(WindowEvent &e) = 0;
   virtual void window_state_changed(WindowEvent &e) = 0;
+};
+
+
+template<typename MouseEvent>
+requires (std::is_base_of_v<MousePressEvent, MouseEvent> or std::is_base_of_v<MouseDragEvent, MouseEvent> or std::is_base_of_v<MouseOverEvent, MouseEvent>)
+class MenuDragMouseListener;
+
+template<>
+class MenuDragMouseListener<MouseOverEvent> : public BasicEventListener<MenuDragMouseEvent<MouseOverEvent>> {
+public:
+  virtual void menu_drag_mouse_entered(MenuDragMouseEvent<MouseOverEvent> &e) = 0;
+  virtual void menu_drag_mouse_exited(MenuDragMouseEvent<MouseOverEvent> &e) = 0;
+};
+
+template<>
+class MenuDragMouseListener<MouseDragEvent> : public BasicEventListener<MenuDragMouseEvent<MouseDragEvent>> {
+public:
+  virtual void menu_drag_mouse_dragged(MenuDragMouseEvent<MouseDragEvent> &e) = 0;
+};
+
+template<>
+class MenuDragMouseListener<MousePressEvent> : public BasicEventListener<MenuDragMouseEvent<MousePressEvent>> {
+public:
+  virtual void menu_drag_mouse_released(MenuDragMouseEvent<MousePressEvent> &e) = 0;
 };
 
 }

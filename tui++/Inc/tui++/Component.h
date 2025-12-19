@@ -90,10 +90,12 @@ protected:
     unsigned is_valid :1;
     unsigned is_alignment_x_set :1;
     unsigned is_alignment_y_set :1;
+    unsigned is_focus_traversable_overridden :1;
   } flags;
 
   Property<bool> enabled { this, "enabled" };
   Property<bool> visible { this, "visible" };
+  Property<bool> focusable { this, "focusable" };
   Property<std::optional<Cursor>> cursor { this, "cursor" };
   Property<std::optional<Color>> background_color { this, "background-color" };
   Property<std::optional<Color>> foreground_color { this, "foreground-color" };
@@ -218,12 +220,8 @@ protected:
 
   constexpr static auto npos = std::numeric_limits<size_t>::max();
 
-  size_t get_component_index(const std::shared_ptr<const Component> &component) const {
-    return get_component_index(component.get());
-  }
-
   size_t get_component_index(const Component *component) const {
-    for (size_t index = 0; index != this->components.size(); ++index) {
+    for (auto index = 0U; index != this->components.size(); ++index) {
       if (this->components[index].get() == component) {
         return index;
       }
@@ -466,6 +464,10 @@ public:
     return this->components[index];
   }
 
+  size_t get_component_index(const std::shared_ptr<const Component> &component) const {
+    return get_component_index(component.get());
+  }
+
   int get_component_z_order(const std::shared_ptr<const Component> &c) const;
   void set_component_z_order(const std::shared_ptr<Component> &c, int new_z_order);
 
@@ -652,8 +654,10 @@ public:
   }
 
   bool is_focusable() const {
-    return is_enabled() and is_recursively_visible();
+    return this->focusable;
   }
+
+  void set_focusable(bool value);
 
   bool is_showing() const;
 
@@ -935,7 +939,7 @@ public:
   }
 
   template<typename Callable>
-  auto with_tree_locked(Callable &&callable) const -> decltype(callable()) {
+  auto with_tree_locked(Callable &&callable) const -> std::invoke_result_t<Callable> {
     auto lock = get_tree_lock();
     return callable();
   }

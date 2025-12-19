@@ -17,6 +17,8 @@ protected:
 
   ComponentEvent(const std::shared_ptr<Component> &source, unsigned id, const EventClock::time_point &when = EventClock::now());
 
+  ComponentEvent(ComponentEvent const&) = default;
+
 public:
   enum Type : unsigned {
     COMPONENT_SHOWN = event_id_v<EventType::COMPONENT, 0>,

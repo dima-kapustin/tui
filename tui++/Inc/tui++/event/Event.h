@@ -30,7 +30,7 @@ protected:
       id(id), source(source), when(when) {
   }
 
-  Event(const Event&) = delete;
+  Event(const Event&) = default;
   Event(Event&&) = delete;
   Event& operator=(const Event&) = delete;
   Event& operator=(Event&&) = delete;

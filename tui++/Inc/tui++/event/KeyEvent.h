@@ -193,6 +193,9 @@ public:
       return false;
     }
   }
+
+protected:
+  KeyEvent(KeyEvent const& other) = default;
 };
 
 std::string to_string(KeyEvent::KeyCode key_code);

@@ -3,14 +3,18 @@
 #include <tui++/MenuElement.h>
 #include <tui++/AbstractButton.h>
 
+#include <tui++/event/MenuKeyEvent.h>
+#include <tui++/event/MenuDragMouseEvent.h>
+
 namespace tui {
 namespace laf {
 class MenuItemUI;
 }
 
-class MenuItem: public AbstractButton, public MenuElement {
-  using base = AbstractButton;
+class MenuItem: public ComponentExtension<AbstractButton, MenuKeyEvent, MenuDragMouseEvent<MousePressEvent>, MenuDragMouseEvent<MouseDragEvent>, MenuDragMouseEvent<MouseOverEvent>>, public MenuElement {
+  using base = ComponentExtension<AbstractButton, MenuKeyEvent, MenuDragMouseEvent<MousePressEvent>, MenuDragMouseEvent<MouseDragEvent>, MenuDragMouseEvent<MouseOverEvent>>;
 
+  bool is_mouse_dragged = false;
   Property<std::optional<KeyStroke>> accelerator { this, "accelerator" };
 
 public:
@@ -60,7 +64,12 @@ protected:
   void init() override;
   std::shared_ptr<laf::ComponentUI> create_ui() override;
 
+  using base::process_event;
   void process_event(FocusEvent &e) override;
+  void process_event(MenuKeyEvent &e) override;
+  void process_event(MenuDragMouseEvent<MousePressEvent> &e) override;
+  void process_event(MenuDragMouseEvent<MouseDragEvent> &e) override;
+  void process_event(MenuDragMouseEvent<MouseOverEvent> &e) override;
 
   bool always_on_top() const override {
     return true;

@@ -23,14 +23,16 @@ public:
     Point point;
   };
 
+public:
+  bool was_button_down_before() const;
+
 protected:
   template<typename Id>
   constexpr MouseEvent(const std::shared_ptr<Component> &source, const Id &id, Button button, Modifiers modifiers, int x, int y, const EventClock::time_point &when = EventClock::now()) :
       InputEvent(source, id, modifiers, when), button(button), x(x), y(y) {
   }
 
-public:
-  bool was_button_down_before() const;
+  MouseEvent(MouseEvent const&) = default;
 };
 
 constexpr InputEvent::Modifier to_modifier(MouseEvent::Button button) {
@@ -60,6 +62,9 @@ public:
   constexpr Type type() const {
     return Type(std::underlying_type_t<Type>(this->id));
   }
+
+protected:
+  MousePressEvent(MousePressEvent const&) = default;
 };
 
 class MouseOverEvent: public MouseEvent {
@@ -77,6 +82,9 @@ public:
   constexpr Type type() const {
     return Type(std::underlying_type_t<Type>(this->id));
   }
+
+protected:
+  MouseOverEvent(MouseOverEvent const&) = default;
 };
 
 class MouseClickEvent: public MouseEvent {
@@ -90,6 +98,9 @@ public:
   constexpr MouseClickEvent(const std::shared_ptr<Component> &source, Button button, Modifiers modifiers, int x, int y, unsigned click_count, bool is_popup_trigger, const EventClock::time_point &when = EventClock::now()) :
       MouseEvent(source, EventType::MOUSE_CLICK, button, modifiers, x, y, when), click_count(click_count), is_popup_trigger(is_popup_trigger) {
   }
+
+protected:
+  MouseClickEvent(MouseClickEvent const&) = default;
 };
 
 class MouseWheelEvent: public MouseEvent {
@@ -101,6 +112,9 @@ public:
   constexpr MouseWheelEvent(const std::shared_ptr<Component> &source, Modifiers modifiers, int x, int y, int wheel_rotation, const EventClock::time_point &when = EventClock::now()) :
       MouseEvent(source, EventType::MOUSE_WHEEL, NO_BUTTON, modifiers, x, y, when), wheel_rotation(wheel_rotation) {
   }
+
+protected:
+  MouseWheelEvent(MouseWheelEvent const&) = default;
 };
 
 class MouseMoveEvent: public MouseEvent {
@@ -110,6 +124,9 @@ public:
   constexpr MouseMoveEvent(const std::shared_ptr<Component> &source, Modifiers modifiers, int x, int y, const EventClock::time_point &when = EventClock::now()) :
       MouseEvent(source, EventType::MOUSE_MOVE, NO_BUTTON, modifiers, x, y, when) {
   }
+
+protected:
+  MouseMoveEvent(MouseMoveEvent const&) = default;
 };
 
 class MouseDragEvent: public MouseEvent {
@@ -119,6 +136,9 @@ public:
   constexpr MouseDragEvent(const std::shared_ptr<Component> &source, Button button, Modifiers modifiers, int x, int y, const EventClock::time_point &when = EventClock::now()) :
       MouseEvent(source, EventType::MOUSE_DRAG, button, modifiers, x, y, when) {
   }
+
+protected:
+  MouseDragEvent(MouseDragEvent const&) = default;
 };
 
 inline bool MouseEvent::was_button_down_before() const {

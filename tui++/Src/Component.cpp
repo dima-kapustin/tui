@@ -928,4 +928,16 @@ void Component::set_ui(std::shared_ptr<laf::ComponentUI> const &ui) {
   repaint();
 }
 
+void Component::set_focusable(bool value) {
+  this->flags.is_focus_traversable_overridden = true;
+  if (this->focusable != value) {
+    this->focusable = value;
+
+    if (this->focusable and is_focus_owner() and KeyboardFocusManager::is_auto_focus_transfer_enabled()) {
+      transfer_focus(true);
+    }
+    KeyboardFocusManager::clear_most_recent_focus_owner(shared_from_this());
+  }
+}
+
 }
