@@ -1,4 +1,5 @@
 #include <tui++/Menu.h>
+#include <tui++/Screen.h>
 
 #include <tui++/lookandfeel/MenuUI.h>
 
@@ -46,7 +47,67 @@ void Menu::set_popup_menu_visible(bool value) {
 }
 
 Point Menu::get_popup_menu_origin() const {
-  return {};
+  // Figure out the sizes needed to caclulate the menu position
+  auto size = get_size();
+  auto popup_menu_size = this->popup_menu->get_size();
+  // For the first time the menu is popped up,
+  // the size has not yet been initiated
+  if (popup_menu_size.width == 0) {
+    popup_menu_size = this->popup_menu->get_preferred_size();
+  }
+  auto position = get_location_on_screen();
+  auto screen_bounds = Rectangle { { }, get_containing_window()->get_screen()->get_size() };
+  auto x = 0, y = 9;
+  if (std::dynamic_pointer_cast<PopupMenu>(get_parent()) != nullptr) {
+    // We are a submenu (pull-right)
+    int x_offset = 0; //TODO UIManager.getInt("Menu.submenuPopupOffsetX");
+    int y_offset = 0; //TODO UIManager.getInt("Menu.submenuPopupOffsetY");
+
+    if (this->orientation.is_left_to_right()) {
+      x = size.width + x_offset; // Prefer placement to the right
+      if ((position.x + x + popup_menu_size.width) >= (screen_bounds.width + screen_bounds.x) and //
+          (screen_bounds.width - size.width) < 2 * (position.x - screen_bounds.x)) {
+        x = 0 - x_offset - popup_menu_size.width;
+      }
+    } else {
+      x = 0 - x_offset - popup_menu_size.width; // Prefer placement to the left
+      if ((position.x + x < screen_bounds.x) and //
+          (screen_bounds.width - size.width) > 2 * (position.x - screen_bounds.x)) {
+        x = size.width + x_offset;
+      }
+    }
+
+    y = y_offset; // Prefer dropping down
+    if ((position.y + y + popup_menu_size.height) >= (screen_bounds.height + screen_bounds.y) and //
+        (screen_bounds.height - size.height) < 2 * (position.y - screen_bounds.y)) {
+      y = size.height - y_offset - popup_menu_size.height;
+    }
+  } else {
+    // We are a toplevel menu (pull-down)
+    int x_offset = 0; // TODO UIManager.getInt("Menu.menuPopupOffsetX");
+    int y_offset = 0; // TODO UIManager.getInt("Menu.menuPopupOffsetY");
+
+    if (this->orientation.is_left_to_right()) {
+      x = x_offset; // Extend to the right
+      if ((position.x + x + popup_menu_size.width) >= (screen_bounds.width + screen_bounds.x) and //
+          (screen_bounds.width - size.width) < 2 * (position.x - screen_bounds.x)) {
+        x = size.width - x_offset - popup_menu_size.width;
+      }
+    } else {
+      x = size.width - x_offset - popup_menu_size.width; // Extend to the left
+      if ((position.x + x) < screen_bounds.x and //
+          (screen_bounds.width - size.width) > 2 * (position.x - screen_bounds.x)) {
+        x = x_offset;
+      }
+    }
+
+    y = size.height + y_offset; // Prefer dropping down
+    if ((position.y + y + popup_menu_size.height) >= (screen_bounds.height + screen_bounds.y) and //
+        (screen_bounds.height - size.height) < 2 * (position.y - screen_bounds.y)) {
+      y = 0 - y_offset - popup_menu_size.height;   // Otherwise drop 'up'
+    }
+  }
+  return {x, y};
 }
 
 void Menu::set_menu_location(Point const &p) {

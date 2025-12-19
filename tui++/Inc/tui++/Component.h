@@ -193,8 +193,6 @@ private:
 
   std::shared_ptr<Component> find_traversal_root() const;
 
-  std::shared_ptr<Window> get_containing_window() const;
-
   bool is_request_focus_accepted(bool temporary, bool focused_window_change_allowed, FocusEvent::Cause cause);
 
   bool is_parent_of(std::shared_ptr<Component> component) const;
@@ -217,6 +215,8 @@ protected:
 
 protected:
   static bool is_window(const std::shared_ptr<const Component> &component);
+
+  std::shared_ptr<Window> get_containing_window() const;
 
   constexpr static auto npos = std::numeric_limits<size_t>::max();
 
