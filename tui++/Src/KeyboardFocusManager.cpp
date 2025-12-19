@@ -9,6 +9,7 @@
 
 namespace tui {
 
+std::mutex KeyboardFocusManager::mutex;
 std::atomic<std::shared_ptr<Component>> KeyboardFocusManager::focus_owner;
 std::atomic<std::shared_ptr<Component>> KeyboardFocusManager::permanent_focus_owner;
 std::atomic<std::shared_ptr<Window>> KeyboardFocusManager::focused_window;
@@ -569,4 +570,9 @@ void KeyboardFocusManager::clear_most_recent_focus_owner(const std::shared_ptr<C
     }
   }
 }
+
+bool KeyboardFocusManager::is_auto_focus_transfer_enabled() {
+  return true;
+}
+
 }

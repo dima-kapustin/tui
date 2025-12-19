@@ -148,6 +148,8 @@ public:
   static void redispatch_event(const std::shared_ptr<Component> &target, Event &e);
 
   static void clear_most_recent_focus_owner(const std::shared_ptr<Component> &c);
+
+  static bool is_auto_focus_transfer_enabled();
 };
 
 }
