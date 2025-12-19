@@ -27,6 +27,10 @@ public:
   std::shared_ptr<laf::MenuUI> get_ui() const;
   virtual void update_ui() override;
 
+  using base::add;
+  std::shared_ptr<MenuItem> add(std::string const &label);
+  std::shared_ptr<MenuItem> add(std::shared_ptr<Action> const &action);
+
   std::chrono::milliseconds get_delay() const {
     return this->delay;
   }
@@ -51,6 +55,8 @@ protected:
 
   virtual void init() override;
   virtual std::shared_ptr<laf::ComponentUI> create_ui() override;
+
+  virtual void add_impl(const std::shared_ptr<Component> &c, const std::any &constraints, int z_order) override;
 
   virtual void init_focusability() override;
   virtual void state_changed(ChangeEvent &e) override;
