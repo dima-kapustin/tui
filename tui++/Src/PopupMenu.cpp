@@ -59,7 +59,20 @@ void PopupMenu::add_separator() {
 }
 
 void PopupMenu::insert(std::shared_ptr<Component> const &c, size_t index) {
+  auto items = std::vector<std::shared_ptr<Component>> {};
+  if (index < this->components.size()) {
+    items.reserve(this->components.size() - index);
+    for (auto i = index; i < this->components.size(); ++i) {
+      items.emplace_back(this->components[i]);
+      remove(index);
+    }
+  }
 
+  add(c);
+
+  for (auto &&item : items) {
+    add(item);
+  }
 }
 
 std::shared_ptr<MenuItem> PopupMenu::insert(std::shared_ptr<Action> const &action, size_t index) {
