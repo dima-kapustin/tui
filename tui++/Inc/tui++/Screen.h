@@ -155,23 +155,3 @@ public:
 };
 
 }
-
-#include <tui++/Component.h>
-
-namespace tui {
-
-template<typename T, typename ... Args>
-inline void Component::post_event(Args &&... args) {
-  if (is_event_enabled<T>()) {
-    Screen::post<T>(shared_from_this(), std::forward<Args>(args)...);
-  }
-}
-
-template<typename T, typename DerivedComponent, typename ... Args>
-inline void Component::post_event(Args &&... args) {
-  if (is_event_enabled<T>()) {
-    Screen::post<T>(std::dynamic_pointer_cast<DerivedComponent>(shared_from_this()), std::forward<Args>(args)...);
-  }
-}
-
-}

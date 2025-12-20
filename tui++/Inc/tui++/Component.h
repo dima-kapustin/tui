@@ -40,8 +40,8 @@ class KeyboardManager;
 template<typename T>
 constexpr bool is_component_v = std::is_base_of_v<Component, T>;
 
-class Component: public Object, public std::enable_shared_from_this<Component>, public EventSource<ComponentEvent, FocusEvent, HierarchyEvent, HierarchyBoundsEvent, KeyEvent, MousePressEvent, MouseClickEvent, MouseMoveEvent, MouseOverEvent, MouseWheelEvent> {
-  using base = EventSource<ComponentEvent, FocusEvent, HierarchyEvent, HierarchyBoundsEvent, KeyEvent, MousePressEvent, MouseClickEvent, MouseMoveEvent, MouseOverEvent, MouseWheelEvent>;
+class Component: public Object, public std::enable_shared_from_this<Component>, public EventSource<ComponentEvent, ContainerEvent, FocusEvent, HierarchyEvent, HierarchyBoundsEvent, KeyEvent, MousePressEvent, MouseClickEvent, MouseMoveEvent, MouseOverEvent, MouseWheelEvent> {
+  using base = EventSource<ComponentEvent, ContainerEvent, FocusEvent, HierarchyEvent, HierarchyBoundsEvent, KeyEvent, MousePressEvent, MouseClickEvent, MouseMoveEvent, MouseOverEvent, MouseWheelEvent>;
 
 protected:
   static std::recursive_mutex tree_mutex;
@@ -243,9 +243,6 @@ protected:
   virtual void add_impl(const std::shared_ptr<Component> &c, const std::any &constraints, int z_order) noexcept (false);
 
   virtual void add_notify();
-
-  void remove_impl(const std::shared_ptr<Component> &component);
-
   virtual void remove_notify();
 
   void add_delicately(const std::shared_ptr<Component> &c, const std::shared_ptr<Component> &parent, int z_order);
@@ -354,12 +351,6 @@ protected:
   virtual void create_hierarchy_events(HierarchyEvent::Type type, const std::shared_ptr<Component> &changed, const std::shared_ptr<Component> &changed_parent);
   virtual void create_hierarchy_bounds_events(HierarchyBoundsEvent::Type type, const std::shared_ptr<Component> &changed, const std::shared_ptr<Component> &changed_parent);
 
-  template<typename T, typename ... Args>
-  void post_event(Args &&... args);
-
-  template<typename T, typename Component, typename ... Args>
-  void post_event(Args &&... args);
-
   std::shared_ptr<Component> get_mouse_event_target(int x, int y, bool include_self) const;
 
   bool can_be_focus_owner_recursively();
@@ -407,14 +398,8 @@ public:
   /**
    * Removes the specified component from this container.
    */
-  virtual void remove(const std::shared_ptr<Component> &c) {
-    remove_impl(c);
-    if (this->focus_component.lock() == c) {
-      this->focus_component.reset();
-      this->focus_component = get_focus_component();
-    }
-    invalidate();
-  }
+  virtual void remove(const std::shared_ptr<Component> &c);
+  virtual void remove(size_t index);
 
   virtual void dispatch_event(Event &e);
 

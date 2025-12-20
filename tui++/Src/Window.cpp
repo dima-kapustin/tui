@@ -115,7 +115,7 @@ void Window::show() {
   this->in_show = false;
 
   if (not this->opened) {
-    post_event<WindowEvent>(WindowEvent::WINDOW_OPENED);
+    fire_event<WindowEvent>(std::static_pointer_cast<Window>(shared_from_this()), WindowEvent::WINDOW_OPENED);
     this->opened = true;
   }
 }

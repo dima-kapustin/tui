@@ -57,11 +57,6 @@ private:
 
   void to_front();
 
-  template<typename T, typename ... Args>
-  void post_event(Args &&... args) {
-    base::post_event<T, Window>(std::forward<Args>(args)...);
-  }
-
   void enable_events_for_dispatching(EventTypeMask event_mask) {
     if (this->mouse_event_dispatcher) {
       this->mouse_event_dispatcher->enable_events(event_mask);

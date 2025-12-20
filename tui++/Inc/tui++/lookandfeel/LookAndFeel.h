@@ -15,6 +15,8 @@ class MenuBar;
 class MenuItem;
 class RootPane;
 class PopupMenu;
+class PopupMenuSeparator;
+class Separator;
 class ToggleButton;
 }
 
@@ -28,6 +30,8 @@ class MenuBarUI;
 class MenuItemUI;
 class RootPaneUI;
 class PopupMenuUI;
+class PopupMenuSeparatorUI;
+class SeparatorUI;
 class ToggleButtonUI;
 
 class LookAndFeel {
@@ -60,6 +64,8 @@ public:
   static std::shared_ptr<MenuBarUI> create_ui(MenuBar *c);
   static std::shared_ptr<RootPaneUI> create_ui(RootPane *c);
   static std::shared_ptr<PopupMenuUI> create_ui(PopupMenu *c);
+  static std::shared_ptr<PopupMenuSeparatorUI> create_ui(PopupMenuSeparator *c);
+  static std::shared_ptr<SeparatorUI> create_ui(Separator *c);
   static std::shared_ptr<ToggleButtonUI> create_ui(ToggleButton *c);
 };
 

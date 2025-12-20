@@ -9,6 +9,8 @@ namespace laf {
 class PopupMenuUI;
 }
 
+class MenuItem;
+
 class PopupMenu: public Component, public MenuElement {
   using base = Component;
 
@@ -20,6 +22,21 @@ class PopupMenu: public Component, public MenuElement {
 
 public:
   std::shared_ptr<laf::PopupMenuUI> get_ui() const;
+
+  using base::add;
+  std::shared_ptr<MenuItem> add(std::string const &label);
+  std::shared_ptr<MenuItem> add(std::shared_ptr<Action> const &action);
+  std::shared_ptr<MenuItem> add(std::shared_ptr<MenuItem> const &menu_item);
+  void add_separator();
+
+  void insert(std::shared_ptr<Component> const &c, size_t index);
+  std::shared_ptr<MenuItem> insert(std::shared_ptr<Action> const &action, size_t index);
+
+  std::string const& get_label() const {
+    return this->label;
+  }
+
+  void set_label(std::string const& label);
 
   virtual void process_mouse_event(MouseEvent &e, std::vector<std::shared_ptr<MenuElement>> const &path, std::shared_ptr<MenuSelectionManager> const &manager) override;
 
@@ -40,6 +57,8 @@ public:
   using base::show;
   void show(std::shared_ptr<Component> const& invoker, int x, int y);
 
+  std::shared_ptr<PopupMenu> get_root_popup_menu() const;
+
 protected:
   PopupMenu(std::string const &label = "") {
     this->label = label;
@@ -50,6 +69,13 @@ protected:
   friend auto make_component(Args&&...);
 
   virtual std::shared_ptr<laf::ComponentUI> create_ui() override;
+
+  virtual bool always_on_top() const override {
+    return true;
+  }
+
+  bool is_popup_menu() const;
+  std::shared_ptr<MenuItem> create_item(std::shared_ptr<Action> const &action);
 };
 
 }

@@ -12,6 +12,8 @@
 
 namespace tui::laf {
 
+std::unordered_map<std::string_view, std::any> LookAndFeel::properties;
+
 static class TuiTheme {
 public:
   TuiTheme() {
@@ -59,6 +61,14 @@ std::shared_ptr<RootPaneUI> LookAndFeel::create_ui(RootPane *c) {
 }
 
 std::shared_ptr<PopupMenuUI> LookAndFeel::create_ui(PopupMenu *c) {
+  return {};
+}
+
+std::shared_ptr<PopupMenuSeparatorUI> LookAndFeel::create_ui(PopupMenuSeparator *c) {
+  return {};
+}
+
+std::shared_ptr<SeparatorUI> LookAndFeel::create_ui(Separator *c) {
   return {};
 }
 

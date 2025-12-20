@@ -455,7 +455,7 @@ void Component::add_impl(const std::shared_ptr<Component> &c, const std::any &co
   }
 
   if (is_event_enabled(EventType::CONTAINER)) {
-    dispatch_event<ContainerEvent>(ContainerEvent::COMPONENT_ADDED, c);
+    fire_event<ContainerEvent>(shared_from_this(), ContainerEvent::COMPONENT_ADDED, c);
   }
 
   c->create_hierarchy_events(HierarchyEvent::PARENT_CHANGED, c, shared_from_this());
@@ -467,23 +467,39 @@ void Component::add_notify() {
   }
 }
 
-void Component::remove_impl(const std::shared_ptr<Component> &component) {
-  if (is_displayable()) {
-    component->remove_notify();
+void Component::remove_notify() {
+  KeyboardFocusManager::clear_most_recent_focus_owner(shared_from_this());
+  if (KeyboardFocusManager::get_permanent_focus_owner() == shared_from_this()) {
+    KeyboardFocusManager::set_permanent_focus_owner(nullptr);
   }
-
-  if (this->layout) {
-    this->layout->remove_layout_component(component);
-  }
-
-  this->components.erase( //
-      std::remove(this->components.begin(), this->components.end(), component), //
-      this->components.end());
-
-  component->set_parent(nullptr);
 }
 
-void Component::remove_notify() {
+void Component::remove(const std::shared_ptr<Component> &c) {
+  if (auto index = get_component_index(c.get()); index != npos) {
+    remove(index);
+  }
+}
+
+void Component::remove(size_t index) {
+  if (index < this->components.size()) {
+    auto c = this->components[index];
+    if (is_displayable()) {
+      c->remove_notify();
+    }
+
+    if (this->layout) {
+      this->layout->remove_layout_component(c);
+    }
+
+    c->set_parent(nullptr);
+    this->components.erase(std::next(this->components.begin(), index));
+
+    invalidate_if_valid();
+
+    if (is_event_enabled(EventType::HIERARCHY)) {
+      fire_event<HierarchyEvent>(shared_from_this(), HierarchyEvent::DISPLAYABILITY_CHANGED, shared_from_this(), get_parent());
+    }
+  }
 }
 
 void Component::dispatch_event(Event &e) {
@@ -596,7 +612,7 @@ void Component::show() {
     create_hierarchy_events(HierarchyEvent::SHOWING_CHANGED, shared_from_this(), get_parent());
     repaint();
 
-    post_event<ComponentEvent>(ComponentEvent::COMPONENT_SHOWN);
+    fire_event<ComponentEvent>(shared_from_this(), ComponentEvent::COMPONENT_SHOWN);
 
     if (auto parent = get_parent()) {
       parent->invalidate();
@@ -617,7 +633,7 @@ void Component::hide() {
     create_hierarchy_events(HierarchyEvent::SHOWING_CHANGED, shared_from_this(), get_parent());
     repaint();
 
-    post_event<ComponentEvent>(ComponentEvent::COMPONENT_HIDDEN);
+    fire_event<ComponentEvent>(shared_from_this(), ComponentEvent::COMPONENT_HIDDEN);
 
     if (auto parent = get_parent()) {
       parent->invalidate();
@@ -664,14 +680,14 @@ void Component::create_hierarchy_events(HierarchyEvent::Type type, const std::sh
   for (auto &&component : this->components) {
     component->create_hierarchy_events(type, changed, changed_parent);
   }
-  post_event<HierarchyEvent>(type, changed, changed_parent);
+  fire_event<HierarchyEvent>(shared_from_this(), type, changed, changed_parent);
 }
 
 void Component::create_hierarchy_bounds_events(HierarchyBoundsEvent::Type type, const std::shared_ptr<Component> &changed, const std::shared_ptr<Component> &changed_parent) {
   for (auto &&component : this->components) {
     component->create_hierarchy_bounds_events(type, changed, changed_parent);
   }
-  post_event<HierarchyBoundsEvent>(type, changed, changed_parent);
+  fire_event<HierarchyBoundsEvent>(shared_from_this(), type, changed, changed_parent);
 }
 
 std::shared_ptr<Component> Component::get_mouse_event_target(int x, int y, bool include_self) const {
@@ -761,7 +777,7 @@ void Component::add_delicately(const std::shared_ptr<Component> &c, const std::s
     }
 
     if (is_event_enabled(EventType::CONTAINER)) {
-      dispatch_event<ContainerEvent>(ContainerEvent::COMPONENT_ADDED, c);
+      fire_event<ContainerEvent>(shared_from_this(), ContainerEvent::COMPONENT_ADDED, c);
     }
 
     c->create_hierarchy_events(HierarchyEvent::PARENT_CHANGED, c, shared_from_this());
@@ -808,7 +824,7 @@ bool Component::remove_delicately(const std::shared_ptr<Component> &c, const std
 
   if (c->parent.expired()) { // was actually removed
     if (is_event_enabled(EventType::CONTAINER)) {
-      dispatch_event<ContainerEvent>(ContainerEvent::COMPONENT_REMOVED, c);
+      fire_event<ContainerEvent>(shared_from_this(), ContainerEvent::COMPONENT_REMOVED, c);
     }
 
     c->create_hierarchy_events(HierarchyEvent::PARENT_CHANGED, c, shared_from_this());

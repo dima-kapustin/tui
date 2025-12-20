@@ -30,16 +30,15 @@ void Menu::init_focusability() {
 }
 
 std::shared_ptr<MenuItem> Menu::add(std::string const &label) {
-  auto menu_item = make_component<MenuItem>(label);
-  add(menu_item);
-  return menu_item;
+  return this->popup_menu->add(label);
 }
 
 std::shared_ptr<MenuItem> Menu::add(std::shared_ptr<Action> const &action) {
-  auto menu_item = make_component<MenuItem>();
-  menu_item->set_action(action);
-  add(menu_item);
-  return menu_item;
+  return this->popup_menu->add(action);
+}
+
+void Menu::add_separator() {
+  this->popup_menu->add_separator();
 }
 
 void Menu::add_impl(const std::shared_ptr<Component> &c, const std::any &constraints, int z_order) {

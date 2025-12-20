@@ -5,6 +5,8 @@
 #include <memory>
 #include <atomic>
 
+#include <tui++/Object.h>
+
 namespace tui {
 
 class Window;
@@ -37,11 +39,6 @@ private:
 
   static void set_focus_owner(const std::shared_ptr<Component> &component) {
     focus_owner = component;
-  }
-
-  static void set_permanent_focus_owner(const std::shared_ptr<Component> &component) {
-    permanent_focus_owner = component;
-    set_most_recent_focus_owner(component);
   }
 
   static void set_focused_window(const std::shared_ptr<Window> &window) {
@@ -114,6 +111,12 @@ public:
   };
 
 public:
+  static void add_property_change_listener(const char *property_name, PropertyChangeListener const &listener);
+  static void remove_property_change_listener(const char *property_name, PropertyChangeListener const &listener);
+
+  static void add_property_change_listener(PropertyChangeListener const &listener);
+  static void remove_property_change_listener(PropertyChangeListener const &listener);
+
   static std::shared_ptr<FocusTraversalPolicy> get_default_focus_traversal_policy() {
     return default_focus_traversal_policy;
   }
@@ -150,6 +153,9 @@ public:
   static void clear_most_recent_focus_owner(const std::shared_ptr<Component> &c);
 
   static bool is_auto_focus_transfer_enabled();
+
+  static std::shared_ptr<Component> get_permanent_focus_owner();
+  static void set_permanent_focus_owner(std::shared_ptr<Component> const &c);
 };
 
 }

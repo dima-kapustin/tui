@@ -575,4 +575,15 @@ bool KeyboardFocusManager::is_auto_focus_transfer_enabled() {
   return true;
 }
 
+std::shared_ptr<Component> KeyboardFocusManager::get_permanent_focus_owner() {
+  return permanent_focus_owner;
+}
+
+void KeyboardFocusManager::set_permanent_focus_owner(std::shared_ptr<Component> const &c) {
+  if (not c or c->is_focusable()) {
+    permanent_focus_owner = c;
+    set_most_recent_focus_owner(c);
+  }
+}
+
 }

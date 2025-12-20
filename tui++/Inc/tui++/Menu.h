@@ -30,6 +30,7 @@ public:
   using base::add;
   std::shared_ptr<MenuItem> add(std::string const &label);
   std::shared_ptr<MenuItem> add(std::shared_ptr<Action> const &action);
+  void add_separator();
 
   std::chrono::milliseconds get_delay() const {
     return this->delay;
