@@ -2,6 +2,9 @@
 
 #include <tui++/lookandfeel/ComponentUI.h>
 
+#include <any>
+#include <unordered_map>
+
 namespace tui {
 class Frame;
 class Panel;
@@ -28,6 +31,26 @@ class PopupMenuUI;
 class ToggleButtonUI;
 
 class LookAndFeel {
+  static std::unordered_map<std::string_view, std::any> properties;
+
+public:
+  template<typename T>
+  static T get(const char *key) {
+    if (auto pos = properties.find(key); pos != properties.end()) {
+      if (auto *value = std::any_cast<T>(&pos->second)) {
+        return *value;
+      }
+    }
+    return {};
+  }
+
+  template<typename T>
+  static void put(const char *key, T const &value) {
+    properties.emplace(key, value);
+  }
+
+  static void put(std::initializer_list<std::pair<std::string_view, std::any>> &&values);
+
 public:
   static std::shared_ptr<FrameUI> create_ui(Frame *c);
   static std::shared_ptr<PanelUI> create_ui(Panel *c);

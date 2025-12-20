@@ -10,8 +10,25 @@
 #include <tui++/lookandfeel/MenuBarUI.h>
 #include <tui++/lookandfeel/MenuItemUI.h>
 
-
 namespace tui::laf {
+
+static class TuiTheme {
+public:
+  TuiTheme() {
+    LookAndFeel::put( //
+        { { "menu.submenu-popup-offset-x", 0 }, //
+          { "menu.submenu-popup-offset-y", 0 }, //
+          { "menu.menu-popup-offset-x", 0 }, //
+          { "menu.menu-popup-offset-y", 0 }, //
+        });
+  }
+} tui_theme;
+
+void LookAndFeel::put(std::initializer_list<std::pair<std::string_view, std::any>> &&values) {
+  for (auto&& [key, value] : values) {
+    properties.emplace(std::move(key), std::move(value));
+  }
+}
 
 std::shared_ptr<FrameUI> LookAndFeel::create_ui(Frame *c) {
   return {};
