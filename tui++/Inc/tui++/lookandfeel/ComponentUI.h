@@ -13,10 +13,14 @@ class Component;
 namespace tui::laf {
 
 struct ComponentUI {
-  virtual void install_ui(std::shared_ptr<Component> const &c) = 0;
-  virtual void uninstall_ui(std::shared_ptr<Component> const &c) = 0;
+  virtual void install_ui(std::shared_ptr<Component> const &c) {
+  }
 
-  virtual void paint(std::shared_ptr<Graphics> const &g, std::shared_ptr<const Component> const &c) const = 0;
+  virtual void uninstall_ui(std::shared_ptr<Component> const &c) {
+  }
+
+  virtual void paint(std::shared_ptr<Graphics> const &g, std::shared_ptr<const Component> const &c) const {
+  }
 
   virtual void update(std::shared_ptr<Graphics> const &g, std::shared_ptr<const Component> const &c) const;
 

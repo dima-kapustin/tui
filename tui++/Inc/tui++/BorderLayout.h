@@ -108,13 +108,13 @@ public:
   }
 
 public:
-  void add_layout_component(const std::shared_ptr<Component> &c, const std::any &constraints) noexcept (false) override;
+  void add_layout_component(const std::shared_ptr<Component> &c, const Constraints &constraints) noexcept (false) override;
   void remove_layout_component(const std::shared_ptr<Component> &c) override;
 
   /**
    * Gets the component that was added using the given constraint
    */
-  std::shared_ptr<Component> get_layout_component(const std::any &constraints) noexcept (false);
+  std::shared_ptr<Component> get_layout_component(const Constraints &constraints) noexcept (false);
   /**
    * Returns the component that corresponds to the given constraint location
    * based on the component orientation.
@@ -123,7 +123,7 @@ public:
    * take precedence over components added with the explicit constraints
    * {@code NORTH}, {@code SOUTH}, {@code WEST}, and {@code EAST}.
    */
-  std::shared_ptr<Component> get_layout_component(const ComponentOrientation &orientation, const std::any &constraints) noexcept (false);
+  std::shared_ptr<Component> get_layout_component(const ComponentOrientation &orientation, const Constraints &constraints) noexcept (false);
 
   /**
    * Gets the constraints for the specified component

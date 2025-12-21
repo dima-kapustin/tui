@@ -4,6 +4,7 @@
 #include <tui++/Graphics.h>
 #include <tui++/Component.h>
 #include <tui++/KeyStroke.h>
+#include <tui++/PopupWindow.h>
 #include <tui++/ToolTipManager.h>
 #include <tui++/KeyboardManager.h>
 #include <tui++/DefaultFocusTraversalPolicy.h>
@@ -100,11 +101,11 @@ bool Component::is_request_focus_accepted(bool temporary, bool focused_window_ch
 
   // We have passed all regular checks for focus request,
   // now let's call RequestFocusController and see what it says.
-  auto focus_owner = KeyboardFocusManager::get_most_recent_focus_owner(window);
+  auto focus_owner = KeyboardFocusManager::single->get_most_recent_focus_owner(window);
   if (not focus_owner) {
     // sometimes most recent focus owner may be null, but focus owner is not
     // e.g. we reset most recent focus owner if user removes focus owner
-    focus_owner = KeyboardFocusManager::get_focus_owner();
+    focus_owner = KeyboardFocusManager::single->get_focus_owner();
     if (focus_owner and focus_owner->get_containing_window() != window) {
       focus_owner = nullptr;
     }
@@ -177,7 +178,7 @@ bool Component::request_focus(bool temporary, bool focused_window_change_allowed
   }
 
   // Update most-recent map
-  KeyboardFocusManager::set_most_recent_focus_owner(shared_from_this());
+  KeyboardFocusManager::single->set_most_recent_focus_owner(shared_from_this());
 
   auto window = shared_from_this();
   while (not std::dynamic_pointer_cast<Window>(window)) {
@@ -192,7 +193,7 @@ bool Component::request_focus(bool temporary, bool focused_window_change_allowed
   }
 
   // Focus this Component
-  return KeyboardFocusManager::request_focus(shared_from_this(), temporary, focused_window_change_allowed, cause);
+  return KeyboardFocusManager::single->request_focus(shared_from_this(), temporary, focused_window_change_allowed, cause);
 }
 
 std::shared_ptr<Component> Component::get_next_focus_candidate() const {
@@ -247,7 +248,7 @@ bool Component::transfer_focus(bool clear_on_failure) {
 //      if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
 //          focusLog.finer("clear global focus owner");
 //      }
-    KeyboardFocusManager::clear_focus_owner();
+    KeyboardFocusManager::single->clear_focus_owner();
   }
   // TODO
 //  if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
@@ -276,7 +277,7 @@ bool Component::transfer_focus_backward(bool clear_on_failure) {
   }
   if (not result and clear_on_failure) {
     log_focus_ln("clear global focus owner");
-    KeyboardFocusManager::clear_focus_owner();
+    KeyboardFocusManager::single->clear_focus_owner();
   }
 //  log_focus_ln("returning result: " << result);
   return result;
@@ -292,12 +293,12 @@ void Component::transfer_focus_up_cycle() {
     auto root_ancestor_root_ancestor = root_ancestor->get_focus_cycle_root_ancestor();
     auto fcr = root_ancestor_root_ancestor ? root_ancestor_root_ancestor : root_ancestor;
 
-    KeyboardFocusManager::set_current_focus_cycle_root(fcr);
+    KeyboardFocusManager::single->set_current_focus_cycle_root(fcr);
     root_ancestor->request_focus(FocusEvent::Cause::TRAVERSAL_UP);
   } else {
     if (auto window = get_containing_window()) {
       if (auto to_focus = window->get_focus_traversal_policy()->get_default_component(window)) {
-        KeyboardFocusManager::set_current_focus_cycle_root(window);
+        KeyboardFocusManager::single->set_current_focus_cycle_root(window);
         to_focus->request_focus(FocusEvent::Cause::TRAVERSAL_UP);
       }
     }
@@ -306,7 +307,7 @@ void Component::transfer_focus_up_cycle() {
 
 void Component::transfer_focus_down_cycle() {
   if (is_focus_cycle_root()) {
-    KeyboardFocusManager::set_current_focus_cycle_root(shared_from_this());
+    KeyboardFocusManager::single->set_current_focus_cycle_root(shared_from_this());
     if (auto to_focus = get_focus_traversal_policy()->get_default_component(shared_from_this())) {
       to_focus->request_focus(FocusEvent::Cause::TRAVERSAL_DOWN);
     }
@@ -380,11 +381,11 @@ bool Component::notify_action(const std::shared_ptr<Action> &action, const KeySt
 
 bool Component::process_key_bindings_for_all_components(KeyEvent &e, std::shared_ptr<Component> container) {
   while (true) {
-    if (KeyboardManager::fire_keyboard_action(e, container)) {
+    if (KeyboardManager::single->fire_keyboard_action(e, container)) {
       return true;
     }
 
-    if (auto popup_window = std::dynamic_pointer_cast<Popup::PopupWindow>(container)) {
+    if (auto popup_window = std::dynamic_pointer_cast<PopupWindow>(container)) {
       container = popup_window->get_owner();
     } else {
       return false;
@@ -420,7 +421,7 @@ void Component::assert_adding_none_cyclic(const std::shared_ptr<const Component>
   }
 }
 
-void Component::add_impl(const std::shared_ptr<Component> &c, const std::any &constraints, int z_order) noexcept (false) {
+void Component::add_impl(const std::shared_ptr<Component> &c, const Constraints &constraints, int z_order) noexcept (false) {
   if (z_order > (int) this->components.size() or (z_order < 0 and z_order != -1)) {
     throw std::runtime_error("Illegal component position");
   }
@@ -468,9 +469,9 @@ void Component::add_notify() {
 }
 
 void Component::remove_notify() {
-  KeyboardFocusManager::clear_most_recent_focus_owner(shared_from_this());
-  if (KeyboardFocusManager::get_permanent_focus_owner() == shared_from_this()) {
-    KeyboardFocusManager::set_permanent_focus_owner(nullptr);
+  KeyboardFocusManager::single->clear_most_recent_focus_owner(shared_from_this());
+  if (KeyboardFocusManager::single->get_permanent_focus_owner() == shared_from_this()) {
+    KeyboardFocusManager::single->set_permanent_focus_owner(nullptr);
   }
 }
 
@@ -506,7 +507,7 @@ void Component::dispatch_event(Event &e) {
   log_event_ln(e);
 
   if (not e.is_being_dispatched_by_focus_manager) {
-    if (KeyboardFocusManager::dispatch_event(e)) {
+    if (KeyboardFocusManager::single->dispatch_event(e)) {
       return;
     }
   }
@@ -530,7 +531,7 @@ void Component::dispatch_event(Event &e) {
    */
   if (auto key_event = dynamic_cast<KeyEvent*>(&e)) {
     if (not key_event->consumed) {
-      KeyboardFocusManager::process_key_event(shared_from_this(), *key_event);
+      KeyboardFocusManager::single->process_key_event(shared_from_this(), *key_event);
       if (key_event->consumed) {
         return;
       }
@@ -582,7 +583,7 @@ std::shared_ptr<const std::unordered_set<KeyStroke>> Component::get_focus_traver
   } else if (auto parent = get_parent()) {
     return parent->get_focus_traversal_keys(id);
   } else {
-    return KeyboardFocusManager::get_default_focus_traversal_keys(id);
+    return KeyboardFocusManager::single->get_default_focus_traversal_keys(id);
   }
 }
 
@@ -627,7 +628,7 @@ void Component::hide() {
 
     std::unique_lock lock(tree_mutex);
     this->visible = false;
-    if (contains_focus() /*TODO and KeyboardFocusManager::is_auto_focus_transfer_enabled()*/) {
+    if (contains_focus() /*TODO and KeyboardFocusManager::single->is_auto_focus_transfer_enabled()*/) {
       transfer_focus(true);
     }
     create_hierarchy_events(HierarchyEvent::SHOWING_CHANGED, shared_from_this(), get_parent());
@@ -642,7 +643,7 @@ void Component::hide() {
 }
 
 bool Component::contains_focus() const {
-  return is_parent_of(KeyboardFocusManager::get_focus_owner());
+  return is_parent_of(KeyboardFocusManager::single->get_focus_owner());
 }
 
 bool Component::is_parent_of(std::shared_ptr<Component> component) const {
@@ -654,16 +655,16 @@ bool Component::is_parent_of(std::shared_ptr<Component> component) const {
 }
 
 void Component::clear_current_focus_cycle_root_on_hide() {
-  auto focus_cycle_root = KeyboardFocusManager::get_current_focus_cycle_root();
+  auto focus_cycle_root = KeyboardFocusManager::single->get_current_focus_cycle_root();
   if (this == focus_cycle_root.get() or is_parent_of(focus_cycle_root)) {
-    KeyboardFocusManager::set_current_focus_cycle_root(nullptr);
+    KeyboardFocusManager::single->set_current_focus_cycle_root(nullptr);
   }
 }
 
 void Component::clear_most_recent_focus_owner_on_hide() {
   std::unique_lock lock(tree_mutex);
   if (auto window = get_containing_window()) {
-    auto focus_owner = KeyboardFocusManager::get_most_recent_focus_owner(window);
+    auto focus_owner = KeyboardFocusManager::single->get_most_recent_focus_owner(window);
     auto reset = ((focus_owner.get() == this) or is_parent_of(focus_owner));
     auto storedComp = window->get_temporary_lost_component();
     if (is_parent_of(storedComp) or storedComp.get() == this) {
@@ -671,7 +672,7 @@ void Component::clear_most_recent_focus_owner_on_hide() {
     }
 
     if (reset) {
-      KeyboardFocusManager::set_most_recent_focus_owner(window, nullptr);
+      KeyboardFocusManager::single->set_most_recent_focus_owner(window, nullptr);
     }
   }
 }
@@ -786,7 +787,7 @@ void Component::add_delicately(const std::shared_ptr<Component> &c, const std::s
     // focus owner moved out if new container prohibit this kind of focus owner.
     if (c->is_focus_owner() and not c->can_be_focus_owner_recursively()) {
       c->transfer_focus();
-    } else if (auto focus_owner = KeyboardFocusManager::get_focus_owner()) {
+    } else if (auto focus_owner = KeyboardFocusManager::single->get_focus_owner()) {
       if (focus_owner and is_parent_of(focus_owner) and not focus_owner->can_be_focus_owner_recursively()) {
         focus_owner->transfer_focus();
       }
@@ -894,7 +895,7 @@ std::shared_ptr<Component> Component::find_traversal_root() const {
   // If neither I nor my root parent is the current root, then
   // use my root parent (a guess)
 
-  auto current_focus_cycle_root = KeyboardFocusManager::get_current_focus_cycle_root();
+  auto current_focus_cycle_root = KeyboardFocusManager::single->get_current_focus_cycle_root();
   auto root = std::shared_ptr<Component> { };
 
   if (current_focus_cycle_root.get() == this) {
@@ -907,7 +908,7 @@ std::shared_ptr<Component> Component::find_traversal_root() const {
   }
 
   if (root != current_focus_cycle_root) {
-    KeyboardFocusManager::set_current_focus_cycle_root(root);
+    KeyboardFocusManager::single->set_current_focus_cycle_root(root);
   }
   return root;
 }
@@ -949,10 +950,10 @@ void Component::set_focusable(bool value) {
   if (this->focusable != value) {
     this->focusable = value;
 
-    if (this->focusable and is_focus_owner() and KeyboardFocusManager::is_auto_focus_transfer_enabled()) {
+    if (this->focusable and is_focus_owner() and KeyboardFocusManager::single->is_auto_focus_transfer_enabled()) {
       transfer_focus(true);
     }
-    KeyboardFocusManager::clear_most_recent_focus_owner(shared_from_this());
+    KeyboardFocusManager::single->clear_most_recent_focus_owner(shared_from_this());
   }
 }
 

@@ -2,23 +2,30 @@
 
 #include <tui++/Component.h>
 #include <tui++/MenuElement.h>
-#include <tui++/Popup.h>
+#include <tui++/SingleSelectionModel.h>
+
+#include <tui++/event/PopupMenuEvent.h>
+#include <tui++/event/MenuKeyEvent.h>
 
 namespace tui {
 namespace laf {
 class PopupMenuUI;
 }
 
+class Popup;
 class MenuItem;
 
-class PopupMenu: public Component, public MenuElement {
-  using base = Component;
+class PopupMenu: public ComponentExtension<Component, PopupMenuEvent, MenuKeyEvent>, public MenuElement {
+  using base = ComponentExtension<Component, PopupMenuEvent, MenuKeyEvent>;
 
   Property<std::string> label { this, "label" };
+  std::shared_ptr<SingleSelectionModel> selection_model = std::make_shared<SingleSelectionModel>();
 
   std::shared_ptr<Component> invoker;
   std::shared_ptr<Frame> frame;
   std::shared_ptr<Popup> popup;
+
+  Point desired_location;
 
 public:
   std::shared_ptr<laf::PopupMenuUI> get_ui() const;
@@ -36,7 +43,7 @@ public:
     return this->label;
   }
 
-  void set_label(std::string const& label);
+  void set_label(std::string const &label);
 
   virtual void process_mouse_event(MouseEvent &e, std::vector<std::shared_ptr<MenuElement>> const &path, std::shared_ptr<MenuSelectionManager> const &manager) override;
 
@@ -52,12 +59,24 @@ public:
     return this->invoker;
   }
 
-  void set_invoker(std::shared_ptr<Component> const& invoker);
+  void set_invoker(std::shared_ptr<Component> const &invoker);
 
   using base::show;
-  void show(std::shared_ptr<Component> const& invoker, int x, int y);
+  void show(std::shared_ptr<Component> const &invoker, int x, int y);
 
   std::shared_ptr<PopupMenu> get_root_popup_menu() const;
+
+  virtual void set_visible(bool value) override;
+  using base::set_location;
+  virtual void set_location(int x, int y) override;
+
+  std::shared_ptr<SingleSelectionModel> get_selection_model() {
+    return this->selection_model;
+  }
+
+  void set_selection_model(std::shared_ptr<SingleSelectionModel> const &model) {
+    this->selection_model = model;
+  }
 
 protected:
   PopupMenu(std::string const &label = "") {
@@ -76,6 +95,9 @@ protected:
 
   bool is_popup_menu() const;
   std::shared_ptr<MenuItem> create_item(std::shared_ptr<Action> const &action);
+
+private:
+  void show_popup();
 };
 
 }

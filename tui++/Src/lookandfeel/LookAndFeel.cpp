@@ -61,7 +61,7 @@ std::shared_ptr<RootPaneUI> LookAndFeel::create_ui(RootPane *c) {
 }
 
 std::shared_ptr<PopupMenuUI> LookAndFeel::create_ui(PopupMenu *c) {
-  return {};
+  return std::make_shared<PopupMenuUI>();
 }
 
 std::shared_ptr<PopupMenuSeparatorUI> LookAndFeel::create_ui(PopupMenuSeparator *c) {

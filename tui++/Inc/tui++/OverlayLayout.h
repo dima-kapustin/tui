@@ -23,7 +23,7 @@ public:
   }
 
 public:
-  void add_layout_component(const std::shared_ptr<Component> &c, const std::any &constraints) override;
+  void add_layout_component(const std::shared_ptr<Component> &c, const Constraints &constraints) override;
   void remove_layout_component(const std::shared_ptr<Component> &c) override;
 
   Dimension get_minimum_layout_size(const std::shared_ptr<const Component> &target) override;

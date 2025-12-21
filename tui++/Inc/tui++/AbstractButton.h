@@ -62,7 +62,7 @@ protected:
     return false;
   }
 
-  void add_impl(const std::shared_ptr<Component> &c, const std::any &constraints, int z_order) override;
+  void add_impl(const std::shared_ptr<Component> &c, const Constraints &constraints, int z_order) override;
 
   virtual void configure_properties_from_action();
 

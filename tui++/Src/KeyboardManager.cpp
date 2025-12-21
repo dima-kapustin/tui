@@ -6,11 +6,8 @@
 
 namespace tui {
 
-std::unordered_map<std::shared_ptr<Component>, KeyboardManager::KeyMap> KeyboardManager::component_map;
-std::unordered_map<std::shared_ptr<Component>, std::vector<std::shared_ptr<MenuBar>>> KeyboardManager::menu_bar_map;
-
 bool KeyboardManager::fire_keyboard_action(KeyEvent &e, const std::shared_ptr<Component> &top_ancestor) {
-  if (auto key_map_pos = component_map.find(top_ancestor); key_map_pos != component_map.end()) {
+  if (auto key_map_pos = this->component_map.find(top_ancestor); key_map_pos != this->component_map.end()) {
     auto key_stroke = KeyStroke { e };
     if (auto components_pos = key_map_pos->second.find(key_stroke); components_pos != key_map_pos->second.end()) {
       // There is no well defined order for WHEN_IN_FOCUSED_WINDOW
@@ -35,7 +32,7 @@ bool KeyboardManager::fire_keyboard_action(KeyEvent &e, const std::shared_ptr<Co
   }
   // If no one handled it, then give the menus a crack. The're handled differently.
   // The key is to let any MenuBars process the event
-  if (auto menu_bar_pos = menu_bar_map.find(top_ancestor); menu_bar_pos != menu_bar_map.end()) {
+  if (auto menu_bar_pos = this->menu_bar_map.find(top_ancestor); menu_bar_pos != this->menu_bar_map.end()) {
     auto key_stroke = KeyStroke { e };
     for (auto &&menu_bar : menu_bar_pos->second) {
       if (menu_bar->is_showing() and menu_bar->is_enabled()) {
@@ -66,7 +63,7 @@ std::shared_ptr<Component> KeyboardManager::get_top_ancestor(const std::shared_p
 
 void KeyboardManager::register_key_stroke(const KeyStroke &key_stroke, const std::shared_ptr<Component> &component) {
   if (auto &&top = get_top_ancestor(component)) {
-    auto &&components = component_map[top][key_stroke];
+    auto &&components = this->component_map[top][key_stroke];
     if (std::find(components.begin(), components.end(), component) == components.end()) {
       components.emplace_back(component);
     }
@@ -75,7 +72,7 @@ void KeyboardManager::register_key_stroke(const KeyStroke &key_stroke, const std
 
 void KeyboardManager::unregister_key_storke(const KeyStroke &key_stroke, const std::shared_ptr<Component> &component) {
   if (auto &&top = get_top_ancestor(component)) {
-    auto &&components = component_map[top][key_stroke];
+    auto &&components = this->component_map[top][key_stroke];
     if (auto &&pos = std::find(components.begin(), components.end(), component); pos != components.end()) {
       components.erase(pos);
     }
@@ -84,7 +81,7 @@ void KeyboardManager::unregister_key_storke(const KeyStroke &key_stroke, const s
 
 void KeyboardManager::register_menu_bar(const std::shared_ptr<MenuBar> &menu_bar) {
   if (auto &&top = get_top_ancestor(menu_bar)) {
-    auto &&menu_bars = menu_bar_map[top];
+    auto &&menu_bars = this->menu_bar_map[top];
     if (std::find(menu_bars.begin(), menu_bars.end(), menu_bar) == menu_bars.end()) {
       menu_bars.emplace_back(menu_bar);
     }
@@ -93,7 +90,7 @@ void KeyboardManager::register_menu_bar(const std::shared_ptr<MenuBar> &menu_bar
 
 void KeyboardManager::unregister_menu_bar(const std::shared_ptr<MenuBar> &menu_bar) {
   if (auto &&top = get_top_ancestor(menu_bar)) {
-    auto &&menu_bars = menu_bar_map[top];
+    auto &&menu_bars = this->menu_bar_map[top];
     if (auto &&pos = std::find(menu_bars.begin(), menu_bars.end(), menu_bar); pos != menu_bars.end()) {
       menu_bars.erase(pos);
     }

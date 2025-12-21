@@ -1,8 +1,11 @@
 #include <tui++/PopupMenu.h>
-#include <tui++/MenuItem.h>
-#include <tui++/Separator.h>
+
 #include <tui++/Menu.h>
+#include <tui++/MenuItem.h>
+#include <tui++/MenuSelectionManager.h>
+#include <tui++/Separator.h>
 #include <tui++/Frame.h>
+#include <tui++/Popup.h>
 
 #include <tui++/lookandfeel/PopupMenuUI.h>
 #include <tui++/lookandfeel/PopupMenuSeparatorUI.h>
@@ -114,11 +117,15 @@ std::shared_ptr<PopupMenu> PopupMenu::get_root_popup_menu() const {
 }
 
 void PopupMenu::process_mouse_event(MouseEvent &e, std::vector<std::shared_ptr<MenuElement>> const &path, std::shared_ptr<MenuSelectionManager> const &manager) {
-
+  // empty
 }
 
 void PopupMenu::process_key_event(KeyEvent &e, std::vector<std::shared_ptr<MenuElement>> const &path, std::shared_ptr<MenuSelectionManager> const &manager) {
-
+  auto menu_event = MenuKeyEvent {e, path, manager};
+  process_event(menu_event);
+  if (menu_event.consumed) {
+    e.consume();
+  }
 }
 
 void PopupMenu::menu_selection_changed(bool is_included) {
@@ -187,6 +194,55 @@ void PopupMenu::show(std::shared_ptr<Component> const &invoker, int x, int y) {
     set_location(x, y);
   }
   set_visible(true);
+}
+
+void PopupMenu::set_visible(bool value) {
+  if (is_visible() != value) {
+    if (not value) {
+      this->selection_model->clear_selection();
+
+      if (not this->popup) {
+        fire_event<PopupMenuEvent>(std::static_pointer_cast<PopupMenu>(shared_from_this()), PopupMenuEvent::BECOMES_INVISIBLE);
+        this->popup->hide();
+        this->popup = nullptr;
+        this->visible = value;
+
+        if (is_popup_menu()) {
+          MenuSelectionManager::single->clear_selected_path();
+        }
+      }
+    } else {
+      // This is a popup menu with MenuElement children,
+      // set selection path before popping up!
+      if (is_popup_menu()) {
+        auto path = std::vector<std::shared_ptr<MenuElement>> {std::static_pointer_cast<MenuElement>(std::static_pointer_cast<PopupMenu>(shared_from_this()))};
+        MenuSelectionManager::single->set_selected_path(path);
+      }
+
+      fire_event<PopupMenuEvent>(std::static_pointer_cast<PopupMenu>(shared_from_this()), PopupMenuEvent::BECOMES_VISIBLE);
+      show_popup();
+      this->visible = value;
+    }
+  }
+}
+
+void PopupMenu::set_location(int x, int y) {
+  if (this->desired_location.x != x or this->desired_location.y != y) {
+    this->desired_location.x = x;
+    this->desired_location.y = y;
+    if (this->popup) {
+      show_popup();
+    }
+  }
+}
+
+void PopupMenu::show_popup() {
+  if (auto old_popup = this->popup; old_popup) {
+    old_popup->hide();
+  }
+
+  this->popup = get_ui()->get_popup(std::static_pointer_cast<PopupMenu>(shared_from_this()), this->desired_location.x, this->desired_location.x);
+  this->popup->show();
 }
 
 }

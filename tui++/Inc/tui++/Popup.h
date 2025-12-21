@@ -1,31 +1,20 @@
 #pragma once
 
-#include <tui++/Window.h>
-#include <tui++/ModalExclude.h>
+#include <memory>
 
 namespace tui {
 
+class Window;
+class Component;
+
 class Popup {
+  std::shared_ptr<Window> window;
+public:
+  Popup(std::shared_ptr<Component> const& owner, std::shared_ptr<Component> const& contents, int owner_x, int owner_y);
 
 public:
-  class PopupWindow: public Window, public ModalExclude {
-    using base = Window;
-
-    PopupWindow(const std::shared_ptr<Window> &owner) :
-        base(owner, WindowType::POPUP) {
-      set_focusable_window_state(false);
-      set_always_on_top(true);
-    }
-
-  protected:
-    void show() override {
-      pack();
-      if (get_width() and get_height()) {
-        base::show();
-      }
-    }
-  };
-
+  void show();
+  void hide();
 };
 
 }

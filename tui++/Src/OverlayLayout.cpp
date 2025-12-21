@@ -5,7 +5,7 @@
 
 namespace tui {
 
-void OverlayLayout::add_layout_component(const std::shared_ptr<Component> &c, const std::any &constraints) {
+void OverlayLayout::add_layout_component(const std::shared_ptr<Component> &c, const Constraints &constraints) {
   invalidate_layout(c->get_parent());
 }
 

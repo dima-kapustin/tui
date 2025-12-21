@@ -3,7 +3,7 @@
 
 namespace tui {
 
-void MenuSelectionManager::set_selection_path(std::vector<std::shared_ptr<MenuElement>> const &path) {
+void MenuSelectionManager::set_selected_path(std::vector<std::shared_ptr<MenuElement>> const &path) {
   auto first_diff_index = 0;
   for (auto i = size_t { }, n = path.size(); i != n; ++i) {
     if (i < this->selection.size() and this->selection[i] == path[i]) {

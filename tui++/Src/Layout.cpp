@@ -3,7 +3,7 @@
 
 namespace tui {
 
-void AbstractLayout::add_layout_component(const std::shared_ptr<Component> &c, const std::any &constraints) {
+void AbstractLayout::add_layout_component(const std::shared_ptr<Component> &c, const Constraints &constraints) {
 }
 
 void AbstractLayout::remove_layout_component(const std::shared_ptr<Component> &c) {

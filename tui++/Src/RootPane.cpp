@@ -66,7 +66,7 @@ public:
     }
   }
 
-  virtual void add_layout_component(const std::shared_ptr<Component>&, const std::any&) override {
+  virtual void add_layout_component(const std::shared_ptr<Component>&, const Constraints&) override {
   }
 
   virtual void remove_layout_component(const std::shared_ptr<Component>&) override {

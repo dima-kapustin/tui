@@ -1,5 +1,6 @@
 #include <tui++/Menu.h>
 #include <tui++/Screen.h>
+#include <tui++/Window.h>
 
 #include <tui++/lookandfeel/MenuUI.h>
 
@@ -41,7 +42,7 @@ void Menu::add_separator() {
   this->popup_menu->add_separator();
 }
 
-void Menu::add_impl(const std::shared_ptr<Component> &c, const std::any &constraints, int z_order) {
+void Menu::add_impl(const std::shared_ptr<Component> &c, const Constraints &constraints, int z_order) {
   this->popup_menu->add(c, constraints, z_order);
 }
 

@@ -57,7 +57,7 @@ protected:
   virtual void init() override;
   virtual std::shared_ptr<laf::ComponentUI> create_ui() override;
 
-  virtual void add_impl(const std::shared_ptr<Component> &c, const std::any &constraints, int z_order) override;
+  virtual void add_impl(const std::shared_ptr<Component> &c, const Constraints &constraints, int z_order) override;
 
   virtual void init_focusability() override;
   virtual void state_changed(ChangeEvent &e) override;

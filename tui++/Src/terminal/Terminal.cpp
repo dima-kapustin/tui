@@ -137,11 +137,11 @@ void Terminal::new_resize_event() {
 }
 
 void Terminal::new_key_event(const Char &c, InputEvent::Modifiers key_modifiers) {
-  this->screen.post_system<KeyEvent>(KeyboardFocusManager::get_focused_window(), c, key_modifiers);
+  this->screen.post_system<KeyEvent>(KeyboardFocusManager::single->get_focused_window(), c, key_modifiers);
 }
 
 void Terminal::new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers key_modifiers) {
-  this->screen.post_system<KeyEvent>(KeyboardFocusManager::get_focused_window(), KeyEvent::KEY_PRESSED, key_code, key_modifiers);
+  this->screen.post_system<KeyEvent>(KeyboardFocusManager::single->get_focused_window(), KeyEvent::KEY_PRESSED, key_code, key_modifiers);
 }
 
 void Terminal::new_mouse_event(MousePressEvent::Type type, MousePressEvent::Button button, InputEvent::Modifiers key_modifiers, int x, int y) {

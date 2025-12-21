@@ -19,6 +19,7 @@
 #include <tui++/Rectangle.h>
 #include <tui++/ActionMap.h>
 #include <tui++/KeyStroke.h>
+#include <tui++/Constraints.h>
 #include <tui++/ComponentInputMap.h>
 #include <tui++/ComponentOrientation.h>
 #include <tui++/KeyboardFocusManager.h>
@@ -240,7 +241,7 @@ protected:
   void assert_adding_none_window(const std::shared_ptr<const Component> &c) noexcept (false);
   void assert_adding_none_cyclic(const std::shared_ptr<const Component> &c) noexcept (false);
 
-  virtual void add_impl(const std::shared_ptr<Component> &c, const std::any &constraints, int z_order) noexcept (false);
+  virtual void add_impl(const std::shared_ptr<Component> &c, const Constraints &constraints, int z_order) noexcept (false);
 
   virtual void add_notify();
   virtual void remove_notify();
@@ -387,11 +388,11 @@ public:
     add(component, {}, index);
   }
 
-  void add(const std::shared_ptr<Component> &component, const std::any &constraints) noexcept (false) {
+  void add(const std::shared_ptr<Component> &component, const Constraints &constraints) noexcept (false) {
     add(component, constraints, -1);
   }
 
-  void add(const std::shared_ptr<Component> &component, const std::any &constraints, int index) noexcept (false) {
+  void add(const std::shared_ptr<Component> &component, const Constraints &constraints, int index) noexcept (false) {
     add_impl(component, constraints, index);
   }
 
@@ -737,8 +738,8 @@ public:
     return request_focus(false, false, cause);
   }
 
-  void set_visible(bool visible) {
-    if (visible) {
+  virtual void set_visible(bool value) {
+    if (value) {
       if (not this->visible) {
         show();
         this->visible = true;
@@ -755,7 +756,7 @@ public:
     set_location(at.x, at.y);
   }
 
-  void set_location(int x, int y) {
+  virtual void set_location(int x, int y) {
     set_bounds(x, y, this->size.width, this->size.height);
   }
 
@@ -940,7 +941,7 @@ public:
   }
 
   bool is_focus_owner() const {
-    return KeyboardFocusManager::get_focus_owner().get() == this;
+    return KeyboardFocusManager::single->get_focus_owner().get() == this;
   }
 
   /**
@@ -1035,7 +1036,7 @@ public:
     } else if (auto root_ancestor = get_focus_cycle_root_ancestor()) {
       return root_ancestor->get_focus_traversal_policy();
     } else {
-      return KeyboardFocusManager::get_default_focus_traversal_policy();
+      return KeyboardFocusManager::single->get_default_focus_traversal_policy();
     }
   }
 

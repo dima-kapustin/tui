@@ -1,10 +1,10 @@
 #pragma once
 
-#include <any>
+#include <tui++/Dimension.h>
+#include <tui++/Constraints.h>
+
 #include <mutex>
 #include <memory>
-
-#include <tui++/Dimension.h>
 
 namespace tui {
 
@@ -15,7 +15,7 @@ public:
   virtual ~Layout() {
   }
 
-  virtual void add_layout_component(const std::shared_ptr<Component> &c, const std::any &constraints = { }) = 0;
+  virtual void add_layout_component(const std::shared_ptr<Component> &c, const Constraints &constraints = { }) = 0;
 
   virtual void remove_layout_component(const std::shared_ptr<Component> &c) = 0;
 
@@ -49,7 +49,7 @@ public:
 
 class AbstractLayout: public Layout {
 public:
-  void add_layout_component(const std::shared_ptr<Component> &c, const std::any &constraints) override;
+  void add_layout_component(const std::shared_ptr<Component> &c, const Constraints &constraints) override;
   void remove_layout_component(const std::shared_ptr<Component> &c) override;
 
   virtual Dimension get_maximum_layout_size(const std::shared_ptr<const Component> &target) override {

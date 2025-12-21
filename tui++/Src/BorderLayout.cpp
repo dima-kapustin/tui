@@ -5,8 +5,8 @@
 
 namespace tui {
 
-void BorderLayout::add_layout_component(const std::shared_ptr<Component> &c, const std::any &constraints) {
-  if (auto name = std::any_cast<std::string_view>(&constraints)) {
+void BorderLayout::add_layout_component(const std::shared_ptr<Component> &c, const Constraints &constraints) {
+  if (auto name = std::get_if<std::string_view>(&constraints)) {
     if (*name == CENTER) {
       this->center = c;
     } else if (*name == NORTH) {
@@ -28,7 +28,7 @@ void BorderLayout::add_layout_component(const std::shared_ptr<Component> &c, con
     } else {
       throw std::runtime_error("Cannot add to layout: unknown constraint: " + std::string(*name));
     }
-  } else if (not constraints.has_value()) {
+  } else if (std::holds_alternative<std::monostate>(constraints)) {
     this->center = c;
   } else {
     throw std::runtime_error("Cannot add to layout: constraint must be a string_view (or null)");
@@ -61,8 +61,8 @@ void BorderLayout::remove_layout_component(const std::shared_ptr<Component> &c) 
   });
 }
 
-std::shared_ptr<Component> BorderLayout::get_layout_component(const std::any &constraints) {
-  if (auto name = std::any_cast<std::string_view>(&constraints)) {
+std::shared_ptr<Component> BorderLayout::get_layout_component(const Constraints &constraints) {
+  if (auto name = std::get_if<std::string_view>(&constraints)) {
     if (CENTER == *name) {
       return this->center;
     } else if (NORTH == *name) {
@@ -84,7 +84,7 @@ std::shared_ptr<Component> BorderLayout::get_layout_component(const std::any &co
     } else {
       throw std::runtime_error("Cannot get component: unknown constraint: " + std::string(*name));
     }
-  } else if (not constraints.has_value()) {
+  } else if (std::holds_alternative<std::monostate>(constraints)) {
     return this->center;
   } else {
     throw std::runtime_error("Cannot get component: constraint must be a string_view");
@@ -129,8 +129,8 @@ std::shared_ptr<Component> BorderLayout::get_layout_component(const ComponentOri
   }
 }
 
-std::shared_ptr<Component> BorderLayout::get_layout_component(const ComponentOrientation &orientation, const std::any &constraints) {
-  if (auto name = std::any_cast<std::string_view>(&constraints)) {
+std::shared_ptr<Component> BorderLayout::get_layout_component(const ComponentOrientation &orientation, const Constraints &constraints) {
+  if (auto name = std::get_if<std::string_view>(&constraints)) {
     return get_layout_component(orientation, *name);
   } else {
     throw std::runtime_error("Cannot get component: constraint must be a string_view");

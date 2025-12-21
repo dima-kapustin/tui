@@ -31,13 +31,13 @@ void Window::paint_components(Graphics &g) {
 }
 
 std::shared_ptr<Component> Window::get_focus_owner() const {
-  return is_focused() ? KeyboardFocusManager::get_focus_owner() : nullptr;
+  return is_focused() ? KeyboardFocusManager::single->get_focus_owner() : nullptr;
 }
 
 std::shared_ptr<Component> Window::get_most_recent_focus_owner() const {
   if (is_focused()) {
     return get_focus_owner();
-  } else if (auto most_recent = KeyboardFocusManager::get_most_recent_focus_owner(std::dynamic_pointer_cast<const Window>(shared_from_this()))) {
+  } else if (auto most_recent = KeyboardFocusManager::single->get_most_recent_focus_owner(std::dynamic_pointer_cast<const Window>(shared_from_this()))) {
     return most_recent;
   } else {
     return is_focusable_window() ? get_focus_traversal_policy()->get_initial_component(std::dynamic_pointer_cast<Window>(const_cast<Window*>(this)->shared_from_this())) : nullptr;
@@ -81,13 +81,13 @@ void Window::set_focusable_window_state(bool state) {
 
   if (old_focusable_window_state and not this->focusable_window_state and is_focused()) {
     for (auto owner = get_owner(); owner; owner = owner->get_owner()) {
-      auto to_focus = KeyboardFocusManager::get_most_recent_focus_owner(owner);
+      auto to_focus = KeyboardFocusManager::single->get_most_recent_focus_owner(owner);
       if (to_focus and to_focus->request_focus(false, FocusEvent::Cause::ACTIVATION)) {
         return;
       }
     }
 
-    KeyboardFocusManager::clear_focus_owner();
+    KeyboardFocusManager::single->clear_focus_owner();
   }
 }
 
@@ -127,12 +127,13 @@ void Window::hide() {
 
 void Window::init() {
   Component::init();
+  set_root_pane(create_root_pane());
   if (this->owner) {
     this->owner->add_owned_window(std::static_pointer_cast<Window>(shared_from_this()));
     set_always_on_top(this->owner->is_always_on_top());
   }
 
-  set_focus_traversal_policy(KeyboardFocusManager::get_default_focus_traversal_policy());
+  set_focus_traversal_policy(KeyboardFocusManager::single->get_default_focus_traversal_policy());
   set_layout(std::make_shared<BorderLayout>());
 }
 
@@ -168,6 +169,75 @@ void Window::remove_owned_window(const std::shared_ptr<Window> &w) {
       return candidate.expired() or candidate.lock() == w;
     });
   });
+}
+
+void Window::add_impl(const std::shared_ptr<Component> &c, const Constraints &constraints, int z_order) noexcept (false) {
+  if (c == this->root_pane) {
+    base::add_impl(c, constraints, z_order);
+  } else {
+    this->root_pane->get_content_pane()->add(c, constraints, z_order);
+  }
+}
+
+void Window::remove(const std::shared_ptr<Component> &c) {
+  if (c == this->root_pane) {
+    base::remove(c);
+  } else {
+    this->root_pane->get_content_pane()->remove(c);
+  }
+}
+
+void Window::set_layout(const std::shared_ptr<Layout> &layout) {
+  if (this->root_pane) {
+    this->root_pane->get_content_pane()->set_layout(layout);
+  } else {
+    base::set_layout(layout);
+  }
+}
+
+std::shared_ptr<RootPane> Window::create_root_pane() const {
+  auto root_pane = make_component<RootPane>();
+  root_pane->set_opaque(true);
+  return root_pane;
+}
+
+std::shared_ptr<RootPane> Window::get_root_pane() const {
+  return this->root_pane;
+}
+
+std::shared_ptr<Component> Window::get_content_pane() const {
+  return this->root_pane->get_content_pane();
+}
+
+void Window::set_content_pane(const std::shared_ptr<Component> &content_pane) {
+  this->root_pane->set_content_pane(content_pane);
+}
+
+std::shared_ptr<LayeredPane> Window::get_layered_pane() const {
+  return this->root_pane->get_layered_pane();
+}
+
+void Window::set_layered_pane(const std::shared_ptr<LayeredPane> &layered_pane) {
+  this->root_pane->set_layered_pane(layered_pane);
+}
+
+std::shared_ptr<Component> Window::get_glass_pane() const {
+  return this->root_pane->get_glass_pane();
+}
+
+void Window::set_glass_pane(const std::shared_ptr<Component> &glass_pane) {
+  this->root_pane->set_glass_pane(glass_pane);
+}
+
+void Window::set_root_pane(const std::shared_ptr<RootPane> &root_pane) {
+  if (this->root_pane) {
+    remove(this->root_pane);
+  }
+
+  this->root_pane = root_pane;
+  if (this->root_pane) {
+    add(this->root_pane, BorderLayout::CENTER);
+  }
 }
 
 }

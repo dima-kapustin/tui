@@ -67,6 +67,14 @@ public:
   std::shared_ptr<laf::RootPaneUI> get_ui() const;
 
 protected:
+  RootPane() {
+  }
+
+  template<typename T, typename ... Args>
+  requires (is_component_v<T> )
+  friend auto make_component(Args&&...);
+
+protected:
   std::shared_ptr<laf::ComponentUI> create_ui() override;
 
   virtual void init() override;
