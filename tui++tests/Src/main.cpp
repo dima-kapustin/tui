@@ -1,5 +1,6 @@
 #include <tui++/Event.h>
 #include <tui++/Frame.h>
+#include <tui++/MenuBar.h>
 
 #include <tui++/terminal/Terminal.h>
 #include <tui++/terminal/TerminalGraphics.h>
@@ -40,7 +41,10 @@ int main(int argc, char *argv[]) {
     g->flush();
   });
 
+  auto menu_bar = make_component<MenuBar>();
+
   auto frame = terminal.create_frame<Frame>();
+  frame->set_menu_bar(menu_bar);
   frame->add_property_change_listener("visible", [](PropertyChangeEvent &e) {
     std::cout << e.property_name << std::endl;
   });
