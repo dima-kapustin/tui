@@ -55,19 +55,19 @@ static void print_ocs(const P &param, const Params &... params) {
 void Terminal::set_option(Option option) {
   struct SetOption {
     void operator()(const DECModeOption &option) {
-      std::cout << "\x1b[?" << int(option) << 'h';
+      std::cout << "\x1b[?"sv << int(option) << 'h';
     }
     void operator()(const ModifyKeyboardOption &option) {
-      std::cout << "\x1b[>0;" << int(option) << 'm';
+      std::cout << "\x1b[>0;"sv << int(option) << 'm';
     }
     void operator()(const ModifyCursorKeysOption &option) {
-      std::cout << "\x1b[>1;" << int(option) << 'm';
+      std::cout << "\x1b[>1;"sv << int(option) << 'm';
     }
     void operator()(const ModifyFunctionKeysOption &option) {
-      std::cout << "\x1b[>2;" << int(option) << 'm';
+      std::cout << "\x1b[>2;"sv << int(option) << 'm';
     }
     void operator()(const ModifyOtherKeysOption &option) {
-      std::cout << "\x1b[>4;" << int(option) << 'm';
+      std::cout << "\x1b[>4;"sv << int(option) << 'm';
     }
   };
 
@@ -78,19 +78,19 @@ void Terminal::set_option(Option option) {
 void Terminal::reset_option(Option option) {
   struct ResetOption {
     void operator()(const DECModeOption &option) {
-      std::cout << "\x1b[?" << int(option) << 'l';
+      std::cout << "\x1b[?"sv << int(option) << 'l';
     }
     void operator()(const ModifyKeyboardOption&) {
-      std::cout << "\x1b[>0m";
+      std::cout << "\x1b[>0m"sv;
     }
     void operator()(const ModifyCursorKeysOption&) {
-      std::cout << "\x1b[>1m";
+      std::cout << "\x1b[>1m"sv;
     }
     void operator()(const ModifyFunctionKeysOption&) {
-      std::cout << "\x1b[>2m";
+      std::cout << "\x1b[>2m"sv;
     }
     void operator()(const ModifyOtherKeysOption&) {
-      std::cout << "\x1b[>4m";
+      std::cout << "\x1b[>4m"sv;
     }
   };
 
@@ -132,24 +132,24 @@ void Terminal::hide_cursor() {
 
 void Terminal::show_cursor(Cursor cursor) {
   set_option(DECModeOption::CURSOR);
-  std::cout << "\x1b[" << int(cursor) << " q";
+  std::cout << "\x1b["sv << int(cursor) << " q"sv;
 }
 
 void Terminal::move_cursor_to(int line, int column) {
-  std::cout << "\x1b[" << line << ';' << column << 'H';
+  std::cout << "\x1b["sv << line << ';' << column << 'H';
 }
 
 void Terminal::move_cursor_by(int lines, int columns) {
   if (lines > 0) {
-    std::cout << "\x1b[" << lines << 'B';
+    std::cout << "\x1b["sv << lines << 'B';
   } else if (lines < 0) {
-    std::cout << "\x1b[" << -lines << 'A';
+    std::cout << "\x1b["sv << -lines << 'A';
   }
 
   if (columns > 0) {
-    std::cout << "\x1b[" << columns << 'C';
+    std::cout << "\x1b["sv << columns << 'C';
   } else if (columns < 0) {
-    std::cout << "\x1b[" << -columns << 'D';
+    std::cout << "\x1b["sv << -columns << 'D';
   }
 }
 

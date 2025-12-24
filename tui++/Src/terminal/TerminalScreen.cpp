@@ -209,7 +209,7 @@ std::string TerminalScreen::to_string() const {
   for (auto y = 0U; y < this->view.size(); ++y) {
     if (y) {
       escape_attrs_and_colors(EMPTY_CHAR_VIEW);
-      os << "\r\n"s;
+      os << "\r\n"sv;
     }
 
     auto skip = false;
