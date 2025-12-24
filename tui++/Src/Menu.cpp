@@ -73,7 +73,7 @@ Point Menu::get_popup_menu_origin() const {
     popup_menu_size = this->popup_menu->get_preferred_size();
   }
   auto position = get_location_on_screen();
-  auto screen_bounds = Rectangle { { }, get_containing_window()->get_screen()->get_size() };
+  auto screen_bounds = Rectangle { { }, this_screen.get_size() };
   auto x = 0, y = 9;
   if (std::dynamic_pointer_cast<PopupMenu>(get_parent()) != nullptr) {
     // We are a submenu (pull-right)

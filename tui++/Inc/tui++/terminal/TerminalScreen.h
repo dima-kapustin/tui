@@ -17,8 +17,6 @@ class TerminalGraphics;
 class TerminalScreen: public Screen {
   using base = Screen;
 
-  Terminal &terminal;
-
   struct CharView {
     Char ch = ' ';
     Attributes attributes = Attributes::NONE;
@@ -39,8 +37,7 @@ class TerminalScreen: public Screen {
   std::vector</* rows */std::vector</* columns */CharView>> view;
 
 private:
-  TerminalScreen(Terminal &terminal) noexcept :
-      terminal(terminal) {
+  TerminalScreen() noexcept {
     resize_view();
   }
 

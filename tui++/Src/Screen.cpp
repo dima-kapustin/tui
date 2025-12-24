@@ -6,11 +6,11 @@
 
 namespace tui {
 
-std::thread::id Screen::event_dispatching_thread_id;
-EventQueue Screen::event_queue;
-
 void Screen::paint(Graphics &g) {
-
+  std::unique_lock lock(this->windows_mutex);
+  for (auto &&window : this->windows) {
+    window->paint(g);
+  }
 }
 
 std::shared_ptr<Window> Screen::get_window_at(int x, int y) const {
@@ -25,31 +25,38 @@ std::shared_ptr<Window> Screen::get_window_at(int x, int y) const {
 
 void Screen::show_window(const std::shared_ptr<Window> &window) {
   std::unique_lock lock(this->windows_mutex);
-  this->windows.emplace_front(window);
-  if (this->windows.size() == 1) {
-    focus(window, nullptr);
+  if (std::find(this->windows.begin(), this->windows.end(), window) == this->windows.end()) {
+    this->windows.emplace_back(window);
+    if (this->windows.size() == 1) {
+      focus(window, nullptr);
+    }
+
+    lock.unlock();
+    refresh();
   }
 }
 
 void Screen::hide_window(const std::shared_ptr<Window> &window) {
   std::unique_lock lock(this->windows_mutex);
-  if (auto pos = std::remove(this->windows.begin(), this->windows.end(), window); pos != this->windows.end()) {
+  if (auto pos = std::find(this->windows.begin(), this->windows.end(), window); pos != this->windows.end()) {
     this->windows.erase(pos, this->windows.end());
   } else {
-    throw std::runtime_error("unknown window");
+    throw std::runtime_error("window not visible");
   }
 }
 
 void Screen::to_front(const std::shared_ptr<Window> &window) {
   std::unique_lock lock(this->windows_mutex);
-  if (this->windows.front() != window) {
-    auto front = this->windows.front();
-    if (auto pos = std::remove(this->windows.begin(), this->windows.end(), window); pos != this->windows.end()) {
-      this->windows.erase(pos, this->windows.end());
-      this->windows.emplace_front(window);
-      focus(window, front);
-    } else {
-      throw std::runtime_error("unknown window");
+  if (not this->windows.empty()) {
+    if (this->windows.back() != window) {
+      auto front = this->windows.front();
+      if (auto pos = std::find(this->windows.begin(), this->windows.end(), window); pos != this->windows.end()) {
+        this->windows.erase(pos, this->windows.end());
+        this->windows.emplace_back(window);
+        focus(window, front);
+      } else {
+        throw std::runtime_error("window not visible");
+      }
     }
   }
 }
@@ -64,6 +71,35 @@ void Screen::dispatch_event(Event &event) {
     static_cast<InvocationEvent&>(event).dispatch();
   } else if (event.source) {
     std::dynamic_pointer_cast<Component>(event.source)->dispatch_event(event);
+  }
+}
+
+void Screen::add_listener(const EventTypeMask &event_mask, const std::shared_ptr<EventListener<Event>> &listener) {
+  for (auto i = selective_listeners.begin(); i != selective_listeners.end(); ++i) {
+    if (i->listener == listener) {
+      i->event_mask |= event_mask;
+      return;
+    }
+  }
+  selective_listeners.emplace_back(event_mask, listener);
+}
+
+void Screen::remove_listener(const std::shared_ptr<EventListener<Event>> &listener) {
+  for (auto i = selective_listeners.begin(); i != selective_listeners.end();) {
+    if (i->listener == listener) {
+      selective_listeners.erase(i);
+      break;
+    } else {
+      ++i;
+    }
+  }
+}
+
+void Screen::notify_listeners(Event &e) {
+  for (auto&& [event_mask, listener] : selective_listeners) {
+    if (event_mask & e.id) {
+      listener->event_dispatched(e);
+    }
   }
 }
 

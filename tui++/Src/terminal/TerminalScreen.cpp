@@ -6,6 +6,12 @@
 
 #include <iostream>
 
+namespace tui::detail {
+Screen& get_screen() {
+  return terminal::Terminal::get_singleton().get_screen();
+}
+}
+
 namespace tui::terminal {
 
 constexpr std::chrono::milliseconds WAIT_EVENT_TIMEOUT { 30 };
@@ -142,7 +148,7 @@ void TerminalScreen::run_event_loop() {
   event_dispatching_thread_id = std::this_thread::get_id();
 
   while (not this->quit) {
-    this->terminal.read_events();
+    this_terminal.read_events();
     if (auto event = this->event_queue.pop(WAIT_EVENT_TIMEOUT)) {
       dispatch_event(*event);
     }
@@ -151,13 +157,14 @@ void TerminalScreen::run_event_loop() {
 
 void TerminalScreen::resize_view() {
   auto size = this->size;
-  this->size = this->terminal.get_size();
+  this->size = this_terminal.get_size();
   if (size != this->size) {
     this->view.resize(this->size.height);
     for (auto &&row : this->view) {
       row.resize(this->size.width);
       std::fill(row.begin(), row.end(), EMPTY_CHAR_VIEW);
     }
+    refresh();
   }
 }
 
@@ -226,9 +233,9 @@ void TerminalScreen::clear() {
 }
 
 void TerminalScreen::flush() const {
-  this->terminal.move_cursor_to(1, 1);
-  this->terminal.print(to_string());
-  this->terminal.flush();
+  this_terminal.move_cursor_to(1, 1);
+  this_terminal.print(to_string());
+  this_terminal.flush();
 }
 
 }

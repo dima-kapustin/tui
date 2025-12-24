@@ -5,16 +5,37 @@
 
 namespace tui::laf {
 
-void ComponentUI::update(std::shared_ptr<Graphics> const &g, std::shared_ptr<const Component> const &c) const {
+void ComponentUI::install_ui(std::shared_ptr<Component> const &c) {
+}
+
+void ComponentUI::uninstall_ui(std::shared_ptr<Component> const &c) {
+}
+
+void ComponentUI::update(Graphics &g, std::shared_ptr<const Component> const &c) const {
   if (c->is_opaque()) {
-    g->set_background_color(c->get_background_color());
-    g->fill_rect(0, 0, c->get_width(), c->get_height());
+    g.set_background_color(c->get_background_color());
+    g.fill_rect(0, 0, c->get_width(), c->get_height());
   }
   paint(g, c);
 }
 
+Dimension ComponentUI::get_preferred_size(std::shared_ptr<const Component> const &c) const {
+  return Dimension::zero();
+}
+
+Dimension ComponentUI::get_minimum_size(std::shared_ptr<const Component> const &c) const {
+  return get_preferred_size(c);
+}
+
+Dimension ComponentUI::get_maximum_size(std::shared_ptr<const Component> const &c) const {
+  return get_preferred_size(c);
+}
+
 bool ComponentUI::contains(std::shared_ptr<const Component> const &c, int x, int y) const {
   return x >= 0 and x < c->get_width() and y >= 0 and y < c->get_height();
+}
+
+void ComponentUI::paint(Graphics &g, std::shared_ptr<const Component> const &c) const {
 }
 
 }

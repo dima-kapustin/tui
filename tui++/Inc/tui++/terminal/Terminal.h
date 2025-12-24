@@ -14,6 +14,7 @@
 namespace tui::terminal {
 
 class TerminalImpl;
+class TerminalScreen;
 class TerminalGraphics;
 
 class Terminal {
@@ -236,7 +237,6 @@ private:
 
   std::unique_ptr<TerminalImpl> impl;
 
-  TerminalScreen screen { *this };
   InputParser input_parser { *this };
 
 private:
@@ -267,9 +267,19 @@ private:
 
   friend class TerminalScreen;
 
-public:
   Terminal();
   ~Terminal();
+
+public:
+  struct Singleton {
+    Singleton();
+    ~Singleton();
+  };
+
+  static Terminal& get_singleton();
+
+public:
+  TerminalScreen& get_screen();
 
   Dimension get_size();
   std::shared_ptr<TerminalGraphics> get_graphics();
@@ -290,24 +300,20 @@ public:
   void flush();
 
   void run_event_loop() {
-    this->screen.run_event_loop();
+    this_screen.run_event_loop();
   }
 
   void post(std::function<void()> fn) {
-    this->screen.post(std::move(fn));
-  }
-
-  template<typename F, typename ... Args>
-  requires (std::is_convertible_v<F*, Frame*>)
-  std::shared_ptr<F> create_frame(Args &&...args) {
-    return this->screen.create_frame<F>(std::forward<Args>(args)...);
-  }
-
-  template<typename D, typename ... Args>
-  requires (std::is_convertible_v<D*, Dialog*>)
-  std::shared_ptr<D> create_dialog(Args &&...args) {
-    return this->screen.create_dialog<D>(std::forward<Args>(args)...);
+    this_screen.post(std::move(fn));
   }
 };
 
+namespace detail {
+static Terminal::Singleton terminal_singleton;
+}
+
+}
+
+namespace tui {
+extern terminal::Terminal &this_terminal;
 }

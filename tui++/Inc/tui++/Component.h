@@ -292,9 +292,9 @@ protected:
     }
   }
 
-  void paint_border(Graphics &g);
-
-  virtual void paint_components(Graphics &g);
+  virtual void paint_component(Graphics &g);
+  virtual void paint_border(Graphics &g);
+  virtual void paint_children(Graphics &g);
 
   /**
    * Set this container's current keyboard focus. Called by the requestFocus() method of the contained component.
@@ -661,10 +661,7 @@ public:
     return this->visible;
   }
 
-  virtual void paint(Graphics &g) {
-    paint_border(g);
-    paint_components(g);
-  }
+  virtual void paint(Graphics &g);
 
   /**
    * Causes this component to be repainted as soon as possible (this is done by posting a RepaintEvent onto the system queue).
@@ -1006,7 +1003,7 @@ public:
    * @return true if this component is completely opaque
    * @see #setOpaque
    */
-  bool is_opaque() const {
+  virtual bool is_opaque() const {
     return this->opaque;
   }
 

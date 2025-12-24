@@ -8,7 +8,35 @@
 
 using namespace std::string_view_literals;
 
+static std::atomic<unsigned> terminal_ref_counter = 0;
+static std::byte terminal_buf[sizeof(tui::terminal::Terminal)];
+static std::byte terminal_screen_buf[sizeof(tui::terminal::TerminalScreen)];
+
+namespace tui {
+terminal::Terminal &this_terminal = reinterpret_cast<terminal::Terminal&>(terminal_buf);
+terminal::TerminalScreen &this_terminal_screen = reinterpret_cast<terminal::TerminalScreen&>(terminal_screen_buf);
+}
+
 namespace tui::terminal {
+
+Terminal& Terminal::get_singleton() {
+  if (terminal_ref_counter++ == 0) {
+    ::new (&this_terminal) Terminal();
+    ::new (&this_terminal_screen) TerminalScreen();
+  }
+  return this_terminal;
+}
+
+Terminal::Singleton::Singleton() {
+  Terminal::get_singleton();
+}
+
+Terminal::Singleton::~Singleton() {
+  if (--terminal_ref_counter == 0) {
+    this_terminal_screen.~TerminalScreen();
+    this_terminal.~Terminal();
+  }
+}
 
 template<typename P, typename ...Params>
 static void print_ocs(const P &param, const Params &... params) {
@@ -133,15 +161,15 @@ void Terminal::set_title(const std::string &title) {
 }
 
 void Terminal::new_resize_event() {
-  this->screen.terminal_resized();
+  this_terminal_screen.terminal_resized();
 }
 
 void Terminal::new_key_event(const Char &c, InputEvent::Modifiers key_modifiers) {
-  this->screen.post_system<KeyEvent>(KeyboardFocusManager::single->get_focused_window(), c, key_modifiers);
+  this_terminal_screen.post_system<KeyEvent>(KeyboardFocusManager::single->get_focused_window(), c, key_modifiers);
 }
 
 void Terminal::new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers key_modifiers) {
-  this->screen.post_system<KeyEvent>(KeyboardFocusManager::single->get_focused_window(), KeyEvent::KEY_PRESSED, key_code, key_modifiers);
+  this_terminal_screen.post_system<KeyEvent>(KeyboardFocusManager::single->get_focused_window(), KeyEvent::KEY_PRESSED, key_code, key_modifiers);
 }
 
 void Terminal::new_mouse_event(MousePressEvent::Type type, MousePressEvent::Button button, InputEvent::Modifiers key_modifiers, int x, int y) {
@@ -166,19 +194,19 @@ void Terminal::new_mouse_event(MousePressEvent::Type type, MousePressEvent::Butt
 
   auto p = Point { x, y };
 
-  auto window = this->screen.get_window_at(p);
+  auto window = this_terminal_screen.get_window_at(p);
   if (window) {
     p = convert_point_from_screen(p, window);
   }
 
   if (motion) {
     if (type == MousePressEvent::MOUSE_PRESSED and button != MousePressEvent::NO_BUTTON) {
-      this->screen.post_system<MouseDragEvent>(window, button, modifiers, p.x, p.y);
+      this_terminal_screen.post_system<MouseDragEvent>(window, button, modifiers, p.x, p.y);
     } else {
-      this->screen.post_system<MouseMoveEvent>(window, modifiers, p.x, p.y);
+      this_terminal_screen.post_system<MouseMoveEvent>(window, modifiers, p.x, p.y);
     }
   } else {
-    this->screen.post_system<MousePressEvent>(window, type, button, modifiers, p.x, p.y, false);
+    this_terminal_screen.post_system<MousePressEvent>(window, type, button, modifiers, p.x, p.y, false);
 
     if (type == MousePressEvent::MOUSE_PRESSED) {
       prev_mouse_press_time = Clock::now();
@@ -191,7 +219,7 @@ void Terminal::new_mouse_event(MousePressEvent::Type type, MousePressEvent::Butt
         } else {
           prev_mouse_click_time = Clock::now();
         }
-        this->screen.post_system<MouseClickEvent>(window, button, modifiers, p.x, p.y, click_count, false);
+        this_terminal_screen.post_system<MouseClickEvent>(window, button, modifiers, p.x, p.y, click_count, false);
       }
     }
   }
@@ -205,16 +233,20 @@ void Terminal::new_mouse_event(MousePressEvent::Type type, MousePressEvent::Butt
 void Terminal::new_mouse_wheel_event(int wheel_rotation, InputEvent::Modifiers key_modifiers, int x, int y) {
   auto p = Point { x, y };
 
-  auto window = this->screen.get_window_at(p);
+  auto window = this_terminal_screen.get_window_at(p);
   if (window) {
     p = convert_point_from_screen(p, window);
   }
 
-  this->screen.post_system<MouseWheelEvent>(window, key_modifiers, p.x, p.y, wheel_rotation);
+  this_terminal_screen.post_system<MouseWheelEvent>(window, key_modifiers, p.x, p.y, wheel_rotation);
+}
+
+TerminalScreen& Terminal::get_screen() {
+  return this_terminal_screen;
 }
 
 std::shared_ptr<TerminalGraphics> Terminal::get_graphics() {
-  return std::make_shared<TerminalGraphics>(this->screen);
+  return std::make_shared<TerminalGraphics>(this_terminal_screen);
 }
 
 }

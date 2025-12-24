@@ -20,12 +20,16 @@ void Window::dispatch_event(Event &e) {
   base::dispatch_event(e);
 }
 
-void Window::paint_components(Graphics &g) {
+bool Window::is_opaque() const {
+  return this->background_color.has_value();
+}
+
+void Window::paint_children(Graphics &g) {
   int x = get_x(), y = get_y();
   g.translate(x, y);
   auto clip_rect = g.get_clip_rect();
   g.clip_rect(0, 0, get_width(), get_height());
-  base::paint_components(g);
+  base::paint_children(g);
   g.set_clip_rect(clip_rect);
   g.translate(-x, -y);
 }
@@ -96,7 +100,7 @@ void Window::set_always_on_top(bool value) {
 }
 
 void Window::to_front() {
-  this->screen.to_front(std::dynamic_pointer_cast<Window>(shared_from_this()));
+  this_screen.to_front(std::dynamic_pointer_cast<Window>(shared_from_this()));
 }
 
 void Window::show() {
@@ -110,7 +114,7 @@ void Window::show() {
     // close_splash_screen();
     // Dialog::check_should_be_blocked(shared_from_this());
     base::show();
-    this->screen.show_window(std::dynamic_pointer_cast<Window>(shared_from_this()));
+    this_screen.show_window(std::dynamic_pointer_cast<Window>(shared_from_this()));
   }
   this->in_show = false;
 
@@ -121,7 +125,7 @@ void Window::show() {
 }
 
 void Window::hide() {
-  this->screen.hide_window(std::dynamic_pointer_cast<Window>(shared_from_this()));
+  this_screen.hide_window(std::dynamic_pointer_cast<Window>(shared_from_this()));
   base::hide();
 }
 

@@ -19,13 +19,13 @@ class KeyboardFocusManager;
 class Window: public ComponentExtension<Component, WindowEvent>, public RootPaneContainer {
   using base = Component;
 
-  Screen &screen;
   std::shared_ptr<Window> owner;
   const WindowType type;
 
   std::vector<std::weak_ptr<Window>> owned_windows;
   std::shared_ptr<WindowMouseEventDispatcher> mouse_event_dispatcher;
 
+  Property<std::string> title { this, "title" };
   Property<bool> focusable_window_state { this, "focusable-window-state", true };
   Property<bool> always_on_top { this, "always-on-top", false };
 
@@ -42,12 +42,12 @@ protected:
   std::shared_ptr<RootPane> root_pane;
 
 protected:
-  Window(Screen &screen, WindowType type = WindowType::NORMAL) :
-      screen(screen), type(type) {
+  Window(WindowType type = WindowType::NORMAL) :
+      type(type) {
   }
 
   Window(const std::shared_ptr<Window> &owner, WindowType type = WindowType::NORMAL) :
-      screen(owner->screen), owner(owner), type(type) {
+      owner(owner), type(type) {
   }
 
   virtual ~Window() {
@@ -67,7 +67,7 @@ protected:
   void add_impl(const std::shared_ptr<Component> &c, const Constraints &constraints, int z_order) noexcept (false) override;
   void add_notify() override;
 
-  void paint_components(Graphics &g) override;
+  void paint_children(Graphics &g) override;
 
   void show() override;
   void hide() override;
@@ -77,34 +77,39 @@ protected:
   }
 
 public:
-  void remove(const std::shared_ptr<Component> &c) override;
-  void set_layout(const std::shared_ptr<Layout> &layout) override;
-
-  WindowType get_type() const {
-    return this->type;
+  const std::string& get_title() const {
+    return this->title;
   }
 
-  void dispatch_event(Event &e) override;
-
-  std::shared_ptr<Window> get_owner() const {
-    return this->owner;
+  void set_title(const std::string &title) {
+    this->title = title;
   }
 
-  Screen* get_screen() const {
-    return &this->screen;
-  }
+  virtual void remove(const std::shared_ptr<Component> &c) override;
+  virtual void set_layout(const std::shared_ptr<Layout> &layout) override;
+  virtual void dispatch_event(Event &e) override;
 
-  bool is_displayable() const override {
+  virtual bool is_opaque() const override;
+
+  virtual bool is_displayable() const override {
     return true;
   }
 
-  void paint(Graphics &g) override {
+  virtual void paint(Graphics &g) override {
     validate();
     base::paint(g);
   }
 
   bool is_focus_cycle_root() const override {
     return true;
+  }
+
+  WindowType get_type() const {
+    return this->type;
+  }
+
+  std::shared_ptr<Window> get_owner() const {
+    return this->owner;
   }
 
   bool is_focused() const {

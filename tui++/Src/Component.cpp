@@ -49,13 +49,19 @@ void Component::init() {
   update_ui();
 }
 
+void Component::paint_component(Graphics &g) {
+  if (this->ui) {
+    this->ui->update(g, shared_from_this());
+  }
+}
+
 void Component::paint_border(Graphics &g) {
   if (this->border) {
     this->border->paint_border(*this, g, 0, 0, get_width(), get_height());
   }
 }
 
-void Component::paint_components(Graphics &g) {
+void Component::paint_children(Graphics &g) {
   for (auto &&c : this->components) {
     if (c->is_visible()) {
       int x = c->get_x(), y = c->get_y();
@@ -65,6 +71,16 @@ void Component::paint_components(Graphics &g) {
       c->paint(g);
       g.set_clip_rect(clip_rect);
       g.translate(-x, -y);
+    }
+  }
+}
+
+void Component::paint(Graphics &g) {
+  if (not this->size.empty()) {
+    if (auto component_graphics = g.create(get_x(), get_y(), get_width(), get_height())) {
+      paint_component(*component_graphics);
+      paint_border(*component_graphics);
+      paint_children(*component_graphics);
     }
   }
 }
@@ -149,7 +165,7 @@ bool Component::is_request_focus_accepted(bool temporary, bool focused_window_ch
 
 bool Component::request_focus(bool temporary, bool focused_window_change_allowed, FocusEvent::Cause cause) {
   // 1) Check if the event being dispatched is a system-generated mouse event.
-  if (auto current_event = Screen::get_event_queue().get_current_event(); current_event and current_event->system_generated) {
+  if (auto current_event = this_screen.get_event_queue().get_current_event(); current_event and current_event->system_generated) {
     if (auto mouse_event = std::dynamic_pointer_cast<MousePressEvent>(current_event)) {
       // 2) Sanity check: if the mouse event component source belongs to the same containing window.
       auto source = mouse_event->component();
@@ -514,21 +530,12 @@ void Component::dispatch_event(Event &e) {
 
   log_focus_if_ln(dynamic_cast<FocusEvent*>(&e), *dynamic_cast<FocusEvent*>(&e));
 
-  // MouseWheel may need to be retargeted here so that
-  // AWTEventListener sees the event go to the correct
-  // Component.  If the MouseWheelEvent needs to go to an ancestor,
-  // the event is dispatched to the ancestor, and dispatching here
-  // stops.
   if (auto mouse_wheel_event = dynamic_cast<MouseWheelEvent*>(&e)) {
     if (dispatch_mouse_wheel_to_ancestor(*mouse_wheel_event)) {
       return;
     }
   }
 
-  /*
-   * 3. If no one has consumed a key event, allow the
-   *    KeyboardFocusManager to process it.
-   */
   if (auto key_event = dynamic_cast<KeyEvent*>(&e)) {
     if (not key_event->consumed) {
       KeyboardFocusManager::single->process_key_event(shared_from_this(), *key_event);
@@ -537,6 +544,8 @@ void Component::dispatch_event(Event &e) {
       }
     }
   }
+
+  this_screen.notify_listeners(e);
 
   if (is_event_enabled(e)) {
     base::process_event(e);
@@ -915,7 +924,7 @@ std::shared_ptr<Component> Component::find_traversal_root() const {
 
 void Component::revalidate() {
   if (not this->parent.expired()) {
-    if (Screen::is_event_dispatching_thread()) {
+    if (this_screen.is_event_dispatching_thread()) {
       invalidate();
       // TODO RepaintManager::add_invalid_component(shared_from_this());
     } else {

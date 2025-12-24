@@ -10,6 +10,12 @@
 
 namespace tui {
 
+class Screen;
+namespace detail {
+Screen& get_screen();
+}
+static Screen& this_screen = detail::get_screen();
+
 class Frame;
 class Dialog;
 class Window;
@@ -17,13 +23,13 @@ class Graphics;
 
 class Screen {
   struct SelectiveListener {
-    std::shared_ptr<EventListener<Event>> listener;
     EventTypeMask event_mask;
+    std::shared_ptr<EventListener<Event>> listener;
   };
 
 protected:
-  static std::thread::id event_dispatching_thread_id;
-  static EventQueue event_queue;
+  std::thread::id event_dispatching_thread_id;
+  EventQueue event_queue;
 
   std::list<SelectiveListener> selective_listeners;
 
@@ -67,14 +73,14 @@ protected:
   void dispatch_event(Event &event);
 
 public:
-  static EventQueue& get_event_queue() {
+  EventQueue& get_event_queue() {
     return event_queue;
   }
 
   /**
    * @return true iff the calling thread is the event dispatching thread
    */
-  static bool is_event_dispatching_thread() {
+  bool is_event_dispatching_thread() {
     return std::this_thread::get_id() == event_dispatching_thread_id;
   }
 
@@ -92,16 +98,16 @@ public:
     return this->size;
   }
 
-  static void post(const std::shared_ptr<Event> &event) {
+  void post(const std::shared_ptr<Event> &event) {
     event_queue.push(event);
   }
 
   template<typename T, typename Component, typename ... Args>
-  static void post(const std::shared_ptr<Component> &source, Args &&... args) {
+  void post(const std::shared_ptr<Component> &source, Args &&... args) {
     post(std::make_shared<T>(source, std::forward<Args>(args)...));
   }
 
-  static void post(std::function<void()> fn) {
+  void post(std::function<void()> fn) {
     post(std::make_shared<InvocationEvent>(fn));
   }
 
@@ -112,46 +118,9 @@ public:
 
   virtual void refresh() = 0;
 
-  template<typename F, typename ... Args>
-  requires (std::is_convertible_v<F*, Frame*>)
-  std::shared_ptr<F> create_frame(Args &&...args) {
-    return make_component<F>(*this, std::forward<Args>(args)...);
-  }
-
-  template<typename D, typename ... Args>
-  requires (std::is_convertible_v<D*, Dialog*>)
-  std::shared_ptr<D> create_dialog(Args &&...args) {
-    return make_component<D>(*this, std::forward<Args>(args)...);
-  }
-
-  void add_listener(const std::shared_ptr<EventListener<Event>> &listener, const EventTypeMask &event_mask) {
-    for (auto i = this->selective_listeners.begin(); i != this->selective_listeners.end(); ++i) {
-      if (i->listener == listener) {
-        i->event_mask |= event_mask;
-        return;
-      }
-    }
-    this->selective_listeners.emplace_back(listener, event_mask);
-  }
-
-  void remove_listener(const std::shared_ptr<EventListener<Event>> &listener) {
-    for (auto i = this->selective_listeners.begin(); i != this->selective_listeners.end();) {
-      if (i->listener == listener) {
-        this->selective_listeners.erase(i);
-        break;
-      } else {
-        ++i;
-      }
-    }
-  }
-
-  void notify_event_listeners(Event &e) {
-    for (auto &&selective_listener : this->selective_listeners) {
-      if (selective_listener.event_mask & e.id) {
-        selective_listener.listener->event_dispatched(e);
-      }
-    }
-  }
+  void add_listener(const EventTypeMask &event_mask, const std::shared_ptr<EventListener<Event>> &listener);
+  void remove_listener(const std::shared_ptr<EventListener<Event>> &listener);
+  void notify_listeners(Event &e);
 };
 
 }

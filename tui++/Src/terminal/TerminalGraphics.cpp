@@ -214,7 +214,7 @@ void TerminalGraphics::fill_rect(int x, int y, int width, int height) {
   if (auto rect = this->clip.get_intersection(x + this->dx, y + this->dy, width, height)) {
     for (auto j = rect.get_top(), bottom = rect.get_bottom(); j < bottom; j++) {
       for (auto i = rect.get_left(), right = rect.get_right(); i < right; i++) {
-        this->screen.draw_char(' ', i, j, this->background_color, this->background_color, this->attributes);
+        this->screen.draw_char(' ', i, j, this->foreground_color, this->background_color, this->attributes);
       }
     }
   }
