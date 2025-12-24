@@ -102,6 +102,8 @@ void Terminal::reset_option(Option option) {
 }
 
 void Terminal::init() {
+  std::ios_base::sync_with_stdio(false);
+
   set_option(DECModeOption::USE_ALTERNATE_SCREEN_BUFFER);
   reset_option(DECModeOption::LINE_WRAP);
   set_option(DECModeOption::MOUSE_VT200);

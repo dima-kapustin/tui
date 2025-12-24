@@ -5,12 +5,15 @@
 #include <tui++/util/utf-8.h>
 
 #include <iostream>
+#include <string_view>
 
 namespace tui::detail {
 Screen& get_screen() {
   return terminal::Terminal::get_singleton().get_screen();
 }
 }
+
+using namespace std::string_view_literals;
 
 namespace tui::terminal {
 
@@ -20,34 +23,34 @@ static void escape_attrs(std::ostream &os, const Attributes &reset, const Attrib
   auto reset_pos = os.tellp();
   for (auto &&attr : reset) {
     if (reset_pos == os.tellp()) {
-      os << "\x1B[";
+      os << "\x1B["sv;
     } else {
       os << ';';
     }
     switch (attr) {
     case Attribute::INVERSE:
     case Attribute::STANDOUT:
-      os << "27";
+      os << "27"sv;
       break;
     case Attribute::BOLD:
     case Attribute::DIM:
-      os << "22";
+      os << "22"sv;
       break;
     case Attribute::ITALIC:
-      os << "23";
+      os << "23"sv;
       break;
     case Attribute::UNDERLINE:
     case Attribute::DOUBLE_UNDERLINE:
-      os << "24";
+      os << "24"sv;
       break;
     case Attribute::BLINK:
-      os << "25";
+      os << "25"sv;
       break;
     case Attribute::INVISIBLE:
-      os << "28";
+      os << "28"sv;
       break;
     case Attribute::CROSSED_OUT:
-      os << "29";
+      os << "29"sv;
       break;
 
     default:
@@ -58,13 +61,13 @@ static void escape_attrs(std::ostream &os, const Attributes &reset, const Attrib
   auto set_pos = os.tellp();
   for (auto &&attr : set) {
     if (reset_pos == os.tellp()) {
-      os << "\x1B[";
+      os << "\x1B["sv;
     } else if (set_pos != os.tellp()) {
       os << ';';
     }
     switch (attr) {
     case Attribute::STANDOUT:
-      os << "1;7";
+      os << "1;7"sv;
       break;
     case Attribute::BOLD:
       os << '1';
@@ -91,7 +94,7 @@ static void escape_attrs(std::ostream &os, const Attributes &reset, const Attrib
       os << '9';
       break;
     case Attribute::DOUBLE_UNDERLINE:
-      os << "21";
+      os << "21"sv;
       break;
 
     default:
@@ -109,15 +112,15 @@ static void escape_background_color(std::ostream &os, const Color &color) {
     std::ostream &os;
 
     void operator()(const DefaultColor&) {
-      this->os << "\x1b[49m";
+      this->os << "\x1b[49m"sv;
     }
 
     void operator()(const ColorIndex &c) {
-      this->os << "\x1b[48;5;" << c.value << 'm';
+      this->os << "\x1b[48;5;"sv << c.value << 'm';
     }
 
     void operator()(const TrueColor &c) {
-      this->os << "\x1b[48;2;" << c.red << ';' << c.green << ';' << c.blue << 'm';
+      this->os << "\x1b[48;2;"sv << c.red << ';' << c.green << ';' << c.blue << 'm';
     }
   };
   std::visit(SetBackgroundColor { os }, color);
@@ -128,15 +131,15 @@ static void escape_foreground_color(std::ostream &os, const Color &color) {
     std::ostream &os;
 
     void operator()(const DefaultColor&) {
-      this->os << "\x1b[39m";
+      this->os << "\x1b[39m"sv;
     }
 
     void operator()(const ColorIndex &c) {
-      this->os << "\x1b[38;5;" << c.value << 'm';
+      this->os << "\x1b[38;5;"sv << c.value << 'm';
     }
 
     void operator()(const TrueColor &c) {
-      this->os << "\x1b[38;2;" << c.red << ';' << c.green << ';' << c.blue << 'm';
+      this->os << "\x1b[38;2;"sv << c.red << ';' << c.green << ';' << c.blue << 'm';
     }
   };
   std::visit(SetForegroundColor { os }, color);
@@ -206,7 +209,7 @@ std::string TerminalScreen::to_string() const {
   for (auto y = 0U; y < this->view.size(); ++y) {
     if (y) {
       escape_attrs_and_colors(EMPTY_CHAR_VIEW);
-      os << "\r\n";
+      os << "\r\n"s;
     }
 
     auto skip = false;

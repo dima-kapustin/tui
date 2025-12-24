@@ -147,6 +147,6 @@ struct TrueColor {
   }
 };
 
-using Color = std::variant<ColorIndex, DefaultColor, TrueColor>;
+using Color = std::variant<DefaultColor, ColorIndex, TrueColor>;
 
 }
