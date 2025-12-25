@@ -42,6 +42,7 @@ private:
   }
 
   void terminal_resized();
+  void print();
 
   friend class Terminal;
 
@@ -59,13 +60,15 @@ private:
   friend class TerminalGraphics;
 
 public:
+  void move_cursor_to(int line, int column);
+  void move_cursor_by(int lines, int columns);
+
   virtual void run_event_loop() override;
 
   virtual void refresh();
 
-  std::string to_string() const;
   void clear();
-  void flush() const;
+  void flush();
 };
 
 }

@@ -265,6 +265,14 @@ private:
     this->input_parser.parse_event();
   }
 
+  Terminal& write(const char* data, size_t size);
+
+  friend Terminal& operator<<(Terminal &term, std::string_view const &value);
+  friend Terminal& operator<<(Terminal &term, std::string const &value);
+  friend Terminal& operator<<(Terminal &term, char value);
+  friend Terminal& operator<<(Terminal &term, unsigned value);
+  friend Terminal& operator<<(Terminal &term, signed value);
+
   friend class TerminalScreen;
 
   Terminal();
@@ -280,20 +288,12 @@ public:
 
 public:
   TerminalScreen& get_screen();
+  std::shared_ptr<TerminalGraphics> get_graphics();
 
   Dimension get_size();
-  std::shared_ptr<TerminalGraphics> get_graphics();
 
   void hide_cursor();
   void show_cursor(Cursor cursor = Cursor::DEFAULT);
-
-  void move_cursor_to(int line, int column);
-  void move_cursor_by(int lines, int columns);
-
-  template<typename ...Args>
-  void print(Args &&... args) {
-    (std::cout << ... << args);
-  }
 
   void set_title(const std::string &title);
 

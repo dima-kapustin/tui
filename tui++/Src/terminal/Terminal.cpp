@@ -52,6 +52,15 @@ static void print_ocs(const P &param, const Params &... params) {
   std::cout << "\x1b\\"sv;
 }
 
+void Terminal::hide_cursor() {
+  reset_option(DECModeOption::CURSOR);
+}
+
+void Terminal::show_cursor(Cursor cursor) {
+  set_option(DECModeOption::CURSOR);
+  std::cout << "\x1b["sv << int(cursor) << " q"sv;
+}
+
 void Terminal::set_option(Option option) {
   struct SetOption {
     void operator()(const DECModeOption &option) {
@@ -71,7 +80,7 @@ void Terminal::set_option(Option option) {
     }
   };
 
-  std::visit(SetOption(), option);
+  std::visit(SetOption { }, option);
   set_options.emplace_back(option);
 }
 
@@ -94,7 +103,7 @@ void Terminal::reset_option(Option option) {
     }
   };
 
-  std::visit(ResetOption(), option);
+  std::visit(ResetOption { }, option);
 
   set_options.erase( //
       std::remove(set_options.begin(), set_options.end(), option), //
@@ -124,37 +133,6 @@ void Terminal::deinit() {
   reset_option(DECModeOption::USE_ALTERNATE_SCREEN_BUFFER);
 
   flush();
-}
-
-void Terminal::hide_cursor() {
-  reset_option(DECModeOption::CURSOR);
-}
-
-void Terminal::show_cursor(Cursor cursor) {
-  set_option(DECModeOption::CURSOR);
-  std::cout << "\x1b["sv << int(cursor) << " q"sv;
-}
-
-void Terminal::move_cursor_to(int line, int column) {
-  std::cout << "\x1b["sv << line << ';' << column << 'H';
-}
-
-void Terminal::move_cursor_by(int lines, int columns) {
-  if (lines > 0) {
-    std::cout << "\x1b["sv << lines << 'B';
-  } else if (lines < 0) {
-    std::cout << "\x1b["sv << -lines << 'A';
-  }
-
-  if (columns > 0) {
-    std::cout << "\x1b["sv << columns << 'C';
-  } else if (columns < 0) {
-    std::cout << "\x1b["sv << -columns << 'D';
-  }
-}
-
-void Terminal::flush() {
-  std::cout << std::flush;
 }
 
 void Terminal::set_title(const std::string &title) {
@@ -249,6 +227,39 @@ TerminalScreen& Terminal::get_screen() {
 
 std::shared_ptr<TerminalGraphics> Terminal::get_graphics() {
   return std::make_shared<TerminalGraphics>(this_terminal_screen);
+}
+
+Terminal& Terminal::write(const char *data, size_t size) {
+  std::cout.write(data, size);
+  return *this;
+}
+
+void Terminal::flush() {
+  std::cout << std::flush;
+}
+
+Terminal& operator<<(Terminal &term, std::string_view const &value) {
+  return term.write(value.data(), value.size());
+}
+
+Terminal& operator<<(Terminal &term, std::string const &value) {
+  return term.write(value.data(), value.size());
+}
+
+Terminal& operator<<(Terminal &term, char value) {
+  return term.write(&value, 1);
+}
+
+Terminal& operator<<(Terminal &term, unsigned value) {
+  char buf[16];
+  auto &&result = std::to_chars(buf, buf + std::size(buf), value);
+  return term.write(buf, result.ptr - buf);
+}
+
+Terminal& operator<<(Terminal &term, signed value) {
+  char buf[16];
+  auto &&result = std::to_chars(buf, buf + std::size(buf), value);
+  return term.write(buf, result.ptr - buf);
 }
 
 }

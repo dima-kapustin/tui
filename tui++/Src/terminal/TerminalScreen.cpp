@@ -4,7 +4,6 @@
 
 #include <tui++/util/utf-8.h>
 
-#include <iostream>
 #include <string_view>
 
 namespace tui::detail {
@@ -19,133 +18,148 @@ namespace tui::terminal {
 
 constexpr std::chrono::milliseconds WAIT_EVENT_TIMEOUT { 30 };
 
-static void escape_attrs(std::ostream &os, const Attributes &reset, const Attributes &set) {
-  auto reset_pos = os.tellp();
-  for (auto &&attr : reset) {
-    if (reset_pos == os.tellp()) {
-      os << "\x1B["sv;
-    } else {
-      os << ';';
-    }
-    switch (attr) {
-    case Attribute::INVERSE:
-    case Attribute::STANDOUT:
-      os << "27"sv;
-      break;
-    case Attribute::BOLD:
-    case Attribute::DIM:
-      os << "22"sv;
-      break;
-    case Attribute::ITALIC:
-      os << "23"sv;
-      break;
-    case Attribute::UNDERLINE:
-    case Attribute::DOUBLE_UNDERLINE:
-      os << "24"sv;
-      break;
-    case Attribute::BLINK:
-      os << "25"sv;
-      break;
-    case Attribute::INVISIBLE:
-      os << "28"sv;
-      break;
-    case Attribute::CROSSED_OUT:
-      os << "29"sv;
-      break;
+static void escape_attrs(const Attributes &reset, const Attributes &set) {
+  if (reset or set) {
+    this_terminal << "\x1B["sv;
+    auto delim = false;
+    for (auto &&attr : reset) {
+      if (delim) {
+        this_terminal << ';';
+      }
+      switch (attr) {
+      case Attribute::INVERSE:
+      case Attribute::STANDOUT:
+        this_terminal << "27"sv;
+        break;
+      case Attribute::BOLD:
+      case Attribute::DIM:
+        this_terminal << "22"sv;
+        break;
+      case Attribute::ITALIC:
+        this_terminal << "23"sv;
+        break;
+      case Attribute::UNDERLINE:
+      case Attribute::DOUBLE_UNDERLINE:
+        this_terminal << "24"sv;
+        break;
+      case Attribute::BLINK:
+        this_terminal << "25"sv;
+        break;
+      case Attribute::INVISIBLE:
+        this_terminal << "28"sv;
+        break;
+      case Attribute::CROSSED_OUT:
+        this_terminal << "29"sv;
+        break;
 
-    default:
-      break;
-    }
-  }
+      default:
+        break;
+      }
 
-  auto set_pos = os.tellp();
-  for (auto &&attr : set) {
-    if (reset_pos == os.tellp()) {
-      os << "\x1B["sv;
-    } else if (set_pos != os.tellp()) {
-      os << ';';
+      delim = true;
     }
-    switch (attr) {
-    case Attribute::STANDOUT:
-      os << "1;7"sv;
-      break;
-    case Attribute::BOLD:
-      os << '1';
-      break;
-    case Attribute::DIM:
-      os << '2';
-      break;
-    case Attribute::ITALIC:
-      os << '3';
-      break;
-    case Attribute::UNDERLINE:
-      os << '4';
-      break;
-    case Attribute::BLINK:
-      os << '5';
-      break;
-    case Attribute::INVERSE:
-      os << '7';
-      break;
-    case Attribute::INVISIBLE:
-      os << '8';
-      break;
-    case Attribute::CROSSED_OUT:
-      os << '9';
-      break;
-    case Attribute::DOUBLE_UNDERLINE:
-      os << "21"sv;
-      break;
 
-    default:
-      break;
+    delim = false;
+    for (auto &&attr : set) {
+      if (delim) {
+        this_terminal << ';';
+      }
+      switch (attr) {
+      case Attribute::STANDOUT:
+        this_terminal << "1;7"sv;
+        break;
+      case Attribute::BOLD:
+        this_terminal << '1';
+        break;
+      case Attribute::DIM:
+        this_terminal << '2';
+        break;
+      case Attribute::ITALIC:
+        this_terminal << '3';
+        break;
+      case Attribute::UNDERLINE:
+        this_terminal << '4';
+        break;
+      case Attribute::BLINK:
+        this_terminal << '5';
+        break;
+      case Attribute::INVERSE:
+        this_terminal << '7';
+        break;
+      case Attribute::INVISIBLE:
+        this_terminal << '8';
+        break;
+      case Attribute::CROSSED_OUT:
+        this_terminal << '9';
+        break;
+      case Attribute::DOUBLE_UNDERLINE:
+        this_terminal << "21"sv;
+        break;
+
+      default:
+        break;
+      }
+
+      delim = true;
     }
-  }
 
-  if (reset_pos != os.tellp()) {
-    os << 'm';
+    this_terminal << 'm';
   }
 }
 
-static void escape_background_color(std::ostream &os, const Color &color) {
+static void escape_background_color(const Color &color) {
   struct SetBackgroundColor {
-    std::ostream &os;
-
     void operator()(const DefaultColor&) {
-      this->os << "\x1b[49m"sv;
+      this_terminal << "\x1b[49m"sv;
     }
 
     void operator()(const ColorIndex &c) {
-      this->os << "\x1b[48;5;"sv << c.value << 'm';
+      this_terminal << "\x1b[48;5;"sv << c.value << 'm';
     }
 
     void operator()(const TrueColor &c) {
-      this->os << "\x1b[48;2;"sv << c.red << ';' << c.green << ';' << c.blue << 'm';
+      this_terminal << "\x1b[48;2;"sv << c.red << ';' << c.green << ';' << c.blue << 'm';
     }
   };
-  std::visit(SetBackgroundColor { os }, color);
+  std::visit(SetBackgroundColor { }, color);
 }
 
-static void escape_foreground_color(std::ostream &os, const Color &color) {
+static void escape_foreground_color(const Color &color) {
   struct SetForegroundColor {
-    std::ostream &os;
-
     void operator()(const DefaultColor&) {
-      this->os << "\x1b[39m"sv;
+      this_terminal << "\x1b[39m"sv;
     }
 
     void operator()(const ColorIndex &c) {
-      this->os << "\x1b[38;5;"sv << c.value << 'm';
+      this_terminal << "\x1b[38;5;"sv << c.value << 'm';
     }
 
     void operator()(const TrueColor &c) {
-      this->os << "\x1b[38;2;"sv << c.red << ';' << c.green << ';' << c.blue << 'm';
+      this_terminal << "\x1b[38;2;"sv << c.red << ';' << c.green << ';' << c.blue << 'm';
     }
   };
-  std::visit(SetForegroundColor { os }, color);
+  std::visit(SetForegroundColor { }, color);
 }
 
 TerminalScreen::CharView TerminalScreen::EMPTY_CHAR_VIEW;
+
+void TerminalScreen::move_cursor_to(int line, int column) {
+  this_terminal << "\x1b["sv << line << ';' << column << 'H';
+}
+
+void TerminalScreen::move_cursor_by(int lines, int columns) {
+  if (lines > 0) {
+    this_terminal << "\x1b["sv << lines << 'B';
+  } else if (lines < 0) {
+    this_terminal << "\x1b["sv << -lines << 'A';
+  }
+
+  if (columns > 0) {
+    this_terminal << "\x1b["sv << columns << 'C';
+  } else if (columns < 0) {
+    this_terminal << "\x1b["sv << -columns << 'D';
+  }
+}
 
 void TerminalScreen::run_event_loop() {
   event_dispatching_thread_id = std::this_thread::get_id();
@@ -182,10 +196,8 @@ void TerminalScreen::refresh() {
   flush();
 }
 
-std::string TerminalScreen::to_string() const {
-  std::string buffer;
-  buffer.reserve(4 * get_width() * get_height() + get_height());
-  std::ostringstream os(buffer);
+void TerminalScreen::print() {
+  move_cursor_to(1, 1);
 
   const auto *prev_cv = &EMPTY_CHAR_VIEW;
 
@@ -193,14 +205,14 @@ std::string TerminalScreen::to_string() const {
     auto reset = prev_cv->attributes & ~cv.attributes;
     auto set = ~prev_cv->attributes & cv.attributes;
 
-    escape_attrs(os, reset, set);
+    escape_attrs(reset, set);
 
     if (prev_cv->background_color != cv.background_color) {
-      escape_background_color(os, cv.background_color);
+      escape_background_color(cv.background_color);
     }
 
     if (prev_cv->foreground_color != cv.foreground_color) {
-      escape_foreground_color(os, cv.foreground_color);
+      escape_foreground_color(cv.foreground_color);
     }
 
     prev_cv = &cv;
@@ -209,22 +221,20 @@ std::string TerminalScreen::to_string() const {
   for (auto y = 0U; y < this->view.size(); ++y) {
     if (y) {
       escape_attrs_and_colors(EMPTY_CHAR_VIEW);
-      os << "\r\n"sv;
+      this_terminal << "\r\n"sv;
     }
 
     auto skip = false;
     for (auto &&cv : this->view[y]) {
       if (not skip) {
         escape_attrs_and_colors(cv);
-        os << cv.ch;
+        this_terminal << cv.ch;
       }
       skip = cv.is_wide();
     }
   }
 
   escape_attrs_and_colors(EMPTY_CHAR_VIEW);
-
-  return os.str();
 }
 
 void TerminalScreen::clear() {
@@ -235,9 +245,8 @@ void TerminalScreen::clear() {
   }
 }
 
-void TerminalScreen::flush() const {
-  this_terminal.move_cursor_to(1, 1);
-  this_terminal.print(to_string());
+void TerminalScreen::flush() {
+  print();
   this_terminal.flush();
 }
 
