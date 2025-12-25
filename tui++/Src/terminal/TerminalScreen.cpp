@@ -53,13 +53,13 @@ static void escape_attrs(const Attributes &reset, const Attributes &set) {
         break;
 
       default:
-        break;
+        delim = false;
+        continue;
       }
 
       delim = true;
     }
 
-    delim = false;
     for (auto &&attr : set) {
       if (delim) {
         this_terminal << ';';
@@ -97,7 +97,8 @@ static void escape_attrs(const Attributes &reset, const Attributes &set) {
         break;
 
       default:
-        break;
+        delim = false;
+        continue;
       }
 
       delim = true;
