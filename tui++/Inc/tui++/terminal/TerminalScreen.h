@@ -9,7 +9,7 @@
 
 #include <tui++/util/utf-8.h>
 
-namespace tui::terminal {
+namespace tui {
 
 class Terminal;
 class TerminalGraphics;

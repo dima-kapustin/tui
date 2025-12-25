@@ -11,7 +11,7 @@
 #include <tui++/terminal/Terminal.h>
 #include <tui++/terminal/TerminalScreen.h>
 
-namespace tui::terminal {
+namespace tui {
 
 struct TerminalImpl {
   static inline TerminalImpl *impl = nullptr;

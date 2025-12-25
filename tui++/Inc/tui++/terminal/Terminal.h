@@ -11,7 +11,10 @@
 
 #include <tui++/terminal/TerminalScreen.h>
 
-namespace tui::terminal {
+namespace tui {
+
+class Terminal;
+extern Terminal &terminal;
 
 class TerminalImpl;
 class TerminalScreen;
@@ -300,11 +303,11 @@ public:
   void flush();
 
   void run_event_loop() {
-    this_screen.run_event_loop();
+    screen.run_event_loop();
   }
 
   void post(std::function<void()> fn) {
-    this_screen.post(std::move(fn));
+    screen.post(std::move(fn));
   }
 };
 
@@ -312,8 +315,4 @@ namespace detail {
 static Terminal::Singleton terminal_singleton;
 }
 
-}
-
-namespace tui {
-extern terminal::Terminal &this_terminal;
 }

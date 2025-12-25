@@ -8,48 +8,48 @@
 
 namespace tui::detail {
 Screen& get_screen() {
-  return terminal::Terminal::get_singleton().get_screen();
+  return Terminal::get_singleton().get_screen();
 }
 }
 
 using namespace std::string_view_literals;
 
-namespace tui::terminal {
+namespace tui {
 
 constexpr std::chrono::milliseconds WAIT_EVENT_TIMEOUT { 30 };
 
 static void escape_attrs(const Attributes &reset, const Attributes &set) {
   if (reset or set) {
-    this_terminal << "\x1B["sv;
+    terminal << "\x1B["sv;
     auto delim = false;
     for (auto &&attr : reset) {
       if (delim) {
-        this_terminal << ';';
+        terminal << ';';
       }
       switch (attr) {
       case Attribute::INVERSE:
       case Attribute::STANDOUT:
-        this_terminal << "27"sv;
+        terminal << "27"sv;
         break;
       case Attribute::BOLD:
       case Attribute::DIM:
-        this_terminal << "22"sv;
+        terminal << "22"sv;
         break;
       case Attribute::ITALIC:
-        this_terminal << "23"sv;
+        terminal << "23"sv;
         break;
       case Attribute::UNDERLINE:
       case Attribute::DOUBLE_UNDERLINE:
-        this_terminal << "24"sv;
+        terminal << "24"sv;
         break;
       case Attribute::BLINK:
-        this_terminal << "25"sv;
+        terminal << "25"sv;
         break;
       case Attribute::INVISIBLE:
-        this_terminal << "28"sv;
+        terminal << "28"sv;
         break;
       case Attribute::CROSSED_OUT:
-        this_terminal << "29"sv;
+        terminal << "29"sv;
         break;
 
       default:
@@ -62,38 +62,38 @@ static void escape_attrs(const Attributes &reset, const Attributes &set) {
 
     for (auto &&attr : set) {
       if (delim) {
-        this_terminal << ';';
+        terminal << ';';
       }
       switch (attr) {
       case Attribute::STANDOUT:
-        this_terminal << "1;7"sv;
+        terminal << "1;7"sv;
         break;
       case Attribute::BOLD:
-        this_terminal << '1';
+        terminal << '1';
         break;
       case Attribute::DIM:
-        this_terminal << '2';
+        terminal << '2';
         break;
       case Attribute::ITALIC:
-        this_terminal << '3';
+        terminal << '3';
         break;
       case Attribute::UNDERLINE:
-        this_terminal << '4';
+        terminal << '4';
         break;
       case Attribute::BLINK:
-        this_terminal << '5';
+        terminal << '5';
         break;
       case Attribute::INVERSE:
-        this_terminal << '7';
+        terminal << '7';
         break;
       case Attribute::INVISIBLE:
-        this_terminal << '8';
+        terminal << '8';
         break;
       case Attribute::CROSSED_OUT:
-        this_terminal << '9';
+        terminal << '9';
         break;
       case Attribute::DOUBLE_UNDERLINE:
-        this_terminal << "21"sv;
+        terminal << "21"sv;
         break;
 
       default:
@@ -104,22 +104,22 @@ static void escape_attrs(const Attributes &reset, const Attributes &set) {
       delim = true;
     }
 
-    this_terminal << 'm';
+    terminal << 'm';
   }
 }
 
 static void escape_background_color(const Color &color) {
   struct SetBackgroundColor {
     void operator()(const DefaultColor&) {
-      this_terminal << "\x1b[49m"sv;
+      terminal << "\x1b[49m"sv;
     }
 
     void operator()(const ColorIndex &c) {
-      this_terminal << "\x1b[48;5;"sv << c.value << 'm';
+      terminal << "\x1b[48;5;"sv << c.value << 'm';
     }
 
     void operator()(const TrueColor &c) {
-      this_terminal << "\x1b[48;2;"sv << c.red << ';' << c.green << ';' << c.blue << 'm';
+      terminal << "\x1b[48;2;"sv << c.red << ';' << c.green << ';' << c.blue << 'm';
     }
   };
   std::visit(SetBackgroundColor { }, color);
@@ -128,15 +128,15 @@ static void escape_background_color(const Color &color) {
 static void escape_foreground_color(const Color &color) {
   struct SetForegroundColor {
     void operator()(const DefaultColor&) {
-      this_terminal << "\x1b[39m"sv;
+      terminal << "\x1b[39m"sv;
     }
 
     void operator()(const ColorIndex &c) {
-      this_terminal << "\x1b[38;5;"sv << c.value << 'm';
+      terminal << "\x1b[38;5;"sv << c.value << 'm';
     }
 
     void operator()(const TrueColor &c) {
-      this_terminal << "\x1b[38;2;"sv << c.red << ';' << c.green << ';' << c.blue << 'm';
+      terminal << "\x1b[38;2;"sv << c.red << ';' << c.green << ';' << c.blue << 'm';
     }
   };
   std::visit(SetForegroundColor { }, color);
@@ -145,20 +145,20 @@ static void escape_foreground_color(const Color &color) {
 TerminalScreen::CharView TerminalScreen::EMPTY_CHAR_VIEW;
 
 void TerminalScreen::move_cursor_to(int line, int column) {
-  this_terminal << "\x1b["sv << line << ';' << column << 'H';
+  terminal << "\x1b["sv << line << ';' << column << 'H';
 }
 
 void TerminalScreen::move_cursor_by(int lines, int columns) {
   if (lines > 0) {
-    this_terminal << "\x1b["sv << lines << 'B';
+    terminal << "\x1b["sv << lines << 'B';
   } else if (lines < 0) {
-    this_terminal << "\x1b["sv << -lines << 'A';
+    terminal << "\x1b["sv << -lines << 'A';
   }
 
   if (columns > 0) {
-    this_terminal << "\x1b["sv << columns << 'C';
+    terminal << "\x1b["sv << columns << 'C';
   } else if (columns < 0) {
-    this_terminal << "\x1b["sv << -columns << 'D';
+    terminal << "\x1b["sv << -columns << 'D';
   }
 }
 
@@ -166,7 +166,7 @@ void TerminalScreen::run_event_loop() {
   event_dispatching_thread_id = std::this_thread::get_id();
 
   while (not this->quit) {
-    this_terminal.read_events();
+    terminal.read_events();
     if (auto event = this->event_queue.pop(WAIT_EVENT_TIMEOUT)) {
       dispatch_event(*event);
     }
@@ -175,7 +175,7 @@ void TerminalScreen::run_event_loop() {
 
 void TerminalScreen::resize_view() {
   auto size = this->size;
-  this->size = this_terminal.get_size();
+  this->size = terminal.get_size();
   if (size != this->size) {
     this->view.resize(this->size.height);
     for (auto &&row : this->view) {
@@ -222,14 +222,14 @@ void TerminalScreen::print() {
   for (auto y = 0U; y < this->view.size(); ++y) {
     if (y) {
       escape_attrs_and_colors(EMPTY_CHAR_VIEW);
-      this_terminal << "\r\n"sv;
+      terminal << "\r\n"sv;
     }
 
     auto skip = false;
     for (auto &&cv : this->view[y]) {
       if (not skip) {
         escape_attrs_and_colors(cv);
-        this_terminal << cv.ch;
+        terminal << cv.ch;
       }
       skip = cv.is_wide();
     }
@@ -248,7 +248,7 @@ void TerminalScreen::clear() {
 
 void TerminalScreen::flush() {
   print();
-  this_terminal.flush();
+  terminal.flush();
 }
 
 }

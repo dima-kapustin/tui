@@ -165,7 +165,7 @@ bool Component::is_request_focus_accepted(bool temporary, bool focused_window_ch
 
 bool Component::request_focus(bool temporary, bool focused_window_change_allowed, FocusEvent::Cause cause) {
   // 1) Check if the event being dispatched is a system-generated mouse event.
-  if (auto current_event = this_screen.get_event_queue().get_current_event(); current_event and current_event->system_generated) {
+  if (auto current_event = screen.get_event_queue().get_current_event(); current_event and current_event->system_generated) {
     if (auto mouse_event = std::dynamic_pointer_cast<MousePressEvent>(current_event)) {
       // 2) Sanity check: if the mouse event component source belongs to the same containing window.
       auto source = mouse_event->component();
@@ -545,7 +545,7 @@ void Component::dispatch_event(Event &e) {
     }
   }
 
-  this_screen.notify_listeners(e);
+  screen.notify_listeners(e);
 
   if (is_event_enabled(e)) {
     base::process_event(e);
@@ -924,7 +924,7 @@ std::shared_ptr<Component> Component::find_traversal_root() const {
 
 void Component::revalidate() {
   if (not this->parent.expired()) {
-    if (this_screen.is_event_dispatching_thread()) {
+    if (screen.is_event_dispatching_thread()) {
       invalidate();
       // TODO RepaintManager::add_invalid_component(shared_from_this());
     } else {

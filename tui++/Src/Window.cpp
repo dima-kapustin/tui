@@ -100,7 +100,7 @@ void Window::set_always_on_top(bool value) {
 }
 
 void Window::to_front() {
-  this_screen.to_front(std::dynamic_pointer_cast<Window>(shared_from_this()));
+  screen.to_front(std::dynamic_pointer_cast<Window>(shared_from_this()));
 }
 
 void Window::show() {
@@ -114,7 +114,7 @@ void Window::show() {
     // close_splash_screen();
     // Dialog::check_should_be_blocked(shared_from_this());
     base::show();
-    this_screen.show_window(std::dynamic_pointer_cast<Window>(shared_from_this()));
+    screen.show_window(std::dynamic_pointer_cast<Window>(shared_from_this()));
   }
   this->in_show = false;
 
@@ -125,7 +125,7 @@ void Window::show() {
 }
 
 void Window::hide() {
-  this_screen.hide_window(std::dynamic_pointer_cast<Window>(shared_from_this()));
+  screen.hide_window(std::dynamic_pointer_cast<Window>(shared_from_this()));
   base::hide();
 }
 

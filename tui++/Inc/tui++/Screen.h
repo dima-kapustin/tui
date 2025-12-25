@@ -14,7 +14,7 @@ class Screen;
 namespace detail {
 Screen& get_screen();
 }
-static Screen& this_screen = detail::get_screen();
+static Screen& screen = detail::get_screen();
 
 class Frame;
 class Dialog;

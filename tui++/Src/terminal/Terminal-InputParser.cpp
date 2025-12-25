@@ -2,7 +2,7 @@
 
 #include <tui++/util/utf-8.h>
 
-namespace tui::terminal {
+namespace tui {
 
 constexpr char STRING_TERMINATOR = '\\';
 

@@ -19,7 +19,7 @@
 
 #include <windows.h>
 
-namespace tui::terminal {
+namespace tui {
 
 class TerminalImpl {
   Terminal &terminal;

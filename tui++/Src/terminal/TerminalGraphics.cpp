@@ -2,9 +2,7 @@
 #include <tui++/terminal/TerminalScreen.h>
 #include <tui++/terminal/TerminalGraphics.h>
 
-#include <iostream>
-
-namespace tui::terminal {
+namespace tui {
 
 TerminalGraphics::BoxCharacters TerminalGraphics::LIGHT_BOX = //
     { .top_left = BoxDrawing::DOWN_AND_RIGHT_LIGHT, //
