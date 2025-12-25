@@ -13,30 +13,11 @@ struct ColorIndex {
   constexpr bool operator==(const ColorIndex &other) const = default;
 };
 
-constexpr ColorIndex BLACK_COLOR { 0 };
-constexpr ColorIndex RED_COLOR { 1 };
-constexpr ColorIndex GREEN_COLOR { 2 };
-constexpr ColorIndex YELLOW_COLOR { 3 };
-constexpr ColorIndex BLUE_COLOR { 4 };
-constexpr ColorIndex MAGENTA_COLOR { 5 };
-constexpr ColorIndex CYAN_COLOR { 6 };
-constexpr ColorIndex WHITE_COLOR { 7 };
-constexpr ColorIndex BRIGHT_BLACK_COLOR { 8 };
-constexpr ColorIndex BRIGHT_RED_COLOR { 9 };
-constexpr ColorIndex BRIGHT_GREEN_COLOR { 10 };
-constexpr ColorIndex BRIGHT_YELLOW_COLOR { 11 };
-constexpr ColorIndex BRIGHT_BLUE_COLOR { 12 };
-constexpr ColorIndex BRIGHT_MAGENTA_COLOR { 13 };
-constexpr ColorIndex BRIGHT_CYAN_COLOR { 14 };
-constexpr ColorIndex BRIGHT_WHITE_COLOR { 15 };
-
 struct DefaultColor {
   constexpr bool operator==(const DefaultColor&) const {
     return true;
   }
 };
-
-constexpr DefaultColor DEFAULT_COLOR;
 
 struct RGB {
   uint32_t red :8;
@@ -148,5 +129,24 @@ struct TrueColor {
 };
 
 using Color = std::variant<DefaultColor, ColorIndex, TrueColor>;
+
+constexpr Color BLACK_COLOR = ColorIndex { 0 };
+constexpr Color RED_COLOR = ColorIndex { 1 };
+constexpr Color GREEN_COLOR = ColorIndex { 2 };
+constexpr Color YELLOW_COLOR = ColorIndex { 3 };
+constexpr Color BLUE_COLOR = ColorIndex { 4 };
+constexpr Color MAGENTA_COLOR = ColorIndex { 5 };
+constexpr Color CYAN_COLOR = ColorIndex { 6 };
+constexpr Color WHITE_COLOR = ColorIndex { 7 };
+constexpr Color BRIGHT_BLACK_COLOR = ColorIndex { 8 };
+constexpr Color BRIGHT_RED_COLOR = ColorIndex { 9 };
+constexpr Color BRIGHT_GREEN_COLOR = ColorIndex { 10 };
+constexpr Color BRIGHT_YELLOW_COLOR = ColorIndex { 11 };
+constexpr Color BRIGHT_BLUE_COLOR = ColorIndex { 12 };
+constexpr Color BRIGHT_MAGENTA_COLOR = ColorIndex { 13 };
+constexpr Color BRIGHT_CYAN_COLOR = ColorIndex { 14 };
+constexpr Color BRIGHT_WHITE_COLOR = ColorIndex { 15 };
+
+constexpr Color DEFAULT_COLOR = DefaultColor { };
 
 }

@@ -55,19 +55,9 @@ public:
 
   virtual Color get_foreground_color() const = 0;
   virtual void set_foreground_color(const Color &color) = 0;
-  void set_foreground_color(std::optional<Color> const &color) {
-    if (color) {
-      set_foreground_color(color.value());
-    }
-  }
 
   virtual Color get_background_color() const = 0;
   virtual void set_background_color(const Color &color) = 0;
-  void set_background_color(std::optional<Color> const &color) {
-    if (color) {
-      set_background_color(color.value());
-    }
-  }
 
   virtual Font get_font() const = 0;
   virtual void set_font(const Font &font) = 0;

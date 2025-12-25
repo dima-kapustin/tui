@@ -13,7 +13,8 @@ void ComponentUI::uninstall_ui(std::shared_ptr<Component> const &c) {
 
 void ComponentUI::update(Graphics &g, std::shared_ptr<const Component> const &c) const {
   if (c->is_opaque()) {
-    g.set_background_color(c->get_background_color());
+    auto &&background_color = c->get_background_color();
+    g.set_background_color(background_color ? background_color.value() : DEFAULT_COLOR);
     g.fill_rect(0, 0, c->get_width(), c->get_height());
   }
   paint(g, c);
