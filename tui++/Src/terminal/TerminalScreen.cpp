@@ -221,7 +221,7 @@ void TerminalScreen::print() {
 
   for (auto y = 0U; y < this->view.size(); ++y) {
     if (y) {
-      escape_attrs_and_colors(EMPTY_CHAR_VIEW);
+//      escape_attrs_and_colors(EMPTY_CHAR_VIEW);
       terminal << "\r\n"sv;
     }
 
