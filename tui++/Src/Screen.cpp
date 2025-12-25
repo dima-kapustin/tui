@@ -85,12 +85,10 @@ void Screen::add_listener(const EventTypeMask &event_mask, const std::shared_ptr
 }
 
 void Screen::remove_listener(const std::shared_ptr<EventListener<Event>> &listener) {
-  for (auto i = selective_listeners.begin(); i != selective_listeners.end();) {
+  for (auto i = selective_listeners.begin(); i != selective_listeners.end(); ++i) {
     if (i->listener == listener) {
       selective_listeners.erase(i);
       break;
-    } else {
-      ++i;
     }
   }
 }
