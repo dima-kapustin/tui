@@ -182,16 +182,15 @@ void TerminalScreen::resize_view() {
       row.resize(this->size.width);
       std::fill(row.begin(), row.end(), EMPTY_CHAR_VIEW);
     }
-    refresh();
   }
 }
 
 void TerminalScreen::terminal_resized() {
   resize_view();
+  refresh();
 }
 
 void TerminalScreen::refresh() {
-  resize_view();
   auto g = TerminalGraphics { *this };
   paint(g);
   flush();
