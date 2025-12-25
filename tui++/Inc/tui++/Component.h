@@ -422,6 +422,10 @@ public:
     return this->border;
   }
 
+  void set_border(std::shared_ptr<Border> const& border) {
+    this->border = border;
+  }
+
   ComponentOrientation get_component_orientation() const {
     return this->orientation;
   }
