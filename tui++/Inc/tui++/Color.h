@@ -115,6 +115,10 @@ struct TrueColor {
     uint32_t value;
   };
 
+  constexpr TrueColor(unsigned red, unsigned green, unsigned blue) :
+      red { red }, green { green }, blue { blue } {
+  }
+
   constexpr TrueColor(RGB x) :
       red { x.red }, green { x.green }, blue { x.blue } {
   }
