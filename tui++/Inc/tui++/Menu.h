@@ -50,6 +50,10 @@ protected:
       base(text) {
   }
 
+  Menu(std::string const &text, Char const &mnemonic) :
+      base(text, mnemonic) {
+  }
+
   template<typename T, typename ... Args>
   requires (is_component_v<T> )
   friend auto make_component(Args&&...);

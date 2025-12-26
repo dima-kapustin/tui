@@ -49,6 +49,12 @@ protected:
     this->text = text;
   }
 
+  AbstractButton(std::shared_ptr<ButtonModel> const &model, std::string const &text, Char const& mnemonic) {
+    this->model = model;
+    this->text = text;
+    this->mnemonic = mnemonic;
+  }
+
   void init() override;
 
   using base::fire_event;

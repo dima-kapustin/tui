@@ -56,7 +56,11 @@ public:
 
 protected:
   MenuItem(std::string const &text = "") :
-      base(text) {
+      MenuItem(text, { }) {
+  }
+
+  MenuItem(std::string const &text, Char const &mnemonic) :
+      base(std::make_shared<ButtonModel>(), text, mnemonic) {
   }
 
   template<typename T, typename ... Args>

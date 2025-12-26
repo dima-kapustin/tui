@@ -1,6 +1,9 @@
 #include <tui++/Event.h>
 #include <tui++/Frame.h>
+
+#include <tui++/Menu.h>
 #include <tui++/MenuBar.h>
+#include <tui++/MenuItem.h>
 
 #include <tui++/terminal/Terminal.h>
 #include <tui++/terminal/TerminalGraphics.h>
@@ -17,6 +20,26 @@ void test_EnumMask();
 void test_KeyStroke();
 void test_EventSource();
 void test_CharIterator();
+
+auto make_file_menu() {
+  auto file_menu = make_component<Menu>("File");
+  file_menu->set_mnemonic('F');
+
+  auto file_chooser_item = make_component<MenuItem> ("JFileChooser", 'F');
+  file_chooser_item->add_listener([](ActionEvent &e) {
+
+  });
+  file_menu->add(file_chooser_item);
+
+  file_menu->add_separator();
+
+  auto exit_item = make_component<MenuItem>("Exit", 'x');
+  exit_item->add_listener([](ActionEvent &e) {
+
+  });
+  file_menu->add(exit_item);
+  return file_menu;
+}
 
 int main(int argc, char *argv[]) {
   test_utf8();
@@ -40,6 +63,7 @@ int main(int argc, char *argv[]) {
 //  });
 
   auto menu_bar = make_component<MenuBar>();
+  menu_bar->add(make_file_menu());
 
   auto frame = make_component<Frame>();
   frame->set_background_color(GREEN_COLOR);
