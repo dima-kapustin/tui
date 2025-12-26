@@ -41,14 +41,20 @@ constexpr Char HORIZONTAL_LIGHT_QUADRUPLE_DASH = L'┈';
 constexpr Char HORIZONTAL_HEAVY_QUADRUPLE_DASH = L'┉';
 
 constexpr Char CROSS_LIGHT = L'┼';
+constexpr Char CROSS_HEAVY = L'╋';
 constexpr Char CROSS_DOUBLE = L'╬';
 constexpr Char CROSS_HORIZONTAL_DOUBLE_VERTICAL_LIGHT = L'╪';
 constexpr Char CROSS_HORIZONTAL_LIGHT_VERTICAL_DOUBLE = L'╫';
 
-constexpr Char T_UP_LIGHT = L'┴';
-constexpr Char T_DOWN_LIGHT = L'┬';
-constexpr Char T_RIGHT_LIGHT = L'├';
-constexpr Char T_LEFT_LIGHT = L'┤';
+constexpr Char T_UP_LIGHT = L'┴'; // BOTTOM TEE in Alternative Character Set (ACS)
+constexpr Char T_DOWN_LIGHT = L'┬'; // TOP TEE in Alternative Character Set (ACS)
+constexpr Char T_LEFT_LIGHT = L'├'; // LEFT TEE in Alternative Character Set (ACS)
+constexpr Char T_RIGHT_LIGHT = L'┤'; // RIGHT TEE in Alternative Character Set (ACS)
+
+constexpr Char T_UP_HEAVY = L'┻';
+constexpr Char T_DOWN_HEAVY = L'┳';
+constexpr Char T_LEFT_HEAVY = L'┣';
+constexpr Char T_RIGHT_HEAVY = L'┫';
 
 constexpr Char T_UP_HORIZONTAL_LIGHT_VERTICAL_DOUBLE = L'╨';
 constexpr Char T_DOWN_HORIZONTAL_LIGHT_VERTICAL_DOUBLE = L'╥';
@@ -105,6 +111,13 @@ constexpr Char TRIANGLE_RIGHT_POINTING_MEDIUM_BLACK = L'⏴';
 constexpr Char TRIANGLE_LEFT_POINTING_MEDIUM_BLACK = L'⏵';
 constexpr Char TRIANGLE_UP_POINTING_MEDIUM_BLACK = L'⏶';
 constexpr Char TRIANGLE_DOWN_POINTING_MEDIUM_BLACK = L'⏷';
+
+constexpr Char PLUS_MINUS = L'±';
+constexpr Char LESS_THAN_OR_EQUAL_TO = L'≤';
+constexpr Char GREATER_THAN_OR_EQUAL_TO = L'≥';
+constexpr Char NOT_EQUAL = L'≠';
+constexpr Char DEGREES = L'°';
+constexpr Char PI = L'π';
 
 }
 
