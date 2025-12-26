@@ -11,44 +11,6 @@
 
 namespace tui {
 
-enum class CharCode : char32_t {
-  DOWN_AND_RIGHT_LIGHT = L'┌',
-  DOWN_AND_RIGHT_HEAVY = L'┏',
-  DOWN_AND_RIGHT_DOUBLE = L'╔',
-  DOWN_AND_RIGHT_ARC = L'╭',
-  DOWN_AND_LEFT_LIGHT = L'┐',
-  DOWN_AND_LEFT_HEAVY = L'┓',
-  DOWN_AND_LEFT_DOUBLE = L'╗',
-  DOWN_AND_LEFT_ARC = L'╮',
-  UP_AND_RIGHT_LIGHT = L'└',
-  UP_AND_RIGHT_HEAVY = L'┗',
-  UP_AND_RIGHT_DOUBLE = L'╚',
-  UP_AND_RIGHT_ARC = L'╰',
-  UP_AND_LEFT_LIGHT = L'┘',
-  UP_AND_LEFT_HEAVY = L'┛',
-  UP_AND_LEFT_DOUBLE = L'╝',
-  UP_AND_LEFT_ARC = L'╯',
-  VERTICAL_LIGHT = L'│',
-  VERTICAL_HEAVY = L'┃',
-  VERTICAL_DOUBLE = L'║',
-  VERTICAL_LIGHT_DOUBLE_DASH = L'╎',
-  VERTICAL_HEAVY_DOUBLE_DASH = L'╏',
-  VERTICAL_LIGHT_TRIPLE_DASH = L'┆',
-  VERTICAL_HEAVY_TRIPLE_DASH = L'┇',
-  VERTICAL_LIGHT_QUADRUPLE_DASH = L'┊',
-  VERTICAL_HEAVY_QUADRUPLE_DASH = L'┋',
-
-  HORIZONTAL_LIGHT = L'─',
-  HORIZONTAL_HEAVY = L'━',
-  HORIZONTAL_DOUBLE = L'═',
-  HORIZONTAL_LIGHT_DOUBLE_DASH = L'╌',
-  HORIZONTAL_HEAVY_DOUBLE_DASH = L'╍',
-  HORIZONTAL_LIGHT_TRIPLE_DASH = L'┄',
-  HORIZONTAL_HEAVY_TRIPLE_DASH = L'┅',
-  HORIZONTAL_LIGHT_QUADRUPLE_DASH = L'┈',
-  HORIZONTAL_HEAVY_QUADRUPLE_DASH = L'┉',
-};
-
 class CharIterator;
 
 // UTF-8 mutibyte character
@@ -88,15 +50,15 @@ public:
     this->code = c;
   }
 
+  constexpr Char(wchar_t c) :
+      Char(char32_t(c)) {
+  }
+
   constexpr Char(char32_t c) :
       bytes { } {
     auto length = util::c32_to_mb(c, this->bytes);
     this->len = length - 1;
     this->code = c;
-  }
-
-  constexpr Char(CharCode c) :
-      Char(std::to_underlying(c)) {
   }
 
 public:
@@ -124,10 +86,6 @@ public:
     return left.code == right;
   }
 
-  constexpr bool operator!=(const Char &other) const {
-    return this->code != other.code;
-  }
-
   constexpr size_t byte_length() const {
     return size_t(this->len) + 1;
   }
@@ -146,45 +104,5 @@ static_assert(sizeof(Char) == sizeof(uint64_t));
 constexpr std::ostream& operator<<(std::ostream &os, const Char &c) {
   return os << std::string_view(c);
 }
-
-}
-
-namespace tui::BoxDrawing {
-
-constexpr Char DOWN_AND_RIGHT_LIGHT = CharCode::DOWN_AND_RIGHT_LIGHT;
-constexpr Char DOWN_AND_RIGHT_HEAVY = CharCode::DOWN_AND_RIGHT_HEAVY;
-constexpr Char DOWN_AND_RIGHT_DOUBLE = CharCode::DOWN_AND_RIGHT_DOUBLE;
-constexpr Char DOWN_AND_RIGHT_ARC = CharCode::DOWN_AND_RIGHT_ARC;
-constexpr Char DOWN_AND_LEFT_LIGHT = CharCode::DOWN_AND_LEFT_LIGHT;
-constexpr Char DOWN_AND_LEFT_HEAVY = CharCode::DOWN_AND_LEFT_HEAVY;
-constexpr Char DOWN_AND_LEFT_DOUBLE = CharCode::DOWN_AND_LEFT_DOUBLE;
-constexpr Char DOWN_AND_LEFT_ARC = CharCode::DOWN_AND_LEFT_ARC;
-constexpr Char UP_AND_RIGHT_LIGHT = CharCode::UP_AND_RIGHT_LIGHT;
-constexpr Char UP_AND_RIGHT_HEAVY = CharCode::UP_AND_RIGHT_HEAVY;
-constexpr Char UP_AND_RIGHT_DOUBLE = CharCode::UP_AND_RIGHT_DOUBLE;
-constexpr Char UP_AND_RIGHT_ARC = CharCode::UP_AND_RIGHT_ARC;
-constexpr Char UP_AND_LEFT_LIGHT = CharCode::UP_AND_LEFT_LIGHT;
-constexpr Char UP_AND_LEFT_HEAVY = CharCode::UP_AND_LEFT_HEAVY;
-constexpr Char UP_AND_LEFT_DOUBLE = CharCode::UP_AND_LEFT_DOUBLE;
-constexpr Char UP_AND_LEFT_ARC = CharCode::UP_AND_LEFT_ARC;
-constexpr Char VERTICAL_LIGHT = CharCode::VERTICAL_LIGHT;
-constexpr Char VERTICAL_HEAVY = CharCode::VERTICAL_HEAVY;
-constexpr Char VERTICAL_DOUBLE = CharCode::VERTICAL_DOUBLE;
-constexpr Char VERTICAL_LIGHT_DOUBLE_DASH = CharCode::VERTICAL_LIGHT_DOUBLE_DASH;
-constexpr Char VERTICAL_HEAVY_DOUBLE_DASH = CharCode::VERTICAL_HEAVY_DOUBLE_DASH;
-constexpr Char VERTICAL_LIGHT_TRIPLE_DASH = CharCode::VERTICAL_LIGHT_TRIPLE_DASH;
-constexpr Char VERTICAL_HEAVY_TRIPLE_DASH = CharCode::VERTICAL_HEAVY_TRIPLE_DASH;
-constexpr Char VERTICAL_LIGHT_QUADRUPLE_DASH = CharCode::VERTICAL_LIGHT_QUADRUPLE_DASH;
-constexpr Char VERTICAL_HEAVY_QUADRUPLE_DASH = CharCode::VERTICAL_HEAVY_QUADRUPLE_DASH;
-
-constexpr Char HORIZONTAL_LIGHT = CharCode::HORIZONTAL_LIGHT;
-constexpr Char HORIZONTAL_HEAVY = CharCode::HORIZONTAL_HEAVY;
-constexpr Char HORIZONTAL_DOUBLE = CharCode::HORIZONTAL_DOUBLE;
-constexpr Char HORIZONTAL_LIGHT_DOUBLE_DASH = CharCode::HORIZONTAL_LIGHT_DOUBLE_DASH;
-constexpr Char HORIZONTAL_HEAVY_DOUBLE_DASH = CharCode::HORIZONTAL_HEAVY_DOUBLE_DASH;
-constexpr Char HORIZONTAL_LIGHT_TRIPLE_DASH = CharCode::HORIZONTAL_LIGHT_TRIPLE_DASH;
-constexpr Char HORIZONTAL_HEAVY_TRIPLE_DASH = CharCode::HORIZONTAL_HEAVY_TRIPLE_DASH;
-constexpr Char HORIZONTAL_LIGHT_QUADRUPLE_DASH = CharCode::HORIZONTAL_LIGHT_QUADRUPLE_DASH;
-constexpr Char HORIZONTAL_HEAVY_QUADRUPLE_DASH = CharCode::HORIZONTAL_HEAVY_QUADRUPLE_DASH;
 
 }

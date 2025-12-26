@@ -10,6 +10,4 @@ void test_Char() {
   constexpr auto sp = SP;
 
   static_assert(sp == SP);
-
-  static_assert(BoxDrawing::DOWN_AND_LEFT_ARC == CharCode::DOWN_AND_LEFT_ARC);
 }

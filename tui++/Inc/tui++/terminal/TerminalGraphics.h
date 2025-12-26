@@ -8,16 +8,16 @@ class TerminalScreen;
 
 class TerminalGraphics: public Graphics {
   struct BoxCharacters {
-    const Char &top_left;
-    const Char &top;
-    const Char &top_right;
-    const Char &right;
-    const Char &bottom_right;
-    const Char &bottom;
-    const Char &bottom_left;
-    const Char &left;
-    const Char &horizontal;
-    const Char &vertical;
+    Char top_left;
+    Char top;
+    Char top_right;
+    Char right;
+    Char bottom_right;
+    Char bottom;
+    Char bottom_left;
+    Char left;
+    Char horizontal;
+    Char vertical;
   };
 
   static BoxCharacters LIGHT_BOX;

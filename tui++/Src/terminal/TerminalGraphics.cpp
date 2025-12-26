@@ -1,56 +1,58 @@
+#include <tui++/Symbols.h>
 #include <tui++/CharIterator.h>
+
 #include <tui++/terminal/TerminalScreen.h>
 #include <tui++/terminal/TerminalGraphics.h>
 
 namespace tui {
 
 TerminalGraphics::BoxCharacters TerminalGraphics::LIGHT_BOX = //
-    { .top_left = BoxDrawing::DOWN_AND_RIGHT_LIGHT, //
-      .top = BoxDrawing::HORIZONTAL_LIGHT, //
-      .top_right = BoxDrawing::DOWN_AND_LEFT_LIGHT, //
-      .right = BoxDrawing::VERTICAL_LIGHT, //
-      .bottom_right = BoxDrawing::UP_AND_LEFT_LIGHT, //
-      .bottom = BoxDrawing::HORIZONTAL_LIGHT, //
-      .bottom_left = BoxDrawing::UP_AND_RIGHT_LIGHT, //
-      .left = BoxDrawing::VERTICAL_LIGHT, //
-      .horizontal = BoxDrawing::HORIZONTAL_LIGHT, //
-      .vertical = BoxDrawing::VERTICAL_LIGHT };
+    { .top_left = Symbols::DOWN_AND_RIGHT_LIGHT, //
+      .top = Symbols::HORIZONTAL_LIGHT, //
+      .top_right = Symbols::DOWN_AND_LEFT_LIGHT, //
+      .right = Symbols::VERTICAL_LIGHT, //
+      .bottom_right = Symbols::UP_AND_LEFT_LIGHT, //
+      .bottom = Symbols::HORIZONTAL_LIGHT, //
+      .bottom_left = Symbols::UP_AND_RIGHT_LIGHT, //
+      .left = Symbols::VERTICAL_LIGHT, //
+      .horizontal = Symbols::HORIZONTAL_LIGHT, //
+      .vertical = Symbols::VERTICAL_LIGHT };
 
 TerminalGraphics::BoxCharacters TerminalGraphics::HEAVY_BOX = //
-    { .top_left = BoxDrawing::DOWN_AND_RIGHT_HEAVY, //
-      .top = BoxDrawing::HORIZONTAL_HEAVY, //
-      .top_right = BoxDrawing::DOWN_AND_LEFT_HEAVY, //
-      .right = BoxDrawing::VERTICAL_HEAVY, //
-      .bottom_right = BoxDrawing::UP_AND_LEFT_HEAVY, //
-      .bottom = BoxDrawing::HORIZONTAL_HEAVY, //
-      .bottom_left = BoxDrawing::UP_AND_RIGHT_HEAVY, //
-      .left = BoxDrawing::VERTICAL_HEAVY, //
-      .horizontal = BoxDrawing::HORIZONTAL_HEAVY, //
-      .vertical = BoxDrawing::VERTICAL_HEAVY };
+    { .top_left = Symbols::DOWN_AND_RIGHT_HEAVY, //
+      .top = Symbols::HORIZONTAL_HEAVY, //
+      .top_right = Symbols::DOWN_AND_LEFT_HEAVY, //
+      .right = Symbols::VERTICAL_HEAVY, //
+      .bottom_right = Symbols::UP_AND_LEFT_HEAVY, //
+      .bottom = Symbols::HORIZONTAL_HEAVY, //
+      .bottom_left = Symbols::UP_AND_RIGHT_HEAVY, //
+      .left = Symbols::VERTICAL_HEAVY, //
+      .horizontal = Symbols::HORIZONTAL_HEAVY, //
+      .vertical = Symbols::VERTICAL_HEAVY };
 
 TerminalGraphics::BoxCharacters TerminalGraphics::DOUBLE_BOX = //
-    { .top_left = BoxDrawing::DOWN_AND_RIGHT_DOUBLE, //
-      .top = BoxDrawing::HORIZONTAL_DOUBLE, //
-      .top_right = BoxDrawing::DOWN_AND_LEFT_DOUBLE, //
-      .right = BoxDrawing::VERTICAL_DOUBLE, //
-      .bottom_right = BoxDrawing::UP_AND_LEFT_DOUBLE, //
-      .bottom = BoxDrawing::HORIZONTAL_DOUBLE, //
-      .bottom_left = BoxDrawing::UP_AND_RIGHT_DOUBLE, //
-      .left = BoxDrawing::VERTICAL_DOUBLE, //
-      .horizontal = BoxDrawing::HORIZONTAL_DOUBLE, //
-      .vertical = BoxDrawing::VERTICAL_DOUBLE };
+    { .top_left = Symbols::DOWN_AND_RIGHT_DOUBLE, //
+      .top = Symbols::HORIZONTAL_DOUBLE, //
+      .top_right = Symbols::DOWN_AND_LEFT_DOUBLE, //
+      .right = Symbols::VERTICAL_DOUBLE, //
+      .bottom_right = Symbols::UP_AND_LEFT_DOUBLE, //
+      .bottom = Symbols::HORIZONTAL_DOUBLE, //
+      .bottom_left = Symbols::UP_AND_RIGHT_DOUBLE, //
+      .left = Symbols::VERTICAL_DOUBLE, //
+      .horizontal = Symbols::HORIZONTAL_DOUBLE, //
+      .vertical = Symbols::VERTICAL_DOUBLE };
 
 TerminalGraphics::BoxCharacters TerminalGraphics::ROUNDED_LIGHT_BOX = //
-    { .top_left = BoxDrawing::DOWN_AND_RIGHT_ARC, //
-      .top = BoxDrawing::HORIZONTAL_LIGHT, //
-      .top_right = BoxDrawing::DOWN_AND_LEFT_ARC, //
-      .right = BoxDrawing::VERTICAL_LIGHT, //
-      .bottom_right = BoxDrawing::UP_AND_LEFT_ARC, //
-      .bottom = BoxDrawing::HORIZONTAL_LIGHT, //
-      .bottom_left = BoxDrawing::UP_AND_RIGHT_ARC, //
-      .left = BoxDrawing::VERTICAL_LIGHT, //
-      .horizontal = BoxDrawing::HORIZONTAL_LIGHT, //
-      .vertical = BoxDrawing::VERTICAL_LIGHT };
+    { .top_left = Symbols::DOWN_AND_RIGHT_ARC, //
+      .top = Symbols::HORIZONTAL_LIGHT, //
+      .top_right = Symbols::DOWN_AND_LEFT_ARC, //
+      .right = Symbols::VERTICAL_LIGHT, //
+      .bottom_right = Symbols::UP_AND_LEFT_ARC, //
+      .bottom = Symbols::HORIZONTAL_LIGHT, //
+      .bottom_left = Symbols::UP_AND_RIGHT_ARC, //
+      .left = Symbols::VERTICAL_LIGHT, //
+      .horizontal = Symbols::HORIZONTAL_LIGHT, //
+      .vertical = Symbols::VERTICAL_LIGHT };
 
 TerminalGraphics::TerminalGraphics(TerminalScreen &screen) :
     TerminalGraphics(screen, Rectangle { 0, 0, screen.get_width(), screen.get_height() }, 0, 0) {
