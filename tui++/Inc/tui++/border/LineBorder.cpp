@@ -10,7 +10,8 @@ Insets LineBorder::get_border_insets(const Component &c) const {
 
 void LineBorder::paint_border(const Component &c, Graphics &g, int x, int y, int width, int height) const {
   g.set_stroke(this->stroke);
-  g.set_foreground_color(this->color);
+  g.set_foreground_color(this->line_color);
+  g.set_background_color(this->background_color);
   g.draw_rect(x, y, width, height);
 }
 

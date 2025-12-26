@@ -1,6 +1,7 @@
 #pragma once
 
 #include <tui++/Point.h>
+#include <tui++/Insets.h>
 #include <tui++/Dimension.h>
 #include <tui++/BoundingBox.h>
 
@@ -156,7 +157,21 @@ struct Rectangle: Point, Dimension {
     return result;
   }
 
-  void set_bounds(int x, int y, int width, int height) {
+  constexpr Rectangle& operator-=(Insets const& insets) {
+    this->x += insets.left;
+    this->y += insets.top;
+    this->width -= insets.left + insets.right;
+    this->height -= insets.top + insets.bottom;
+    return *this;
+  }
+
+  constexpr Rectangle operator-(Insets const& insets) const {
+    auto result = *this;
+    result -= insets;
+    return result;
+  }
+
+  constexpr void set_bounds(int x, int y, int width, int height) {
     this->x = x;
     this->y = y;
     this->width = width;
