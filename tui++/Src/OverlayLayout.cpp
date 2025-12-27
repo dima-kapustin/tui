@@ -74,7 +74,6 @@ void OverlayLayout::layout(const std::shared_ptr<Component> &target) {
   auto yOffsets = std::vector<int>(nChildren);
   auto ySpans = std::vector<int>(nChildren);
 
-  // determine the child placements
   auto size = target->get_size();
   auto insets = target->get_insets();
   size.width -= insets.left + insets.right;
@@ -83,7 +82,6 @@ void OverlayLayout::layout(const std::shared_ptr<Component> &target) {
   SizeRequirements::calculate_aligned_positions(size.width, this->xTotal, this->xChildren, xOffsets, xSpans);
   SizeRequirements::calculate_aligned_positions(size.height, this->yTotal, this->yChildren, yOffsets, ySpans);
 
-  // flush changes to the container
   for (auto i = 0U; i != nChildren; i++) {
     target->get_component(i)->set_bounds(insets.left + xOffsets[i], insets.top + yOffsets[i], xSpans[i], ySpans[i]);
   }
@@ -91,13 +89,10 @@ void OverlayLayout::layout(const std::shared_ptr<Component> &target) {
 
 void OverlayLayout::maybe_init_reqs() {
   if (this->xChildren.empty() or this->yChildren.empty()) {
-    // The requests have been invalidated... recalculate
-    // the request information.
     auto n = this->target->get_component_count();
     this->xChildren.reserve(n);
     this->yChildren.reserve(n);
-    for (auto i = 0U; i != n; ++i) {
-      auto c = target->get_component(i);
+    for (auto &&c : target->get_components()) {
       auto min = c->get_minimum_size();
       auto typ = c->get_preferred_size();
       auto max = c->get_maximum_size();

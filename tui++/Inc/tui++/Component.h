@@ -430,6 +430,10 @@ public:
     return this->orientation;
   }
 
+  std::vector<std::shared_ptr<Component>> const& get_components() const {
+    return this->components;
+  }
+
   std::shared_ptr<Component> get_component_at(int x, int y) const {
     for (auto &&c : this->components) {
       auto cx = c->get_x();
