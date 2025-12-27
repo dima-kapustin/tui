@@ -31,7 +31,6 @@ void Screen::show_window(const std::shared_ptr<Window> &window) {
       focus(window, nullptr);
     }
 
-    lock.unlock();
     refresh();
   }
 }
@@ -58,6 +57,10 @@ void Screen::to_front(const std::shared_ptr<Window> &window) {
         throw std::runtime_error("window not visible");
       }
     }
+  } else {
+    this->windows.emplace_back(window);
+    focus(window, nullptr);
+    refresh();
   }
 }
 

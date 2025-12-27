@@ -1,12 +1,12 @@
 #pragma once
 
-#include <list>
-#include <mutex>
-
 #include <tui++/Event.h>
 #include <tui++/Point.h>
 #include <tui++/Dimension.h>
 #include <tui++/EventQueue.h>
+
+#include <list>
+#include <mutex>
 
 namespace tui {
 
@@ -35,7 +35,7 @@ protected:
 
   bool quit = false;
 
-  mutable std::mutex windows_mutex;
+  mutable std::recursive_mutex windows_mutex;
   std::list<std::shared_ptr<Window>> windows;
 
   Dimension size { };

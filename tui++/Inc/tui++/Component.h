@@ -94,9 +94,9 @@ protected:
     unsigned is_focus_traversable_overridden :1;
   } flags;
 
-  Property<bool> enabled { this, "enabled" };
-  Property<bool> visible { this, "visible" };
-  Property<bool> focusable { this, "focusable" };
+  Property<bool> enabled { this, "enabled", true };
+  Property<bool> visible { this, "visible", true };
+  Property<bool> focusable { this, "focusable", true };
   Property<std::optional<Cursor>> cursor { this, "cursor" };
   Property<std::optional<Color>> background_color { this, "background-color" };
   Property<std::optional<Color>> foreground_color { this, "foreground-color" };
@@ -285,10 +285,6 @@ protected:
   virtual void do_layout() {
     if (this->layout) {
       this->layout->layout(shared_from_this());
-    } else if (has_children()) {
-      for (auto &&c : this->components) {
-        c->set_size(c->get_preferred_size());
-      }
     }
   }
 
@@ -743,19 +739,7 @@ public:
     return request_focus(false, false, cause);
   }
 
-  virtual void set_visible(bool value) {
-    if (value) {
-      if (not this->visible) {
-        show();
-        this->visible = true;
-      }
-    } else {
-      if (this->visible) {
-        hide();
-        this->visible = false;
-      }
-    }
-  }
+  virtual void set_visible(bool value);
 
   void set_location(const Point &at) {
     set_location(at.x, at.y);

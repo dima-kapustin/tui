@@ -334,6 +334,8 @@ std::shared_ptr<Window> Component::get_containing_window() const {
   for (auto component = const_cast<Component*>(this)->shared_from_this();; component = component->get_parent()) {
     if (auto window = std::dynamic_pointer_cast<Window>(component)) {
       return window;
+    } else if (not component) {
+      break;
     }
   }
   return {};
@@ -612,6 +614,14 @@ void Component::set_focus_traversal_keys(KeyboardFocusManager::FocusTraversalKey
 void Component::event_listener_mask_updated(const EventTypeMask &removed, const EventTypeMask &added) {
   if (auto window = get_containing_window()) {
     window->enable_events_for_dispatching(added);
+  }
+}
+
+void Component::set_visible(bool value) {
+  if (value) {
+    show();
+  } else {
+    hide();
   }
 }
 
