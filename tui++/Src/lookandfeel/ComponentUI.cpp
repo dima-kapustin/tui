@@ -5,6 +5,9 @@
 
 namespace tui::laf {
 
+ComponentUI::~ComponentUI() {
+}
+
 void ComponentUI::install_ui(std::shared_ptr<Component> const &c) {
 }
 

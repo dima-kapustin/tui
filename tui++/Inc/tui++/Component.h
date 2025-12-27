@@ -801,6 +801,10 @@ public:
     repaint_parent_if_needed(old_x, old_y, old_width, old_height);
   }
 
+  std::shared_ptr<Layout> const& get_layout() const {
+    return this->layout;
+  }
+
   virtual void set_layout(const std::shared_ptr<Layout> &layout) {
     if (this->layout != layout) {
       this->layout = layout;

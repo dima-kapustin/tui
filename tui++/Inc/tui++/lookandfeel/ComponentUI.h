@@ -12,7 +12,11 @@ class Component;
 
 namespace tui::laf {
 
-struct ComponentUI {
+class ComponentUI {
+public:
+  virtual ~ComponentUI();
+
+public:
   virtual void install_ui(std::shared_ptr<Component> const &c);
   virtual void uninstall_ui(std::shared_ptr<Component> const &c);
 
