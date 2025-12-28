@@ -269,15 +269,15 @@ class MultipleEventSourceBase {
   friend class MultipleEventSource;
 
 public:
-  constexpr bool has_event_listeners(EventType event_type) const {
+  constexpr bool has_listeners(EventType event_type) const {
     return bool(this->event_listener_mask & event_type);
   }
 
-  constexpr bool has_event_listeners(EventTypeMask event_mask) const {
+  constexpr bool has_listeners(EventTypeMask event_mask) const {
     return (this->event_listener_mask & event_mask) == event_mask;
   }
 
-  constexpr EventTypeMask get_event_listener_mask() const {
+  constexpr EventTypeMask get_listener_mask() const {
     return this->event_listener_mask;
   }
 };

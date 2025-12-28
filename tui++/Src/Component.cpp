@@ -712,7 +712,7 @@ void Component::create_hierarchy_bounds_events(HierarchyBoundsEvent::Type type, 
 
 std::shared_ptr<Component> Component::get_mouse_event_target(int x, int y, bool include_self) const {
   auto accept = [](const Component *c) -> bool {
-    return (c->event_mask & MOUSE_EVENT_MASK) or (c->get_event_listener_mask() & MOUSE_EVENT_MASK);
+    return (c->event_mask & MOUSE_EVENT_MASK) or (c->get_listener_mask() & MOUSE_EVENT_MASK);
   };
 
   std::unique_lock lock(this->tree_mutex);

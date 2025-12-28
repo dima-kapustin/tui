@@ -1028,7 +1028,7 @@ public:
   }
 
   bool is_event_enabled(EventType event_type) const {
-    return (this->event_mask & event_type) or has_event_listeners(event_type);
+    return (this->event_mask & event_type) or has_listeners(event_type);
   }
 
   bool is_event_enabled(Event &e) const {

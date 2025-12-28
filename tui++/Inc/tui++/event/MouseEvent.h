@@ -152,4 +152,11 @@ inline bool MouseEvent::was_button_down_before() const {
   return (modifiers & BUTTON_DOWN_MASK);
 }
 
+using MouseMovedListener = std::function<void(MouseMoveEvent &e)>;
+using MouseOveredListener = std::function<void(MouseOverEvent &e)>;
+using MouseClickedListener = std::function<void(MouseClickEvent &e)>;
+using MouseDraggedListener = std::function<void(MouseDragEvent &e)>;
+using MousePressedListener = std::function<void(MousePressEvent &e)>;
+using MouseWheeledListener = std::function<void(MouseWheelEvent &e)>;
+
 }
