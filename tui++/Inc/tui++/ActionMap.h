@@ -54,6 +54,10 @@ public:
   void erase(const ActionKey &key) {
     this->map.erase(key);
   }
+
+  void clear() {
+    this->map.clear();
+  }
 };
 
 }

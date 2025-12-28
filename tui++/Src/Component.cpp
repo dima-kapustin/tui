@@ -906,6 +906,37 @@ std::shared_ptr<InputMap> Component::get_input_map(InputCondition condition, boo
   return {};
 }
 
+void Component::set_input_map(InputCondition condition, const std::shared_ptr<InputMap> &map) {
+  switch (condition) {
+  case WHEN_IN_FOCUSED_WINDOW:
+    if (auto component_input_map = std::dynamic_pointer_cast<ComponentInputMap>(map)) {
+      this->window_input_map = component_input_map;
+    } else {
+      throw std::runtime_error("WHEN_IN_FOCUSED_WINDOW InputMaps must be of type ComponentInputMap");
+    }
+    register_with_keyboard_manager(false);
+    break;
+  case WHEN_ANCESTOR_OF_FOCUSED_COMPONENT:
+    this->ancestor_input_map = map;
+    break;
+  case WHEN_FOCUSED:
+    this->focus_input_map = map;
+    break;
+  }
+}
+
+void Component::reset_keyboard_actions() {
+  for (auto &&condition : { InputCondition::WHEN_FOCUSED, InputCondition::WHEN_ANCESTOR_OF_FOCUSED_COMPONENT, InputCondition::WHEN_IN_FOCUSED_WINDOW }) {
+    if (auto input_map = get_input_map(condition, false)) {
+      input_map->clear();
+    }
+  }
+
+  if (this->action_map) {
+    this->action_map->clear();
+  }
+}
+
 std::shared_ptr<Component> Component::find_traversal_root() const {
   // I potentially have two roots, myself and my root parent
   // If I am the current root, then use me
@@ -988,6 +1019,10 @@ Point Component::get_location_on_screen() const {
   } else {
     throw std::runtime_error("component must be showing on the screen to determine its location");
   }
+}
+
+void Component::register_with_keyboard_manager(bool only_if_new) {
+
 }
 
 }

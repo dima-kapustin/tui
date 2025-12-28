@@ -17,7 +17,6 @@ void Object::fire_property_change_event(const std::string_view &property_name, c
         }
       }
     }
-
   }
 }
 

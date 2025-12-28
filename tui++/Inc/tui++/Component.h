@@ -70,11 +70,6 @@ protected:
    */
   mutable std::weak_ptr<Component> focus_component;
 
-  struct {
-    int was_focus_owner :1 = false;
-    int inherits_popup_menu :1 = false;
-  };
-
   float alignment_x = CENTER_ALIGNMENT;
   float alignment_y = CENTER_ALIGNMENT;
 
@@ -92,7 +87,9 @@ protected:
     unsigned is_alignment_x_set :1;
     unsigned is_alignment_y_set :1;
     unsigned is_focus_traversable_overridden :1;
-  } flags;
+    unsigned was_focus_owner :1;
+    unsigned inherits_popup_menu :1;
+  } flags { };
 
   Property<bool> enabled { this, "enabled", true };
   Property<bool> visible { this, "visible", true };
@@ -360,6 +357,8 @@ protected:
   virtual bool always_on_top() const {
     return false;
   }
+
+  void register_with_keyboard_manager(bool only_if_new);
 
   friend class Window;
   friend class KeyboardFocusManager;
@@ -880,24 +879,9 @@ public:
     return get_input_map(condition, true);
   }
 
-  void set_input_map(InputCondition condition, const std::shared_ptr<InputMap> &map) {
-    switch (condition) {
-      case WHEN_IN_FOCUSED_WINDOW:
-      if (auto component_input_map = std::dynamic_pointer_cast<ComponentInputMap>(map)) {
-        this->window_input_map = component_input_map;
-      } else {
-        throw std::runtime_error("WHEN_IN_FOCUSED_WINDOW InputMaps must be of type ComponentInputMap");
-      }
-      //registerWithKeyboardManager(false);
-      break;
-      case WHEN_ANCESTOR_OF_FOCUSED_COMPONENT:
-      this->ancestor_input_map = map;
-      break;
-      case WHEN_FOCUSED:
-      this->focus_input_map = map;
-      break;
-    }
-  }
+  void set_input_map(InputCondition condition, const std::shared_ptr<InputMap> &map);
+
+  void reset_keyboard_actions();
 
   auto begin() -> decltype(this->components.begin()) {
     return this->components.begin();
@@ -1099,7 +1083,7 @@ public:
   }
 
   std::shared_ptr<PopupMenu> get_component_popup_menu() const {
-    if (not this->component_popup_menu and this->inherits_popup_menu) {
+    if (not this->component_popup_menu and this->flags.inherits_popup_menu) {
       if (auto parent = get_parent()) {
         return parent->get_component_popup_menu();
       }

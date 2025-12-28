@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <memory>
 #include <cstring>
 #include <concepts>
 #include <algorithm>
@@ -10,7 +11,7 @@
 namespace tui {
 
 class PropertyBase {
-  Object *object;
+  Object *const object;
   const char *name;
 
   friend class Object;
@@ -21,23 +22,34 @@ protected:
   void fire_change_event(const PropertyValue &old_value, const PropertyValue &new_value);
 
 public:
+  virtual ~PropertyBase() {
+  }
+
   virtual PropertyValue get_value() const = 0;
   virtual void set_value(const PropertyValue&) = 0;
+
+  void add_change_listener(const PropertyChangeListener &listener) const;
+  void remove_change_listener(const PropertyChangeListener &listener) const;
 };
+
+template<typename T, typename = void>
+class Property;
 
 class Object {
   std::vector<PropertyBase*> properties;
   mutable std::vector<std::pair<std::string_view, std::vector<PropertyChangeListener>>> property_change_listeners;
+//  std::vector<std::unique_ptr<PropertyBase>> runtime_properties;
 
   constexpr static auto ANY_PROPERTY_NAME = "*";
 
 private:
-  auto add_property(PropertyBase *property) {
+  [[maybe_unused]]
+  PropertyBase* add_property(PropertyBase *property) {
     auto pos = std::lower_bound(this->properties.begin(), this->properties.end(), property, //
         [](const auto &a, const auto &b) {
           return std::strcmp(a->name, b->name) < 0;
         });
-    this->properties.insert(pos, property);
+    return *this->properties.insert(pos, property);
   }
 
   void fire_property_change_event(const std::string_view &property_name, const PropertyValue &old_value, const PropertyValue &new_value);
@@ -72,6 +84,20 @@ public:
         });
     return pos == this->properties.end() or std::strcmp((*pos)->name, property_name) != 0 ? nullptr : *pos;
   }
+
+//  template<typename T>
+//  PropertyBase* add_property(const char *name) {
+//    return get_property(name) ? nullptr : add_property(this->runtime_properties.emplace_back(std::make_unique<Property<T>>(this, name)).get());
+//  }
+//
+//  void remove_property(const char *name) {
+//    for (auto it = this->runtime_properties.begin(); it != this->runtime_properties.end(); ++it) {
+//      if (std::strcmp((*it)->name, name) == 0) {
+//        this->runtime_properties.erase(it);
+//        break;
+//      }
+//    }
+//  }
 
   void add_property_change_listener(const char *property_name, const PropertyChangeListener &listener) const {
     auto listeners_pos = std::lower_bound(this->property_change_listeners.begin(), this->property_change_listeners.end(), property_name, //
@@ -137,6 +163,14 @@ inline void PropertyBase::fire_change_event(const PropertyValue &old_value, cons
   this->object->fire_property_change_event(this->name, old_value, new_value);
 }
 
+inline void PropertyBase::add_change_listener(const PropertyChangeListener &listener) const {
+  this->object->add_property_change_listener(this->name, listener);
+}
+
+inline void PropertyBase::remove_change_listener(const PropertyChangeListener &listener) const {
+  this->object->remove_property_change_listener(this->name, listener);
+}
+
 namespace detail {
 
 template<typename, typename = void>
@@ -174,9 +208,6 @@ constexpr bool has_member_access_operator_v = has_member_access_operator<T>::val
 
 }
 
-template<typename T, typename = void>
-class Property;
-
 template<typename T>
 class Property<T, std::enable_if_t<not detail::is_optional_v<T>>> : public PropertyBase {
   T value_;
@@ -210,6 +241,11 @@ public:
 
   const T& value() const {
     return this->value_;
+  }
+
+  Property& operator=(const Property &other) {
+    set_value(other.value);
+    return *this;
   }
 
   Property& operator=(const T &value) {
@@ -296,6 +332,11 @@ public:
 
   operator const T&() const {
     return this->optional;
+  }
+
+  Property& operator=(const Property &other) {
+    set_optional_value(other.optional);
+    return *this;
   }
 
   Property& operator=(const std::optional<value_type> &value) {
