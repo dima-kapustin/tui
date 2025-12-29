@@ -39,12 +39,12 @@ void AbstractButton::state_changed(ChangeEvent &e) {
     set_enabled(model->is_enabled());
   }
   update_mnemonic_properties();
-  fire_event<ChangeEvent>(shared_from_this());
+  fire_event < ChangeEvent > (shared_from_this());
   repaint();
 }
 
 void AbstractButton::item_state_changed(ItemEvent &e) {
-  fire_event<ItemEvent>(shared_from_this(), e.type());
+  fire_event < ItemEvent > (shared_from_this(), e.type());
   if (should_update_selected_state_from_action()) {
     if (this->action) {
       this->action->set_selected(is_selected());
@@ -54,7 +54,7 @@ void AbstractButton::item_state_changed(ItemEvent &e) {
 
 void AbstractButton::action_performed(ActionEvent &e) {
   auto &action_command = e.action_command.empty() ? get_action_command() : e.action_command;
-  fire_event<ActionEvent>(shared_from_this(), action_command, e.modifiers, e.when);
+  fire_event < ActionEvent > (shared_from_this(), action_command, e.modifiers, e.when);
 }
 
 void AbstractButton::action_property_changed(PropertyChangeEvent &e) {
@@ -169,4 +169,15 @@ void AbstractButton::set_displayed_mnemonic_index_from_action() {
   set_displayed_mnemonic_index(index);
 }
 
+void AbstractButton::do_click(std::chrono::milliseconds const &press_time) {
+  auto size = get_size();
+  this->model->set_armed(true);
+  this->model->set_pressed(true);
+//  paint_immediately(0, 0, size.width, size.height);
+
+  std::this_thread::sleep_for(press_time);
+
+  this->model->set_pressed(false);
+  this->model->set_armed(false);
+}
 }

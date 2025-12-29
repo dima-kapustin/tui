@@ -49,7 +49,7 @@ protected:
     this->text = text;
   }
 
-  AbstractButton(std::shared_ptr<ButtonModel> const &model, std::string const &text, Char const& mnemonic) {
+  AbstractButton(std::shared_ptr<ButtonModel> const &model, std::string const &text, Char const &mnemonic) {
     this->model = model;
     this->text = text;
     this->mnemonic = mnemonic;
@@ -218,6 +218,13 @@ public:
       repaint();
     }
   }
+
+  void do_click() {
+    using namespace std::chrono_literals;
+    do_click(68ms);
+  }
+
+  void do_click(std::chrono::milliseconds const &press_time);
 
 private:
   void update_mnemonic_properties();

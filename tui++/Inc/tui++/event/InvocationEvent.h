@@ -16,6 +16,10 @@ public:
       Event(nullptr, EventType::INVOCATION), target(target) {
   }
 
+  InvocationEvent(std::function<void()> &&target) :
+      Event(nullptr, EventType::INVOCATION), target(std::move(target)) {
+  }
+
   void dispatch() const {
     this->target();
   }

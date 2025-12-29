@@ -72,8 +72,8 @@ void Screen::focus(const std::shared_ptr<Window> &gained, const std::shared_ptr<
 void Screen::dispatch_event(Event &event) {
   if (event.id == InvocationEvent::INVOCATION) {
     static_cast<InvocationEvent&>(event).dispatch();
-  } else if (event.source) {
-    std::dynamic_pointer_cast<Component>(event.source)->dispatch_event(event);
+  } else if (auto c = std::dynamic_pointer_cast<Component>(event.source)) {
+    c->dispatch_event(event);
   }
 }
 
