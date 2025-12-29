@@ -5,6 +5,7 @@
 #include <cassert>
 
 using namespace tui;
+using namespace tui::detail;
 
 static_assert(detail::is_one_of_v<MousePressEvent, KeyEvent, ItemEvent, MousePressEvent>);
 
@@ -66,6 +67,8 @@ void test_EventSource() {
   auto mouse_press_listener = [&fg](MousePressEvent &e) {
   };
 
+  static_assert(is_callable_listener_v<decltype(mouse_press_listener), MousePressEvent>);
+
   static_assert(std::is_convertible_v<decltype(mouse_press_listener), FunctionalEventListener<MousePressEvent>>);
 
   auto mouse_press_listener_2 = [&fg](MousePressEvent &e) {
@@ -85,6 +88,9 @@ void test_EventSource() {
 
   event_source_b->add_listener(std::static_pointer_cast<EventListener<MousePressEvent>>(ml));
   assert(event_source_b->get_mouse_event_listener_count() == 2);
+
+  static_assert(is_function_pointer_listener_v<decltype(g), MousePressEvent>);
+  static_assert(is_callable_listener_v<decltype(g), MousePressEvent>);
 
   event_source_b->add_listener(g);
   assert(event_source_b->get_mouse_event_listener_count() == 3);
