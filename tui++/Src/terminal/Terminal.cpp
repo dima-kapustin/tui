@@ -225,10 +225,6 @@ TerminalScreen& Terminal::get_screen() {
   return terminal_screen;
 }
 
-std::shared_ptr<TerminalGraphics> Terminal::get_graphics() {
-  return std::make_shared<TerminalGraphics>(terminal_screen);
-}
-
 Terminal& Terminal::write(const char *data, size_t size) {
   std::cout.write(data, size);
   return *this;

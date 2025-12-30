@@ -89,6 +89,7 @@ protected:
     unsigned is_focus_traversable_overridden :1;
     unsigned was_focus_owner :1;
     unsigned inherits_popup_menu :1;
+    unsigned is_repainting :1;
   } flags { };
 
   Property<bool> enabled { this, "enabled", true };
@@ -130,6 +131,8 @@ protected:
 
   Property<std::shared_ptr<laf::ComponentUI>> ui { this, "ui" };
 
+  std::shared_ptr<Component> painting_child;
+
 public:
   constexpr static float TOP_ALIGNMENT = 0;
   constexpr static float BOTTOM_ALIGNMENT = 1.0;
@@ -144,6 +147,12 @@ public:
     WHEN_ANCESTOR_OF_FOCUSED_COMPONENT = 1,
     // Command should be invoked when the receiving component is in the window that has the focus or is itself the focused component.
     WHEN_IN_FOCUSED_WINDOW = 2
+  };
+
+  enum ObscuredState {
+    NOT_OBSCURED,
+    PARTIALLY_OBSCURED,
+    COMPLETELY_OBSCURED
   };
 
 private:
@@ -201,6 +210,10 @@ private:
 
   void set_ui(std::shared_ptr<laf::ComponentUI> const &ui);
 
+  ObscuredState get_obscured_state(int component_index, Rectangle const &bounds) const;
+
+  void paint_immediately_impl(Rectangle const &bounds) const;
+
 protected:
   Component() {
   }
@@ -213,8 +226,6 @@ protected:
 
 protected:
   static bool is_window(const std::shared_ptr<const Component> &component);
-
-  std::shared_ptr<Window> get_containing_window() const;
 
   constexpr static auto npos = std::numeric_limits<size_t>::max();
 
@@ -666,6 +677,19 @@ public:
 
   virtual void paint(Graphics &g);
 
+  virtual void paint_immediately(Rectangle const& rect) const;
+  void paint_immediately(int x, int y, int width, int height) const {
+    paint_immediately( {x, y, width, height});
+  }
+
+  virtual bool is_optimized_painting_enabled() const {
+    return true;
+  }
+
+  virtual bool is_painting_origin() const;
+
+  std::shared_ptr<Component> get_painting_origin() const;
+
   /**
    * Causes this component to be repainted as soon as possible (this is done by posting a RepaintEvent onto the system queue).
    */
@@ -1103,6 +1127,10 @@ public:
   }
 
   void set_tool_tip_text(std::string const &tool_tip_text);
+
+  std::shared_ptr<Window> get_containing_window() const;
+
+  std::unique_ptr<Graphics> get_graphics() const;
 };
 
 template<typename BaseComponent, typename ... Events>
@@ -1120,7 +1148,7 @@ inline auto make_component(Args &&... args) noexcept (false) {
  * Convert a point from a screen coordinates to a component's coordinate system
  */
 Point convert_point_from_screen(int x, int y, std::shared_ptr<Component> to);
-inline Point convert_point_from_screen(const Point &p, std::shared_ptr<Component> to) {
+inline Point convert_point_from_screen(Point const &p, std::shared_ptr<Component> const& to) {
   return convert_point_from_screen(p.x, p.y, to);
 }
 
@@ -1128,9 +1156,11 @@ inline Point convert_point_from_screen(const Point &p, std::shared_ptr<Component
  * Convert a point from a component's coordinate system to screen coordinates.
  */
 Point convert_point_to_screen(int x, int y, std::shared_ptr<Component> from);
-inline Point convert_point_to_screen(const Point &p, std::shared_ptr<Component> from) {
+inline Point convert_point_to_screen(Point const &p, std::shared_ptr<Component> const& from) {
   return convert_point_to_screen(p.x, p.y, from);
 }
+
+Point convert_point(Point const &p, std::shared_ptr<Component> from, std::shared_ptr<Component> to);
 
 }
 

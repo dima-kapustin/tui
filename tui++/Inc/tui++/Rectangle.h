@@ -10,6 +10,8 @@
 namespace tui {
 
 struct Rectangle: Point, Dimension {
+  constexpr Rectangle& operator=(Rectangle const&) = default;
+
   constexpr bool contains(int x, int y) const {
     if ((this->width | this->height) < 0) {
       return false;
@@ -64,32 +66,40 @@ struct Rectangle: Point, Dimension {
     return true;
   }
 
+  constexpr bool intersects(int x, int y, int width, int height) const {
+    if (empty() or width <= 0 or height <= 0) {
+      return false;
+    } else {
+      return ((x + width) > this->x and (y + height) > this->y and //
+          x < right() and y < bottom());
+    }
+  }
+
+  constexpr bool intersects(const Rectangle &other) const {
+    return intersects(other.x, other.y, other.width, other.height);
+  }
+
   constexpr bool operator==(const Rectangle &other) const {
     return this->x == other.x and this->y == other.y and this->width == other.width and this->height == other.height;
   }
 
-  constexpr bool operator!=(const Rectangle &other) const {
-    return this->x != other.x or this->y != other.y or this->width != other.width or this->height != other.height;
-  }
-
-  constexpr int get_left() const {
+  constexpr int left() const {
     return this->x;
   }
 
-  constexpr int get_top() const {
+  constexpr int top() const {
     return this->y;
   }
 
-  constexpr int get_right() const {
+  constexpr int right() const {
     return this->x + this->width;
   }
 
-  constexpr int get_bottom() const {
+  constexpr int bottom() const {
     return this->y + this->height;
   }
 
-  // Intersection
-  constexpr Rectangle get_intersection(int x, int y, int width, int height) const {
+  constexpr Rectangle intersection(int x, int y, int width, int height) const {
     Rectangle other { x, y, width, height };
     return *this & other;
   }
@@ -132,10 +142,12 @@ struct Rectangle: Point, Dimension {
     return result;
   }
 
-  // Union
-  constexpr Rectangle get_union(int x, int y, int width, int height) const {
-    Rectangle other { x, y, width, height };
-    return *this | other;
+  constexpr Point const& location() const {
+    return *this;
+  }
+
+  constexpr Dimension const& size() const {
+    return *this;
   }
 
   constexpr Rectangle& operator|=(const Rectangle &other) {
@@ -157,7 +169,7 @@ struct Rectangle: Point, Dimension {
     return result;
   }
 
-  constexpr Rectangle& operator-=(Insets const& insets) {
+  constexpr Rectangle& operator-=(Insets const &insets) {
     this->x += insets.left;
     this->y += insets.top;
     this->width -= insets.left + insets.right;
@@ -165,13 +177,13 @@ struct Rectangle: Point, Dimension {
     return *this;
   }
 
-  constexpr Rectangle operator-(Insets const& insets) const {
+  constexpr Rectangle operator-(Insets const &insets) const {
     auto result = *this;
     result -= insets;
     return result;
   }
 
-  constexpr void set_bounds(int x, int y, int width, int height) {
+  constexpr void set(int x, int y, int width, int height) {
     this->x = x;
     this->y = y;
     this->width = width;
@@ -184,7 +196,7 @@ struct Rectangle: Point, Dimension {
   }
 
   constexpr operator BoundingBox() const {
-    return {get_left(), get_right(), get_top(), get_bottom()};
+    return {left(), right(), top(), bottom()};
   }
 };
 

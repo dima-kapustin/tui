@@ -173,7 +173,7 @@ void AbstractButton::do_click(std::chrono::milliseconds const &press_time) {
   auto size = get_size();
   this->model->set_armed(true);
   this->model->set_pressed(true);
-//  paint_immediately(0, 0, size.width, size.height);
+  paint_immediately(0, 0, size.width, size.height);
 
   std::this_thread::sleep_for(press_time);
 

@@ -52,6 +52,9 @@ public:
 
   virtual Rectangle get_clip_rect() const = 0;
   virtual void set_clip_rect(const Rectangle &rect) = 0;
+  void set_clip_rect(int x, int y, int width, int height) {
+    set_clip_rect( { x, y, width, height });
+  }
 
   virtual Color get_foreground_color() const = 0;
   virtual void set_foreground_color(const Color &color) = 0;

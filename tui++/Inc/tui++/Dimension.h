@@ -15,12 +15,10 @@ struct Dimension {
     return {0, 0};
   }
 
+  constexpr Dimension& operator=(Dimension const&) = default;
+
   constexpr bool operator==(const Dimension &other) const {
     return this->width == other.width and this->height == other.height;
-  }
-
-  constexpr bool operator!=(const Dimension &other) const {
-    return this->width != other.width or this->height != other.height;
   }
 
   constexpr bool empty() const {

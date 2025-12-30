@@ -64,6 +64,8 @@ public:
   void move_cursor_by(int lines, int columns);
 
   virtual void run_event_loop() override;
+  virtual std::unique_ptr<Graphics> get_graphics() override;
+  virtual std::unique_ptr<Graphics> get_graphics(Rectangle const& clip) override;
 
   virtual void refresh();
 

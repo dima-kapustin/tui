@@ -291,7 +291,6 @@ public:
 
 public:
   TerminalScreen& get_screen();
-  std::shared_ptr<TerminalGraphics> get_graphics();
 
   Dimension get_size();
 

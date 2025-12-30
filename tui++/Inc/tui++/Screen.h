@@ -1,8 +1,7 @@
 #pragma once
 
 #include <tui++/Event.h>
-#include <tui++/Point.h>
-#include <tui++/Dimension.h>
+#include <tui++/Rectangle.h>
 #include <tui++/EventQueue.h>
 
 #include <list>
@@ -85,6 +84,8 @@ public:
   }
 
   virtual void run_event_loop() = 0;
+  virtual std::unique_ptr<Graphics> get_graphics() = 0;
+  virtual std::unique_ptr<Graphics> get_graphics(Rectangle const& clip) = 0;
 
   int get_width() const {
     return this->size.width;

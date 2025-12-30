@@ -55,7 +55,7 @@ TerminalGraphics::BoxCharacters TerminalGraphics::ROUNDED_LIGHT_BOX = //
       .vertical = Symbols::VERTICAL_LIGHT };
 
 TerminalGraphics::TerminalGraphics(TerminalScreen &screen) :
-    TerminalGraphics(screen, Rectangle { 0, 0, screen.get_width(), screen.get_height() }, 0, 0) {
+    TerminalGraphics(screen, { 0, 0, screen.get_width(), screen.get_height() }, 0, 0) {
 }
 
 TerminalGraphics::TerminalGraphics(TerminalScreen &screen, const Rectangle &clip_rect, int dx, int dy) :
@@ -148,7 +148,7 @@ void TerminalGraphics::clip_rect(int x, int y, int width, int height) {
   int clip_width = clip_right - clip_left;
   int clip_height = clip_bottom - clip_top;
 
-  this->clip.set_bounds(clip_left, clip_top, clip_width, clip_height);
+  this->clip.set(clip_left, clip_top, clip_width, clip_height);
 }
 
 std::unique_ptr<Graphics> TerminalGraphics::create() {
@@ -169,9 +169,9 @@ void TerminalGraphics::draw_char(const Char &c, int x, int y, const Attributes &
 }
 
 void TerminalGraphics::draw_hline(int x, int y, int length, const Attributes &attributes) {
-  if (auto rect = this->clip.get_intersection(x + this->dx, y + this->dy, length, 1)) {
+  if (auto const rect = this->clip.intersection(x + this->dx, y + this->dy, length, 1)) {
     auto &chars = get_box_chars(this->stroke);
-    for (int x = rect.get_left(), right = rect.get_right(); x < right; ++x) {
+    for (int x = rect.left(), right = rect.right(); x < right; ++x) {
       this->screen.draw_char(chars.horizontal, x, rect.y, this->foreground_color, this->background_color, this->attributes | attributes);
     }
   }
@@ -186,8 +186,8 @@ void TerminalGraphics::draw_rounded_rect(int x, int y, int width, int height) {
 }
 
 void TerminalGraphics::draw_string(const std::string &str, int x, int y, const Attributes &attributes) {
-  if (auto rect = this->clip.get_intersection(x + this->dx, y + this->dy, util::glyph_width(str), 1)) {
-    auto right = rect.get_right();
+  if (auto const rect = this->clip.intersection(x + this->dx, y + this->dy, util::glyph_width(str), 1)) {
+    auto right = rect.right();
     for (auto &&ch : to_chars(str)) {
       auto glyph_width = ch.glyph_width();
       if ((x + glyph_width) >= rect.x) {
@@ -202,18 +202,18 @@ void TerminalGraphics::draw_string(const std::string &str, int x, int y, const A
 }
 
 void TerminalGraphics::draw_vline(int x, int y, int length, const Attributes &attributes) {
-  if (auto rect = this->clip.get_intersection(x + this->dx, y + this->dy, 1, length)) {
+  if (auto const rect = this->clip.intersection(x + this->dx, y + this->dy, 1, length)) {
     auto &chars = get_box_chars(this->stroke);
-    for (auto y = rect.get_top(), bottom = rect.get_bottom(); y < bottom; ++y) {
+    for (auto y = rect.top(), bottom = rect.bottom(); y < bottom; ++y) {
       this->screen.draw_char(chars.vertical, rect.x, y, this->foreground_color, this->background_color, this->attributes | attributes);
     }
   }
 }
 
 void TerminalGraphics::fill_rect(int x, int y, int width, int height) {
-  if (auto rect = this->clip.get_intersection(x + this->dx, y + this->dy, width, height)) {
-    for (auto j = rect.get_top(), bottom = rect.get_bottom(); j < bottom; j++) {
-      for (auto i = rect.get_left(), right = rect.get_right(); i < right; i++) {
+  if (auto const rect = this->clip.intersection(x + this->dx, y + this->dy, width, height)) {
+    for (auto j = rect.top(), bottom = rect.bottom(); j < bottom; j++) {
+      for (auto i = rect.left(), right = rect.right(); i < right; i++) {
         this->screen.draw_char(' ', i, j, this->foreground_color, this->background_color, this->attributes);
       }
     }

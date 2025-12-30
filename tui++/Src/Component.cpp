@@ -39,6 +39,22 @@ Point convert_point_to_screen(int x, int y, std::shared_ptr<Component> from) {
   return {x, y};
 }
 
+Point convert_point(Point const &p, std::shared_ptr<Component> from, std::shared_ptr<Component> to) {
+  if (not from) {
+    from = to->get_containing_window();
+    if (not from) {
+      throw std::runtime_error("Source component not connected to component tree hierarchy");
+    }
+  }
+  if (not to) {
+    to = from->get_containing_window();
+    if (not to) {
+      throw std::runtime_error("Destination component not connected to component tree hierarchy");
+    }
+  }
+  return convert_point_from_screen(convert_point_to_screen(p, from), to);
+}
+
 std::recursive_mutex Component::tree_mutex;
 bool Component::descend_unconditionally_when_validating = false;
 
@@ -64,9 +80,9 @@ void Component::paint_border(Graphics &g) {
 void Component::paint_children(Graphics &g) {
   for (auto &&c : this->components) {
     if (c->is_visible()) {
-      int x = c->get_x(), y = c->get_y();
-      g.translate(x, y);
+      auto x = c->get_x(), y = c->get_y();
       auto clip_rect = g.get_clip_rect();
+      g.translate(x, y);
       g.clip_rect(0, 0, c->get_width(), c->get_height());
       c->paint(g);
       g.set_clip_rect(clip_rect);
@@ -1023,6 +1039,191 @@ Point Component::get_location_on_screen() const {
 
 void Component::register_with_keyboard_manager(bool only_if_new) {
 
+}
+
+void Component::paint_immediately(Rectangle const &rect) const {
+  if (is_showing()) {
+    if (auto painting_origin = get_painting_origin()) {
+      painting_origin->paint_immediately( { convert_point(rect.location(), const_cast<Component*>(this)->shared_from_this(), painting_origin), rect.size() });
+    } else {
+      auto x = rect.x, y = rect.y;
+      auto c = shared_from_this();
+      while (not c->is_opaque()) {
+        if (auto parent = c->get_parent()) {
+          x += c->get_x();
+          y += c->get_y();
+          c = parent;
+        } else {
+          break;
+        }
+      }
+
+      c->paint_immediately_impl( { x, y, rect.width, rect.height });
+    }
+  }
+}
+
+void Component::paint_immediately_impl(Rectangle const &bounds) const {
+  auto clip = bounds;
+  auto on_top = always_on_top() and is_opaque();
+  if (on_top) {
+    clip &= get_bounds();
+    if (clip.empty()) {
+      return;
+    }
+  }
+
+  auto offset_x = 0, offset_y = 0;
+  auto p_index = -1, p_count = 0;
+
+  auto path = std::vector<std::shared_ptr<Component>> { };
+  path.reserve(10);
+
+  auto c = const_cast<Component*>(this)->shared_from_this(), painting_component = c;
+  for (auto child = std::shared_ptr<Component> { }; c and not is_window(c); child = c, c = c->get_parent()) {
+    path.emplace_back(c);
+
+    if (not on_top and not c->is_optimized_painting_enabled()) {
+      auto reset_painting_component = false;
+      // Children of c may overlap, three possible cases for the
+      // painting region:
+      // . Completely obscured by an opaque sibling, in which
+      //   case there is no need to paint.
+      // . Partially obscured by a sibling: need to start
+      //   painting from c.
+      // . Otherwise we aren't obscured and thus don't need to
+      //   start painting from parent.
+      if (c.get() != this) {
+        if (c->is_painting_origin()) {
+          reset_painting_component = true;
+        } else {
+          auto i = 0U;
+          for (; i < c->components.size(); ++i) {
+            if (c->components[i] == child) {
+              break;
+            }
+
+            switch (c->get_obscured_state(i, clip)) {
+            case ObscuredState::NOT_OBSCURED:
+              reset_painting_component = false;
+              break;
+            case ObscuredState::COMPLETELY_OBSCURED:
+              return;
+            default:
+              reset_painting_component = true;
+              break;
+            }
+
+          }
+        }
+      }
+
+      if (reset_painting_component) {
+        painting_component = c;
+        p_index = p_count;
+        offset_x = offset_y = 0;
+      }
+    }
+
+    p_count += 1;
+
+    // if we aren't on top, include the parent's clip
+    if (not on_top) {
+      clip &= Rectangle { 0, 0, c->get_width(), c->get_height() };
+      clip.x += c->get_x();
+      clip.y += c->get_y();
+      offset_x += c->get_x();
+      offset_y += c->get_y();
+    }
+  }
+
+  if (not c or not c->is_displayable() or clip.empty()) {
+    return;
+  }
+
+  painting_component->flags.is_repainting = true;
+
+  clip.x -= offset_x;
+  clip.y -= offset_y;
+
+  // Notify the Components that are going to be painted of the
+  // child component to paint to.
+  if (painting_component.get() != this) {
+    for (auto i = p_index; i > 0; i--) {
+      path[i]->painting_child = path[i - 1];
+    }
+  }
+
+  try {
+    if (auto g = c->get_graphics()) {
+      painting_component->paint(*g);
+    }
+  } catch (...) {
+  }
+
+  if (painting_component.get() != this) {
+    for (auto i = p_index; i > 0; i--) {
+      path[i]->painting_child = nullptr;
+    }
+  }
+
+  painting_component->flags.is_repainting = false;
+}
+
+bool Component::is_painting_origin() const {
+  return false;
+}
+
+std::shared_ptr<Component> Component::get_painting_origin() const {
+  for (auto p = const_cast<Component*>(this)->shared_from_this(); p; p = p->get_parent()) {
+    if (p->is_painting_origin()) {
+      return p;
+    }
+  }
+  return {};
+}
+
+Component::ObscuredState Component::get_obscured_state(int component_index, Rectangle const &bounds) const {
+  auto result = ObscuredState::NOT_OBSCURED;
+  for (int i = component_index - 1; i >= 0; i--) {
+    auto sibling = get_component(i);
+    if (not sibling->is_visible()) {
+      continue;
+    }
+
+    auto opaque = sibling->is_opaque();
+    if (not opaque) {
+      if (result == ObscuredState::PARTIALLY_OBSCURED) {
+        continue;
+      }
+    }
+
+    auto sibling_bounds = sibling->get_bounds();
+    if (opaque and bounds.left() >= sibling_bounds.left() and //
+        bounds.right() <= sibling_bounds.right() and //
+        bounds.top() >= sibling_bounds.top() and //
+        bounds.bottom() <= sibling_bounds.bottom()) {
+      return ObscuredState::COMPLETELY_OBSCURED;
+    } else if (result == ObscuredState::NOT_OBSCURED and //
+        not ((bounds.right() <= sibling_bounds.left()) or //
+            (bounds.bottom() <= sibling_bounds.top()) or //
+            (bounds.left() >= sibling_bounds.right()) or //
+            (bounds.top() >= sibling_bounds.bottom()))) {
+      result = ObscuredState::PARTIALLY_OBSCURED;
+    }
+  }
+  return result;
+}
+
+std::unique_ptr<Graphics> Component::get_graphics() const {
+  if (auto parent = get_parent()) {
+    auto g = parent->get_graphics();
+    g->translate(get_x(), get_y());
+    g->set_clip_rect(0, 0, get_width(), get_height());
+    return g;
+  } else {
+    return screen.get_graphics(get_bounds());
+  }
 }
 
 }

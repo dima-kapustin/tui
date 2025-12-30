@@ -173,6 +173,14 @@ void TerminalScreen::run_event_loop() {
   }
 }
 
+std::unique_ptr<Graphics> TerminalScreen::get_graphics() {
+  return std::make_unique<TerminalGraphics>(*this);
+}
+
+std::unique_ptr<Graphics> TerminalScreen::get_graphics(Rectangle const &clip) {
+  return std::make_unique<TerminalGraphics>(*this, Rectangle { 0, 0, clip.width, clip.height }, clip.x, clip.y);
+}
+
 void TerminalScreen::resize_view() {
   auto size = this->size;
   this->size = terminal.get_size();
