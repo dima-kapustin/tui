@@ -78,16 +78,43 @@ void Component::paint_border(Graphics &g) {
 }
 
 void Component::paint_children(Graphics &g) {
-  for (auto &&c : this->components) {
-    if (c->is_visible()) {
-      auto x = c->get_x(), y = c->get_y();
-      auto clip_rect = g.get_clip_rect();
-      g.translate(x, y);
-      g.clip_rect(0, 0, c->get_width(), c->get_height());
-      c->paint(g);
-      g.set_clip_rect(clip_rect);
-      g.translate(-x, -y);
+  auto lock = get_tree_lock();
+  if (not this->components.empty()) {
+    auto i = this->components.size() - 1;
+    if (this->painting_child and this->painting_child->is_opaque()) {
+      do {
+        if (this->painting_child == this->components[i]) {
+          break;
+        }
+      } while (i-- != 0);
     }
+
+    auto clip_bounds = Rectangle { };
+    auto check_siblings = not is_optimized_painting_enabled();
+    if (check_siblings) {
+      clip_bounds = g.get_clip_rect();
+      if (clip_bounds.empty()) {
+        clip_bounds.set(0, 0, get_width(), get_height());
+      }
+    }
+
+    do {
+      if (auto &&c = this->components[i]; c and c->is_visible()) {
+        auto bounds = c->get_bounds();
+        if (g.hit_clip_rect(bounds)) {
+          if (check_siblings and i != 0) {
+            if (get_obscured_state(i, bounds & clip_bounds) == ObscuredState::COMPLETELY_OBSCURED) {
+              continue;
+            }
+          }
+
+          auto cg = g.create(bounds);
+          cg->set_foreground_color(c->get_foreground_color());
+          // cg->set_font(c->get_font());
+          c->paint(*cg);
+        }
+      }
+    } while (i-- != 0);
   }
 }
 
@@ -574,8 +601,7 @@ bool Component::dispatch_mouse_wheel_to_ancestor(MouseWheelEvent &e) {
   auto x = e.x + get_x();
   auto y = e.y + get_y();
 
-  std::unique_lock lock(tree_mutex);
-
+  auto lock = get_tree_lock();
   auto ancestor = get_parent();
   while (ancestor and not ancestor->is_event_enabled(EventType::MOUSE_WHEEL)) {
     x += ancestor->get_x();
@@ -643,7 +669,7 @@ void Component::set_visible(bool value) {
 
 void Component::show() {
   if (not this->visible) {
-    std::unique_lock lock(tree_mutex);
+    auto lock = get_tree_lock();
     this->visible = true;
     create_hierarchy_events(HierarchyEvent::SHOWING_CHANGED, shared_from_this(), get_parent());
     repaint();
@@ -661,7 +687,7 @@ void Component::hide() {
     clear_current_focus_cycle_root_on_hide();
     clear_most_recent_focus_owner_on_hide();
 
-    std::unique_lock lock(tree_mutex);
+    auto lock = get_tree_lock();
     this->visible = false;
     if (contains_focus() /*TODO and KeyboardFocusManager::single->is_auto_focus_transfer_enabled()*/) {
       transfer_focus(true);
@@ -682,7 +708,7 @@ bool Component::contains_focus() const {
 }
 
 bool Component::is_parent_of(std::shared_ptr<Component> component) const {
-  std::unique_lock lock(tree_mutex);
+  auto lock = get_tree_lock();
   while (component and component.get() != this and not is_window(component)) {
     component = component->get_parent();
   }
@@ -697,7 +723,7 @@ void Component::clear_current_focus_cycle_root_on_hide() {
 }
 
 void Component::clear_most_recent_focus_owner_on_hide() {
-  std::unique_lock lock(tree_mutex);
+  auto lock = get_tree_lock();
   if (auto window = get_containing_window()) {
     auto focus_owner = KeyboardFocusManager::single->get_most_recent_focus_owner(window);
     auto reset = ((focus_owner.get() == this) or is_parent_of(focus_owner));

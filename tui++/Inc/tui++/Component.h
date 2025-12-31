@@ -867,7 +867,7 @@ public:
     return this->foreground_color;
   }
 
-  void set_foreground_color(std::optional<Color>const& color) {
+  void set_foreground_color(std::optional<Color> const& color) {
     this->foreground_color = color;
   }
 

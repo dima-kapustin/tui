@@ -52,42 +52,44 @@ private:
   void draw_rect(int x, int y, int width, int height, const BoxCharacters &chars);
 
 public:
-  void clip_rect(int x, int y, int width, int height) override;
+  virtual void clip_rect(int x, int y, int width, int height) override;
 
-  std::unique_ptr<Graphics> create();
+  virtual std::unique_ptr<Graphics> create();
 
-  std::unique_ptr<Graphics> create(int x, int y, int width, int height) override;
+  virtual std::unique_ptr<Graphics> create(int x, int y, int width, int height) override;
 
-  void draw_char(const Char &c, int x, int y, const Attributes &attributes = Attributes::NONE) override;
+  virtual void draw_char(const Char &c, int x, int y, const Attributes &attributes = Attributes::NONE) override;
 
-  void draw_hline(int x, int y, int length, const Attributes &attributes = Attributes::NONE) override;
+  virtual void draw_hline(int x, int y, int length, const Attributes &attributes = Attributes::NONE) override;
 
-  void draw_rect(int x, int y, int width, int height) override;
+  virtual void draw_rect(int x, int y, int width, int height) override;
 
-  void draw_rounded_rect(int x, int y, int width, int height) override;
+  virtual void draw_rounded_rect(int x, int y, int width, int height) override;
 
-  void draw_string(const std::string &str, int x, int y, const Attributes &attributes = Attributes::NONE) override;
+  virtual void draw_string(const std::string &str, int x, int y, const Attributes &attributes = Attributes::NONE) override;
 
-  void draw_vline(int x, int y, int length, const Attributes &attributes = Attributes::NONE) override;
+  virtual void draw_vline(int x, int y, int length, const Attributes &attributes = Attributes::NONE) override;
 
-  void fill_rect(int x, int y, int width, int height) override;
+  virtual void fill_rect(int x, int y, int width, int height) override;
 
-  Rectangle get_clip_rect() const override;
-  void set_clip_rect(const Rectangle &rect) override;
+  virtual Rectangle get_clip_rect() const override;
+  virtual void set_clip_rect(const Rectangle &rect) override;
 
-  Color get_foreground_color() const override;
-  void set_foreground_color(const Color &color) override;
+  virtual bool hit_clip_rect(int x, int y, int width, int height) const override;
 
-  Color get_background_color() const override;
-  void set_background_color(const Color &color) override;
+  virtual Color get_foreground_color() const override;
+  virtual void set_foreground_color(const Color &color) override;
 
-  Font get_font() const override;
-  void set_font(const Font &font) override;
+  virtual Color get_background_color() const override;
+  virtual void set_background_color(const Color &color) override;
 
-  Stroke get_stroke() const override;
-  void set_stroke(Stroke stroke) override;
+  virtual Font get_font() const override;
+  virtual void set_font(const Font &font) override;
 
-  void translate(int dx, int dy) override;
+  virtual Stroke get_stroke() const override;
+  virtual void set_stroke(Stroke stroke) override;
+
+  virtual void translate(int dx, int dy) override;
 
   void flush();
 };

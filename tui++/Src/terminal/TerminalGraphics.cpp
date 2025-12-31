@@ -252,6 +252,10 @@ void TerminalGraphics::set_clip_rect(const Rectangle &rect) {
   this->clip.translate(this->dx, this->dy);
 }
 
+bool TerminalGraphics::hit_clip_rect(int x, int y, int width, int height) const {
+  return this->clip.intersects(x, y, width, height);
+}
+
 void TerminalGraphics::set_foreground_color(const Color &color) {
   this->foreground_color = color;
 }
