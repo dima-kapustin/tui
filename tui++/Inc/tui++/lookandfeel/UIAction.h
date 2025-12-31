@@ -20,5 +20,11 @@ public:
 
   virtual void set_enabled(bool) override {
   }
+
+protected:
+  virtual PropertyBase* add_runtime_property(std::unique_ptr<PropertyBase> &&property) override {
+    // This object is immutable
+    return nullptr;
+  }
 };
 }
