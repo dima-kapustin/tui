@@ -37,8 +37,8 @@ class Property;
 
 class Object {
   std::vector<PropertyBase*> properties;
+  std::vector<std::unique_ptr<PropertyBase>> runtime_properties;
   mutable std::vector<std::pair<std::string_view, std::vector<PropertyChangeListener>>> property_change_listeners;
-//  std::vector<std::unique_ptr<PropertyBase>> runtime_properties;
 
   constexpr static auto ANY_PROPERTY_NAME = "*";
 
@@ -52,12 +52,21 @@ private:
     return *this->properties.insert(pos, property);
   }
 
+  template<typename T>
+  Property<T>* add_runtime_property(const char *name) {
+    return static_cast<Property<T>*>(add_runtime_property(std::make_unique<Property<T>>(this, name)));
+  }
+
   void fire_property_change_event(const std::string_view &property_name, const PropertyValue &old_value, const PropertyValue &new_value);
 
   friend class PropertyBase;
 
 protected:
   virtual ~Object() {
+  }
+
+  virtual PropertyBase* add_runtime_property(std::unique_ptr<PropertyBase> &&property) {
+    return add_property(this->runtime_properties.emplace_back(std::move(property)).get());
   }
 
 public:
@@ -85,19 +94,19 @@ public:
     return pos == this->properties.end() or std::strcmp((*pos)->name, property_name) != 0 ? nullptr : *pos;
   }
 
-//  template<typename T>
-//  PropertyBase* add_property(const char *name) {
-//    return get_property(name) ? nullptr : add_property(this->runtime_properties.emplace_back(std::make_unique<Property<T>>(this, name)).get());
-//  }
-//
-//  void remove_property(const char *name) {
-//    for (auto it = this->runtime_properties.begin(); it != this->runtime_properties.end(); ++it) {
-//      if (std::strcmp((*it)->name, name) == 0) {
-//        this->runtime_properties.erase(it);
-//        break;
-//      }
-//    }
-//  }
+  template<typename ValueType>
+  PropertyBase* add_property(const char *name) {
+    return get_property(name) ? nullptr : add_runtime_property<ValueType>(name);
+  }
+
+  void remove_property(const char *name) {
+    for (auto it = this->runtime_properties.begin(); it != this->runtime_properties.end(); ++it) {
+      if (std::strcmp((*it)->name, name) == 0) {
+        this->runtime_properties.erase(it);
+        break;
+      }
+    }
+  }
 
   void add_property_change_listener(const char *property_name, const PropertyChangeListener &listener) const {
     auto listeners_pos = std::lower_bound(this->property_change_listeners.begin(), this->property_change_listeners.end(), property_name, //
@@ -147,9 +156,23 @@ public:
     return {};
   }
 
-  void set_property_value(const char *property_name, PropertyValue const &value) {
+  template<typename ValueType>
+  ValueType get_property_value(const char *property_name) const {
+    if (auto *property = get_property(property_name)) {
+      auto any = property->get_value();
+      if (auto *value = std::any_cast<ValueType>(&any)) {
+        return std::move(*value);
+      }
+    }
+    return {};
+  }
+
+  template<typename ValueType>
+  void set_property_value(const char *property_name, const ValueType &value) {
     if (auto *property = get_property(property_name)) {
       property->set_value(value);
+    } else {
+      *add_runtime_property<std::remove_cvref_t<ValueType>>(property_name) = value;
     }
   }
 };

@@ -20,92 +20,77 @@ public:
   constexpr static auto DISPLAYED_MNEMONIC_INDEX = "DisplayedMnemonicIndex";
 
 public:
-  bool accept(const std::shared_ptr<Object> &sender) const {
+  virtual ~Action() {
+  }
+
+public:
+  virtual bool accept(const std::shared_ptr<Object> &sender) const {
     return is_enabled();
   }
 
-  bool is_enabled() const {
-    return this->enabled;
+  virtual bool is_enabled() const = 0;
+  virtual void set_enabled(bool value) = 0;
+
+  virtual std::string get_name() const {
+    return get_property_value<std::string>(NAME);
+  }
+  virtual void set_name(std::string const &name) {
+    set_property_value(NAME, name);
   }
 
-  void set_enabled(bool value) {
-    this->enabled = value;
+  virtual std::string get_short_description() const {
+    return get_property_value<std::string>(SHORT_DESCRIPTION);
+  }
+  virtual void set_short_description(std::string const &short_description) {
+    set_property_value(SHORT_DESCRIPTION, short_description);
   }
 
-  std::string const& get_name() const {
-    return this->name;
+  virtual std::string get_long_description() const {
+    return get_property_value<std::string>(LONG_DESCRIPTION);
+  }
+  virtual void set_long_description(std::string const &long_description) {
+    set_property_value(LONG_DESCRIPTION, long_description);
   }
 
-  void set_name(std::string const &name) {
-    this->name = name;
+  virtual ActionKey get_action_command() const {
+    return get_property_value<ActionKey>(ACTION_COMMAND);
   }
 
-  std::string const& get_short_description() const {
-    return this->short_description;
+  virtual void set_action_command(ActionKey const &action_command) {
+    set_property_value(ACTION_COMMAND, action_command);
   }
 
-  void set_short_description(std::string const &short_description) {
-    this->short_description = short_description;
+  virtual Char get_mnemonic() const {
+    return get_property_value<Char>(MNEMONIC);
   }
 
-  std::string const& get_long_description() const {
-    return this->long_description;
+  virtual void set_mnemonic(Char const &mnemonic) {
+    set_property_value<Char>(MNEMONIC, mnemonic);
   }
 
-  void set_long_description(std::string const &long_description) {
-    this->long_description = long_description;
+  virtual KeyStroke get_accelerator() const {
+    return get_property_value<KeyStroke>(ACCELERATOR);
   }
 
-  ActionKey const& get_action_command() const {
-    return this->action_command;
+  virtual void set_accelerator(KeyStroke const &accelerator) {
+    set_property_value(ACCELERATOR, accelerator);
   }
 
-  void set_action_command(ActionKey const &action_command) {
-    this->action_command = action_command;
+  virtual bool is_selected() const {
+    return get_property_value<bool>(SELECTED);
   }
 
-  Char const& get_mnemonic() const {
-    return this->mnemonic;
+  virtual void set_selected(bool value) {
+    set_property_value(SELECTED, value);
   }
 
-  void set_mnemonic(Char const &mnemonic) {
-    this->mnemonic = mnemonic;
+  virtual int get_displayed_mnemonic_index() const {
+    return get_property_value<int>(DISPLAYED_MNEMONIC_INDEX);
   }
 
-  KeyStroke const& get_accelerator() const {
-    return this->accelerator;
+  virtual void set_displayed_mnemonic_index(int displayed_mnemonic_index) {
+    set_property_value(DISPLAYED_MNEMONIC_INDEX, displayed_mnemonic_index);
   }
-
-  void set_accelerator(KeyStroke const &accelerator) {
-    this->accelerator = accelerator;
-  }
-
-  bool is_selected() const {
-    return this->selected;
-  }
-
-  void set_selected(bool value) {
-    this->selected = value;
-  }
-
-  int get_displayed_mnemonic_index() const {
-    return this->displayed_mnemonic_index;
-  }
-
-  void set_displayed_mnemonic_index(int displayed_mnemonic_index) {
-    this->displayed_mnemonic_index = displayed_mnemonic_index;
-  }
-
-private:
-  Property<bool> enabled { this, "enabled" };
-  Property<std::string> name { this, NAME };
-  Property<std::string> short_description { this, SHORT_DESCRIPTION };
-  Property<std::string> long_description { this, LONG_DESCRIPTION };
-  Property<ActionKey> action_command { this, ACTION_COMMAND };
-  Property<Char> mnemonic { this, MNEMONIC };
-  Property<KeyStroke> accelerator { this, ACCELERATOR };
-  Property<bool> selected { this, SELECTED };
-  Property<int> displayed_mnemonic_index { this, DISPLAYED_MNEMONIC_INDEX, -1 };
 };
 
 }

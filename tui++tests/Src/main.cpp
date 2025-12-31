@@ -20,6 +20,7 @@ void test_EnumMask();
 void test_KeyStroke();
 void test_EventSource();
 void test_CharIterator();
+void test_Action();
 
 auto make_file_menu() {
   auto file_menu = make_component<Menu>("File");
@@ -48,6 +49,7 @@ int main(int argc, char *argv[]) {
   test_KeyStroke();
   test_EventSource();
   test_CharIterator();
+  test_Action();
 
   terminal.set_title("Welcome to tui++");
   terminal.flush();

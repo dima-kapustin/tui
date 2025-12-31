@@ -9,6 +9,8 @@
 
 namespace tui::laf {
 
+class LazyActionMap;
+
 class MenuItemUI: public ComponentUI {
   MenuItem * menu_item;
 
@@ -25,10 +27,14 @@ public:
   virtual void uninstall_ui(std::shared_ptr<Component> const &c) override;
 
 protected:
+  virtual std::string const& get_property_prefix() const;
+
   virtual void install_defaults();
   virtual void install_listeners();
+  virtual void install_keyboard_actions();
 
   virtual void uninstall_listeners();
+  virtual void uninstall_keyboard_actions();
 
 private:
   virtual void mouse_pressed(MousePressEvent &e);
@@ -37,6 +43,8 @@ private:
   virtual void menu_drag_mouse_overed(MenuDragMouseEvent<MouseOverEvent> &e);
   virtual void menu_drag_mouse_dragged(MenuDragMouseEvent<MouseDragEvent> &e);
   virtual void property_changed(PropertyChangeEvent &e);
+
+  static void load_action_map(LazyActionMap &map);
 };
 
 }

@@ -39,7 +39,7 @@ class LookAndFeel {
 
 public:
   template<typename T>
-  static T get(const char *key) {
+  static T get(std::string_view const &key) {
     if (auto pos = properties.find(key); pos != properties.end()) {
       if (auto *value = std::any_cast<T>(&pos->second)) {
         return *value;
@@ -49,7 +49,7 @@ public:
   }
 
   template<typename T>
-  static void put(const char *key, T const &value) {
+  static void put(std::string_view const &key, T const &value) {
     properties.emplace(key, value);
   }
 
