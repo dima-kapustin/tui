@@ -32,6 +32,9 @@
 #include <tui++/lookandfeel/ComponentUI.h>
 
 namespace tui {
+namespace laf {
+class LookAndFeel;
+}
 
 class Window;
 class Graphics;
@@ -198,6 +201,7 @@ private:
     descend_unconditionally_when_validating = false;
   }
 
+  std::shared_ptr<ActionMap> get_action_map(bool create) const;
   std::shared_ptr<InputMap> get_input_map(InputCondition condition, bool create) const;
 
   std::shared_ptr<Component> find_traversal_root() const;
@@ -377,8 +381,9 @@ protected:
   void register_with_keyboard_manager(bool only_if_new);
 
   friend class Window;
-  friend class KeyboardFocusManager;
   friend class KeyboardManager;
+  friend class KeyboardFocusManager;
+  friend class laf::LookAndFeel;
 
 public:
   virtual ~Component();
@@ -890,10 +895,7 @@ public:
   }
 
   std::shared_ptr<ActionMap> get_action_map() const {
-    if (not this->action_map) {
-      this->action_map = std::make_shared<ActionMap>();
-    }
-    return this->action_map;
+    return get_action_map(true);
   }
 
   void set_action_map(const std::shared_ptr<ActionMap> &action_map) {

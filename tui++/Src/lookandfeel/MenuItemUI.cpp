@@ -1,6 +1,8 @@
 #include <tui++/lookandfeel/MenuItemUI.h>
 #include <tui++/lookandfeel/LazyActionMap.h>
+
 #include <tui++/lookandfeel/UIAction.h>
+#include <tui++/lookandfeel/UIComponentInputMap.h>
 
 #include <tui++/MenuItem.h>
 #include <tui++/MenuSelectionManager.h>
@@ -61,14 +63,38 @@ void MenuItemUI::uninstall_listeners() {
 }
 
 void MenuItemUI::install_keyboard_actions() {
-  auto action_map = LookAndFeel::get<std::shared_ptr<ActionMap>>(get_property_prefix() + ".action-map");
+  install_lazy_action_map();
+  update_accelerator_binding();
+}
+
+void MenuItemUI::install_lazy_action_map() {
+  auto property_name = get_property_prefix() + ".action-map";
+  auto action_map = LookAndFeel::get<std::shared_ptr<ActionMap>>(property_name);
   if (not action_map) {
     action_map = std::make_shared<LazyActionMap>(load_action_map);
+    LookAndFeel::put(property_name, action_map);
   }
+  LookAndFeel::replace_action_map(this->menu_item, action_map);
 }
 
 void MenuItemUI::load_action_map(LazyActionMap &map) {
   map.emplace(std::make_shared<ClickAction>());
+}
+
+void MenuItemUI::update_accelerator_binding() {
+  auto window_input_map = LookAndFeel::get_input_map(this->menu_item, Component::WHEN_IN_FOCUSED_WINDOW);
+  if (window_input_map) {
+    window_input_map->clear();
+  }
+
+  if (auto accelerator = this->menu_item->get_accelerator()) {
+    if (not window_input_map) {
+      window_input_map = std::make_shared<UIComponentInputMap>(this->menu_item);
+      LookAndFeel::replace_input_map(this->menu_item, Component::WHEN_IN_FOCUSED_WINDOW, window_input_map);
+    }
+
+    window_input_map->emplace(accelerator.value(), CLICK);
+  }
 }
 
 void MenuItemUI::uninstall_keyboard_actions() {

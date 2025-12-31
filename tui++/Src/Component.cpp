@@ -927,6 +927,13 @@ bool Component::can_be_focus_owner_recursively() {
   return true;
 }
 
+std::shared_ptr<ActionMap> Component::get_action_map(bool create) const {
+  if (not this->action_map and create) {
+    this->action_map = std::make_shared<ActionMap>();
+  }
+  return this->action_map;
+}
+
 std::shared_ptr<InputMap> Component::get_input_map(InputCondition condition, bool create) const {
   switch (condition) {
   case WHEN_FOCUSED:
@@ -941,7 +948,7 @@ std::shared_ptr<InputMap> Component::get_input_map(InputCondition condition, boo
     return this->ancestor_input_map;
   case WHEN_IN_FOCUSED_WINDOW:
     if (not this->window_input_map and create) {
-      this->window_input_map = std::make_shared<ComponentInputMap>(const_cast<Component*>(this)->shared_from_this());
+      this->window_input_map = std::make_shared<ComponentInputMap>(const_cast<Component*>(this));
     }
     return this->window_input_map;
   }

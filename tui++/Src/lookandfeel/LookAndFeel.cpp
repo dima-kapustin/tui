@@ -13,6 +13,7 @@
 #include <tui++/lookandfeel/SeparatorUI.h>
 #include <tui++/lookandfeel/PopupMenuSeparatorUI.h>
 
+#include <tui++/lookandfeel/UIResource.h>
 
 namespace tui::laf {
 
@@ -33,6 +34,50 @@ public:
 void LookAndFeel::put(std::initializer_list<std::pair<std::string_view, std::any>> &&values) {
   for (auto&& [key, value] : values) {
     properties.emplace(std::move(key), std::move(value));
+  }
+}
+
+std::shared_ptr<ActionMap> LookAndFeel::get_action_map(Component *c) {
+  for (auto map = c->get_action_map(false); map;) {
+    auto parent = map->get_parent();
+    if (std::dynamic_pointer_cast<UIResource>(parent)) {
+      return parent;
+    }
+    map = parent;
+  }
+  return {};
+}
+
+std::shared_ptr<InputMap> LookAndFeel::get_input_map(Component *c, Component::InputCondition condition) {
+  for (auto map = c->get_input_map(condition, false); map;) {
+    auto parent = map->get_parent();
+    if (std::dynamic_pointer_cast<UIResource>(parent)) {
+      return parent;
+    }
+    map = parent;
+  }
+  return {};
+}
+
+void LookAndFeel::replace_input_map(Component *c, Component::InputCondition condition, std::shared_ptr<InputMap> const &new_map) {
+  for (auto map = c->get_input_map(condition, new_map != nullptr); map;) {
+    auto parent = map->get_parent();
+    if (not parent or std::dynamic_pointer_cast<UIResource>(parent)) {
+      map->set_parent(new_map);
+      return;
+    }
+    map = parent;
+  }
+}
+
+void LookAndFeel::replace_action_map(Component *c, std::shared_ptr<ActionMap> const &new_map) {
+  for (auto map = c->get_action_map(new_map != nullptr); map;) {
+    auto parent = map->get_parent();
+    if (not parent or std::dynamic_pointer_cast<UIResource>(parent)) {
+      map->set_parent(new_map);
+      return;
+    }
+    map = parent;
   }
 }
 

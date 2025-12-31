@@ -6,7 +6,7 @@
 namespace tui {
 
 class KeyStroke {
-  Char key_char;
+  Char key_char = '\0';
   KeyEvent::KeyCode key_code;
   InputEvent::Modifiers modifiers;
 

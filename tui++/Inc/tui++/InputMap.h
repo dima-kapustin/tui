@@ -42,6 +42,10 @@ public:
     return this->parent;
   }
 
+  void set_parent(std::shared_ptr<InputMap> const &parent) {
+    this->parent = parent;
+  }
+
   void clear() {
     this->map.clear();
   }

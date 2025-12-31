@@ -2,6 +2,8 @@
 
 #include <tui++/lookandfeel/ComponentUI.h>
 
+#include <tui++/Component.h>
+
 #include <any>
 #include <unordered_map>
 
@@ -18,6 +20,8 @@ class PopupMenu;
 class PopupMenuSeparator;
 class Separator;
 class ToggleButton;
+
+class InputMap;
 }
 
 namespace tui::laf {
@@ -54,6 +58,12 @@ public:
   }
 
   static void put(std::initializer_list<std::pair<std::string_view, std::any>> &&values);
+
+  static std::shared_ptr<ActionMap> get_action_map(Component *c);
+  static std::shared_ptr<InputMap> get_input_map(Component *c, Component::InputCondition condition);
+
+  static void replace_input_map(Component *c, Component::InputCondition condition, std::shared_ptr<InputMap> const &new_map);
+  static void replace_action_map(Component *c, std::shared_ptr<ActionMap> const &new_map);
 
 public:
   static std::shared_ptr<FrameUI> create_ui(Frame *c);

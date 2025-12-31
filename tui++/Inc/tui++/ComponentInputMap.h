@@ -7,10 +7,10 @@ namespace tui {
 class Component;
 
 class ComponentInputMap: public InputMap {
-  std::weak_ptr<Component> component;
+  Component *component;
 
 public:
-  ComponentInputMap(const std::shared_ptr<Component> &component) :
+  ComponentInputMap(Component *component) :
       component(component) {
   }
 };
