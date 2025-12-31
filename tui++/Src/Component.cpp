@@ -83,7 +83,7 @@ void Component::paint_children(Graphics &g) {
     auto i = this->components.size() - 1;
     if (this->painting_child and this->painting_child->is_opaque()) {
       do {
-        if (this->painting_child == this->components[i]) {
+        if (this->painting_child == this->components[i].get()) {
           break;
         }
       } while (i-- != 0);
@@ -1100,7 +1100,7 @@ void Component::paint_immediately_impl(Rectangle const &bounds) const {
   }
 
   auto offset_x = 0, offset_y = 0;
-  auto p_index = -1, p_count = 0;
+  auto path_index = -1;
 
   auto path = std::vector<std::shared_ptr<Component>> { };
   path.reserve(10);
@@ -1146,12 +1146,10 @@ void Component::paint_immediately_impl(Rectangle const &bounds) const {
 
       if (reset_painting_component) {
         painting_component = c;
-        p_index = p_count;
+        path_index = path.size();
         offset_x = offset_y = 0;
       }
     }
-
-    p_count += 1;
 
     // if we aren't on top, include the parent's clip
     if (not on_top) {
@@ -1175,8 +1173,8 @@ void Component::paint_immediately_impl(Rectangle const &bounds) const {
   // Notify the Components that are going to be painted of the
   // child component to paint to.
   if (painting_component.get() != this) {
-    for (auto i = p_index; i > 0; i--) {
-      path[i]->painting_child = path[i - 1];
+    for (auto i = path_index; i > 0; i--) {
+      path[i]->painting_child = path[i - 1].get();
     }
   }
 
@@ -1188,7 +1186,7 @@ void Component::paint_immediately_impl(Rectangle const &bounds) const {
   }
 
   if (painting_component.get() != this) {
-    for (auto i = p_index; i > 0; i--) {
+    for (auto i = path_index; i > 0; i--) {
       path[i]->painting_child = nullptr;
     }
   }

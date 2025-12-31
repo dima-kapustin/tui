@@ -131,7 +131,7 @@ protected:
 
   Property<std::shared_ptr<laf::ComponentUI>> ui { this, "ui" };
 
-  std::shared_ptr<Component> painting_child;
+  Component *painting_child = nullptr;
 
 public:
   constexpr static float TOP_ALIGNMENT = 0;
