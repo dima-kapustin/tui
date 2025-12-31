@@ -1064,7 +1064,50 @@ Point Component::get_location_on_screen() const {
 }
 
 void Component::register_with_keyboard_manager(bool only_if_new) {
+  constexpr auto WHEN_IN_FOCUSED_WINDOW_BINDINGS_KEY = "when-in-focused-window";
+  auto strokes = std::vector<KeyStroke> { };
+  auto registered = get_client_property<std::shared_ptr<std::unordered_set<KeyStroke>>>(WHEN_IN_FOCUSED_WINDOW_BINDINGS_KEY);
+  if (auto input_map = get_input_map(InputCondition::WHEN_IN_FOCUSED_WINDOW, false)) {
+    // Push any new KeyStrokes to the KeyboardManager.
+    strokes = input_map->get_all_keys();
+    if (not strokes.empty()) {
+      for (auto i = int(strokes.size() - 1); i >= 0; --i) {
+        if (not only_if_new or not registered or not registered->contains(strokes[i])) {
+          register_with_keyboard_manager(strokes[i]);
+        }
 
+        if (registered) {
+          registered->erase(strokes[i]);
+        }
+      }
+    }
+  }
+
+  // Remove any old ones.
+  if (registered and not registered->empty()) {
+    for (auto it = registered->begin(); it != registered->end(); ++it) {
+      unregister_with_keyboard_manager(*it);
+    }
+    registered->clear();
+  }
+
+  // Updated the registered.
+  if (not strokes.empty()) {
+    if (not registered) {
+      registered = set_client_property(WHEN_IN_FOCUSED_WINDOW_BINDINGS_KEY, std::make_shared<std::unordered_set<KeyStroke>>(strokes.size()));
+    }
+    for (auto &&stroke : strokes) {
+      registered->emplace(stroke);
+    }
+  }
+}
+
+void Component::register_with_keyboard_manager(KeyStroke const &key_stroke) const {
+  KeyboardManager::single->register_key_stroke(key_stroke, const_cast<Component*>(this)->shared_from_this());
+}
+
+void Component::unregister_with_keyboard_manager(KeyStroke const &key_stroke) const {
+  KeyboardManager::single->unregister_key_stroke(key_stroke, const_cast<Component*>(this)->shared_from_this());
 }
 
 void Component::paint_immediately(Rectangle const &rect) const {

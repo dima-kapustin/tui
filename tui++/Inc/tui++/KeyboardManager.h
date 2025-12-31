@@ -24,7 +24,7 @@ public:
 
 public:
   void register_key_stroke(const KeyStroke &key_stroke, const std::shared_ptr<Component> &component);
-  void unregister_key_storke(const KeyStroke &key_stroke, const std::shared_ptr<Component> &component);
+  void unregister_key_stroke(const KeyStroke &key_stroke, const std::shared_ptr<Component> &component);
 
   void register_menu_bar(const std::shared_ptr<MenuBar> &menu_bar);
   void unregister_menu_bar(const std::shared_ptr<MenuBar> &menu_bar);

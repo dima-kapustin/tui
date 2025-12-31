@@ -70,7 +70,7 @@ void KeyboardManager::register_key_stroke(const KeyStroke &key_stroke, const std
   }
 }
 
-void KeyboardManager::unregister_key_storke(const KeyStroke &key_stroke, const std::shared_ptr<Component> &component) {
+void KeyboardManager::unregister_key_stroke(const KeyStroke &key_stroke, const std::shared_ptr<Component> &component) {
   if (auto &&top = get_top_ancestor(component)) {
     auto &&components = this->component_map[top][key_stroke];
     if (auto &&pos = std::find(components.begin(), components.end(), component); pos != components.end()) {

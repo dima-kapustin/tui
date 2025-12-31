@@ -24,9 +24,9 @@ private:
     return key_count;
   }
 
-  void get_all_keys(std::vector<KeyStroke> &keys) const {
+  void collect_all_keys(std::vector<KeyStroke> &keys) const {
     if (auto parent = get_parent()) {
-      parent->get_all_keys(keys);
+      parent->collect_all_keys(keys);
     }
     std::ranges::copy(this->map | std::views::keys, std::back_inserter(keys));
   }
@@ -72,7 +72,7 @@ public:
   std::vector<KeyStroke> get_all_keys() const {
     auto keys = std::vector<KeyStroke> { };
     keys.reserve(count_all_keys());
-    get_all_keys(keys);
+    collect_all_keys(keys);
     return keys;
   }
 };

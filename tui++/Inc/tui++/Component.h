@@ -25,6 +25,8 @@
 #include <tui++/KeyboardFocusManager.h>
 #include <tui++/FocusTraversalPolicy.h>
 
+#include <tui++/util/type_traits.h>
+
 #include <tui++/event/EventSource.h>
 
 #include <tui++/lookandfeel/ComponentUI.h>
@@ -213,6 +215,9 @@ private:
   ObscuredState get_obscured_state(int component_index, Rectangle const &bounds) const;
 
   void paint_immediately_impl(Rectangle const &bounds) const;
+
+  void register_with_keyboard_manager(KeyStroke const &key_stroke) const;
+  void unregister_with_keyboard_manager(KeyStroke const &key_stroke) const;
 
 protected:
   Component() {
@@ -1088,7 +1093,12 @@ public:
   }
 
   template<typename ValueType>
-  const ValueType* get_client_property(const char *property_name) const {
+  std::enable_if_t<not util::is_shared_ptr_v<ValueType>, ValueType const*> get_client_property(const char *property_name) const {
+    return const_cast<Component*>(this)->get_client_property<ValueType>(property_name);
+  }
+
+  template<typename ValueType>
+  std::enable_if_t<not util::is_shared_ptr_v<ValueType>, ValueType*> get_client_property(const char *property_name) {
     if (auto pos = this->client_properties.find(property_name); pos != this->client_properties.end()) {
       if (auto *value = std::any_cast<ValueType>(&pos->second)) {
         return value;
@@ -1098,8 +1108,18 @@ public:
   }
 
   template<typename ValueType>
-  void set_client_property(const char *property_name, const ValueType &value) {
-    this->client_properties[property_name].emplace<ValueType>(value);
+  std::enable_if_t<util::is_shared_ptr_v<ValueType>, ValueType> get_client_property(const char *property_name) const {
+    if (auto pos = this->client_properties.find(property_name); pos != this->client_properties.end()) {
+      if (auto *value = std::any_cast<ValueType>(&pos->second)) {
+        return *value;
+      }
+    }
+    return {};
+  }
+
+  template<typename ValueType>
+  ValueType& set_client_property(const char *property_name, ValueType const &value) {
+    return this->client_properties[property_name].emplace<ValueType>(value);
   }
 
   virtual void update_ui() {
