@@ -1300,4 +1300,114 @@ std::unique_ptr<Graphics> Component::get_graphics() const {
   }
 }
 
+Dimension Component::get_preferred_size() const {
+  if (flags.is_preferred_size_set) {
+    return this->preferred_size.value();
+  } else if (this->ui) {
+    if (auto size = this->ui->get_preferred_size(shared_from_this())) {
+      return size.value();
+    }
+  }
+
+  if (not this->flags.is_valid or not this->preferred_size.has_value()) {
+    auto lock = get_tree_lock();
+    if (this->layout) {
+      this->preferred_size = this->layout->get_preferred_layout_size(shared_from_this());
+    } else {
+      this->preferred_size = this->minimum_size;
+    }
+  }
+  return this->preferred_size.value_or(Dimension { });
+}
+
+void Component::set_preferred_size(std::optional<Dimension> preferred_size) {
+  this->preferred_size = std::move(preferred_size);
+  this->flags.is_preferred_size_set = preferred_size.has_value();
+}
+
+Dimension Component::get_minimum_size() const {
+  if (flags.is_minimum_size_set) {
+    return this->minimum_size.value();
+  } else if (this->ui) {
+    if (auto size = this->ui->get_minimum_size(shared_from_this())) {
+      return size.value();
+    }
+  }
+
+  if (not this->flags.is_valid or not this->minimum_size.has_value()) {
+    auto lock = get_tree_lock();
+    if (this->layout) {
+      this->minimum_size = this->layout->get_minimum_layout_size(shared_from_this());
+    } else {
+      this->minimum_size = this->size;
+    }
+  }
+  return this->minimum_size.value_or(Dimension { });
+}
+
+void Component::set_minimum_size(std::optional<Dimension> minimum_size) {
+  this->minimum_size = std::move(minimum_size);
+  this->flags.is_minimum_size_set = minimum_size.has_value();
+}
+
+Dimension Component::get_maximum_size() const {
+  if (flags.is_maximum_size_set) {
+    return this->maximum_size.value();
+  } else if (this->ui) {
+    if (auto size = this->ui->get_maximum_size(shared_from_this())) {
+      return size.value();
+    }
+  }
+
+  if (not this->flags.is_valid or not this->maximum_size.has_value()) {
+    auto lock = get_tree_lock();
+    if (this->layout) {
+      this->maximum_size = this->layout->get_maximum_layout_size(shared_from_this());
+    } else {
+      this->maximum_size = Dimension::max();
+    }
+  }
+
+  return this->maximum_size.value_or(Dimension { });
+}
+
+void Component::set_maximum_size(std::optional<Dimension> maximum_size) {
+  this->maximum_size = std::move(maximum_size);
+  this->flags.is_maximum_size_set = maximum_size.has_value();
+}
+
+static float to_valid_alignment(float value) {
+  return value > 1.0f ? 1.0f : value < 0.0f ? 0.0f : value;
+}
+
+float Component::get_alignment_x() const {
+  if (not this->flags.is_alignment_x_set) {
+    if (this->layout) {
+      std::unique_lock lock(tree_mutex);
+      return this->layout->get_layout_alignment_x(shared_from_this());
+    }
+  }
+  return this->alignment_x;
+}
+
+void Component::set_alignment_x(float value) {
+  this->alignment_x = to_valid_alignment(value);
+  this->flags.is_alignment_x_set = true;
+}
+
+float Component::get_alignment_y() {
+  if (not this->flags.is_alignment_y_set) {
+    if (this->layout) {
+      std::unique_lock lock(tree_mutex);
+      return this->layout->get_layout_alignment_y(shared_from_this());
+    }
+  }
+  return this->alignment_y;
+}
+
+void Component::set_alignment_y(float value) {
+  this->alignment_y = to_valid_alignment(value);
+  this->flags.is_alignment_y_set = true;
+}
+
 }

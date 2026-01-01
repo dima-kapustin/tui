@@ -130,9 +130,9 @@ public:
    */
   std::optional<std::string_view> get_constraints(const std::shared_ptr<Component> &target);
 
-  Dimension get_minimum_layout_size(const std::shared_ptr<const Component> &target) override;
-  Dimension get_maximum_layout_size(const std::shared_ptr<const Component> &target) override;
-  Dimension get_preferred_layout_size(const std::shared_ptr<const Component> &target) override;
+  std::optional<Dimension> get_minimum_layout_size(const std::shared_ptr<const Component> &target) override;
+  std::optional<Dimension> get_maximum_layout_size(const std::shared_ptr<const Component> &target) override;
+  std::optional<Dimension> get_preferred_layout_size(const std::shared_ptr<const Component> &target) override;
 
   void layout(const std::shared_ptr<Component> &target) override;
 };

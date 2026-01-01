@@ -12,28 +12,28 @@ namespace tui {
 
 class RootLayout: public Layout {
 public:
-  virtual Dimension get_preferred_layout_size(const std::shared_ptr<const Component> &target) override {
+  virtual std::optional<Dimension> get_preferred_layout_size(const std::shared_ptr<const Component> &target) override {
     auto root_pane = std::static_pointer_cast<const RootPane>(target);
     auto size = root_pane->content_pane ? root_pane->content_pane->get_preferred_size() : root_pane->get_size();
     auto menu_bar_size = root_pane->menu_bar and root_pane->menu_bar->is_visible() ? root_pane->menu_bar->get_preferred_size() : Dimension::zero();
     auto insets = root_pane->get_insets();
-    return {std::max(size.width, menu_bar_size.width) + insets.left + insets.right, size.height + menu_bar_size.height + insets.top + insets.bottom};
+    return Dimension { std::max(size.width, menu_bar_size.width) + insets.left + insets.right, size.height + menu_bar_size.height + insets.top + insets.bottom };
   }
 
-  virtual Dimension get_minimum_layout_size(const std::shared_ptr<const Component> &target) override {
+  virtual std::optional<Dimension> get_minimum_layout_size(const std::shared_ptr<const Component> &target) override {
     auto root_pane = std::static_pointer_cast<const RootPane>(target);
     auto size = root_pane->content_pane ? root_pane->content_pane->get_minimum_size() : root_pane->get_size();
     auto menu_bar_size = root_pane->menu_bar and root_pane->menu_bar->is_visible() ? root_pane->menu_bar->get_minimum_size() : Dimension::zero();
     auto insets = root_pane->get_insets();
-    return {std::max(size.width, menu_bar_size.width) + insets.left + insets.right, size.height + menu_bar_size.height + insets.top + insets.bottom};
+    return Dimension { std::max(size.width, menu_bar_size.width) + insets.left + insets.right, size.height + menu_bar_size.height + insets.top + insets.bottom };
   }
 
-  virtual Dimension get_maximum_layout_size(const std::shared_ptr<const Component> &target) override {
+  virtual std::optional<Dimension> get_maximum_layout_size(const std::shared_ptr<const Component> &target) override {
     auto root_pane = std::static_pointer_cast<const RootPane>(target);
     auto menu_bar_size = root_pane->menu_bar and root_pane->menu_bar->is_visible() ? root_pane->menu_bar->get_maximum_size() : Dimension::zero();
     auto insets = root_pane->get_insets();
     auto size = root_pane->content_pane ? root_pane->content_pane->get_maximum_size() : Dimension { std::numeric_limits<int>::max(), std::numeric_limits<int>::max() - insets.top - insets.bottom - menu_bar_size.height - 1 };
-    return {std::max(size.width, menu_bar_size.width) + insets.left + insets.right, size.height + menu_bar_size.height + insets.top + insets.bottom};
+    return Dimension { std::max(size.width, menu_bar_size.width) + insets.left + insets.right, size.height + menu_bar_size.height + insets.top + insets.bottom };
   }
 
   virtual void layout(const std::shared_ptr<Component> &target) override {
@@ -165,7 +165,7 @@ std::shared_ptr<LayeredPane> RootPane::create_layered_pane() const {
 }
 
 std::shared_ptr<Component> RootPane::create_content_pane() const {
-  return make_component<Panel>(std::make_shared<BorderLayout>());
+  return make_component < Panel > (std::make_shared<BorderLayout>());
 }
 
 std::shared_ptr<Layout> RootPane::create_root_layout() const {

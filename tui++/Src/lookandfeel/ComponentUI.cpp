@@ -22,16 +22,16 @@ void ComponentUI::update(Graphics &g, std::shared_ptr<const Component> const &c)
   paint(g, c);
 }
 
-Dimension ComponentUI::get_preferred_size(std::shared_ptr<const Component> const &c) const {
-  return Dimension::zero();
+std::optional<Dimension> ComponentUI::get_preferred_size(std::shared_ptr<const Component> const &c) const {
+  return std::nullopt;
 }
 
-Dimension ComponentUI::get_minimum_size(std::shared_ptr<const Component> const &c) const {
-  return get_preferred_size(c);
+std::optional<Dimension> ComponentUI::get_minimum_size(std::shared_ptr<const Component> const &c) const {
+  return std::nullopt;
 }
 
-Dimension ComponentUI::get_maximum_size(std::shared_ptr<const Component> const &c) const {
-  return get_preferred_size(c);
+std::optional<Dimension> ComponentUI::get_maximum_size(std::shared_ptr<const Component> const &c) const {
+  return std::nullopt;
 }
 
 bool ComponentUI::contains(std::shared_ptr<const Component> const &c, int x, int y) const {

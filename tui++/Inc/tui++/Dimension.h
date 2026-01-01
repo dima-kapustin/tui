@@ -8,7 +8,7 @@ struct Dimension {
   int width, height;
 
   static constexpr Dimension max() {
-    return {std::numeric_limits<int>::max(), std::numeric_limits<int>::max()};
+    return {std::numeric_limits<short>::max(), std::numeric_limits<short>::max()};
   }
 
   static constexpr Dimension zero() {

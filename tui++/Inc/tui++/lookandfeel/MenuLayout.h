@@ -10,7 +10,7 @@ public:
   }
 
 public:
-  Dimension get_preferred_layout_size(const std::shared_ptr<const Component> &target) override;
+  std::optional<Dimension> get_preferred_layout_size(const std::shared_ptr<const Component> &target) override;
 };
 
 }

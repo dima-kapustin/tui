@@ -23,7 +23,7 @@ void BoxLayout::remove_layout_component(const std::shared_ptr<Component> &c) {
   invalidate_layout(c->get_parent());
 }
 
-Dimension BoxLayout::get_minimum_layout_size(const std::shared_ptr<const Component> &target) {
+std::optional<Dimension> BoxLayout::get_minimum_layout_size(const std::shared_ptr<const Component> &target) {
   assert(this->target == target.get());
   maybe_init_reqs();
 
@@ -34,7 +34,7 @@ Dimension BoxLayout::get_minimum_layout_size(const std::shared_ptr<const Compone
   return size;
 }
 
-Dimension BoxLayout::get_maximum_layout_size(const std::shared_ptr<const Component> &target) {
+std::optional<Dimension> BoxLayout::get_maximum_layout_size(const std::shared_ptr<const Component> &target) {
   assert(this->target == target.get());
   maybe_init_reqs();
 
@@ -45,7 +45,7 @@ Dimension BoxLayout::get_maximum_layout_size(const std::shared_ptr<const Compone
   return size;
 }
 
-Dimension BoxLayout::get_preferred_layout_size(const std::shared_ptr<const Component> &target) {
+std::optional<Dimension> BoxLayout::get_preferred_layout_size(const std::shared_ptr<const Component> &target) {
   assert(this->target == target.get());
   maybe_init_reqs();
 

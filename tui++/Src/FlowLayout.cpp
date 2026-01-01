@@ -3,7 +3,7 @@
 
 namespace tui {
 
-Dimension FlowLayout::get_minimum_layout_size(const std::shared_ptr<const Component> &target) {
+std::optional<Dimension> FlowLayout::get_minimum_layout_size(const std::shared_ptr<const Component> &target) {
   auto lock = target->get_tree_lock();
 
   auto target_size = Dimension { };
@@ -28,7 +28,7 @@ Dimension FlowLayout::get_minimum_layout_size(const std::shared_ptr<const Compon
   return target_size;
 }
 
-Dimension FlowLayout::get_preferred_layout_size(const std::shared_ptr<const Component> &target) {
+std::optional<Dimension> FlowLayout::get_preferred_layout_size(const std::shared_ptr<const Component> &target) {
   auto lock = target->get_tree_lock();
 
   auto target_size = Dimension { };

@@ -13,7 +13,7 @@ void OverlayLayout::remove_layout_component(const std::shared_ptr<Component> &c)
   invalidate_layout(c->get_parent());
 }
 
-Dimension OverlayLayout::get_minimum_layout_size(const std::shared_ptr<const Component> &target) {
+std::optional<Dimension> OverlayLayout::get_minimum_layout_size(const std::shared_ptr<const Component> &target) {
   assert(this->target == target.get());
   maybe_init_reqs();
 
@@ -24,7 +24,7 @@ Dimension OverlayLayout::get_minimum_layout_size(const std::shared_ptr<const Com
   return size;
 }
 
-Dimension OverlayLayout::get_maximum_layout_size(const std::shared_ptr<const Component> &target) {
+std::optional<Dimension> OverlayLayout::get_maximum_layout_size(const std::shared_ptr<const Component> &target) {
   assert(this->target == target.get());
   maybe_init_reqs();
 
@@ -35,7 +35,7 @@ Dimension OverlayLayout::get_maximum_layout_size(const std::shared_ptr<const Com
   return size;
 }
 
-Dimension OverlayLayout::get_preferred_layout_size(const std::shared_ptr<const Component> &target) {
+std::optional<Dimension> OverlayLayout::get_preferred_layout_size(const std::shared_ptr<const Component> &target) {
   assert(this->target == target.get());
   maybe_init_reqs();
 

@@ -95,6 +95,9 @@ protected:
     unsigned was_focus_owner :1;
     unsigned inherits_popup_menu :1;
     unsigned is_repainting :1;
+    unsigned is_minimum_size_set :1;
+    unsigned is_maximum_size_set :1;
+    unsigned is_preferred_size_set :1;
   } flags { };
 
   Property<bool> enabled { this, "enabled", true };
@@ -559,74 +562,20 @@ public:
     return {this->location, this->size};
   }
 
-  /**
-   * Gets the preferred size of this component.
-   *
-   * @return a dimension object indicating this component's preferred size
-   */
-  Dimension get_preferred_size() const {
-    if (not this->flags.is_valid and not this->preferred_size.has_value()) {
-      std::unique_lock lock(tree_mutex);
-      if (this->layout) {
-        this->preferred_size = this->layout->get_preferred_layout_size(shared_from_this());
-      } else {
-        this->preferred_size = this->minimum_size;
-      }
-    }
-    return this->preferred_size.value_or(Dimension {});
-  }
+  Dimension get_preferred_size() const;
+  void set_preferred_size(std::optional<Dimension> preferred_size);
 
-  Dimension get_minimum_size() const {
-    if (not this->layout) {
-      return this->size;
-    } else if (not this->flags.is_valid or not this->minimum_size.has_value()) {
-      this->minimum_size = this->layout->get_minimum_layout_size(shared_from_this());
-    }
-    return this->minimum_size.value_or(Dimension {});
-  }
+  Dimension get_minimum_size() const;
+  void set_minimum_size(std::optional<Dimension> minimum_size);
 
-  Dimension get_maximum_size() const {
-    if (not this->layout) {
-      return this->size;
-    } else if (not this->flags.is_valid or not this->maximum_size.has_value()) {
-      this->maximum_size = this->layout->get_maximum_layout_size(shared_from_this());
-    }
-    return this->maximum_size.value_or(Dimension {});
-  }
+  Dimension get_maximum_size() const;
+  void set_maximum_size(std::optional<Dimension> maximum_size);
 
-  float get_alignment_x() const {
-    if (not this->flags.is_alignment_x_set) {
-      if (this->layout) {
-        std::unique_lock lock(tree_mutex);
-        return this->layout->get_layout_alignment_x(shared_from_this());
-      }
-    }
-    return this->alignment_x;
-  }
+  float get_alignment_x() const;
+  void set_alignment_x(float value);
 
-  static float to_valid_alignment(float value) {
-    return value > 1.0f ? 1.0f : value < 0.0f ? 0.0f : value;
-  }
-
-  void set_alignment_x(float value) {
-    this->alignment_x = to_valid_alignment(value);
-    this->flags.is_alignment_x_set = true;
-  }
-
-  float get_alignment_y() {
-    if (not this->flags.is_alignment_y_set) {
-      if (this->layout) {
-        std::unique_lock lock(tree_mutex);
-        return this->layout->get_layout_alignment_y(shared_from_this());
-      }
-    }
-    return this->alignment_y;
-  }
-
-  void set_alignment_y(float value) {
-    this->alignment_y = to_valid_alignment(value);
-    this->flags.is_alignment_y_set = true;
-  }
+  float get_alignment_y();
+  void set_alignment_y(float value);
 
   bool has_children() const {
     return not this->components.empty();
@@ -827,14 +776,6 @@ public:
       this->layout = layout;
       invalidate();
     }
-  }
-
-  /**
-   * Sets the preferred size of this component to a constant value. Subsequent calls to <code>getPreferredSize</code> will always return
-   * this value. Setting the preferred size to <code>null</code> restores the default behavior.
-   */
-  void set_preferred_size(const Dimension &preferred_size) {
-    this->preferred_size = preferred_size;
   }
 
   void invalidate() {
