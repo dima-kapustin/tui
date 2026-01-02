@@ -42,6 +42,38 @@ auto make_file_menu() {
   return file_menu;
 }
 
+auto make_edit_menu() {
+  auto edit_menu = make_component<Menu>("Edit");
+  edit_menu->set_mnemonic('E');
+
+  auto cut_item = make_component<MenuItem> ("Cut");
+  cut_item->add_listener([](ActionEvent &e) {
+
+  });
+  edit_menu->add(cut_item);
+
+  auto copy_item = make_component<MenuItem> ("Copy");
+  copy_item->add_listener([](ActionEvent &e) {
+
+  });
+  edit_menu->add(copy_item);
+
+  auto paste_item = make_component<MenuItem> ("Paste");
+  paste_item->add_listener([](ActionEvent &e) {
+
+  });
+  edit_menu->add(paste_item);
+
+  edit_menu->add_separator();
+
+  auto delete_item = make_component<MenuItem>("Delete");
+  delete_item->add_listener([](ActionEvent &e) {
+
+  });
+  edit_menu->add(delete_item);
+  return edit_menu;
+}
+
 int main(int argc, char *argv[]) {
   test_utf8();
   test_Char();
@@ -66,6 +98,7 @@ int main(int argc, char *argv[]) {
 
   auto menu_bar = make_component<MenuBar>();
   menu_bar->add(make_file_menu());
+  menu_bar->add(make_edit_menu());
 
   auto frame = make_component<Frame>();
   frame->set_background_color(GREEN_COLOR);

@@ -396,7 +396,7 @@ public:
   }
 
   void add(const std::shared_ptr<Component> &component) noexcept (false) {
-    add(component, {});
+    add(component, {}, -1);
   }
 
   void add(const std::shared_ptr<Component> &component, int index) noexcept (false) {
@@ -1006,12 +1006,12 @@ public:
   }
 
   template<typename ValueType>
-  std::enable_if_t<not util::is_shared_ptr_v<ValueType>, ValueType const*> get_client_property(const char *property_name) const {
+  std::enable_if_t<not util::is_shared_ptr_v<ValueType>, ValueType const*> get_client_property(std::string_view const &property_name) const {
     return const_cast<Component*>(this)->get_client_property<ValueType>(property_name);
   }
 
   template<typename ValueType>
-  std::enable_if_t<not util::is_shared_ptr_v<ValueType>, ValueType*> get_client_property(const char *property_name) {
+  std::enable_if_t<not util::is_shared_ptr_v<ValueType>, ValueType*> get_client_property(std::string_view const &property_name) {
     if (auto pos = this->client_properties.find(property_name); pos != this->client_properties.end()) {
       if (auto *value = std::any_cast<ValueType>(&pos->second)) {
         return value;
@@ -1021,7 +1021,7 @@ public:
   }
 
   template<typename ValueType>
-  std::enable_if_t<util::is_shared_ptr_v<ValueType>, ValueType> get_client_property(const char *property_name) const {
+  std::enable_if_t<util::is_shared_ptr_v<ValueType>, ValueType> get_client_property(std::string_view const &property_name) const {
     if (auto pos = this->client_properties.find(property_name); pos != this->client_properties.end()) {
       if (auto *value = std::any_cast<ValueType>(&pos->second)) {
         return *value;

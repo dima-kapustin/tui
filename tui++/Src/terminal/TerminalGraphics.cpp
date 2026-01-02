@@ -186,8 +186,8 @@ void TerminalGraphics::draw_rounded_rect(int x, int y, int width, int height) {
 }
 
 void TerminalGraphics::draw_string(const std::string &str, int x, int y, const Attributes &attributes) {
-  x += dx;
-  y += dy;
+  x += this->dx;
+  y += this->dy;
   if (auto const rect = this->clip.intersection(x, y, util::glyph_width(str), 1)) {
     auto const left = rect.left(), right = rect.right();
     for (auto &&ch : to_chars(str)) {

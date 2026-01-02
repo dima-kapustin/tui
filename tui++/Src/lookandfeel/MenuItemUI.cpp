@@ -7,6 +7,8 @@
 
 #include <tui++/Menu.h>
 #include <tui++/MenuItem.h>
+#include <tui++/CheckBoxMenuItem.h>
+#include <tui++/RadioButtonMenuItem.h>
 #include <tui++/MenuSelectionManager.h>
 #include <tui++/Graphics.h>
 
@@ -51,19 +53,19 @@ void MenuItemUI::install_defaults() {
 
 void MenuItemUI::install_listeners() {
   this->menu_item->add_listener(this->mouse_overed_listener);
-  this->menu_item->add_listener(this->mouse_pressed_listener);
+  this->menu_item->add_listener(MousePressEvent::MOUSE_RELEASED, this->mouse_released_listener);
   this->menu_item->add_listener(this->menu_drag_mouse_overed_listener);
   this->menu_item->add_listener(this->menu_drag_mouse_dragged_listener);
-  this->menu_item->add_listener(this->menu_drag_mouse_pressed_listener);
+  this->menu_item->add_listener(this->menu_drag_mouse_released_listener);
   this->menu_item->add_property_change_listener(this->property_change_listener);
 }
 
 void MenuItemUI::uninstall_listeners() {
   this->menu_item->remove_property_change_listener(this->property_change_listener);
-  this->menu_item->remove_listener(this->menu_drag_mouse_pressed_listener);
+  this->menu_item->remove_listener(this->menu_drag_mouse_released_listener);
   this->menu_item->remove_listener(this->menu_drag_mouse_dragged_listener);
   this->menu_item->remove_listener(this->menu_drag_mouse_overed_listener);
-  this->menu_item->remove_listener(this->mouse_pressed_listener);
+  this->menu_item->remove_listener(MousePressEvent::MOUSE_RELEASED, this->mouse_released_listener);
   this->menu_item->remove_listener(this->mouse_overed_listener);
 }
 
@@ -106,15 +108,17 @@ void MenuItemUI::uninstall_keyboard_actions() {
 
 }
 
-void MenuItemUI::mouse_pressed(MousePressEvent &e) {
+void MenuItemUI::mouse_released(MousePressEvent &e) {
+  if (this->menu_item->is_enabled()) {
 
+  }
 }
 
 void MenuItemUI::mouse_overed(MouseOverEvent &e) {
 
 }
 
-void MenuItemUI::menu_drag_mouse_pressed(MenuDragMouseEvent<MousePressEvent> &e) {
+void MenuItemUI::menu_drag_mouse_released(MenuDragMouseEvent<MousePressEvent> &e) {
 
 }
 
@@ -127,6 +131,21 @@ void MenuItemUI::menu_drag_mouse_dragged(MenuDragMouseEvent<MouseDragEvent> &e) 
 }
 
 void MenuItemUI::property_changed(PropertyChangeEvent &e) {
+
+}
+
+bool MenuItemUI::do_not_close_on_mouse_click() const {
+  if (dynamic_cast<CheckBoxMenuItem*>(this->menu_item)) {
+    constexpr auto property = "CheckBoxMenuItem.doNotCloseOnMouseClick";
+    return LookAndFeel::get<bool>(this->menu_item, property);
+  } else if (dynamic_cast<RadioButtonMenuItem*>(this->menu_item)) {
+    constexpr auto property = "RadioButtonMenuItem.doNotCloseOnMouseClick";
+    return LookAndFeel::get<bool>(this->menu_item, property);
+  }
+  return false;
+}
+
+void MenuItemUI::do_click(std::shared_ptr<MenuSelectionManager> const &manager) {
 
 }
 

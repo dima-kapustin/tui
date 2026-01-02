@@ -53,6 +53,15 @@ public:
   }
 
   template<typename T>
+  static T get(Component const *c, std::string_view const &key) {
+    if (auto *value = c->get_client_property<T>(key)) {
+      return *value;
+    } else {
+      return get<T>(key);
+    }
+  }
+
+  template<typename T>
   static void put(std::string_view const &key, T const &value) {
     properties.emplace(key, value);
   }
