@@ -158,12 +158,12 @@ std::optional<Dimension> MenuItemUI::get_preferred_size(std::shared_ptr<const Co
   }
   auto &&text = this->menu_item->get_text();
   auto width = text.empty() ? 0 : int(text.length());
-  return Dimension { width, 1 };
+  return Dimension { width + 2, 1 };
 }
 
 void MenuItemUI::paint(Graphics &g, std::shared_ptr<const Component> const &c) const {
   assert(this->menu_item == std::dynamic_pointer_cast<const MenuItem>(c).get());
-  g.draw_string(this->menu_item->get_text(), 0, 0);
+  g.draw_string(this->menu_item->get_text(), 1, 0);
 }
 
 }
