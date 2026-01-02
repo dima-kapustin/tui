@@ -163,7 +163,7 @@ std::optional<Dimension> MenuItemUI::get_preferred_size(std::shared_ptr<const Co
 
 void MenuItemUI::paint(Graphics &g, std::shared_ptr<const Component> const &c) const {
   assert(this->menu_item == std::dynamic_pointer_cast<const MenuItem>(c).get());
-  g.draw_string(this->menu_item->get_text(), this->menu_item->get_x(), this->menu_item->get_y());
+  g.draw_string(this->menu_item->get_text(), 0, 0);
 }
 
 }
