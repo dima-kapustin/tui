@@ -44,9 +44,9 @@ public:
       id((std::to_underlying(type) << SUB_TYPE_BIT_LEN) | sub_type) {
   }
 
-  template<typename Id>
-  explicit constexpr EventId(Id id) :
-      id(std::to_underlying(id)) {
+  template<typename SubType, std::enable_if_t<std::is_enum_v<SubType>>>
+  constexpr EventId(EventType type, SubType &&sub_type) :
+      EventId(type, std::to_underlying(sub_type)) {
   }
 
   explicit constexpr EventId(unsigned id) :

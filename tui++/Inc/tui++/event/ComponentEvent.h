@@ -10,19 +10,16 @@ class Component;
 
 class ComponentEvent: public Event {
 protected:
-  template<typename Id>
-  constexpr ComponentEvent(const std::shared_ptr<Component> &source, Id id, const EventClock::time_point &when = EventClock::now()) :
-      ComponentEvent(source, std::to_underlying(id), when) {
-  }
-
   ComponentEvent(const std::shared_ptr<Component> &source, unsigned id, const EventClock::time_point &when = EventClock::now());
 
   ComponentEvent(ComponentEvent const&) = default;
 
 public:
   enum Type : unsigned {
-    COMPONENT_SHOWN = event_id_v<EventType::COMPONENT, 0>,
-    COMPONENT_HIDDEN = event_id_v<EventType::COMPONENT, 1> ,
+    COMPONENT_MOVED = event_id_v<EventType::COMPONENT, 0>,
+    COMPONENT_RESIZED = event_id_v<EventType::COMPONENT, 1> ,
+    COMPONENT_SHOWN = event_id_v<EventType::COMPONENT, 2>,
+    COMPONENT_HIDDEN = event_id_v<EventType::COMPONENT, 3> ,
   };
 
 public:

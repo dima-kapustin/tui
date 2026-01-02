@@ -7,7 +7,6 @@ namespace tui {
 class InputEvent: public ComponentEvent {
 public:
   enum Modifier {
-    NO_MODIFIERS = 0,
     /** The shift key modifier constant */
     SHIFT_DOWN = 1 << 0,
     /** The control key modifier constant */
@@ -21,6 +20,7 @@ public:
   };
 
   using Modifiers = util::EnumFlags<Modifier>;
+  constexpr static auto NO_MODIFIERS = Modifiers { };
 
 protected:
   constexpr InputEvent() = default;

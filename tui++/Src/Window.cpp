@@ -8,8 +8,12 @@
 namespace tui {
 
 void Window::add_notify() {
-  base::add_notify();
+  if (auto parent = std::dynamic_pointer_cast<Window>(get_parent()); parent and not parent->mouse_event_dispatcher) {
+    parent->add_notify();
+  }
+
   this->mouse_event_dispatcher = std::make_shared<WindowMouseEventDispatcher>(this);
+  base::add_notify();
 }
 
 void Window::dispatch_event(Event &e) {
@@ -104,6 +108,9 @@ void Window::to_front() {
 }
 
 void Window::show() {
+  if (not this->mouse_event_dispatcher) {
+    add_notify();
+  }
   validate_unconditionally();
   this->in_show = true;
   if (this->visible) {
@@ -114,7 +121,7 @@ void Window::show() {
     // close_splash_screen();
     // Dialog::check_should_be_blocked(shared_from_this());
     base::show();
-    screen.show_window(std::dynamic_pointer_cast<Window>(shared_from_this()));
+    screen.show_window(std::static_pointer_cast<Window>(shared_from_this()));
   }
   this->in_show = false;
 
@@ -131,6 +138,8 @@ void Window::hide() {
 
 void Window::init() {
   Component::init();
+  this->visible = false;
+  set_layout(std::make_shared<BorderLayout>());
   set_root_pane(create_root_pane());
   if (this->owner) {
     this->owner->add_owned_window(std::static_pointer_cast<Window>(shared_from_this()));
@@ -138,26 +147,14 @@ void Window::init() {
   }
 
   set_focus_traversal_policy(KeyboardFocusManager::single->get_default_focus_traversal_policy());
-  set_layout(std::make_shared<BorderLayout>());
 }
 
 void Window::pack() {
-  if (auto parent = get_parent()) {
-    parent->add_notify();
+  if (not this->mouse_event_dispatcher) {
+    add_notify();
   }
 
-  add_notify();
-
-  // TODO
-//    Dimension newSize = getPreferredSize();
-//    if (peer != null) {
-//        setClientSize(newSize.width, newSize.height);
-//    }
-
-  if (this->before_first_show) {
-    this->packed = true;
-  }
-
+  set_size(get_preferred_size());
   validate_unconditionally();
 }
 

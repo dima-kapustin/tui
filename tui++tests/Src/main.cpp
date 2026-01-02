@@ -74,7 +74,6 @@ int main(int argc, char *argv[]) {
 //    std::cout << e.property_name << std::endl;
 //  });
   frame->set_size(terminal.get_size());
-  frame->pack();
   frame->set_visible(true);
 
   frame->add_listener([](MouseMoveEvent &e) {

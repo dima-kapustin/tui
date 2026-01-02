@@ -13,11 +13,11 @@ public:
 
 public:
   InvocationEvent(const std::function<void()> &target) :
-      Event(nullptr, EventType::INVOCATION), target(target) {
+      Event(nullptr, INVOCATION), target(target) {
   }
 
   InvocationEvent(std::function<void()> &&target) :
-      Event(nullptr, EventType::INVOCATION), target(std::move(target)) {
+      Event(nullptr, INVOCATION), target(std::move(target)) {
   }
 
   void dispatch() const {

@@ -130,17 +130,17 @@ void test_EventSource() {
   event_source_b->remove_listener(ml);
   assert(event_source_b->get_mouse_event_listener_count() == 6);
 
-  assert(event_source_b->get_listener_mask() == EventType::MOUSE_PRESS);
+  assert(event_source_b->get_event_listener_mask() == EventType::MOUSE_PRESS);
 
   auto window_listener = [](WindowEvent &e) {
   };
 
   event_source_b->add_listener(WindowEvent::WINDOW_ACTIVATED, window_listener);
-  assert(event_source_b->get_listener_mask() == (EventType::MOUSE_PRESS | EventType::WINDOW));
-  assert(event_source_b->has_listeners(EventType::MOUSE_PRESS | EventType::WINDOW));
+  assert(event_source_b->get_event_listener_mask() == (EventType::MOUSE_PRESS | EventType::WINDOW));
+  assert(event_source_b->has_event_listeners(EventType::MOUSE_PRESS | EventType::WINDOW));
 
   event_source_b->remove_listener(WindowEvent::WINDOW_ACTIVATED, window_listener);
-  assert(event_source_b->get_listener_mask() == EventType::MOUSE_PRESS);
-  assert(event_source_b->has_listeners(EventType::MOUSE_PRESS));
-  assert(not event_source_b->has_listeners(EventType::WINDOW));
+  assert(event_source_b->get_event_listener_mask() == EventType::MOUSE_PRESS);
+  assert(event_source_b->has_event_listeners(EventType::MOUSE_PRESS));
+  assert(not event_source_b->has_event_listeners(EventType::WINDOW));
 }

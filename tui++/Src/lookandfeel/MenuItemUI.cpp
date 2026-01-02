@@ -1,11 +1,16 @@
 #include <tui++/lookandfeel/MenuItemUI.h>
 #include <tui++/lookandfeel/LazyActionMap.h>
+#include <tui++/lookandfeel/MenuLayout.h>
 
 #include <tui++/lookandfeel/UIAction.h>
 #include <tui++/lookandfeel/UIComponentInputMap.h>
 
+#include <tui++/Menu.h>
 #include <tui++/MenuItem.h>
 #include <tui++/MenuSelectionManager.h>
+#include <tui++/Graphics.h>
+
+#include <cassert>
 
 namespace tui::laf {
 constexpr std::string PROPERTY_PREFIX = "MenuItem";
@@ -123,6 +128,23 @@ void MenuItemUI::menu_drag_mouse_dragged(MenuDragMouseEvent<MouseDragEvent> &e) 
 
 void MenuItemUI::property_changed(PropertyChangeEvent &e) {
 
+}
+
+std::optional<Dimension> MenuItemUI::get_preferred_size(std::shared_ptr<const Component> const &c) const {
+  assert(this->menu_item == std::dynamic_pointer_cast<const MenuItem>(c).get());
+  if (auto menu = std::dynamic_pointer_cast<Menu>(this->menu_item->get_parent())) {
+    if (auto menu_layout = std::dynamic_pointer_cast<MenuLayout>(menu->get_layout())) {
+      return menu_layout->get_preferred_size(this->menu_item);
+    }
+  }
+  auto &&text = this->menu_item->get_text();
+  auto width = text.empty() ? 0 : int(text.length());
+  return Dimension { width, 1 };
+}
+
+void MenuItemUI::paint(Graphics &g, std::shared_ptr<const Component> const &c) const {
+  assert(this->menu_item == std::dynamic_pointer_cast<const MenuItem>(c).get());
+  g.draw_string(this->menu_item->get_text(), this->menu_item->get_x(), this->menu_item->get_y());
 }
 
 }

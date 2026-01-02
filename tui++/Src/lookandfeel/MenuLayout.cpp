@@ -11,8 +11,13 @@ std::optional<Dimension> MenuLayout::get_preferred_layout_size(const std::shared
     }
   }
 
+  // Force recalculation of preferred sizes
   invalidate_layout(target);
   return base::get_preferred_layout_size(target);
+}
+
+Dimension MenuLayout::get_preferred_size(MenuItem const *menu_item) {
+  return {};
 }
 
 }

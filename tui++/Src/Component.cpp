@@ -1,4 +1,3 @@
-#include <tui++/Popup.h>
 #include <tui++/Border.h>
 #include <tui++/Window.h>
 #include <tui++/Graphics.h>
@@ -108,7 +107,7 @@ void Component::paint_children(Graphics &g) {
             }
           }
 
-          auto cg = g.create(bounds);
+          auto &&cg = g.create(bounds);
           cg->set_foreground_color(c->get_foreground_color());
           // cg->set_font(c->get_font());
           c->paint(*cg);
@@ -120,11 +119,9 @@ void Component::paint_children(Graphics &g) {
 
 void Component::paint(Graphics &g) {
   if (not this->size.empty()) {
-    if (auto component_graphics = g.create(get_x(), get_y(), get_width(), get_height())) {
-      paint_component(*component_graphics);
-      paint_border(*component_graphics);
-      paint_children(*component_graphics);
-    }
+    paint_component(g);
+    paint_border(g);
+    paint_children(g);
   }
 }
 
@@ -524,6 +521,10 @@ void Component::add_impl(const std::shared_ptr<Component> &c, const Constraints 
 }
 
 void Component::add_notify() {
+  if (auto window = get_containing_window()) {
+    window->enable_events_for_dispatching(get_event_listener_mask() | this->event_mask);
+  }
+
   for (auto &&component : this->components) {
     component->add_notify();
   }
@@ -739,22 +740,38 @@ void Component::clear_most_recent_focus_owner_on_hide() {
 }
 
 void Component::create_hierarchy_events(HierarchyEvent::Type type, const std::shared_ptr<Component> &changed, const std::shared_ptr<Component> &changed_parent) {
-  for (auto &&component : this->components) {
-    component->create_hierarchy_events(type, changed, changed_parent);
+  for (auto &&c : this->components) {
+    c->create_hierarchy_events(type, changed, changed_parent);
   }
   fire_event<HierarchyEvent>(shared_from_this(), type, changed, changed_parent);
 }
 
 void Component::create_hierarchy_bounds_events(HierarchyBoundsEvent::Type type, const std::shared_ptr<Component> &changed, const std::shared_ptr<Component> &changed_parent) {
-  for (auto &&component : this->components) {
-    component->create_hierarchy_bounds_events(type, changed, changed_parent);
+  for (auto &&c : this->components) {
+    c->create_hierarchy_bounds_events(type, changed, changed_parent);
   }
   fire_event<HierarchyBoundsEvent>(shared_from_this(), type, changed, changed_parent);
 }
 
+void Component::create_child_hierarchy_events(HierarchyEvent::Type type) {
+  auto self = shared_from_this();
+  auto parent = get_parent();
+  for (auto &&c : self->components) {
+    c->create_hierarchy_events(type, self, parent);
+  }
+}
+
+void Component::create_child_hierarchy_bounds_events(HierarchyBoundsEvent::Type type) {
+  auto self = shared_from_this();
+  auto parent = get_parent();
+  for (auto &&c : self->components) {
+    c->create_hierarchy_bounds_events(type, self, parent);
+  }
+}
+
 std::shared_ptr<Component> Component::get_mouse_event_target(int x, int y, bool include_self) const {
   auto accept = [](const Component *c) -> bool {
-    return (c->event_mask & MOUSE_EVENT_MASK) or (c->get_listener_mask() & MOUSE_EVENT_MASK);
+    return (c->event_mask & MOUSE_EVENT_MASK) or (c->get_event_listener_mask() & MOUSE_EVENT_MASK);
   };
 
   std::unique_lock lock(this->tree_mutex);
@@ -1408,6 +1425,53 @@ float Component::get_alignment_y() {
 void Component::set_alignment_y(float value) {
   this->alignment_y = to_valid_alignment(value);
   this->flags.is_alignment_y_set = true;
+}
+
+void Component::set_bounds(int x, int y, int width, int height) {
+  auto lock = get_tree_lock();
+  auto moved = (this->location.x != x) or (this->location.y != y);
+  auto resized = (this->size.width != width) or (this->size.height != height);
+  if (not resized and not moved) {
+    return;
+  }
+
+  auto old_x = this->location.x;
+  auto old_y = this->location.y;
+  auto old_width = this->size.width;
+  auto old_height = this->size.height;
+
+  this->location.x = x;
+  this->location.y = y;
+  this->size.width = width;
+  this->size.height = height;
+
+  if (resized) {
+    invalidate();
+  }
+
+  if (auto parent = this->parent.lock()) {
+    parent->invalidate_if_valid();
+  }
+
+  if (moved or resized) {
+    if (is_event_enabled(EventType::COMPONENT)) {
+      if (resized) {
+        screen.post<ComponentEvent>(shared_from_this(), ComponentEvent::COMPONENT_RESIZED);
+      }
+      if (moved) {
+        screen.post<ComponentEvent>(shared_from_this(), ComponentEvent::COMPONENT_MOVED);
+      }
+    } else if (is_event_enabled(EventType::HIERARCHY_BOUNDS)) {
+      if (resized) {
+        create_child_hierarchy_bounds_events(HierarchyBoundsEvent::ANCESTOR_RESIZED);
+      }
+      if (moved) {
+        create_child_hierarchy_bounds_events(HierarchyBoundsEvent::ANCESTOR_MOVED);
+      }
+    }
+  }
+
+  repaint_parent_if_needed(old_x, old_y, old_width, old_height);
 }
 
 }

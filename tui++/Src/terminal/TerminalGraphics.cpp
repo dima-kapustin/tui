@@ -186,11 +186,13 @@ void TerminalGraphics::draw_rounded_rect(int x, int y, int width, int height) {
 }
 
 void TerminalGraphics::draw_string(const std::string &str, int x, int y, const Attributes &attributes) {
-  if (auto const rect = this->clip.intersection(x + this->dx, y + this->dy, util::glyph_width(str), 1)) {
-    auto right = rect.right();
+  x += dx;
+  y += dy;
+  if (auto const rect = this->clip.intersection(x, y, util::glyph_width(str), 1)) {
+    auto const left = rect.left(), right = rect.right();
     for (auto &&ch : to_chars(str)) {
       auto glyph_width = ch.glyph_width();
-      if ((x + glyph_width) >= rect.x) {
+      if ((x + glyph_width) >= left) {
         this->screen.draw_char(ch, x, y, this->foreground_color, this->background_color, this->attributes | attributes);
       }
       x += glyph_width;
@@ -253,7 +255,8 @@ void TerminalGraphics::set_clip_rect(const Rectangle &rect) {
 }
 
 bool TerminalGraphics::hit_clip_rect(int x, int y, int width, int height) const {
-  return this->clip.intersects(x, y, width, height);
+  auto clip_rect = get_clip_rect();
+  return clip_rect.intersects(x, y, width, height);
 }
 
 void TerminalGraphics::set_foreground_color(const Color &color) {

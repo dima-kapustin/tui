@@ -52,6 +52,21 @@ static void print_ocs(const P &param, const Params &... params) {
   std::cout << "\x1b\\"sv;
 }
 
+void Terminal::InputParser::new_mouse_event(bool pressed) {
+  auto button = this->csi_params[0] & 3;
+  auto key_modifiers = this->csi_params[0] & 4 ? InputEvent::SHIFT_DOWN : InputEvent::NO_MODIFIERS;
+  key_modifiers |= this->csi_params[0] & 8 ? InputEvent::META_DOWN : InputEvent::NO_MODIFIERS;
+  key_modifiers |= this->csi_params[0] & 16 ? InputEvent::CTRL_DOWN : InputEvent::NO_MODIFIERS;
+  auto x = this->csi_params[1] - 1;
+  auto y = this->csi_params[2] - 1;
+  if (this->csi_params[0] & 64) {
+    this->terminal.new_mouse_wheel_event(button == 0 ? -1 : 1, key_modifiers, x, y);
+  } else {
+    auto type = pressed ? MousePressEvent::MOUSE_PRESSED : MousePressEvent::MOUSE_RELEASED;
+    this->terminal.new_mouse_event(type, MousePressEvent::Button(button), key_modifiers, x, y);
+  }
+}
+
 void Terminal::hide_cursor() {
   reset_option(DECModeOption::CURSOR);
 }
@@ -166,10 +181,10 @@ void Terminal::new_mouse_event(MousePressEvent::Type type, MousePressEvent::Butt
 
   if (type == MousePressEvent::MOUSE_PRESSED) {
     if (button != MousePressEvent::NO_BUTTON) {
-      modifiers |= to_modifier(button);
+      modifiers |= to_modifiers(button);
     }
   } else if (type == MousePressEvent::MOUSE_RELEASED) {
-    modifiers &= ~to_modifier(button);
+    modifiers &= ~to_modifiers(button);
   }
 
   auto p = Point { x, y };

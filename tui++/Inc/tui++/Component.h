@@ -52,13 +52,7 @@ class Component: public Object, public std::enable_shared_from_this<Component>, 
 protected:
   static std::recursive_mutex tree_mutex;
 
-  /**
-   * The event_mask is ONLY set by subclasses via enable_events().
-   * The mask should NOT be set when listeners are registered
-   * so that we can distinguish the difference between when
-   * listeners request events and subclasses request them.
-   */
-  EventTypeMask event_mask = EventTypeMask::NONE;
+  EventTypeMask event_mask = KEY_EVENT_MASK;
 
   std::string name;
 
@@ -365,8 +359,10 @@ protected:
 
   bool dispatch_mouse_wheel_to_ancestor(MouseWheelEvent &e);
 
-  virtual void create_hierarchy_events(HierarchyEvent::Type type, const std::shared_ptr<Component> &changed, const std::shared_ptr<Component> &changed_parent);
-  virtual void create_hierarchy_bounds_events(HierarchyBoundsEvent::Type type, const std::shared_ptr<Component> &changed, const std::shared_ptr<Component> &changed_parent);
+  void create_hierarchy_events(HierarchyEvent::Type type, const std::shared_ptr<Component> &changed, const std::shared_ptr<Component> &changed_parent);
+  void create_hierarchy_bounds_events(HierarchyBoundsEvent::Type type, const std::shared_ptr<Component> &changed, const std::shared_ptr<Component> &changed_parent);
+  void create_child_hierarchy_events(HierarchyEvent::Type type);
+  void create_child_hierarchy_bounds_events(HierarchyBoundsEvent::Type type);
 
   std::shared_ptr<Component> get_mouse_event_target(int x, int y, bool include_self) const;
 
@@ -514,7 +510,7 @@ public:
     if (this->border) {
       return this->border->get_border_insets(*this);
     } else {
-      return {0, 0, 0, 0};
+      return {};
     }
   }
 
@@ -739,33 +735,7 @@ public:
     set_bounds(this->location.x, this->location.y, width, height);
   }
 
-  void set_bounds(int x, int y, int width, int height) {
-    std::unique_lock lock(tree_mutex);
-
-    auto resized = (this->size.width != width) or (this->size.height != height);
-    auto moved = (this->location.x != x) or (this->location.y != y);
-    if (not resized and not moved) {
-      return;
-    }
-
-    auto old_x = this->location.x;
-    auto old_y = this->location.y;
-    auto old_width = this->size.width;
-    auto old_height = this->size.height;
-
-    this->location.x = x;
-    this->location.y = y;
-    this->size.width = width;
-    this->size.height = height;
-
-    if (resized) {
-      invalidate();
-    } else if (auto parent = this->parent.lock()) {
-      parent->invalidate_if_valid();
-    }
-
-    repaint_parent_if_needed(old_x, old_y, old_width, old_height);
-  }
+  void set_bounds(int x, int y, int width, int height);
 
   std::shared_ptr<Layout> const& get_layout() const {
     return this->layout;
@@ -1000,7 +970,7 @@ public:
   }
 
   bool is_event_enabled(EventType event_type) const {
-    return (this->event_mask & event_type) or has_listeners(event_type);
+    return (this->event_mask & event_type) or has_event_listeners(event_type);
   }
 
   bool is_event_enabled(Event &e) const {

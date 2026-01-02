@@ -23,7 +23,7 @@ struct ActionEvent: public Event {
 
 public:
   ActionEvent(const std::shared_ptr<Object> &source, const ActionKey &action_command, const Modifiers &modifiers, EventClock::time_point when = std::chrono::utc_clock::now()) :
-      Event(source, EventType::ACTION, when), action_command(action_command), modifiers(modifiers) {
+      Event(source, event_id_v<EventType::ACTION>, when), action_command(action_command), modifiers(modifiers) {
   }
 
 public:

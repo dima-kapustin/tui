@@ -7,6 +7,7 @@ namespace tui::laf {
 
 void MenuBarUI::install_ui(std::shared_ptr<Component> const &c) {
   this->menu_bar = static_cast<MenuBar*>(c.get());
+  install_defaults();
 }
 
 void MenuBarUI::install_defaults() {

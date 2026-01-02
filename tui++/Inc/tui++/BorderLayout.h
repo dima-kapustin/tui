@@ -85,12 +85,12 @@ public:
   constexpr static std::string_view LINE_END = "After";
 
 private:
-  std::shared_ptr<Component> get_north_component() noexcept (true);
-  std::shared_ptr<Component> get_west_component(const ComponentOrientation &orientation) noexcept (true);
-  std::shared_ptr<Component> get_south_component() noexcept (true);
-  std::shared_ptr<Component> get_east_component(const ComponentOrientation &orientation) noexcept (true);
+  std::shared_ptr<Component> const& get_north_component() noexcept (true);
+  std::shared_ptr<Component> const& get_west_component(const ComponentOrientation &orientation) noexcept (true);
+  std::shared_ptr<Component> const& get_south_component() noexcept (true);
+  std::shared_ptr<Component> const& get_east_component(const ComponentOrientation &orientation) noexcept (true);
 
-  std::shared_ptr<Component> get_layout_component(const ComponentOrientation &orientation, const std::string_view &constraints) noexcept (false);
+  std::shared_ptr<Component> const& get_layout_component(const ComponentOrientation &orientation, const std::string_view &constraints) noexcept (false);
 
 public:
   BorderLayout() :
@@ -114,7 +114,7 @@ public:
   /**
    * Gets the component that was added using the given constraint
    */
-  std::shared_ptr<Component> get_layout_component(const Constraints &constraints) noexcept (false);
+  std::shared_ptr<Component> const& get_layout_component(const Constraints &constraints) noexcept (false);
   /**
    * Returns the component that corresponds to the given constraint location
    * based on the component orientation.
@@ -123,7 +123,7 @@ public:
    * take precedence over components added with the explicit constraints
    * {@code NORTH}, {@code SOUTH}, {@code WEST}, and {@code EAST}.
    */
-  std::shared_ptr<Component> get_layout_component(const ComponentOrientation &orientation, const Constraints &constraints) noexcept (false);
+  std::shared_ptr<Component> const& get_layout_component(const ComponentOrientation &orientation, const Constraints &constraints) noexcept (false);
 
   /**
    * Gets the constraints for the specified component

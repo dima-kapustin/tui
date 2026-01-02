@@ -79,8 +79,6 @@ protected:
 
   virtual void init() override;
 
-  virtual void add_notify() override;
-
   virtual std::shared_ptr<Component> create_class_pane() const;
   virtual std::shared_ptr<LayeredPane> create_layered_pane() const;
   virtual std::shared_ptr<Component> create_content_pane() const;

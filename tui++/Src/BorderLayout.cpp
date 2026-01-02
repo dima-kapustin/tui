@@ -61,7 +61,7 @@ void BorderLayout::remove_layout_component(const std::shared_ptr<Component> &c) 
   });
 }
 
-std::shared_ptr<Component> BorderLayout::get_layout_component(const Constraints &constraints) {
+std::shared_ptr<Component> const& BorderLayout::get_layout_component(const Constraints &constraints) {
   if (auto name = std::get_if<std::string_view>(&constraints)) {
     if (CENTER == *name) {
       return this->center;
@@ -91,29 +91,29 @@ std::shared_ptr<Component> BorderLayout::get_layout_component(const Constraints 
   }
 }
 
-std::shared_ptr<Component> BorderLayout::get_north_component() noexcept (true) {
+std::shared_ptr<Component> const& BorderLayout::get_north_component() noexcept (true) {
   return this->first_line ? this->first_line : this->north;
 }
 
-std::shared_ptr<Component> BorderLayout::get_south_component() noexcept (true) {
+std::shared_ptr<Component> const& BorderLayout::get_south_component() noexcept (true) {
   return this->last_line ? this->last_line : this->south;
 }
 
-std::shared_ptr<Component> BorderLayout::get_east_component(const ComponentOrientation &orientation) noexcept (true) {
-  if (auto east = orientation.is_left_to_right() ? this->last_item : this->first_item) {
+std::shared_ptr<Component> const& BorderLayout::get_east_component(const ComponentOrientation &orientation) noexcept (true) {
+  if (auto &&east = orientation.is_left_to_right() ? this->last_item : this->first_item) {
     return east;
   }
   return this->east;
 }
 
-std::shared_ptr<Component> BorderLayout::get_west_component(const ComponentOrientation &orientation) noexcept (true) {
-  if (auto west = orientation.is_left_to_right() ? this->first_item : this->last_item) {
+std::shared_ptr<Component> const& BorderLayout::get_west_component(const ComponentOrientation &orientation) noexcept (true) {
+  if (auto &&west = orientation.is_left_to_right() ? this->first_item : this->last_item) {
     return west;
   }
   return this->west;
 }
 
-std::shared_ptr<Component> BorderLayout::get_layout_component(const ComponentOrientation &orientation, const std::string_view &constraints) {
+std::shared_ptr<Component> const& BorderLayout::get_layout_component(const ComponentOrientation &orientation, const std::string_view &constraints) {
   if (NORTH == constraints) {
     return get_north_component();
   } else if (SOUTH == constraints) {
@@ -129,7 +129,7 @@ std::shared_ptr<Component> BorderLayout::get_layout_component(const ComponentOri
   }
 }
 
-std::shared_ptr<Component> BorderLayout::get_layout_component(const ComponentOrientation &orientation, const Constraints &constraints) {
+std::shared_ptr<Component> const& BorderLayout::get_layout_component(const ComponentOrientation &orientation, const Constraints &constraints) {
   if (auto name = std::get_if<std::string_view>(&constraints)) {
     return get_layout_component(orientation, *name);
   } else {

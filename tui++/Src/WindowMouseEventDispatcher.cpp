@@ -12,13 +12,13 @@ WindowMouseEventDispatcher::~WindowMouseEventDispatcher() {
 }
 
 void WindowMouseEventDispatcher::retarget_mouse_event(const std::shared_ptr<Component> &target, MouseEvent &e) {
-  auto component = target;
-  for (; component and component.get() != this->window; component = component->get_parent()) {
-    e.x -= component->get_x();
-    e.y -= component->get_y();
+  auto c = target;
+  for (; c and c.get() != this->window; c = c->get_parent()) {
+    e.x -= c->get_x();
+    e.y -= c->get_y();
   }
 
-  if (component) {
+  if (c) {
     if (target.get() == this->window) {
       // avoid recursive calls
       this->window->dispatch_event_to_self(e);

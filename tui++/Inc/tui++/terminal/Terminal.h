@@ -179,20 +179,7 @@ class Terminal {
       this->terminal.new_key_event(key_code, key_modifiers);
     }
 
-    void new_mouse_event(bool pressed) {
-      auto button = this->csi_params[0] & 3;
-      InputEvent::Modifiers key_modifiers = this->csi_params[0] & 4 ? InputEvent::SHIFT_DOWN : InputEvent::NO_MODIFIERS;
-      key_modifiers |= this->csi_params[0] & 8 ? InputEvent::META_DOWN : InputEvent::NO_MODIFIERS;
-      key_modifiers |= this->csi_params[0] & 16 ? InputEvent::CTRL_DOWN : InputEvent::NO_MODIFIERS;
-      int x = this->csi_params[1];
-      int y = this->csi_params[2];
-      if (this->csi_params[0] & 64) {
-        this->terminal.new_mouse_wheel_event(button == 0 ? -1 : 1, key_modifiers, x, y);
-      } else {
-        auto type = pressed ? MousePressEvent::MOUSE_PRESSED : MousePressEvent::MOUSE_RELEASED;
-        this->terminal.new_mouse_event(type, MousePressEvent::Button(button), key_modifiers, x, y);
-      }
-    }
+    void new_mouse_event(bool pressed);
 
     char get() {
       return this->reader.get();

@@ -7,6 +7,7 @@
 namespace tui {
 
 void Menu::init() {
+  Component::init();
   this->popup_menu = make_component<PopupMenu>();
   this->popup_menu->set_invoker(shared_from_this());
 }

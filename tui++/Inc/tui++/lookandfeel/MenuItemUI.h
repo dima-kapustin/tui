@@ -12,6 +12,8 @@ namespace tui::laf {
 class LazyActionMap;
 
 class MenuItemUI: public ComponentUI {
+  using base = ComponentUI;
+
   MenuItem *menu_item;
 
 protected:
@@ -26,6 +28,8 @@ public:
   virtual void install_ui(std::shared_ptr<Component> const &c) override;
   virtual void uninstall_ui(std::shared_ptr<Component> const &c) override;
 
+  virtual std::optional<Dimension> get_preferred_size(std::shared_ptr<const Component> const &c) const override;
+
 protected:
   virtual std::string const& get_property_prefix() const;
 
@@ -35,6 +39,8 @@ protected:
 
   virtual void uninstall_listeners();
   virtual void uninstall_keyboard_actions();
+
+  virtual void paint(Graphics &g, std::shared_ptr<const Component> const &c) const override;
 
 protected:
   virtual void mouse_pressed(MousePressEvent &e);

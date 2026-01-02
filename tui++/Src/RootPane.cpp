@@ -91,11 +91,6 @@ void RootPane::init() {
   set_layout(create_root_layout());
 }
 
-void RootPane::add_notify() {
-  base::add_notify();
-  enable_events(KEY_EVENT_MASK);
-}
-
 void RootPane::set_menu_bar(const std::shared_ptr<MenuBar> &menu_bar) {
   if (this->menu_bar and this->menu_bar->get_parent() == this->layered_pane) {
     this->layered_pane->remove(this->menu_bar);

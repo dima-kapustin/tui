@@ -1,10 +1,10 @@
 #pragma once
 
-#include <tui++/lookandfeel/LookAndFeel.h>
+#include <tui++/lookandfeel/MenuItemUI.h>
 
 namespace tui::laf {
 
-class MenuUI: public ComponentUI {
+class MenuUI: public MenuItemUI {
 
 };
 

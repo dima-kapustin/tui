@@ -35,7 +35,6 @@ class Window: public ComponentExtension<Component, WindowEvent>, public RootPane
     unsigned in_show :1 = false;
     unsigned before_first_show :1 = true;
     unsigned opened :1 = false;
-    unsigned packed :1 = false;
   };
 
 protected:

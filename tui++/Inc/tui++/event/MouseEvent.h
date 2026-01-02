@@ -35,14 +35,14 @@ protected:
   MouseEvent(MouseEvent const&) = default;
 };
 
-constexpr InputEvent::Modifier to_modifier(MouseEvent::Button button) {
+constexpr InputEvent::Modifiers to_modifiers(MouseEvent::Button button) {
   return button == MouseEvent::NO_BUTTON ? InputEvent::NO_MODIFIERS : InputEvent::Modifier(1 << (std::to_underlying(button) + 5));
 }
 
-static_assert(InputEvent::Modifier::NO_MODIFIERS == to_modifier(MouseEvent::NO_BUTTON));
-static_assert(InputEvent::Modifier::LEFT_BUTTON_DOWN == to_modifier(MouseEvent::LEFT_BUTTON));
-static_assert(InputEvent::Modifier::MIDDLE_BUTTON_DOWN == to_modifier(MouseEvent::MIDDLE_BUTTON));
-static_assert(InputEvent::Modifier::RIGHT_BUTTON_DOWN == to_modifier(MouseEvent::RIGHT_BUTTON));
+static_assert(InputEvent::NO_MODIFIERS == to_modifiers(MouseEvent::NO_BUTTON));
+static_assert(InputEvent::LEFT_BUTTON_DOWN == to_modifiers(MouseEvent::LEFT_BUTTON));
+static_assert(InputEvent::MIDDLE_BUTTON_DOWN == to_modifiers(MouseEvent::MIDDLE_BUTTON));
+static_assert(InputEvent::RIGHT_BUTTON_DOWN == to_modifiers(MouseEvent::RIGHT_BUTTON));
 
 class MousePressEvent: public MouseEvent {
 public:
@@ -96,7 +96,7 @@ public:
 
 public:
   constexpr MouseClickEvent(const std::shared_ptr<Component> &source, Button button, Modifiers modifiers, int x, int y, unsigned click_count, bool is_popup_trigger, const EventClock::time_point &when = EventClock::now()) :
-      MouseEvent(source, EventType::MOUSE_CLICK, button, modifiers, x, y, when), click_count(click_count), is_popup_trigger(is_popup_trigger) {
+      MouseEvent(source, MOUSE_CLICKED, button, modifiers, x, y, when), click_count(click_count), is_popup_trigger(is_popup_trigger) {
   }
 
 protected:
@@ -110,7 +110,7 @@ public:
   int wheel_rotation;
 public:
   constexpr MouseWheelEvent(const std::shared_ptr<Component> &source, Modifiers modifiers, int x, int y, int wheel_rotation, const EventClock::time_point &when = EventClock::now()) :
-      MouseEvent(source, EventType::MOUSE_WHEEL, NO_BUTTON, modifiers, x, y, when), wheel_rotation(wheel_rotation) {
+      MouseEvent(source, MOUSE_WHEEL, NO_BUTTON, modifiers, x, y, when), wheel_rotation(wheel_rotation) {
   }
 
 protected:
@@ -122,7 +122,7 @@ public:
   constexpr static unsigned MOUSE_MOVED = event_id_v<EventType::MOUSE_MOVE>;
 public:
   constexpr MouseMoveEvent(const std::shared_ptr<Component> &source, Modifiers modifiers, int x, int y, const EventClock::time_point &when = EventClock::now()) :
-      MouseEvent(source, EventType::MOUSE_MOVE, NO_BUTTON, modifiers, x, y, when) {
+      MouseEvent(source, MOUSE_MOVED, NO_BUTTON, modifiers, x, y, when) {
   }
 
 protected:
@@ -134,7 +134,7 @@ public:
   constexpr static unsigned MOUSE_DRAGGED = event_id_v<EventType::MOUSE_DRAG>;
 public:
   constexpr MouseDragEvent(const std::shared_ptr<Component> &source, Button button, Modifiers modifiers, int x, int y, const EventClock::time_point &when = EventClock::now()) :
-      MouseEvent(source, EventType::MOUSE_DRAG, button, modifiers, x, y, when) {
+      MouseEvent(source, MOUSE_DRAGGED, button, modifiers, x, y, when) {
   }
 
 protected:
@@ -146,7 +146,7 @@ inline bool MouseEvent::was_button_down_before() const {
 
   auto modifiers = this->modifiers;
   if (this->id == MousePressEvent::MOUSE_PRESSED or this->id == MousePressEvent::MOUSE_RELEASED) {
-    modifiers ^= to_modifier(this->button);
+    modifiers ^= to_modifiers(this->button);
   }
   /* modifiers now as just before event */
   return (modifiers & BUTTON_DOWN_MASK);

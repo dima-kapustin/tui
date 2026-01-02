@@ -136,12 +136,8 @@ public:
     return this->flags == U(other);
   }
 
-  constexpr bool operator!=(const EnumFlags &other) {
-    return this->flags != other.flags;
-  }
-
-  constexpr bool operator!=(const E &other) const {
-    return this->flags != U(other);
+  friend constexpr bool operator==(const E &x, const EnumFlags &y) {
+    return y == x;
   }
 
   constexpr const_iterator begin() const {
