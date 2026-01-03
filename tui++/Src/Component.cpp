@@ -462,7 +462,7 @@ bool Component::is_showing() const {
 }
 
 bool Component::is_window(const std::shared_ptr<const Component> &component) {
-  return dynamic_cast<const Window*>(component.get()) != nullptr;
+  return is_a<Window>(component);
 }
 
 void Component::assert_adding_none_window(const std::shared_ptr<const Component> &c) noexcept (false) {

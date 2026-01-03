@@ -45,6 +45,8 @@ public:
 
   void set_menu_location(Point const &p);
 
+  bool is_top_level_menu() const;
+
 protected:
   Menu(std::string const &text = "") :
       base(text) {

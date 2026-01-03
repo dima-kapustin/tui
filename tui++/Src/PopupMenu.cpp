@@ -101,7 +101,7 @@ void PopupMenu::set_label(std::string const& label) {
 }
 
 bool PopupMenu::is_popup_menu() const {
-  return not this->invoker or (dynamic_cast<Menu*>(this->invoker.get()) == nullptr);
+  return not this->invoker or not is_a<Menu>(this->invoker);
 }
 
 std::shared_ptr<PopupMenu> PopupMenu::get_root_popup_menu() const {

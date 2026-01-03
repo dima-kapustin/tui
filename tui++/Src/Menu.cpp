@@ -1,4 +1,5 @@
 #include <tui++/Menu.h>
+#include <tui++/MenuBar.h>
 #include <tui++/Screen.h>
 #include <tui++/Window.h>
 
@@ -139,6 +140,10 @@ void Menu::state_changed(ChangeEvent &e) {
     fire_event<MenuEvent>(std::static_pointer_cast<Menu>(shared_from_this()), is_selected ? MenuEvent::SELECTED : MenuEvent::DESELECTED);
     this->is_selected = is_selected;
   }
+}
+
+bool Menu::is_top_level_menu() const {
+  return is_a<MenuBar>(get_parent());
 }
 
 }

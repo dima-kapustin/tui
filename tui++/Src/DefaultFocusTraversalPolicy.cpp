@@ -13,13 +13,13 @@ bool DefaultFocusTraversalPolicy::accept(const std::shared_ptr<Component> &candi
   // Verify that the Component is recursively enabled. Disabling a
   // heavyweight Container disables its children, whereas disabling
   // a lightweight Container does not.
-  if (not dynamic_cast<Window*>(candidate.get())) {
-    for (auto enable_test = candidate->get_parent(); enable_test; enable_test = enable_test->get_parent()) {
-      if (not enable_test->is_enabled()) {
+  if (not is_a<Window>(candidate)) {
+    for (auto parent = candidate->get_parent(); parent; parent = parent->get_parent()) {
+      if (not parent->is_enabled()) {
         return false;
       }
 
-      if (dynamic_cast<Window*>(enable_test.get())) {
+      if (is_a<Window>(parent)) {
         break;
       }
     }

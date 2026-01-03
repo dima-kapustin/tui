@@ -72,7 +72,7 @@ bool KeyboardFocusManager::request_focus(const std::shared_ptr<Component> &compo
 }
 
 static std::shared_ptr<Window> get_owning_frame_or_dialog(std::shared_ptr<Window> window) {
-  while (window and not (dynamic_cast<Frame*>(window.get()) or dynamic_cast<Dialog*>(window.get()))) {
+  while (window and not (is_a<Frame>(window) or is_a<Dialog>(window))) {
     window = std::dynamic_pointer_cast<Window>(window->get_parent());
   }
   return window;

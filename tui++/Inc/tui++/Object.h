@@ -385,4 +385,19 @@ public:
   }
 };
 
+template<typename Derived>
+constexpr bool is_a(Object const *obj) {
+  return dynamic_cast<std::decay_t<Derived> const*>(obj) != nullptr;
+}
+
+template<typename Derived, typename Base>
+constexpr bool is_a(std::shared_ptr<Base const> const &ptr) {
+  return dynamic_cast<std::decay_t<Derived> const*>(ptr.get()) != nullptr;
+}
+
+template<typename Derived, typename Base>
+constexpr bool is_a(std::shared_ptr<Base> const &ptr) {
+  return dynamic_cast<std::decay_t<Derived>*>(ptr.get()) != nullptr;
+}
+
 }

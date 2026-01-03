@@ -187,10 +187,10 @@ void MenuItemUI::property_changed(PropertyChangeEvent &e) {
 }
 
 bool MenuItemUI::do_not_close_on_mouse_click() const {
-  if (dynamic_cast<CheckBoxMenuItem*>(this->menu_item)) {
+  if (is_a<CheckBoxMenuItem>(this->menu_item)) {
     constexpr auto property = "CheckBoxMenuItem.doNotCloseOnMouseClick";
     return LookAndFeel::get<bool>(this->menu_item, property);
-  } else if (dynamic_cast<RadioButtonMenuItem*>(this->menu_item)) {
+  } else if (is_a<RadioButtonMenuItem>(this->menu_item)) {
     constexpr auto property = "RadioButtonMenuItem.doNotCloseOnMouseClick";
     return LookAndFeel::get<bool>(this->menu_item, property);
   }

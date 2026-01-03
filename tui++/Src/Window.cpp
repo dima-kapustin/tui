@@ -60,7 +60,7 @@ bool Window::is_focusable_window() const {
   }
 
   // All other tests apply only to Windows.
-  if (dynamic_cast<const Frame*>(this) or dynamic_cast<const Dialog*>(this)) {
+  if (is_a<Frame>(this) or is_a<Dialog>(this)) {
     return true;
   }
 

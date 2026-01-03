@@ -20,6 +20,8 @@ public:
 private:
   Dimension get_preferred_size(MenuItem const *menu_item);
 
+  static bool use_check_and_arrow(MenuItem const *menu_item);
+
   friend class MenuItemUI;
 };
 

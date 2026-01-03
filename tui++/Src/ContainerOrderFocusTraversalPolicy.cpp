@@ -68,12 +68,12 @@ bool ContainerOrderFocusTraversalPolicy::accept(const std::shared_ptr<Component>
     return false;
   }
 
-  if (not dynamic_cast<Window*>(aComponent.get())) {
-    for (auto enableTest = aComponent->get_parent(); enableTest; enableTest = enableTest->get_parent()) {
-      if (enableTest->is_enabled()) {
+  if (not is_a<Window>(aComponent)) {
+    for (auto parent = aComponent->get_parent(); parent; parent = parent->get_parent()) {
+      if (parent->is_enabled()) {
         return false;
       }
-      if (dynamic_cast<Window*>(enableTest.get())) {
+      if (is_a<Window>(parent)) {
         break;
       }
     }
