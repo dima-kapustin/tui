@@ -75,7 +75,7 @@ void MenuItemUI::install_keyboard_actions() {
 }
 
 void MenuItemUI::install_lazy_action_map() {
-  auto property_name = get_property_prefix() + ".action-map";
+  auto property_name = get_property_prefix() + ".actionMap";
   auto action_map = LookAndFeel::get<std::shared_ptr<ActionMap>>(property_name);
   if (not action_map) {
     action_map = std::make_shared<LazyActionMap>(load_action_map);
