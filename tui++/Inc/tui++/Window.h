@@ -25,9 +25,9 @@ class Window: public ComponentExtension<Component, WindowEvent>, public RootPane
   std::vector<std::weak_ptr<Window>> owned_windows;
   std::shared_ptr<WindowMouseEventDispatcher> mouse_event_dispatcher;
 
-  Property<std::string> title { this, "title" };
-  Property<bool> focusable_window_state { this, "focusable-window-state", true };
-  Property<bool> always_on_top { this, "always-on-top", false };
+  Property<std::string> title { this, "Title" };
+  Property<bool> focusable_window_state { this, "FocusableWindowState", true };
+  Property<bool> always_on_top { this, "AlwaysOnTop", false };
 
   std::weak_ptr<Component> temporary_lost_component;
 

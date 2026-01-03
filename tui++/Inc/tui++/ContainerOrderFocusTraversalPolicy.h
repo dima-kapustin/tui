@@ -29,7 +29,7 @@ class ContainerOrderFocusTraversalPolicy: public FocusTraversalPolicy {
    * Whether this {@code ContainerOrderFocusTraversalPolicy} transfers focus
    * down-cycle implicitly.
    */
-  bool implicitDownCycleTraversal = true;
+  bool implicit_down_cycle_traversal = true;
 
   /**
    * Used by getComponentAfter and getComponentBefore for efficiency. In
@@ -43,8 +43,8 @@ class ContainerOrderFocusTraversalPolicy: public FocusTraversalPolicy {
    * that they need to invoke getFirstComponent or getLastComponent, the
    * list should be reused if possible.
    */
-  mutable std::shared_ptr<Component> cachedRoot;
-  mutable FocusTraversalCycle cachedCycle;
+  mutable std::shared_ptr<Component> cached_root;
+  mutable FocusTraversalCycle cached_cycle;
 
 private:
   /*

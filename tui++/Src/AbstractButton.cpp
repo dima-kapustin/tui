@@ -1,5 +1,6 @@
 #include <tui++/AbstractButton.h>
 
+#include <tui++/Icon.h>
 #include <tui++/ButtonGroup.h>
 #include <tui++/OverlayLayout.h>
 
@@ -180,4 +181,36 @@ void AbstractButton::do_click(std::chrono::milliseconds const &press_time) {
   this->model->set_pressed(false);
   this->model->set_armed(false);
 }
+
+void AbstractButton::set_icon(std::shared_ptr<Icon const> const &icon) {
+  if (this->icon != icon) {
+    auto old_icon = this->icon;
+    this->icon = icon;
+
+    if (not this->icon or not old_icon or //
+        this->icon->get_icon_width() != old_icon->get_icon_width() or //
+        this->icon->get_icon_height() != old_icon->get_icon_height()) {
+      revalidate();
+    }
+    repaint();
+  }
+}
+
+void AbstractButton::set_disabled_icon(std::shared_ptr<Icon const> const &icon) {
+  if (this->disabled_icon != icon) {
+    auto old_icon = this->disabled_icon;
+    this->disabled_icon = icon;
+
+    if (not is_enabled()) {
+      if (not this->disabled_icon or not old_icon or //
+          this->disabled_icon->get_icon_width() != old_icon->get_icon_width() or //
+          this->disabled_icon->get_icon_height() != old_icon->get_icon_height()) {
+        revalidate();
+      }
+      repaint();
+    }
+  }
+
+}
+
 }

@@ -79,7 +79,7 @@ public:
   }
 
 private:
-  Property<bool> enabled { this, "enabled" };
+  Property<bool> enabled { this, "Enabled" };
   Property<std::string> name { this, NAME };
   Property<std::string> short_description { this, SHORT_DESCRIPTION };
   Property<std::string> long_description { this, LONG_DESCRIPTION };

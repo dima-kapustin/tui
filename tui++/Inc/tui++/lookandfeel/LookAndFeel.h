@@ -43,21 +43,21 @@ class LookAndFeel {
 
 public:
   template<typename T>
-  static T get(std::string_view const &key) {
+  static T get(std::string_view const &key, T &&default_value = { }) {
     if (auto pos = properties.find(key); pos != properties.end()) {
       if (auto *value = std::any_cast<T>(&pos->second)) {
         return *value;
       }
     }
-    return {};
+    return default_value;
   }
 
   template<typename T>
-  static T get(Component const *c, std::string_view const &key) {
+  static T get(Component const *c, std::string_view const &key, T &&default_value = { }) {
     if (auto *value = c->get_client_property<T>(key)) {
       return *value;
     } else {
-      return get<T>(key);
+      return get<T>(key, std::forward<T>(default_value));
     }
   }
 

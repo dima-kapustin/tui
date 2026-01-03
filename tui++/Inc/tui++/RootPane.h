@@ -85,13 +85,13 @@ protected:
   virtual std::shared_ptr<Layout> create_root_layout() const;
 
 private:
-  Property<WindowDecorationStyle> window_decoration_style { this, "window-decoration-style", WindowDecorationStyle::NONE };
+  Property<WindowDecorationStyle> window_decoration_style { this, "WindowSecorationStyle", WindowDecorationStyle::NONE };
 
   std::shared_ptr<MenuBar> menu_bar;
   std::shared_ptr<Component> content_pane;
   std::shared_ptr<LayeredPane> layered_pane;
   std::shared_ptr<Component> glass_pane;
-  Property<std::shared_ptr<Button>> default_button { this, "default-button" };
+  Property<std::shared_ptr<Button>> default_button { this, "DefaultButton" };
 
   friend class RootLayout;
 };

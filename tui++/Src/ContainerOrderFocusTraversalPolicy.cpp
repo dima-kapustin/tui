@@ -41,7 +41,7 @@ std::shared_ptr<Component> ContainerOrderFocusTraversalPolicy::get_component_dow
   auto retComp = std::shared_ptr<Component> { };
 
   if (comp->is_focus_cycle_root()) {
-    if (this->implicitDownCycleTraversal) {
+    if (this->implicit_down_cycle_traversal) {
       retComp = comp->get_focus_traversal_policy()->get_default_component(comp);
 
       if (retComp) {
@@ -154,13 +154,13 @@ std::shared_ptr<Component> ContainerOrderFocusTraversalPolicy::get_component_aft
     }
 
     if (aContainer->is_focus_cycle_root()) {
-      this->cachedRoot = aContainer;
-      this->cachedCycle = cycle;
+      this->cached_root = aContainer;
+      this->cached_cycle = cycle;
 
       auto c = get_first_component(aContainer);
 
-      this->cachedRoot = nullptr;
-      this->cachedCycle.clear();
+      this->cached_root = nullptr;
+      this->cached_cycle.clear();
 
       return c;
     }
@@ -235,13 +235,13 @@ std::shared_ptr<Component> ContainerOrderFocusTraversalPolicy::get_component_bef
     }
 
     if (aContainer->is_focus_cycle_root()) {
-      this->cachedRoot = aContainer;
-      this->cachedCycle = cycle;
+      this->cached_root = aContainer;
+      this->cached_cycle = cycle;
 
       auto comp = get_last_component(aContainer);
 
-      this->cachedRoot = nullptr;
-      this->cachedCycle.clear();
+      this->cached_root = nullptr;
+      this->cached_cycle.clear();
 
       return comp;
     }
@@ -263,7 +263,7 @@ std::shared_ptr<Component> ContainerOrderFocusTraversalPolicy::get_first_compone
       return nullptr;
     }
 
-    auto cycle = this->cachedRoot == aContainer ? this->cachedCycle : get_focus_traversal_cycle(aContainer);
+    auto cycle = this->cached_root == aContainer ? this->cached_cycle : get_focus_traversal_cycle(aContainer);
     if (cycle.empty()) {
       log_platform_ln("### Cycle is empty");
       return nullptr;
@@ -299,7 +299,7 @@ std::shared_ptr<Component> ContainerOrderFocusTraversalPolicy::get_last_componen
       return nullptr;
     }
 
-    auto cycle = this->cachedRoot == aContainer ? this->cachedCycle : get_focus_traversal_cycle(aContainer);
+    auto cycle = this->cached_root == aContainer ? this->cached_cycle : get_focus_traversal_cycle(aContainer);
 
     if (cycle.empty()) {
       log_platform_ln("### Cycle is empty");

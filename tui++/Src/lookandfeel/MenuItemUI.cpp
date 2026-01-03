@@ -213,7 +213,7 @@ std::optional<Dimension> MenuItemUI::get_preferred_size(std::shared_ptr<const Co
     }
   }
   auto &&text = this->menu_item->get_text();
-  auto width = text.empty() ? 0 : int(text.length());
+  auto width = text.empty() ? 0 : int(util::glyph_width(text));
   return Dimension { width + 2, 1 };
 }
 

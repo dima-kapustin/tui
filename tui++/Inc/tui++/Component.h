@@ -77,9 +77,9 @@ protected:
   Point location { };
   Dimension size { };
 
-  mutable Property<std::optional<Dimension>> minimum_size { this, "minimum-size" };
-  mutable Property<std::optional<Dimension>> maximum_size { this, "maximum-size" };
-  mutable Property<std::optional<Dimension>> preferred_size { this, "preferred-size" };
+  mutable Property<std::optional<Dimension>> minimum_size { this, "MinimumSize" };
+  mutable Property<std::optional<Dimension>> maximum_size { this, "MaximumSize" };
+  mutable Property<std::optional<Dimension>> preferred_size { this, "PreferredSize" };
 
   struct {
     unsigned is_valid :1;
@@ -94,19 +94,19 @@ protected:
     unsigned is_preferred_size_set :1;
   } flags { };
 
-  Property<bool> enabled { this, "enabled", true };
-  Property<bool> visible { this, "visible", true };
-  Property<bool> focusable { this, "focusable", true };
-  Property<std::optional<Cursor>> cursor { this, "cursor" };
-  Property<std::optional<Color>> background_color { this, "background-color" };
-  Property<std::optional<Color>> foreground_color { this, "foreground-color" };
+  Property<bool> enabled { this, "Enabled", true };
+  Property<bool> visible { this, "Visible", true };
+  Property<bool> focusable { this, "Focusable", true };
+  Property<std::optional<Cursor>> cursor { this, "Cursor" };
+  Property<std::optional<Color>> background_color { this, "BackgroundColor" };
+  Property<std::optional<Color>> foreground_color { this, "ForegroundColor" };
 
   mutable std::shared_ptr<InputMap> focus_input_map;
   mutable std::shared_ptr<InputMap> ancestor_input_map;
   mutable std::shared_ptr<ComponentInputMap> window_input_map;
   mutable std::shared_ptr<ActionMap> action_map;
 
-  Property<std::shared_ptr<FocusTraversalPolicy>> focus_traversal_policy { this, "focus-traversal-policy" };
+  Property<std::shared_ptr<FocusTraversalPolicy>> focus_traversal_policy { this, "FocusTraversalPolicy" };
   bool focus_traversal_policy_provider = false;
 
   /**
@@ -114,10 +114,10 @@ protected:
    * leave it via focus traversal unless one of the up- or down-cycle keys is pressed. Normal traversal is limited to this Container, and
    * all of this Container's descendants that are not descendants of inferior focus cycle roots.
    */
-  Property<bool> focus_cycle_root { this, "focus-cycle-root", false };
-  Property<bool> opaque { this, "opaque" };
+  Property<bool> focus_cycle_root { this, "FocusCycleRoot", false };
+  Property<bool> opaque { this, "Opaque" };
 
-  Property<bool> focus_traversal_keys_enabled { this, "focus-traversal-keys-enabled" };
+  Property<bool> focus_traversal_keys_enabled { this, "FocusTraversalKeysEnabled" };
   std::vector<std::shared_ptr<const std::unordered_set<KeyStroke>>> focus_traversal_keys;
 
   /**
@@ -128,10 +128,10 @@ protected:
 
   std::unordered_map<std::string_view, PropertyValue> client_properties;
 
-  Property<std::shared_ptr<PopupMenu>> component_popup_menu { this, "component-popup-menu" };
-  Property<std::string> tool_tip_text { this, "tool-tip-text" };
+  Property<std::shared_ptr<PopupMenu>> component_popup_menu { this, "ComponentPopupMenu" };
+  Property<std::string> tool_tip_text { this, "ToolTipText" };
 
-  Property<std::shared_ptr<laf::ComponentUI>> ui { this, "ui" };
+  Property<std::shared_ptr<laf::ComponentUI>> ui { this, "UI" };
 
   Component *painting_child = nullptr;
 

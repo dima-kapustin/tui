@@ -12,23 +12,28 @@
 
 namespace tui {
 
+class Icon;
+
 class AbstractButton: public ComponentExtension<Component, ChangeEvent, ItemEvent, ActionEvent> {
   using base = ComponentExtension<Component, ChangeEvent, ItemEvent, ActionEvent>;
 
 protected:
-  Property<std::shared_ptr<Action>> action { this, "action" };
-  Property<std::shared_ptr<ButtonModel>> model { this, "model" };
-  Property<std::string> text { this, "text" };
-  Property<bool> hide_action_text { this, "hide-action-text" };
-  Property<int> displayed_mnemonic_index { this, "displayed-mnemonic-index", -1 };
-  Property<bool> focus_painted { this, "focus-painted", true };
-  Property<bool> border_painted { this, "border-painted", true };
+  Property<std::shared_ptr<Action>> action { this, "Action" };
+  Property<std::shared_ptr<ButtonModel>> model { this, "Model" };
+  Property<std::string> text { this, "Text" };
+  Property<bool> hide_action_text { this, "HideActionText" };
+  Property<int> displayed_mnemonic_index { this, "DisplayedMnemonicIndex", -1 };
+  Property<bool> focus_painted { this, "FocusPainted", true };
+  Property<bool> border_painted { this, "BorderPainted", true };
 
-  Property<VerticalAlignment> vertical_alignment { this, "vertical-alignment", VerticalAlignment::CENTER };
-  Property<HorizontalAlignment> horizontal_alignment { this, "horizontal-alignment", HorizontalAlignment::CENTER };
+  Property<VerticalAlignment> vertical_alignment { this, "VerticalAlignment", VerticalAlignment::CENTER };
+  Property<HorizontalAlignment> horizontal_alignment { this, "HorizontalAlignment", HorizontalAlignment::CENTER };
 
-  Property<VerticalTextPosition> vertical_text_position { this, "vertical-text-position", VerticalTextPosition::CENTER };
-  Property<HorizontalTextPosition> horizontal_text_position { this, "horizontal-text-position", HorizontalTextPosition::TRAILING };
+  Property<VerticalTextPosition> vertical_text_position { this, "VerticalTextPosition", VerticalTextPosition::CENTER };
+  Property<HorizontalTextPosition> horizontal_text_position { this, "HorizontalTextPosition", HorizontalTextPosition::TRAILING };
+
+  Property<std::shared_ptr<Icon const>> icon { this, "Icon" };
+  Property<std::shared_ptr<Icon const>> disabled_icon { this, "DisabledIcon" };
 
   ChangeListener change_listener = std::bind(state_changed, this, std::placeholders::_1);
   ItemListener item_listener = std::bind(item_state_changed, this, std::placeholders::_1);
@@ -225,6 +230,18 @@ public:
   }
 
   void do_click(std::chrono::milliseconds const &press_time);
+
+  std::shared_ptr<Icon const> get_icon() const {
+    return this->icon;
+  }
+
+  void set_icon(std::shared_ptr<Icon const> const &icon);
+
+  std::shared_ptr<Icon const> get_disabled_icon() const {
+    return this->icon;
+  }
+
+  void set_disabled_icon(std::shared_ptr<Icon const> const &icon);
 
 private:
   void update_mnemonic_properties();
