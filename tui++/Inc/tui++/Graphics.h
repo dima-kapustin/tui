@@ -28,9 +28,9 @@ public:
     clip_rect(rect.x, rect.y, rect.width, rect.height);
   }
 
-  virtual void draw_char(Char const &c, int x, int y, Attributes const &attributes = Attributes::NONE) = 0;
+  virtual void draw_char(Char const &c, int x, int y, std::optional<Attributes> const &attributes = std::nullopt) = 0;
 
-  virtual void draw_hline(int x, int y, int length, Attributes const &attributes = Attributes::NONE) = 0;
+  virtual void draw_hline(int x, int y, int length, std::optional<Attributes> const &attributes = std::nullopt) = 0;
 
   virtual void draw_rect(int x, int y, int width, int height) = 0;
   void draw_rect(Rectangle const &rect) {
@@ -41,9 +41,9 @@ public:
     draw_rounded_rect(rect.x, rect.y, rect.width, rect.height);
   }
 
-  virtual void draw_string(std::string const &str, int x, int y, Attributes const &attributes = Attributes::NONE) = 0;
+  virtual void draw_string(std::string const &str, int x, int y, std::optional<Attributes> const &attributes = std::nullopt) = 0;
 
-  virtual void draw_vline(int x, int y, int length, Attributes const &attributes = Attributes::NONE) = 0;
+  virtual void draw_vline(int x, int y, int length, std::optional<Attributes> const &attributes = std::nullopt) = 0;
 
   virtual void fill_rect(int x, int y, int width, int height) = 0;
   void fill_rect(Rectangle const &rect) {
@@ -61,21 +61,11 @@ public:
     return hit_clip_rect(rect.x, rect.y, rect.width, rect.height);
   }
 
-  virtual Color get_foreground_color() const = 0;
-  virtual void set_foreground_color(Color const &color) = 0;
-  void set_foreground_color(std::optional<Color> const &color) {
-    if (color) {
-      set_foreground_color(color.value());
-    }
-  }
+  virtual std::optional<Color> get_foreground_color() const = 0;
+  virtual void set_foreground_color(std::optional<Color> const &color) = 0;
 
-  virtual Color get_background_color() const = 0;
-  virtual void set_background_color(Color const &color) = 0;
-  void set_background_color(std::optional<Color> const &color) {
-    if (color) {
-      set_background_color(color.value());
-    }
-  }
+  virtual std::optional<Color> get_background_color() const = 0;
+  virtual void set_background_color(std::optional<Color> const &color) = 0;
 
   virtual Font get_font() const = 0;
   virtual void set_font(Font const &font) = 0;

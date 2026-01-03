@@ -49,12 +49,18 @@ private:
 private:
   void resize_view();
 
-  void draw_char(Char ch, int x, int y, const Color &foreground_color, const Color &background_color, const Attributes &attributes) {
+  void draw_char(Char ch, int x, int y, std::optional<Color> const &foreground_color, std::optional<Color> const &background_color, std::optional<Attributes> const &attributes) {
     auto &cv = this->view[y][x];
     cv.ch = ch;
-    cv.attributes = attributes;
-    cv.foreground_color = foreground_color;
-    cv.background_color = background_color;
+    if (attributes) {
+      cv.attributes = attributes.value();
+    }
+    if (foreground_color) {
+      cv.foreground_color = foreground_color.value();
+    }
+    if (background_color) {
+      cv.background_color = background_color.value();
+    }
   }
 
   friend class TerminalGraphics;
@@ -65,7 +71,7 @@ public:
 
   virtual void run_event_loop() override;
   virtual std::unique_ptr<Graphics> get_graphics() override;
-  virtual std::unique_ptr<Graphics> get_graphics(Rectangle const& clip) override;
+  virtual std::unique_ptr<Graphics> get_graphics(Rectangle const &clip) override;
 
   virtual void refresh();
 

@@ -36,9 +36,9 @@ private:
 
   Stroke stroke = Stroke::LIGHT;
 
-  Color foreground_color;
-  Color background_color;
-  Attributes attributes = Attributes::NONE;
+  std::optional<Color> foreground_color;
+  std::optional<Color> background_color;
+  std::optional<Attributes> attributes;
 
 public:
   TerminalGraphics(TerminalScreen &screen);
@@ -58,17 +58,17 @@ public:
 
   virtual std::unique_ptr<Graphics> create(int x, int y, int width, int height) override;
 
-  virtual void draw_char(const Char &c, int x, int y, const Attributes &attributes = Attributes::NONE) override;
+  virtual void draw_char(const Char &c, int x, int y, std::optional<Attributes> const &attributes = std::nullopt) override;
 
-  virtual void draw_hline(int x, int y, int length, const Attributes &attributes = Attributes::NONE) override;
+  virtual void draw_hline(int x, int y, int length, std::optional<Attributes> const &attributes = std::nullopt) override;
 
   virtual void draw_rect(int x, int y, int width, int height) override;
 
   virtual void draw_rounded_rect(int x, int y, int width, int height) override;
 
-  virtual void draw_string(const std::string &str, int x, int y, const Attributes &attributes = Attributes::NONE) override;
+  virtual void draw_string(const std::string &str, int x, int y, std::optional<Attributes> const &attributes = std::nullopt) override;
 
-  virtual void draw_vline(int x, int y, int length, const Attributes &attributes = Attributes::NONE) override;
+  virtual void draw_vline(int x, int y, int length, std::optional<Attributes> const &attributes = std::nullopt) override;
 
   virtual void fill_rect(int x, int y, int width, int height) override;
 
@@ -77,11 +77,11 @@ public:
 
   virtual bool hit_clip_rect(int x, int y, int width, int height) const override;
 
-  virtual Color get_foreground_color() const override;
-  virtual void set_foreground_color(const Color &color) override;
+  virtual std::optional<Color> get_foreground_color() const override;
+  virtual void set_foreground_color(std::optional<Color> const &color) override;
 
-  virtual Color get_background_color() const override;
-  virtual void set_background_color(const Color &color) override;
+  virtual std::optional<Color> get_background_color() const override;
+  virtual void set_background_color(std::optional<Color> const &color) override;
 
   virtual Font get_font() const override;
   virtual void set_font(const Font &font) override;

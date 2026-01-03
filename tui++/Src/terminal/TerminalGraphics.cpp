@@ -54,6 +54,10 @@ TerminalGraphics::BoxCharacters TerminalGraphics::ROUNDED_LIGHT_BOX = //
       .horizontal = Symbols::HORIZONTAL_LIGHT, //
       .vertical = Symbols::VERTICAL_LIGHT };
 
+constexpr std::optional<Attributes> operator|(std::optional<Attributes> const &x, std::optional<Attributes> const &y) {
+  return x ? (y ? (x.value() | y.value()) : x) : std::nullopt;
+}
+
 TerminalGraphics::TerminalGraphics(TerminalScreen &screen) :
     TerminalGraphics(screen, { 0, 0, screen.get_width(), screen.get_height() }, 0, 0) {
 }
@@ -162,13 +166,13 @@ std::unique_ptr<Graphics> TerminalGraphics::create(int x, int y, int width, int 
   return g;
 }
 
-void TerminalGraphics::draw_char(const Char &c, int x, int y, const Attributes &attributes) {
+void TerminalGraphics::draw_char(const Char &c, int x, int y, std::optional<Attributes> const &attributes) {
   if (this->clip.contains(x + this->dx, y + this->dy)) {
     this->screen.draw_char(c, x + this->dx, y + this->dy, this->foreground_color, this->background_color, this->attributes | attributes);
   }
 }
 
-void TerminalGraphics::draw_hline(int x, int y, int length, const Attributes &attributes) {
+void TerminalGraphics::draw_hline(int x, int y, int length, std::optional<Attributes> const &attributes) {
   if (auto const rect = this->clip.intersection(x + this->dx, y + this->dy, length, 1)) {
     auto &chars = get_box_chars(this->stroke);
     for (int x = rect.left(), right = rect.right(); x < right; ++x) {
@@ -185,7 +189,7 @@ void TerminalGraphics::draw_rounded_rect(int x, int y, int width, int height) {
   draw_rect(x, y, width, height, ROUNDED_LIGHT_BOX);
 }
 
-void TerminalGraphics::draw_string(const std::string &str, int x, int y, const Attributes &attributes) {
+void TerminalGraphics::draw_string(const std::string &str, int x, int y, std::optional<Attributes> const &attributes) {
   x += this->dx;
   y += this->dy;
   if (auto const rect = this->clip.intersection(x, y, util::glyph_width(str), 1)) {
@@ -203,7 +207,7 @@ void TerminalGraphics::draw_string(const std::string &str, int x, int y, const A
   }
 }
 
-void TerminalGraphics::draw_vline(int x, int y, int length, const Attributes &attributes) {
+void TerminalGraphics::draw_vline(int x, int y, int length, std::optional<Attributes> const &attributes) {
   if (auto const rect = this->clip.intersection(x + this->dx, y + this->dy, 1, length)) {
     auto &chars = get_box_chars(this->stroke);
     for (auto y = rect.top(), bottom = rect.bottom(); y < bottom; ++y) {
@@ -228,11 +232,11 @@ Rectangle TerminalGraphics::get_clip_rect() const {
   return clip_rect;
 }
 
-Color TerminalGraphics::get_foreground_color() const {
+std::optional<Color> TerminalGraphics::get_foreground_color() const {
   return this->foreground_color;
 }
 
-Color TerminalGraphics::get_background_color() const {
+std::optional<Color> TerminalGraphics::get_background_color() const {
   return this->background_color;
 }
 
@@ -259,11 +263,11 @@ bool TerminalGraphics::hit_clip_rect(int x, int y, int width, int height) const 
   return clip_rect.intersects(x, y, width, height);
 }
 
-void TerminalGraphics::set_foreground_color(const Color &color) {
+void TerminalGraphics::set_foreground_color(std::optional<Color> const &color) {
   this->foreground_color = color;
 }
 
-void TerminalGraphics::set_background_color(const Color &color) {
+void TerminalGraphics::set_background_color(std::optional<Color> const &color) {
   this->background_color = color;
 }
 
@@ -286,14 +290,16 @@ void TerminalGraphics::translate(int dx, int dy) {
 }
 
 void TerminalGraphics::update_attributes() {
-  this->attributes = Attributes::NONE;
+  auto attributes = Attributes::NONE;
   if (this->font.get_style() & Font::BOLD) {
-    this->attributes |= Attribute::BOLD;
+    attributes = Attribute::BOLD;
   }
 
   if (this->font.get_style() & Font::ITALIC) {
-    this->attributes |= Attribute::ITALIC;
+    attributes |= Attribute::ITALIC;
   }
+
+  this->attributes = attributes;
 }
 
 void TerminalGraphics::flush() {

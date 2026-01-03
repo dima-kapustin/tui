@@ -109,15 +109,15 @@ void MenuItemUI::uninstall_keyboard_actions() {
 }
 
 std::vector<std::shared_ptr<MenuElement>> MenuItemUI::get_path() const {
-  auto &&m = MenuSelectionManager::single;
-  auto &&old_path = m->get_selected_path();
+  auto &&manager = MenuSelectionManager::single;
+  auto &&old_path = manager->get_selected_path();
   if (old_path.empty()) {
     return {};
   }
 
   auto new_path = std::vector<std::shared_ptr<MenuElement>> { };
 
-  auto parent = this->menu_item->get_parent();
+  auto &&parent = this->menu_item->get_parent();
   if (old_path.back()->get_component() == parent) {
     // The parent popup menu is the last so far
     new_path.reserve(old_path.size() + 1);
@@ -129,7 +129,7 @@ std::vector<std::shared_ptr<MenuElement>> MenuItemUI::get_path() const {
     // a menu item.  Search backwards along the current
     // selection until you find the parent popup menu,
     // then copy up to that and add yourself...
-    auto j = old_path.size() - 1;
+    auto j = int(old_path.size() - 1);
     for (; j >= 0; j--) {
       if (old_path[j]->get_component() == parent)
         break;
