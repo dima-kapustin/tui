@@ -108,14 +108,66 @@ void MenuItemUI::uninstall_keyboard_actions() {
 
 }
 
+std::vector<std::shared_ptr<MenuElement>> MenuItemUI::get_path() const {
+  auto &&m = MenuSelectionManager::single;
+  auto &&old_path = m->get_selected_path();
+  if (old_path.empty()) {
+    return {};
+  }
+
+  auto new_path = std::vector<std::shared_ptr<MenuElement>> { };
+
+  auto parent = this->menu_item->get_parent();
+  if (old_path.back()->get_component() == parent) {
+    // The parent popup menu is the last so far
+    new_path.reserve(old_path.size() + 1);
+    std::copy(old_path.begin(), old_path.end(), std::back_inserter(new_path));
+  } else {
+    // A sibling menuitem is the current selection
+    //
+    //  This probably needs to handle 'exit submenu into
+    // a menu item.  Search backwards along the current
+    // selection until you find the parent popup menu,
+    // then copy up to that and add yourself...
+    auto j = old_path.size() - 1;
+    for (; j >= 0; j--) {
+      if (old_path[j]->get_component() == parent)
+        break;
+    }
+
+    new_path.reserve(j + 2);
+    std::copy_n(old_path.begin(), j + 1, std::back_inserter(new_path));
+  }
+  new_path.emplace_back(std::shared_ptr<MenuItem> { const_cast<MenuItemUI*>(this)->menu_item });
+  return new_path;
+}
+
 void MenuItemUI::mouse_released(MousePressEvent &e) {
   if (this->menu_item->is_enabled()) {
-
+    auto &&p = e.point;
+    auto &&manager = MenuSelectionManager::single;
+    if (p.x >= 0 and p.x < this->menu_item->get_width() and //
+        p.y >= 0 and p.y < this->menu_item->get_height()) {
+      do_click(manager);
+    } else {
+      manager->process_mouse_event(e);
+    }
   }
 }
 
 void MenuItemUI::mouse_overed(MouseOverEvent &e) {
-
+  if (not (e.modifiers & (InputEvent::LEFT_BUTTON_DOWN | InputEvent::MIDDLE_BUTTON_DOWN | InputEvent::RIGHT_BUTTON_DOWN))) {
+    auto &&manager = MenuSelectionManager::single;
+    if (e.id == MouseOverEvent::MOUSE_ENTERED) {
+      manager->set_selected_path(get_path());
+    } else {
+      auto &&path = MenuSelectionManager::single->get_selected_path();
+      if (path.size() > 1 and path.back().get() == this->menu_item) {
+        auto new_path = std::vector(path.begin(), std::next(path.begin(), path.size() - 1));
+        manager->set_selected_path(new_path);
+      }
+    }
+  }
 }
 
 void MenuItemUI::menu_drag_mouse_released(MenuDragMouseEvent<MousePressEvent> &e) {
@@ -146,7 +198,11 @@ bool MenuItemUI::do_not_close_on_mouse_click() const {
 }
 
 void MenuItemUI::do_click(std::shared_ptr<MenuSelectionManager> const &manager) {
+  if (not do_not_close_on_mouse_click()) {
+    (manager ? manager : MenuSelectionManager::single)->clear_selected_path();
+  }
 
+  this->menu_item->do_click(std::chrono::milliseconds::zero());
 }
 
 std::optional<Dimension> MenuItemUI::get_preferred_size(std::shared_ptr<const Component> const &c) const {

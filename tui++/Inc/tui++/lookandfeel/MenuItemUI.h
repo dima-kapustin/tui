@@ -34,6 +34,8 @@ public:
 
   virtual std::optional<Dimension> get_preferred_size(std::shared_ptr<const Component> const &c) const override;
 
+  std::vector<std::shared_ptr<MenuElement>> get_path() const;
+
 protected:
   virtual std::string const& get_property_prefix() const;
 
