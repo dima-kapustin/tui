@@ -37,7 +37,7 @@ struct RGB {
 };
 
 struct HSL {
-  uint32_t hue :16;        // [0, 359] degrees
+  uint32_t hue :9;        // [0, 359] degrees
   uint32_t saturation :8;  // [0, 100] %
   uint32_t lightness :8;   // [0, 100] %
 };

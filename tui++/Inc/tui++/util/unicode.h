@@ -2,6 +2,8 @@
 
 #include <bitset>
 #include <cstdint>
+#include <utility>
+#include <initializer_list>
 
 namespace tui::util::unicode {
 
@@ -35,7 +37,7 @@ enum class WordBreak : uint8_t {
 };
 
 constexpr class WordBreakMap {
-  WordBreak map[UNICODE_CHAR_COUNT] = { };
+  std::array<WordBreak, UNICODE_CHAR_COUNT> map = { };
 public:
   constexpr WordBreakMap(std::initializer_list<std::pair<CodePointInterval, WordBreak>> list) {
     for (auto&& [interval, word_break] : list) {
@@ -46,7 +48,7 @@ public:
   }
 
   constexpr WordBreak operator[](char32_t cp) const {
-    if (cp < std::size(this->map)) {
+    if (cp < this->map.size()) {
       return this->map[cp];
     }
     return WordBreak::None;
@@ -1355,7 +1357,7 @@ public:
   }
 
   constexpr bool operator[](char32_t cp) const {
-    if (cp < std::size(this->map)) {
+    if (cp < this->map.size()) {
       return this->map[cp];
     }
     return false;
