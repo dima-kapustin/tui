@@ -102,9 +102,13 @@ public:
   }
 
   static void install_colors(Component *c, std::string_view const &background_color_key, std::string_view const &foreground_color_key) {
-//    if (auto &&background_color = c->get_background_color(); background_color or is_theme_resource(background_color.value())) {
-//      c->set_background_color(get<Color>(background_color_key));
-//    }
+    if (auto &&background_color = c->get_background_color(); not background_color or is_theme_resource(background_color.value())) {
+      c->set_background_color(get<std::optional<Color>>(background_color_key));
+    }
+
+    if (auto &&foreground_color = c->get_foreground_color(); not foreground_color or is_theme_resource(foreground_color.value())) {
+      c->set_foreground_color(get<std::optional<Color>>(foreground_color_key));
+    }
   }
 
   static std::shared_ptr<ActionMap> get_action_map(Component *c);

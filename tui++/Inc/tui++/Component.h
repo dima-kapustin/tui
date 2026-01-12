@@ -770,7 +770,7 @@ public:
     return this->background_color;
   }
 
-  void set_background_color(Color const &color) {
+  void set_background_color(std::optional<Color> const &color) {
     this->background_color = color;
   }
 
@@ -783,7 +783,7 @@ public:
     return this->foreground_color;
   }
 
-  void set_foreground_color(Color const &color) {
+  void set_foreground_color(std::optional<Color> const &color) {
     this->foreground_color = color;
   }
 
