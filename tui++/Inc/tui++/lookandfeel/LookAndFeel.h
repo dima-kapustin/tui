@@ -111,8 +111,8 @@ public:
     }
   }
 
-  static std::shared_ptr<ActionMap> get_action_map(Component *c);
-  static std::shared_ptr<InputMap> get_input_map(Component *c, Component::InputCondition condition);
+  static std::shared_ptr<ActionMap> get_action_map(Component const *c);
+  static std::shared_ptr<InputMap> get_input_map(Component const *c, Component::InputCondition condition);
 
   static void replace_input_map(Component *c, Component::InputCondition condition, std::shared_ptr<InputMap> const &new_map);
   static void replace_action_map(Component *c, std::shared_ptr<ActionMap> const &new_map);

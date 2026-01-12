@@ -30,14 +30,13 @@ public:
 std::unordered_map<std::string_view, std::any> LookAndFeel::properties;
 std::shared_ptr<Theme> LookAndFeel::theme = std::make_shared<TuiTheme>();
 
-
 void LookAndFeel::put(std::initializer_list<std::pair<std::string_view, std::any>> &&values) {
   for (auto&& [key, value] : values) {
     properties.emplace(std::move(key), std::move(value));
   }
 }
 
-std::shared_ptr<ActionMap> LookAndFeel::get_action_map(Component *c) {
+std::shared_ptr<ActionMap> LookAndFeel::get_action_map(Component const *c) {
   for (auto map = c->get_action_map(false); map;) {
     auto parent = map->get_parent();
     if (is_theme_resource(parent)) {
@@ -48,7 +47,7 @@ std::shared_ptr<ActionMap> LookAndFeel::get_action_map(Component *c) {
   return {};
 }
 
-std::shared_ptr<InputMap> LookAndFeel::get_input_map(Component *c, Component::InputCondition condition) {
+std::shared_ptr<InputMap> LookAndFeel::get_input_map(Component const *c, Component::InputCondition condition) {
   for (auto map = c->get_input_map(condition, false); map;) {
     auto parent = map->get_parent();
     if (is_theme_resource(parent)) {
