@@ -15,8 +15,6 @@
 
 #include <tui++/event/EventListener.h>
 
-#include <variant>
-
 namespace tui {
 
 template<typename Event>

@@ -4,10 +4,12 @@ find_package(Threads)
 
 file(GLOB_RECURSE SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Src/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Src/*/*.cpp"
 )
 
 file(GLOB_RECURSE HEADERS
     "${CMAKE_CURRENT_SOURCE_DIR}/Inc/*.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Inc/*/*.h"
 )
 
 add_library ( ${PROJECT_NAME} ${SOURCES} ${HEADERS} )

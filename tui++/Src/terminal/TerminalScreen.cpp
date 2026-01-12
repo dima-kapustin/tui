@@ -108,34 +108,60 @@ static void escape_attrs(const Attributes &reset, const Attributes &set) {
   }
 }
 
-static void escape_background_color(const Color &color) {
+constexpr std::array<std::string_view, 33> palette16_color_codes = //
+    { "30", "40",   //
+      "31", "41",   //
+      "32", "42",   //
+      "33", "43",   //
+      "34", "44",   //
+      "35", "45",   //
+      "36", "46",   //
+      "37", "47",   //
+      "90", "100",  //
+      "91", "101",  //
+      "92", "102",  //
+      "93", "103",  //
+      "94", "104",  //
+      "95", "105",  //
+      "96", "106",  //
+      "97", "107" };
+
+static void escape_background_color(TerminalColor const &color) {
   struct SetBackgroundColor {
-    void operator()(const DefaultColor&) {
+    void operator()(detail::DefaultColor const&) {
       terminal << "\x1b[49m"sv;
     }
 
-    void operator()(const ColorIndex &c) {
-      terminal << "\x1b[48;5;"sv << c.value << 'm';
+    void operator()(detail::Palette16Color const &c) {
+      terminal << "\x1b["sv << palette16_color_codes[2 * c.index + 1] << 'm';
     }
 
-    void operator()(const TrueColor &c) {
+    void operator()(detail::Palette256Color const &c) {
+      terminal << "\x1b[48;5;"sv << c.index << 'm';
+    }
+
+    void operator()(detail::TrueColor const &c) {
       terminal << "\x1b[48;2;"sv << c.red << ';' << c.green << ';' << c.blue << 'm';
     }
   };
   std::visit(SetBackgroundColor { }, color);
 }
 
-static void escape_foreground_color(const Color &color) {
+static void escape_foreground_color(TerminalColor const &color) {
   struct SetForegroundColor {
-    void operator()(const DefaultColor&) {
+    void operator()(detail::DefaultColor const&) {
       terminal << "\x1b[39m"sv;
     }
 
-    void operator()(const ColorIndex &c) {
-      terminal << "\x1b[38;5;"sv << c.value << 'm';
+    void operator()(detail::Palette16Color const &c) {
+      terminal << "\x1b["sv << palette16_color_codes[2 * c.index] << 'm';
     }
 
-    void operator()(const TrueColor &c) {
+    void operator()(detail::Palette256Color const &c) {
+      terminal << "\x1b[38;5;"sv << c.index << 'm';
+    }
+
+    void operator()(detail::TrueColor const &c) {
       terminal << "\x1b[38;2;"sv << c.red << ';' << c.green << ';' << c.blue << 'm';
     }
   };
@@ -202,6 +228,10 @@ void TerminalScreen::refresh() {
   auto g = TerminalGraphics { *this };
   paint(g);
   flush();
+}
+
+TerminalColor TerminalScreen::to_terminal(Color const &c) {
+  return detail::TrueColor { c.red(), c.green(), c.blue() };
 }
 
 void TerminalScreen::print() {

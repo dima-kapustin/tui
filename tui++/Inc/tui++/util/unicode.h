@@ -1,6 +1,8 @@
 #pragma once
 
+#include <array>
 #include <bitset>
+#include <cstddef>
 #include <cstdint>
 #include <utility>
 #include <initializer_list>

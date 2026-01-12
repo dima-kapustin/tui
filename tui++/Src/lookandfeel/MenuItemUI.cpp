@@ -2,9 +2,7 @@
 #include <tui++/lookandfeel/LazyActionMap.h>
 #include <tui++/lookandfeel/MenuLayout.h>
 
-#include <tui++/lookandfeel/UIAction.h>
-#include <tui++/lookandfeel/UIComponentInputMap.h>
-
+#include <tui++/Icon.h>
 #include <tui++/Menu.h>
 #include <tui++/MenuItem.h>
 #include <tui++/CheckBoxMenuItem.h>
@@ -17,18 +15,6 @@
 namespace tui::laf {
 constexpr std::string PROPERTY_PREFIX = "MenuItem";
 constexpr std::string CLICK = "do_click";
-
-class ClickAction: public UIAction {
-public:
-  ClickAction() :
-      UIAction(CLICK) {
-  }
-
-  virtual void action_performed(ActionEvent &e) {
-    MenuSelectionManager::single->clear_selected_path();
-    std::static_pointer_cast<MenuItem>(e.source)->do_click();
-  }
-};
 
 std::string const& MenuItemUI::get_property_prefix() const {
   return PROPERTY_PREFIX;
@@ -48,7 +34,17 @@ void MenuItemUI::uninstall_ui(std::shared_ptr<Component> const &c) {
 }
 
 void MenuItemUI::install_defaults() {
+  auto const &property_prefix = get_property_prefix();
 
+  LookAndFeel::install(this->menu_item, "Opaque", LookAndFeel::get<bool>(property_prefix + ".Opaque", true));
+  LookAndFeel::install(this->menu_item, "IconTextGap", 4U);
+  LookAndFeel::install_border(this->menu_item, property_prefix + ".Border");
+  LookAndFeel::install_colors(this->menu_item, property_prefix + ".BackgroundColor", property_prefix + ".ForegroundColor");
+
+  if (not this->arrow_icon or is_theme_resource(this->arrow_icon)) {
+    this->arrow_icon = LookAndFeel::get_icon(property_prefix + ".ArrowIcon");
+  }
+  update_check_icon();
 }
 
 void MenuItemUI::install_listeners() {
@@ -75,7 +71,7 @@ void MenuItemUI::install_keyboard_actions() {
 }
 
 void MenuItemUI::install_lazy_action_map() {
-  auto property_name = get_property_prefix() + ".actionMap";
+  auto property_name = get_property_prefix() + ".ActionMap";
   auto action_map = LookAndFeel::get<std::shared_ptr<ActionMap>>(property_name);
   if (not action_map) {
     action_map = std::make_shared<LazyActionMap>(load_action_map);
@@ -85,7 +81,10 @@ void MenuItemUI::install_lazy_action_map() {
 }
 
 void MenuItemUI::load_action_map(LazyActionMap &map) {
-  map.emplace(std::make_shared<ClickAction>());
+  map.emplace(CLICK, [](ActionEvent &e) {
+    MenuSelectionManager::single->clear_selected_path();
+    std::static_pointer_cast<MenuItem>(e.source)->do_click();
+  });
 }
 
 void MenuItemUI::update_accelerator_binding() {
@@ -96,11 +95,18 @@ void MenuItemUI::update_accelerator_binding() {
 
   if (auto accelerator = this->menu_item->get_accelerator()) {
     if (not window_input_map) {
-      window_input_map = std::make_shared<UIComponentInputMap>(this->menu_item);
+      window_input_map = LookAndFeel::make_theme_resource<ComponentInputMap>(this->menu_item);
       LookAndFeel::replace_input_map(this->menu_item, Component::WHEN_IN_FOCUSED_WINDOW, window_input_map);
     }
 
     window_input_map->emplace(accelerator.value(), CLICK);
+  }
+}
+
+void MenuItemUI::update_check_icon() {
+  auto const &property_prefix = get_property_prefix();
+  if (not this->check_icon or is_theme_resource(this->check_icon)) {
+    this->check_icon = LookAndFeel::get_icon(property_prefix + ".CheckIcon");
   }
 }
 
@@ -188,10 +194,10 @@ void MenuItemUI::property_changed(PropertyChangeEvent &e) {
 
 bool MenuItemUI::do_not_close_on_mouse_click() const {
   if (is_a<CheckBoxMenuItem>(this->menu_item)) {
-    constexpr auto property = "CheckBoxMenuItem.doNotCloseOnMouseClick";
+    constexpr auto property = "CheckBoxMenuItem.DoNotCloseOnMouseClick";
     return LookAndFeel::get<bool>(this->menu_item, property);
   } else if (is_a<RadioButtonMenuItem>(this->menu_item)) {
-    constexpr auto property = "RadioButtonMenuItem.doNotCloseOnMouseClick";
+    constexpr auto property = "RadioButtonMenuItem.DoNotCloseOnMouseClick";
     return LookAndFeel::get<bool>(this->menu_item, property);
   }
   return false;

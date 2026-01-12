@@ -32,6 +32,8 @@ protected:
   Property<VerticalTextPosition> vertical_text_position { this, "VerticalTextPosition", VerticalTextPosition::CENTER };
   Property<HorizontalTextPosition> horizontal_text_position { this, "HorizontalTextPosition", HorizontalTextPosition::TRAILING };
 
+  Property<unsigned> icon_text_gap { this, "IconTextGap", 4U };
+
   Property<std::shared_ptr<Icon const>> icon { this, "Icon" };
   Property<std::shared_ptr<Icon const>> disabled_icon { this, "DisabledIcon" };
 
@@ -45,7 +47,6 @@ protected:
   struct {
     unsigned is_border_painted_set :1;
     unsigned is_rollover_enabled_set :1;
-    unsigned is_icon_text_gap_set :1;
     unsigned is_content_area_filled_set :1;
   } flags { };
 
@@ -242,6 +243,12 @@ public:
   }
 
   void set_disabled_icon(std::shared_ptr<Icon const> const &icon);
+
+  unsigned get_icon_text_gap() const {
+    return this->icon_text_gap;
+  }
+
+  void set_icon_text_gap(unsigned gap);
 
 private:
   void update_mnemonic_properties();

@@ -10,7 +10,7 @@ class ComponentOrientation final {
     constexpr static int HORIZ_BIT = 2;
     constexpr static int LTR_BIT = 4;
 
-    const enum Orientation {
+    enum Orientation {
       LEFT_TO_RIGHT = HORIZ_BIT | LTR_BIT,
       RIGHT_TO_LEFT = HORIZ_BIT,
       UNKNOWN = HORIZ_BIT | LTR_BIT | UNK_BIT
@@ -31,10 +31,12 @@ class ComponentOrientation final {
     bool is_left_to_right() const {
       return (this->orientation & LTR_BIT) != 0;
     }
+
+    constexpr bool operator==(Impl const&) const = default;
   };
 
 private:
-  const Impl orientation;
+  Impl orientation;
 
 public:
   static inline const Impl LEFT_TO_RIGHT { Impl::LEFT_TO_RIGHT };
@@ -53,6 +55,8 @@ public:
   bool is_left_to_right() const {
     return this->orientation.is_left_to_right();
   }
+
+  constexpr bool operator==(ComponentOrientation const&) const = default;
 };
 
 }

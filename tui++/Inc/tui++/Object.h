@@ -15,6 +15,10 @@ class PropertyBase {
   const char *name;
 
   friend class Object;
+
+protected:
+  bool value_set_ = false;
+
 protected:
   PropertyBase(Object *object, const char *name);
 
@@ -26,7 +30,10 @@ public:
   }
 
   virtual PropertyValue get_value() const = 0;
-  virtual void set_value(const PropertyValue&) = 0;
+  virtual void set_value(const PropertyValue&, bool = false) = 0;
+  bool is_value_set() const {
+    return this->value_set_;
+  }
 
   void add_change_listener(const PropertyChangeListener &listener) const;
   void remove_change_listener(const PropertyChangeListener &listener) const;
@@ -250,12 +257,13 @@ public:
   }
 
 public:
-  PropertyValue get_value() const override final {
+  virtual PropertyValue get_value() const override final {
     return this->value_;
   }
 
-  void set_value(const PropertyValue &value) override final {
+  virtual void set_value(const PropertyValue &value, bool initial = false) override final {
     set_value(*std::any_cast<T>(&value));
+    this->value_set_ = not initial;
   }
 
   operator const T&() const {
@@ -307,7 +315,7 @@ class Property<T, std::enable_if_t<detail::is_optional_v<T>>> : public PropertyB
   std::optional<value_type> optional;
 
 private:
-  void set_optional_value(const std::optional<value_type> &value) {
+  void set_optional_value(std::optional<value_type> const &value) {
     if (this->optional != value) {
       auto old_value = this->optional;
       this->optional = value;
@@ -321,16 +329,17 @@ public:
   }
 
 public:
-  PropertyValue get_value() const override final {
+  virtual PropertyValue get_value() const override final {
     return this->optional.has_value() ? this->optional.value() : PropertyValue { };
   }
 
-  void set_value(const PropertyValue &value) override final {
+  virtual void set_value(const PropertyValue &value, bool initial = false) override final {
     if (value.has_value()) {
       set_optional_value(std::nullopt);
     } else {
       set_optional_value(std::make_optional<value_type>(*std::any_cast<value_type>(&value)));
     }
+    this->value_set_ = has_value() and not initial;
   }
 
   bool has_value() const {

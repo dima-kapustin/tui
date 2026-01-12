@@ -2,7 +2,7 @@
 
 #include <tui++/Action.h>
 
-namespace tui::laf {
+namespace tui {
 class UIAction: public Action {
 public:
   UIAction(std::string const &name) {

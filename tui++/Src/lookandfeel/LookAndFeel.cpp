@@ -13,13 +13,9 @@
 #include <tui++/lookandfeel/SeparatorUI.h>
 #include <tui++/lookandfeel/PopupMenuSeparatorUI.h>
 
-#include <tui++/lookandfeel/UIResource.h>
-
 namespace tui::laf {
 
-std::unordered_map<std::string_view, std::any> LookAndFeel::properties;
-
-static class TuiTheme {
+class TuiTheme: public Theme {
 public:
   TuiTheme() {
     LookAndFeel::put( //
@@ -29,7 +25,11 @@ public:
           { "menu.menu-popup-offset-y", 0 }, //
         });
   }
-} tui_theme;
+};
+
+std::unordered_map<std::string_view, std::any> LookAndFeel::properties;
+std::shared_ptr<Theme> LookAndFeel::theme = std::make_shared<TuiTheme>();
+
 
 void LookAndFeel::put(std::initializer_list<std::pair<std::string_view, std::any>> &&values) {
   for (auto&& [key, value] : values) {
@@ -40,7 +40,7 @@ void LookAndFeel::put(std::initializer_list<std::pair<std::string_view, std::any
 std::shared_ptr<ActionMap> LookAndFeel::get_action_map(Component *c) {
   for (auto map = c->get_action_map(false); map;) {
     auto parent = map->get_parent();
-    if (std::dynamic_pointer_cast<UIResource>(parent)) {
+    if (is_theme_resource(parent)) {
       return parent;
     }
     map = parent;
@@ -51,7 +51,7 @@ std::shared_ptr<ActionMap> LookAndFeel::get_action_map(Component *c) {
 std::shared_ptr<InputMap> LookAndFeel::get_input_map(Component *c, Component::InputCondition condition) {
   for (auto map = c->get_input_map(condition, false); map;) {
     auto parent = map->get_parent();
-    if (std::dynamic_pointer_cast<UIResource>(parent)) {
+    if (is_theme_resource(parent)) {
       return parent;
     }
     map = parent;
@@ -62,7 +62,7 @@ std::shared_ptr<InputMap> LookAndFeel::get_input_map(Component *c, Component::In
 void LookAndFeel::replace_input_map(Component *c, Component::InputCondition condition, std::shared_ptr<InputMap> const &new_map) {
   for (auto map = c->get_input_map(condition, new_map != nullptr); map;) {
     auto parent = map->get_parent();
-    if (not parent or std::dynamic_pointer_cast<UIResource>(parent)) {
+    if (not parent or is_theme_resource(parent)) {
       map->set_parent(new_map);
       return;
     }
@@ -73,7 +73,7 @@ void LookAndFeel::replace_input_map(Component *c, Component::InputCondition cond
 void LookAndFeel::replace_action_map(Component *c, std::shared_ptr<ActionMap> const &new_map) {
   for (auto map = c->get_action_map(new_map != nullptr); map;) {
     auto parent = map->get_parent();
-    if (not parent or std::dynamic_pointer_cast<UIResource>(parent)) {
+    if (not parent or is_theme_resource(parent)) {
       map->set_parent(new_map);
       return;
     }

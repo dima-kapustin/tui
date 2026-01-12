@@ -3,13 +3,17 @@
 #include <tui++/lookandfeel/ComponentUI.h>
 
 #include <tui++/Component.h>
+#include <tui++/Theme.h>
 
 #include <any>
+#include <string_view>
 #include <unordered_map>
 
 namespace tui {
+class Icon;
 class Frame;
 class Panel;
+class Border;
 class Button;
 class Dialog;
 class Menu;
@@ -40,6 +44,7 @@ class ToggleButtonUI;
 
 class LookAndFeel {
   static std::unordered_map<std::string_view, std::any> properties;
+  static std::shared_ptr<Theme> theme;
 
 public:
   template<typename T>
@@ -61,12 +66,46 @@ public:
     }
   }
 
+  static std::shared_ptr<Icon> get_icon(std::string_view const &key) {
+    return get<std::shared_ptr<Icon>>(key);
+  }
+
+  static std::shared_ptr<Border> get_border(std::string_view const &key) {
+    return get<std::shared_ptr<Border>>(key);
+  }
+
   template<typename T>
   static void put(std::string_view const &key, T const &value) {
     properties.emplace(key, value);
   }
 
   static void put(std::initializer_list<std::pair<std::string_view, std::any>> &&values);
+
+  template<typename T, typename ... Args>
+  static std::shared_ptr<T> make_theme_resource(Args &&... args) {
+    return theme->make_resource<T>(std::forward<Args>(args)...);
+  }
+
+  template<typename T>
+  static void install(Component *c, const char *key, T &&value) {
+    if (auto *property = c->get_property(key)) {
+      if (not property->is_value_set()) {
+        property->set_value(std::forward<T>(value), true);
+      }
+    }
+  }
+
+  static void install_border(Component *c, std::string_view const &key) {
+    if (auto &&border = c->get_border(); not border or is_theme_resource(border)) {
+      c->set_border(get_border(key));
+    }
+  }
+
+  static void install_colors(Component *c, std::string_view const &background_color_key, std::string_view const &foreground_color_key) {
+//    if (auto &&background_color = c->get_background_color(); background_color or is_theme_resource(background_color.value())) {
+//      c->set_background_color(get<Color>(background_color_key));
+//    }
+  }
 
   static std::shared_ptr<ActionMap> get_action_map(Component *c);
   static std::shared_ptr<InputMap> get_input_map(Component *c, Component::InputCondition condition);

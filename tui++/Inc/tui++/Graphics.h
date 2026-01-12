@@ -61,10 +61,10 @@ public:
     return hit_clip_rect(rect.x, rect.y, rect.width, rect.height);
   }
 
-  virtual std::optional<Color> get_foreground_color() const = 0;
+  virtual std::optional<Color> const& get_foreground_color() const = 0;
   virtual void set_foreground_color(std::optional<Color> const &color) = 0;
 
-  virtual std::optional<Color> get_background_color() const = 0;
+  virtual std::optional<Color> const& get_background_color() const = 0;
   virtual void set_background_color(std::optional<Color> const &color) = 0;
 
   virtual Font get_font() const = 0;

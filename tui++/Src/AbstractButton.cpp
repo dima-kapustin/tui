@@ -210,7 +210,14 @@ void AbstractButton::set_disabled_icon(std::shared_ptr<Icon const> const &icon) 
       repaint();
     }
   }
+}
 
+void AbstractButton::set_icon_text_gap(unsigned gap) {
+  if (this->icon_text_gap != gap) {
+    this->icon_text_gap = gap;
+    revalidate();
+    repaint();
+  }
 }
 
 }

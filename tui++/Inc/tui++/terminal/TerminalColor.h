@@ -11,6 +11,8 @@ struct Palette256Color;
 struct TrueColor;
 
 constexpr Palette16Color to_palette16(Palette256Color const&);
+constexpr Palette16Color to_palette16(TrueColor const&);
+constexpr Palette256Color to_palette256(TrueColor const&);
 constexpr TrueColor to_rgb(Palette256Color const&);
 
 struct Palette16Color {
@@ -36,10 +38,10 @@ using DefaultColor = std::monostate;
 struct TrueColor {
   union {
     struct {
-      uint32_t blue :8;
-      uint32_t green :8;
-      uint32_t red :8;
-      uint32_t alpha :8;
+      uint8_t blue;
+      uint8_t green;
+      uint8_t red;
+      uint8_t alpha;
     };
     uint32_t value;
   };
@@ -65,6 +67,8 @@ struct TrueColor {
   constexpr operator Palette16Color() const;
   constexpr operator Palette256Color() const;
 };
+
+static_assert(sizeof(TrueColor) == 4);
 
 //// RGB to XTerm16 conversion algorithm
 //
@@ -228,8 +232,24 @@ constexpr Palette256Color to_palette256(TrueColor const &rgb) {
 
 constexpr TrueColor to_rgb(Palette256Color const &color) {
   constexpr auto lut = [] {
-    // Indices 16..255 only.
     std::array<TrueColor, 256> result { };
+    result[0] = { 0, 0, 0 }; // Black
+    result[1] = { 128, 0, 0 }; // Red
+    result[2] = { 0, 128, 0 }; // Green
+    result[3] = { 128, 128, 0 }; // Yellow
+    result[4] = { 0, 0, 128 }; // Blue
+    result[5] = { 128, 0, 128 }; // Magenta
+    result[6] = { 0, 128, 128 }; // Cyan
+    result[7] = { 192, 192, 192 }; // GrayLight
+    result[8] = { 128, 128, 128 }; // GrayDark
+    result[9] = { 255, 0, 0 }; // RedLight
+    result[10] = { 0, 255, 0 }; // GreenLight
+    result[11] = { 255, 255, 0 }; // YellowLight
+    result[12] = { 0, 0, 255 }; // BlueLight
+    result[13] = { 255, 0, 255 }; // MagentaLight
+    result[14] = { 0, 255, 255 }; // CyanLight
+    result[15] = { 255, 255, 255 }; // White
+
     for (auto i = 0U; i < 6U; ++i) {
       auto r = uint8_t(i ? 55U + i * 40U : 0U);
       for (auto j = 0U; j < 6U; ++j) {
@@ -250,8 +270,32 @@ constexpr TrueColor to_rgb(Palette256Color const &color) {
   return lut[color.index];
 }
 
+constexpr Palette16Color::operator Palette256Color() const {
+  return {this->index};
+}
+
+constexpr Palette16Color::operator TrueColor() const {
+  return to_rgb(*this);
+}
+
+constexpr Palette256Color::operator Palette16Color() const {
+  return to_palette16(*this);
+}
+
+constexpr Palette256Color::operator TrueColor() const {
+  return to_rgb(*this);
+}
+
+constexpr TrueColor::operator Palette16Color() const {
+  return to_palette16(*this);
+}
+
+constexpr TrueColor::operator Palette256Color() const {
+  return to_palette256(*this);
+}
+
 constexpr TrueColor complementary(TrueColor const &rgb) {
-  return {255U - rgb.red, 255U - rgb.green, 255U - rgb.blue};
+  return {uint8_t(255U - rgb.red), uint8_t(255U - rgb.green), uint8_t(255U - rgb.blue)};
 }
 
 }
@@ -259,263 +303,284 @@ constexpr TrueColor complementary(TrueColor const &rgb) {
 using TerminalColor = std::variant<detail::DefaultColor, detail::Palette16Color, detail::Palette256Color, detail::TrueColor>;
 
 /*@formatter:off*/
-constexpr TerminalColor BLACK              = detail::Palette16Color { 0 };
-constexpr TerminalColor RED                = detail::Palette16Color { 1 };
-constexpr TerminalColor GREEN              = detail::Palette16Color { 2 };
-constexpr TerminalColor YELLOW             = detail::Palette16Color { 3 };
-constexpr TerminalColor BLUE               = detail::Palette16Color { 4 };
-constexpr TerminalColor MAGENTA            = detail::Palette16Color { 5 };
-constexpr TerminalColor CYAN               = detail::Palette16Color { 6 };
-constexpr TerminalColor GRAYLIGHT          = detail::Palette16Color { 7 };
-constexpr TerminalColor GRAYDARK           = detail::Palette16Color { 8 };
-constexpr TerminalColor REDLIGHT           = detail::Palette16Color { 9 };
-constexpr TerminalColor GREENLIGHT         = detail::Palette16Color { 10 };
-constexpr TerminalColor YELLOWLIGHT        = detail::Palette16Color { 11 };
-constexpr TerminalColor BLUELIGHT          = detail::Palette16Color { 12 };
-constexpr TerminalColor MAGENTALIGHT       = detail::Palette16Color { 13 };
-constexpr TerminalColor CYANLIGHT          = detail::Palette16Color { 14 };
-constexpr TerminalColor WHITE              = detail::Palette16Color { 15 };
+constexpr TerminalColor BLACK                = detail::Palette16Color { 0 };
+constexpr TerminalColor RED                  = detail::Palette16Color { 1 };
+constexpr TerminalColor GREEN                = detail::Palette16Color { 2 };
+constexpr TerminalColor YELLOW               = detail::Palette16Color { 3 };
+constexpr TerminalColor BLUE                 = detail::Palette16Color { 4 };
+constexpr TerminalColor MAGENTA              = detail::Palette16Color { 5 };
+constexpr TerminalColor CYAN                 = detail::Palette16Color { 6 };
+constexpr TerminalColor GRAY_LIGHT           = detail::Palette16Color { 7 };
+constexpr TerminalColor GRAY_DARK            = detail::Palette16Color { 8 };
+constexpr TerminalColor RED_LIGHT            = detail::Palette16Color { 9 };
+constexpr TerminalColor GREEN_LIGHT          = detail::Palette16Color { 10 };
+constexpr TerminalColor YELLOW_LIGHT         = detail::Palette16Color { 11 };
+constexpr TerminalColor BLUE_LIGHT           = detail::Palette16Color { 12 };
+constexpr TerminalColor MAGENTA_LIGHT        = detail::Palette16Color { 13 };
+constexpr TerminalColor CYAN_LIGHT           = detail::Palette16Color { 14 };
+constexpr TerminalColor WHITE                = detail::Palette16Color { 15 };
 
-constexpr TerminalColor AQUAMARINE1        = detail::Palette256Color { 122 };
-constexpr TerminalColor AQUAMARINE1BIS     = detail::Palette256Color { 86 };
-constexpr TerminalColor AQUAMARINE3        = detail::Palette256Color { 79 };
-constexpr TerminalColor BLUE1              = detail::Palette256Color { 21 };
-constexpr TerminalColor BLUE3              = detail::Palette256Color { 19 };
-constexpr TerminalColor BLUE3BIS           = detail::Palette256Color { 20 };
-constexpr TerminalColor BLUEVIOLET         = detail::Palette256Color { 57 };
-constexpr TerminalColor CADETBLUE          = detail::Palette256Color { 72 };
-constexpr TerminalColor CADETBLUEBIS       = detail::Palette256Color { 73 };
-constexpr TerminalColor CHARTREUSE1        = detail::Palette256Color { 118 };
-constexpr TerminalColor CHARTREUSE2        = detail::Palette256Color { 112 };
-constexpr TerminalColor CHARTREUSE2BIS     = detail::Palette256Color { 82 };
-constexpr TerminalColor CHARTREUSE3        = detail::Palette256Color { 70 };
-constexpr TerminalColor CHARTREUSE3BIS     = detail::Palette256Color { 76 };
-constexpr TerminalColor CHARTREUSE4        = detail::Palette256Color { 64 };
-constexpr TerminalColor CORNFLOWERBLUE     = detail::Palette256Color { 69 };
-constexpr TerminalColor CORNSILK1          = detail::Palette256Color { 230 };
-constexpr TerminalColor CYAN1              = detail::Palette256Color { 51 };
-constexpr TerminalColor CYAN2              = detail::Palette256Color { 50 };
-constexpr TerminalColor CYAN3              = detail::Palette256Color { 43 };
-constexpr TerminalColor DARKBLUE           = detail::Palette256Color { 18 };
-constexpr TerminalColor DARKCYAN           = detail::Palette256Color { 36 };
-constexpr TerminalColor DARKGOLDENROD      = detail::Palette256Color { 136 };
-constexpr TerminalColor DARKGREEN          = detail::Palette256Color { 22 };
-constexpr TerminalColor DARKKHAKI          = detail::Palette256Color { 143 };
-constexpr TerminalColor DARKMAGENTA        = detail::Palette256Color { 90 };
-constexpr TerminalColor DARKMAGENTABIS     = detail::Palette256Color { 91 };
-constexpr TerminalColor DARKOLIVEGREEN1    = detail::Palette256Color { 191 };
-constexpr TerminalColor DARKOLIVEGREEN1BIS = detail::Palette256Color { 192 };
-constexpr TerminalColor DARKOLIVEGREEN2    = detail::Palette256Color { 155 };
-constexpr TerminalColor DARKOLIVEGREEN3    = detail::Palette256Color { 107 };
-constexpr TerminalColor DARKOLIVEGREEN3BIS = detail::Palette256Color { 113 };
-constexpr TerminalColor DARKOLIVEGREEN3TER = detail::Palette256Color { 149 };
-constexpr TerminalColor DARKORANGE         = detail::Palette256Color { 208 };
-constexpr TerminalColor DARKORANGE3        = detail::Palette256Color { 130 };
-constexpr TerminalColor DARKORANGE3BIS     = detail::Palette256Color { 166 };
-constexpr TerminalColor DARKRED            = detail::Palette256Color { 52 };
-constexpr TerminalColor DARKREDBIS         = detail::Palette256Color { 88 };
-constexpr TerminalColor DARKSEAGREEN       = detail::Palette256Color { 108 };
-constexpr TerminalColor DARKSEAGREEN1      = detail::Palette256Color { 158 };
-constexpr TerminalColor DARKSEAGREEN1BIS   = detail::Palette256Color { 193 };
-constexpr TerminalColor DARKSEAGREEN2      = detail::Palette256Color { 151 };
-constexpr TerminalColor DARKSEAGREEN2BIS   = detail::Palette256Color { 157 };
-constexpr TerminalColor DARKSEAGREEN3      = detail::Palette256Color { 115 };
-constexpr TerminalColor DARKSEAGREEN3BIS   = detail::Palette256Color { 150 };
-constexpr TerminalColor DARKSEAGREEN4      = detail::Palette256Color { 65 };
-constexpr TerminalColor DARKSEAGREEN4BIS   = detail::Palette256Color { 71 };
-constexpr TerminalColor DARKSLATEGRAY1     = detail::Palette256Color { 123 };
-constexpr TerminalColor DARKSLATEGRAY2     = detail::Palette256Color { 87 };
-constexpr TerminalColor DARKSLATEGRAY3     = detail::Palette256Color { 116 };
-constexpr TerminalColor DARKTURQUOISE      = detail::Palette256Color { 44 };
-constexpr TerminalColor DARKVIOLET         = detail::Palette256Color { 128 };
-constexpr TerminalColor DARKVIOLETBIS      = detail::Palette256Color { 92 };
-constexpr TerminalColor DEEPPINK1          = detail::Palette256Color { 198 };
-constexpr TerminalColor DEEPPINK1BIS       = detail::Palette256Color { 199 };
-constexpr TerminalColor DEEPPINK2          = detail::Palette256Color { 197 };
-constexpr TerminalColor DEEPPINK3          = detail::Palette256Color { 161 };
-constexpr TerminalColor DEEPPINK3BIS       = detail::Palette256Color { 162 };
-constexpr TerminalColor DEEPPINK4          = detail::Palette256Color { 125 };
-constexpr TerminalColor DEEPPINK4BIS       = detail::Palette256Color { 89 };
-constexpr TerminalColor DEEPPINK4TER       = detail::Palette256Color { 53 };
-constexpr TerminalColor DEEPSKYBLUE1       = detail::Palette256Color { 39 };
-constexpr TerminalColor DEEPSKYBLUE2       = detail::Palette256Color { 38 };
-constexpr TerminalColor DEEPSKYBLUE3       = detail::Palette256Color { 31 };
-constexpr TerminalColor DEEPSKYBLUE3BIS    = detail::Palette256Color { 32 };
-constexpr TerminalColor DEEPSKYBLUE4       = detail::Palette256Color { 23 };
-constexpr TerminalColor DEEPSKYBLUE4BIS    = detail::Palette256Color { 24 };
-constexpr TerminalColor DEEPSKYBLUE4TER    = detail::Palette256Color { 25 };
-constexpr TerminalColor DODGERBLUE1        = detail::Palette256Color { 33 };
-constexpr TerminalColor DODGERBLUE2        = detail::Palette256Color { 27 };
-constexpr TerminalColor DODGERBLUE3        = detail::Palette256Color { 26 };
-constexpr TerminalColor GOLD1              = detail::Palette256Color { 220 };
-constexpr TerminalColor GOLD3              = detail::Palette256Color { 142 };
-constexpr TerminalColor GOLD3BIS           = detail::Palette256Color { 178 };
-constexpr TerminalColor GREEN1             = detail::Palette256Color { 46 };
-constexpr TerminalColor GREEN3             = detail::Palette256Color { 34 };
-constexpr TerminalColor GREEN3BIS          = detail::Palette256Color { 40 };
-constexpr TerminalColor GREEN4             = detail::Palette256Color { 28 };
-constexpr TerminalColor GREENYELLOW        = detail::Palette256Color { 154 };
-constexpr TerminalColor GREY0              = detail::Palette256Color { 16 };
-constexpr TerminalColor GREY100            = detail::Palette256Color { 231 };
-constexpr TerminalColor GREY11             = detail::Palette256Color { 234 };
-constexpr TerminalColor GREY15             = detail::Palette256Color { 235 };
-constexpr TerminalColor GREY19             = detail::Palette256Color { 236 };
-constexpr TerminalColor GREY23             = detail::Palette256Color { 237 };
-constexpr TerminalColor GREY27             = detail::Palette256Color { 238 };
-constexpr TerminalColor GREY3              = detail::Palette256Color { 232 };
-constexpr TerminalColor GREY30             = detail::Palette256Color { 239 };
-constexpr TerminalColor GREY35             = detail::Palette256Color { 240 };
-constexpr TerminalColor GREY37             = detail::Palette256Color { 59 };
-constexpr TerminalColor GREY39             = detail::Palette256Color { 241 };
-constexpr TerminalColor GREY42             = detail::Palette256Color { 242 };
-constexpr TerminalColor GREY46             = detail::Palette256Color { 243 };
-constexpr TerminalColor GREY50             = detail::Palette256Color { 244 };
-constexpr TerminalColor GREY53             = detail::Palette256Color { 102 };
-constexpr TerminalColor GREY54             = detail::Palette256Color { 245 };
-constexpr TerminalColor GREY58             = detail::Palette256Color { 246 };
-constexpr TerminalColor GREY62             = detail::Palette256Color { 247 };
-constexpr TerminalColor GREY63             = detail::Palette256Color { 139 };
-constexpr TerminalColor GREY66             = detail::Palette256Color { 248 };
-constexpr TerminalColor GREY69             = detail::Palette256Color { 145 };
-constexpr TerminalColor GREY7              = detail::Palette256Color { 233 };
-constexpr TerminalColor GREY70             = detail::Palette256Color { 249 };
-constexpr TerminalColor GREY74             = detail::Palette256Color { 250 };
-constexpr TerminalColor GREY78             = detail::Palette256Color { 251 };
-constexpr TerminalColor GREY82             = detail::Palette256Color { 252 };
-constexpr TerminalColor GREY84             = detail::Palette256Color { 188 };
-constexpr TerminalColor GREY85             = detail::Palette256Color { 253 };
-constexpr TerminalColor GREY89             = detail::Palette256Color { 254 };
-constexpr TerminalColor GREY93             = detail::Palette256Color { 255 };
-constexpr TerminalColor HONEYDEW2          = detail::Palette256Color { 194 };
-constexpr TerminalColor HOTPINK            = detail::Palette256Color { 205 };
-constexpr TerminalColor HOTPINK2           = detail::Palette256Color { 169 };
-constexpr TerminalColor HOTPINK3           = detail::Palette256Color { 132 };
-constexpr TerminalColor HOTPINK3BIS        = detail::Palette256Color { 168 };
-constexpr TerminalColor HOTPINKBIS         = detail::Palette256Color { 206 };
-constexpr TerminalColor INDIANRED          = detail::Palette256Color { 131 };
-constexpr TerminalColor INDIANRED1         = detail::Palette256Color { 203 };
-constexpr TerminalColor INDIANRED1BIS      = detail::Palette256Color { 204 };
-constexpr TerminalColor INDIANREDBIS       = detail::Palette256Color { 167 };
-constexpr TerminalColor KHAKI1             = detail::Palette256Color { 228 };
-constexpr TerminalColor KHAKI3             = detail::Palette256Color { 185 };
-constexpr TerminalColor LIGHTCORAL         = detail::Palette256Color { 210 };
-constexpr TerminalColor LIGHTCYAN1BIS      = detail::Palette256Color { 195 };
-constexpr TerminalColor LIGHTCYAN3         = detail::Palette256Color { 152 };
-constexpr TerminalColor LIGHTGOLDENROD1    = detail::Palette256Color { 227 };
-constexpr TerminalColor LIGHTGOLDENROD2    = detail::Palette256Color { 186 };
-constexpr TerminalColor LIGHTGOLDENROD2BIS = detail::Palette256Color { 221 };
-constexpr TerminalColor LIGHTGOLDENROD2TER = detail::Palette256Color { 222 };
-constexpr TerminalColor LIGHTGOLDENROD3    = detail::Palette256Color { 179 };
-constexpr TerminalColor LIGHTGREEN         = detail::Palette256Color { 119 };
-constexpr TerminalColor LIGHTGREENBIS      = detail::Palette256Color { 120 };
-constexpr TerminalColor LIGHTPINK1         = detail::Palette256Color { 217 };
-constexpr TerminalColor LIGHTPINK3         = detail::Palette256Color { 174 };
-constexpr TerminalColor LIGHTPINK4         = detail::Palette256Color { 95 };
-constexpr TerminalColor LIGHTSALMON1       = detail::Palette256Color { 216 };
-constexpr TerminalColor LIGHTSALMON3       = detail::Palette256Color { 137 };
-constexpr TerminalColor LIGHTSALMON3BIS    = detail::Palette256Color { 173 };
-constexpr TerminalColor LIGHTSEAGREEN      = detail::Palette256Color { 37 };
-constexpr TerminalColor LIGHTSKYBLUE1      = detail::Palette256Color { 153 };
-constexpr TerminalColor LIGHTSKYBLUE3      = detail::Palette256Color { 109 };
-constexpr TerminalColor LIGHTSKYBLUE3BIS   = detail::Palette256Color { 110 };
-constexpr TerminalColor LIGHTSLATEBLUE     = detail::Palette256Color { 105 };
-constexpr TerminalColor LIGHTSLATEGREY     = detail::Palette256Color { 103 };
-constexpr TerminalColor LIGHTSTEELBLUE     = detail::Palette256Color { 147 };
-constexpr TerminalColor LIGHTSTEELBLUE1    = detail::Palette256Color { 189 };
-constexpr TerminalColor LIGHTSTEELBLUE3    = detail::Palette256Color { 146 };
-constexpr TerminalColor LIGHTYELLOW3       = detail::Palette256Color { 187 };
-constexpr TerminalColor MAGENTA1           = detail::Palette256Color { 201 };
-constexpr TerminalColor MAGENTA2           = detail::Palette256Color { 165 };
-constexpr TerminalColor MAGENTA2BIS        = detail::Palette256Color { 200 };
-constexpr TerminalColor MAGENTA3           = detail::Palette256Color { 127 };
-constexpr TerminalColor MAGENTA3BIS        = detail::Palette256Color { 163 };
-constexpr TerminalColor MAGENTA3TER        = detail::Palette256Color { 164 };
-constexpr TerminalColor MEDIUMORCHID       = detail::Palette256Color { 134 };
-constexpr TerminalColor MEDIUMORCHID1      = detail::Palette256Color { 171 };
-constexpr TerminalColor MEDIUMORCHID1BIS   = detail::Palette256Color { 207 };
-constexpr TerminalColor MEDIUMORCHID3      = detail::Palette256Color { 133 };
-constexpr TerminalColor MEDIUMPURPLE       = detail::Palette256Color { 104 };
-constexpr TerminalColor MEDIUMPURPLE1      = detail::Palette256Color { 141 };
-constexpr TerminalColor MEDIUMPURPLE2      = detail::Palette256Color { 135 };
-constexpr TerminalColor MEDIUMPURPLE2BIS   = detail::Palette256Color { 140 };
-constexpr TerminalColor MEDIUMPURPLE3      = detail::Palette256Color { 97 };
-constexpr TerminalColor MEDIUMPURPLE3BIS   = detail::Palette256Color { 98 };
-constexpr TerminalColor MEDIUMPURPLE4      = detail::Palette256Color { 60 };
-constexpr TerminalColor MEDIUMSPRINGGREEN  = detail::Palette256Color { 49 };
-constexpr TerminalColor MEDIUMTURQUOISE    = detail::Palette256Color { 80 };
-constexpr TerminalColor MEDIUMVIOLETRED    = detail::Palette256Color { 126 };
-constexpr TerminalColor MISTYROSE1         = detail::Palette256Color { 224 };
-constexpr TerminalColor MISTYROSE3         = detail::Palette256Color { 181 };
-constexpr TerminalColor NAVAJOWHITE1       = detail::Palette256Color { 223 };
-constexpr TerminalColor NAVAJOWHITE3       = detail::Palette256Color { 144 };
-constexpr TerminalColor NAVYBLUE           = detail::Palette256Color { 17 };
-constexpr TerminalColor ORANGE1            = detail::Palette256Color { 214 };
-constexpr TerminalColor ORANGE3            = detail::Palette256Color { 172 };
-constexpr TerminalColor ORANGE4            = detail::Palette256Color { 58 };
-constexpr TerminalColor ORANGE4BIS         = detail::Palette256Color { 94 };
-constexpr TerminalColor ORANGERED1         = detail::Palette256Color { 202 };
-constexpr TerminalColor ORCHID             = detail::Palette256Color { 170 };
-constexpr TerminalColor ORCHID1            = detail::Palette256Color { 213 };
-constexpr TerminalColor ORCHID2            = detail::Palette256Color { 212 };
-constexpr TerminalColor PALEGREEN1         = detail::Palette256Color { 121 };
-constexpr TerminalColor PALEGREEN1BIS      = detail::Palette256Color { 156 };
-constexpr TerminalColor PALEGREEN3         = detail::Palette256Color { 114 };
-constexpr TerminalColor PALEGREEN3BIS      = detail::Palette256Color { 77 };
-constexpr TerminalColor PALETURQUOISE1     = detail::Palette256Color { 159 };
-constexpr TerminalColor PALETURQUOISE4     = detail::Palette256Color { 66 };
-constexpr TerminalColor PALEVIOLETRED1     = detail::Palette256Color { 211 };
-constexpr TerminalColor PINK1              = detail::Palette256Color { 218 };
-constexpr TerminalColor PINK3              = detail::Palette256Color { 175 };
-constexpr TerminalColor PLUM1              = detail::Palette256Color { 219 };
-constexpr TerminalColor PLUM2              = detail::Palette256Color { 183 };
-constexpr TerminalColor PLUM3              = detail::Palette256Color { 176 };
-constexpr TerminalColor PLUM4              = detail::Palette256Color { 96 };
-constexpr TerminalColor PURPLE             = detail::Palette256Color { 129 };
-constexpr TerminalColor PURPLE3            = detail::Palette256Color { 56 };
-constexpr TerminalColor PURPLE4            = detail::Palette256Color { 54 };
-constexpr TerminalColor PURPLE4BIS         = detail::Palette256Color { 55 };
-constexpr TerminalColor PURPLEBIS          = detail::Palette256Color { 93 };
-constexpr TerminalColor RED1               = detail::Palette256Color { 196 };
-constexpr TerminalColor RED3               = detail::Palette256Color { 124 };
-constexpr TerminalColor RED3BIS            = detail::Palette256Color { 160 };
-constexpr TerminalColor ROSYBROWN          = detail::Palette256Color { 138 };
-constexpr TerminalColor ROYALBLUE1         = detail::Palette256Color { 63 };
-constexpr TerminalColor SALMON1            = detail::Palette256Color { 209 };
-constexpr TerminalColor SANDYBROWN         = detail::Palette256Color { 215 };
-constexpr TerminalColor SEAGREEN1          = detail::Palette256Color { 84 };
-constexpr TerminalColor SEAGREEN1BIS       = detail::Palette256Color { 85 };
-constexpr TerminalColor SEAGREEN2          = detail::Palette256Color { 83 };
-constexpr TerminalColor SEAGREEN3          = detail::Palette256Color { 78 };
-constexpr TerminalColor SKYBLUE1           = detail::Palette256Color { 117 };
-constexpr TerminalColor SKYBLUE2           = detail::Palette256Color { 111 };
-constexpr TerminalColor SKYBLUE3           = detail::Palette256Color { 74 };
-constexpr TerminalColor SLATEBLUE1         = detail::Palette256Color { 99 };
-constexpr TerminalColor SLATEBLUE3         = detail::Palette256Color { 61 };
-constexpr TerminalColor SLATEBLUE3BIS      = detail::Palette256Color { 62 };
-constexpr TerminalColor SPRINGGREEN1       = detail::Palette256Color { 48 };
-constexpr TerminalColor SPRINGGREEN2       = detail::Palette256Color { 42 };
-constexpr TerminalColor SPRINGGREEN2BIS    = detail::Palette256Color { 47 };
-constexpr TerminalColor SPRINGGREEN3       = detail::Palette256Color { 35 };
-constexpr TerminalColor SPRINGGREEN3BIS    = detail::Palette256Color { 41 };
-constexpr TerminalColor SPRINGGREEN4       = detail::Palette256Color { 29 };
-constexpr TerminalColor STEELBLUE          = detail::Palette256Color { 67 };
-constexpr TerminalColor STEELBLUE1         = detail::Palette256Color { 75 };
-constexpr TerminalColor STEELBLUE1BIS      = detail::Palette256Color { 81 };
-constexpr TerminalColor STEELBLUE3         = detail::Palette256Color { 68 };
-constexpr TerminalColor TAN                = detail::Palette256Color { 180 };
-constexpr TerminalColor THISTLE1           = detail::Palette256Color { 225 };
-constexpr TerminalColor THISTLE3           = detail::Palette256Color { 182 };
-constexpr TerminalColor TURQUOISE2         = detail::Palette256Color { 45 };
-constexpr TerminalColor TURQUOISE4         = detail::Palette256Color { 30 };
-constexpr TerminalColor VIOLET             = detail::Palette256Color { 177 };
-constexpr TerminalColor WHEAT1             = detail::Palette256Color { 229 };
-constexpr TerminalColor WHEAT4             = detail::Palette256Color { 101 };
-constexpr TerminalColor YELLOW1            = detail::Palette256Color { 226 };
-constexpr TerminalColor YELLOW2            = detail::Palette256Color { 190 };
-constexpr TerminalColor YELLOW3            = detail::Palette256Color { 148 };
-constexpr TerminalColor YELLOW3BIS         = detail::Palette256Color { 184 };
-constexpr TerminalColor YELLOW4            = detail::Palette256Color { 100 };
-constexpr TerminalColor YELLOW4BIS         = detail::Palette256Color { 106 };
+constexpr TerminalColor AQUAMARINE1          = detail::Palette256Color { 122 };
+constexpr TerminalColor AQUAMARINE1BIS       = detail::Palette256Color { 86 };
+constexpr TerminalColor AQUAMARINE3          = detail::Palette256Color { 79 };
+constexpr TerminalColor BLUE1                = detail::Palette256Color { 21 };
+constexpr TerminalColor BLUE3                = detail::Palette256Color { 19 };
+constexpr TerminalColor BLUE3BIS             = detail::Palette256Color { 20 };
+constexpr TerminalColor BLUE_VIOLET          = detail::Palette256Color { 57 };
+constexpr TerminalColor CADET_BLUE           = detail::Palette256Color { 72 };
+constexpr TerminalColor CADET_BLUEBIS        = detail::Palette256Color { 73 };
+constexpr TerminalColor CHART_REUSE1         = detail::Palette256Color { 118 };
+constexpr TerminalColor CHART_REUSE2         = detail::Palette256Color { 112 };
+constexpr TerminalColor CHART_REUSE2BIS      = detail::Palette256Color { 82 };
+constexpr TerminalColor CHART_REUSE3         = detail::Palette256Color { 70 };
+constexpr TerminalColor CHART_REUSE3BIS      = detail::Palette256Color { 76 };
+constexpr TerminalColor CHART_REUSE4         = detail::Palette256Color { 64 };
+constexpr TerminalColor CORNFLOWER_BLUE      = detail::Palette256Color { 69 };
+constexpr TerminalColor CORNSILK1            = detail::Palette256Color { 230 };
+constexpr TerminalColor CYAN1                = detail::Palette256Color { 51 };
+constexpr TerminalColor CYAN2                = detail::Palette256Color { 50 };
+constexpr TerminalColor CYAN3                = detail::Palette256Color { 43 };
+constexpr TerminalColor DARK_BLUE            = detail::Palette256Color { 18 };
+constexpr TerminalColor DARK_CYAN            = detail::Palette256Color { 36 };
+constexpr TerminalColor DARK_GOLDENROD       = detail::Palette256Color { 136 };
+constexpr TerminalColor DARK_GREEN           = detail::Palette256Color { 22 };
+constexpr TerminalColor DARK_KHAKI           = detail::Palette256Color { 143 };
+constexpr TerminalColor DARK_MAGENTA         = detail::Palette256Color { 90 };
+constexpr TerminalColor DARK_MAGENTABIS      = detail::Palette256Color { 91 };
+constexpr TerminalColor DARK_OLIVE_GREEN1    = detail::Palette256Color { 191 };
+constexpr TerminalColor DARK_OLIVE_GREEN1BIS = detail::Palette256Color { 192 };
+constexpr TerminalColor DARK_OLIVE_GREEN2    = detail::Palette256Color { 155 };
+constexpr TerminalColor DARK_OLIVE_GREEN3    = detail::Palette256Color { 107 };
+constexpr TerminalColor DARK_OLIVE_GREEN3BIS = detail::Palette256Color { 113 };
+constexpr TerminalColor DARK_OLIVE_GREEN3TER = detail::Palette256Color { 149 };
+constexpr TerminalColor DARK_ORANGE          = detail::Palette256Color { 208 };
+constexpr TerminalColor DARK_ORANGE3         = detail::Palette256Color { 130 };
+constexpr TerminalColor DARK_ORANGE3BIS      = detail::Palette256Color { 166 };
+constexpr TerminalColor DARK_RED             = detail::Palette256Color { 52 };
+constexpr TerminalColor DARK_REDBIS          = detail::Palette256Color { 88 };
+constexpr TerminalColor DARK_SEAGREEN        = detail::Palette256Color { 108 };
+constexpr TerminalColor DARK_SEAGREEN1       = detail::Palette256Color { 158 };
+constexpr TerminalColor DARK_SEAGREEN1BIS    = detail::Palette256Color { 193 };
+constexpr TerminalColor DARK_SEAGREEN2       = detail::Palette256Color { 151 };
+constexpr TerminalColor DARK_SEAGREEN2BIS    = detail::Palette256Color { 157 };
+constexpr TerminalColor DARK_SEAGREEN3       = detail::Palette256Color { 115 };
+constexpr TerminalColor DARK_SEAGREEN3BIS    = detail::Palette256Color { 150 };
+constexpr TerminalColor DARK_SEAGREEN4       = detail::Palette256Color { 65 };
+constexpr TerminalColor DARK_SEAGREEN4BIS    = detail::Palette256Color { 71 };
+constexpr TerminalColor DARK_SLATEGRAY1      = detail::Palette256Color { 123 };
+constexpr TerminalColor DARK_SLATEGRAY2      = detail::Palette256Color { 87 };
+constexpr TerminalColor DARK_SLATEGRAY3      = detail::Palette256Color { 116 };
+constexpr TerminalColor DARK_TURQUOISE       = detail::Palette256Color { 44 };
+constexpr TerminalColor DARK_VIOLET          = detail::Palette256Color { 128 };
+constexpr TerminalColor DARK_VIOLETBIS       = detail::Palette256Color { 92 };
+constexpr TerminalColor DEEP_PINK1           = detail::Palette256Color { 198 };
+constexpr TerminalColor DEEP_PINK1BIS        = detail::Palette256Color { 199 };
+constexpr TerminalColor DEEP_PINK2           = detail::Palette256Color { 197 };
+constexpr TerminalColor DEEP_PINK3           = detail::Palette256Color { 161 };
+constexpr TerminalColor DEEP_PINK3BIS        = detail::Palette256Color { 162 };
+constexpr TerminalColor DEEP_PINK4           = detail::Palette256Color { 125 };
+constexpr TerminalColor DEEP_PINK4BIS        = detail::Palette256Color { 89 };
+constexpr TerminalColor DEEP_PINK4TER        = detail::Palette256Color { 53 };
+constexpr TerminalColor DEEP_SKYBLUE1        = detail::Palette256Color { 39 };
+constexpr TerminalColor DEEP_SKYBLUE2        = detail::Palette256Color { 38 };
+constexpr TerminalColor DEEP_SKYBLUE3        = detail::Palette256Color { 31 };
+constexpr TerminalColor DEEP_SKYBLUE3BIS     = detail::Palette256Color { 32 };
+constexpr TerminalColor DEEP_SKYBLUE4        = detail::Palette256Color { 23 };
+constexpr TerminalColor DEEP_SKYBLUE4BIS     = detail::Palette256Color { 24 };
+constexpr TerminalColor DEEP_SKYBLUE4TER     = detail::Palette256Color { 25 };
+constexpr TerminalColor DODGER_BLUE1         = detail::Palette256Color { 33 };
+constexpr TerminalColor DODGER_BLUE2         = detail::Palette256Color { 27 };
+constexpr TerminalColor DODGER_BLUE3         = detail::Palette256Color { 26 };
+constexpr TerminalColor GOLD1                = detail::Palette256Color { 220 };
+constexpr TerminalColor GOLD3                = detail::Palette256Color { 142 };
+constexpr TerminalColor GOLD3BIS             = detail::Palette256Color { 178 };
+constexpr TerminalColor GREEN1               = detail::Palette256Color { 46 };
+constexpr TerminalColor GREEN3               = detail::Palette256Color { 34 };
+constexpr TerminalColor GREEN3BIS            = detail::Palette256Color { 40 };
+constexpr TerminalColor GREEN4               = detail::Palette256Color { 28 };
+constexpr TerminalColor GREEN_YELLOW         = detail::Palette256Color { 154 };
+constexpr TerminalColor GREY0                = detail::Palette256Color { 16 };
+constexpr TerminalColor GREY100              = detail::Palette256Color { 231 };
+constexpr TerminalColor GREY11               = detail::Palette256Color { 234 };
+constexpr TerminalColor GREY15               = detail::Palette256Color { 235 };
+constexpr TerminalColor GREY19               = detail::Palette256Color { 236 };
+constexpr TerminalColor GREY23               = detail::Palette256Color { 237 };
+constexpr TerminalColor GREY27               = detail::Palette256Color { 238 };
+constexpr TerminalColor GREY3                = detail::Palette256Color { 232 };
+constexpr TerminalColor GREY30               = detail::Palette256Color { 239 };
+constexpr TerminalColor GREY35               = detail::Palette256Color { 240 };
+constexpr TerminalColor GREY37               = detail::Palette256Color { 59 };
+constexpr TerminalColor GREY39               = detail::Palette256Color { 241 };
+constexpr TerminalColor GREY42               = detail::Palette256Color { 242 };
+constexpr TerminalColor GREY46               = detail::Palette256Color { 243 };
+constexpr TerminalColor GREY50               = detail::Palette256Color { 244 };
+constexpr TerminalColor GREY53               = detail::Palette256Color { 102 };
+constexpr TerminalColor GREY54               = detail::Palette256Color { 245 };
+constexpr TerminalColor GREY58               = detail::Palette256Color { 246 };
+constexpr TerminalColor GREY62               = detail::Palette256Color { 247 };
+constexpr TerminalColor GREY63               = detail::Palette256Color { 139 };
+constexpr TerminalColor GREY66               = detail::Palette256Color { 248 };
+constexpr TerminalColor GREY69               = detail::Palette256Color { 145 };
+constexpr TerminalColor GREY7                = detail::Palette256Color { 233 };
+constexpr TerminalColor GREY70               = detail::Palette256Color { 249 };
+constexpr TerminalColor GREY74               = detail::Palette256Color { 250 };
+constexpr TerminalColor GREY78               = detail::Palette256Color { 251 };
+constexpr TerminalColor GREY82               = detail::Palette256Color { 252 };
+constexpr TerminalColor GREY84               = detail::Palette256Color { 188 };
+constexpr TerminalColor GREY85               = detail::Palette256Color { 253 };
+constexpr TerminalColor GREY89               = detail::Palette256Color { 254 };
+constexpr TerminalColor GREY93               = detail::Palette256Color { 255 };
+constexpr TerminalColor HONEY_DEW2           = detail::Palette256Color { 194 };
+constexpr TerminalColor HOT_PINK             = detail::Palette256Color { 205 };
+constexpr TerminalColor HOT_PINK2            = detail::Palette256Color { 169 };
+constexpr TerminalColor HOT_PINK3            = detail::Palette256Color { 132 };
+constexpr TerminalColor HOT_PINK3BIS         = detail::Palette256Color { 168 };
+constexpr TerminalColor HOT_PINKBIS          = detail::Palette256Color { 206 };
+constexpr TerminalColor INDIAN_RED           = detail::Palette256Color { 131 };
+constexpr TerminalColor INDIAN_RED1          = detail::Palette256Color { 203 };
+constexpr TerminalColor INDIAN_RED1BIS       = detail::Palette256Color { 204 };
+constexpr TerminalColor INDIAN_REDBIS        = detail::Palette256Color { 167 };
+constexpr TerminalColor KHAKI1               = detail::Palette256Color { 228 };
+constexpr TerminalColor KHAKI3               = detail::Palette256Color { 185 };
+constexpr TerminalColor LIGHT_CORAL          = detail::Palette256Color { 210 };
+constexpr TerminalColor LIGHT_CYAN1BIS       = detail::Palette256Color { 195 };
+constexpr TerminalColor LIGHT_CYAN3          = detail::Palette256Color { 152 };
+constexpr TerminalColor LIGHT_GOLDEN_ROD1    = detail::Palette256Color { 227 };
+constexpr TerminalColor LIGHT_GOLDEN_ROD2    = detail::Palette256Color { 186 };
+constexpr TerminalColor LIGHT_GOLDEN_ROD2BIS = detail::Palette256Color { 221 };
+constexpr TerminalColor LIGHT_GOLDEN_ROD2TER = detail::Palette256Color { 222 };
+constexpr TerminalColor LIGHT_GOLDEN_ROD3    = detail::Palette256Color { 179 };
+constexpr TerminalColor LIGHT_GREEN          = detail::Palette256Color { 119 };
+constexpr TerminalColor LIGHT_GREENBIS       = detail::Palette256Color { 120 };
+constexpr TerminalColor LIGHT_PINK1          = detail::Palette256Color { 217 };
+constexpr TerminalColor LIGHT_PINK3          = detail::Palette256Color { 174 };
+constexpr TerminalColor LIGHT_PINK4          = detail::Palette256Color { 95 };
+constexpr TerminalColor LIGHT_SALMON1        = detail::Palette256Color { 216 };
+constexpr TerminalColor LIGHT_SALMON3        = detail::Palette256Color { 137 };
+constexpr TerminalColor LIGHT_SALMON3BIS     = detail::Palette256Color { 173 };
+constexpr TerminalColor LIGHT_SEA_GREEN      = detail::Palette256Color { 37 };
+constexpr TerminalColor LIGHT_SKY_BLUE1      = detail::Palette256Color { 153 };
+constexpr TerminalColor LIGHT_SKY_BLUE3      = detail::Palette256Color { 109 };
+constexpr TerminalColor LIGHT_SKY_BLUE3BIS   = detail::Palette256Color { 110 };
+constexpr TerminalColor LIGHT_SLATE_BLUE     = detail::Palette256Color { 105 };
+constexpr TerminalColor LIGHT_SLATE_GREY     = detail::Palette256Color { 103 };
+constexpr TerminalColor LIGHT_STEEL_BLUE     = detail::Palette256Color { 147 };
+constexpr TerminalColor LIGHT_STEEL_BLUE1    = detail::Palette256Color { 189 };
+constexpr TerminalColor LIGHT_STEEL_BLUE3    = detail::Palette256Color { 146 };
+constexpr TerminalColor LIGHT_YELLOW3        = detail::Palette256Color { 187 };
+constexpr TerminalColor MAGENTA1             = detail::Palette256Color { 201 };
+constexpr TerminalColor MAGENTA2             = detail::Palette256Color { 165 };
+constexpr TerminalColor MAGENTA2BIS          = detail::Palette256Color { 200 };
+constexpr TerminalColor MAGENTA3             = detail::Palette256Color { 127 };
+constexpr TerminalColor MAGENTA3BIS          = detail::Palette256Color { 163 };
+constexpr TerminalColor MAGENTA3TER          = detail::Palette256Color { 164 };
+constexpr TerminalColor MEDIUM_ORCHID        = detail::Palette256Color { 134 };
+constexpr TerminalColor MEDIUM_ORCHID1       = detail::Palette256Color { 171 };
+constexpr TerminalColor MEDIUM_ORCHID1BIS    = detail::Palette256Color { 207 };
+constexpr TerminalColor MEDIUM_ORCHID3       = detail::Palette256Color { 133 };
+constexpr TerminalColor MEDIUM_PURPLE        = detail::Palette256Color { 104 };
+constexpr TerminalColor MEDIUM_PURPLE1       = detail::Palette256Color { 141 };
+constexpr TerminalColor MEDIUM_PURPLE2       = detail::Palette256Color { 135 };
+constexpr TerminalColor MEDIUM_PURPLE2BIS    = detail::Palette256Color { 140 };
+constexpr TerminalColor MEDIUM_PURPLE3       = detail::Palette256Color { 97 };
+constexpr TerminalColor MEDIUM_PURPLE3BIS    = detail::Palette256Color { 98 };
+constexpr TerminalColor MEDIUM_PURPLE4       = detail::Palette256Color { 60 };
+constexpr TerminalColor MEDIUM_SPRING_GREEN  = detail::Palette256Color { 49 };
+constexpr TerminalColor MEDIUM_TURQUOISE     = detail::Palette256Color { 80 };
+constexpr TerminalColor MEDIUM_VIOLET_RED    = detail::Palette256Color { 126 };
+constexpr TerminalColor MISTYROSE1           = detail::Palette256Color { 224 };
+constexpr TerminalColor MISTYROSE3           = detail::Palette256Color { 181 };
+constexpr TerminalColor NAVAJO_WHITE1        = detail::Palette256Color { 223 };
+constexpr TerminalColor NAVAJO_WHITE3        = detail::Palette256Color { 144 };
+constexpr TerminalColor NAVY_BLUE            = detail::Palette256Color { 17 };
+constexpr TerminalColor ORANGE1              = detail::Palette256Color { 214 };
+constexpr TerminalColor ORANGE3              = detail::Palette256Color { 172 };
+constexpr TerminalColor ORANGE4              = detail::Palette256Color { 58 };
+constexpr TerminalColor ORANGE4BIS           = detail::Palette256Color { 94 };
+constexpr TerminalColor ORANGERED1           = detail::Palette256Color { 202 };
+constexpr TerminalColor ORCHID               = detail::Palette256Color { 170 };
+constexpr TerminalColor ORCHID1              = detail::Palette256Color { 213 };
+constexpr TerminalColor ORCHID2              = detail::Palette256Color { 212 };
+constexpr TerminalColor PALE_GREEN1          = detail::Palette256Color { 121 };
+constexpr TerminalColor PALE_GREEN1BIS       = detail::Palette256Color { 156 };
+constexpr TerminalColor PALE_GREEN3          = detail::Palette256Color { 114 };
+constexpr TerminalColor PALE_GREEN3BIS       = detail::Palette256Color { 77 };
+constexpr TerminalColor PALE_TURQUOISE1      = detail::Palette256Color { 159 };
+constexpr TerminalColor PALE_TURQUOISE4      = detail::Palette256Color { 66 };
+constexpr TerminalColor PALE_VIOLET_RED1     = detail::Palette256Color { 211 };
+constexpr TerminalColor PINK1                = detail::Palette256Color { 218 };
+constexpr TerminalColor PINK3                = detail::Palette256Color { 175 };
+constexpr TerminalColor PLUM1                = detail::Palette256Color { 219 };
+constexpr TerminalColor PLUM2                = detail::Palette256Color { 183 };
+constexpr TerminalColor PLUM3                = detail::Palette256Color { 176 };
+constexpr TerminalColor PLUM4                = detail::Palette256Color { 96 };
+constexpr TerminalColor PURPLE               = detail::Palette256Color { 129 };
+constexpr TerminalColor PURPLE3              = detail::Palette256Color { 56 };
+constexpr TerminalColor PURPLE4              = detail::Palette256Color { 54 };
+constexpr TerminalColor PURPLE4BIS           = detail::Palette256Color { 55 };
+constexpr TerminalColor PURPLEBIS            = detail::Palette256Color { 93 };
+constexpr TerminalColor RED1                 = detail::Palette256Color { 196 };
+constexpr TerminalColor RED3                 = detail::Palette256Color { 124 };
+constexpr TerminalColor RED3BIS              = detail::Palette256Color { 160 };
+constexpr TerminalColor ROSY_BROWN           = detail::Palette256Color { 138 };
+constexpr TerminalColor ROYAL_BLUE1          = detail::Palette256Color { 63 };
+constexpr TerminalColor SALMON1              = detail::Palette256Color { 209 };
+constexpr TerminalColor SANDY_BROWN          = detail::Palette256Color { 215 };
+constexpr TerminalColor SEA_GREEN1           = detail::Palette256Color { 84 };
+constexpr TerminalColor SEA_GREEN1BIS        = detail::Palette256Color { 85 };
+constexpr TerminalColor SEA_GREEN2           = detail::Palette256Color { 83 };
+constexpr TerminalColor SEA_GREEN3           = detail::Palette256Color { 78 };
+constexpr TerminalColor SKY_BLUE1            = detail::Palette256Color { 117 };
+constexpr TerminalColor SKY_BLUE2            = detail::Palette256Color { 111 };
+constexpr TerminalColor SKY_BLUE3            = detail::Palette256Color { 74 };
+constexpr TerminalColor SLATE_BLUE1          = detail::Palette256Color { 99 };
+constexpr TerminalColor SLATE_BLUE3          = detail::Palette256Color { 61 };
+constexpr TerminalColor SLATE_BLUE3BIS       = detail::Palette256Color { 62 };
+constexpr TerminalColor SPRING_GREEN1        = detail::Palette256Color { 48 };
+constexpr TerminalColor SPRING_GREEN2        = detail::Palette256Color { 42 };
+constexpr TerminalColor SPRING_GREEN2BIS     = detail::Palette256Color { 47 };
+constexpr TerminalColor SPRING_GREEN3        = detail::Palette256Color { 35 };
+constexpr TerminalColor SPRING_GREEN3BIS     = detail::Palette256Color { 41 };
+constexpr TerminalColor SPRING_GREEN4        = detail::Palette256Color { 29 };
+constexpr TerminalColor STEEL_BLUE           = detail::Palette256Color { 67 };
+constexpr TerminalColor STEEL_BLUE1          = detail::Palette256Color { 75 };
+constexpr TerminalColor STEEL_BLUE1BIS       = detail::Palette256Color { 81 };
+constexpr TerminalColor STEEL_BLUE3          = detail::Palette256Color { 68 };
+constexpr TerminalColor TAN                  = detail::Palette256Color { 180 };
+constexpr TerminalColor THISTLE1             = detail::Palette256Color { 225 };
+constexpr TerminalColor THISTLE3             = detail::Palette256Color { 182 };
+constexpr TerminalColor TURQUOISE2           = detail::Palette256Color { 45 };
+constexpr TerminalColor TURQUOISE4           = detail::Palette256Color { 30 };
+constexpr TerminalColor VIOLET               = detail::Palette256Color { 177 };
+constexpr TerminalColor WHEAT1               = detail::Palette256Color { 229 };
+constexpr TerminalColor WHEAT4               = detail::Palette256Color { 101 };
+constexpr TerminalColor YELLOW1              = detail::Palette256Color { 226 };
+constexpr TerminalColor YELLOW2              = detail::Palette256Color { 190 };
+constexpr TerminalColor YELLOW3              = detail::Palette256Color { 148 };
+constexpr TerminalColor YELLOW3BIS           = detail::Palette256Color { 184 };
+constexpr TerminalColor YELLOW4              = detail::Palette256Color { 100 };
+constexpr TerminalColor YELLOW4BIS           = detail::Palette256Color { 106 };
 /*@formatter:on*/
 
 }
+
+template<>
+struct std::hash<tui::detail::Palette16Color> {
+  std::size_t operator()(tui::detail::Palette16Color const &c) const noexcept {
+    return c.index;
+  }
+};
+
+template<>
+struct std::hash<tui::detail::Palette256Color> {
+  std::size_t operator()(tui::detail::Palette256Color const &c) const noexcept {
+    return c.index;
+  }
+};
+
+template<>
+struct std::hash<tui::detail::TrueColor> {
+  std::size_t operator()(tui::detail::TrueColor const &c) const noexcept {
+    return c.value;
+  }
+};

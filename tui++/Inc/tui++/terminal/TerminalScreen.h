@@ -1,11 +1,14 @@
 #pragma once
 
 #include <vector>
+#include <optional>
 
 #include <tui++/Char.h>
 #include <tui++/Color.h>
 #include <tui++/Screen.h>
 #include <tui++/Attributes.h>
+
+#include <tui++/terminal/TerminalColor.h>
 
 #include <tui++/util/utf-8.h>
 
@@ -20,8 +23,8 @@ class TerminalScreen: public Screen {
   struct CharView {
     Char ch = ' ';
     Attributes attributes = Attributes::NONE;
-    Color foreground_color = DEFAULT_COLOR;
-    Color background_color = DEFAULT_COLOR;
+    TerminalColor foreground_color = { };
+    TerminalColor background_color = { };
 
     const size_t get_width() const {
       return util::glyph_width(this->ch);
@@ -49,6 +52,8 @@ private:
 private:
   void resize_view();
 
+  TerminalColor to_terminal(Color const& c);
+
   void draw_char(Char ch, int x, int y, std::optional<Color> const &foreground_color, std::optional<Color> const &background_color, std::optional<Attributes> const &attributes) {
     auto &cv = this->view[y][x];
     cv.ch = ch;
@@ -56,10 +61,10 @@ private:
       cv.attributes = attributes.value();
     }
     if (foreground_color) {
-      cv.foreground_color = foreground_color.value();
+      cv.foreground_color = to_terminal(foreground_color.value());
     }
     if (background_color) {
-      cv.background_color = background_color.value();
+      cv.background_color = to_terminal(background_color.value());
     }
   }
 

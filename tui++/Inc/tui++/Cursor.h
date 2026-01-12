@@ -1,8 +1,10 @@
 #pragma once
 
+#include <tui++/Theme.h>
+
 namespace tui {
 
-enum class Cursor {
+enum class CursorType {
   BLOCK_BLINKING = 1,
   STEADY_BLOCK = 2,
   UNDERLINE_BLINKING = 3,
@@ -11,6 +13,19 @@ enum class Cursor {
   STEADY_BAR = 6,
 
   DEFAULT = BLOCK_BLINKING
+};
+
+class Cursor: public Themable {
+  CursorType type_ = CursorType::DEFAULT;
+
+public:
+  constexpr bool operator==(Cursor const &other) const {
+    return this->type_ == other.type_;
+  }
+
+  constexpr auto type() const {
+    return this->type_;
+  }
 };
 
 }

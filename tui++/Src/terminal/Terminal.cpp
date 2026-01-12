@@ -71,9 +71,11 @@ void Terminal::hide_cursor() {
   reset_option(DECModeOption::CURSOR);
 }
 
-void Terminal::show_cursor(Cursor cursor) {
+void Terminal::show_cursor(std::optional<Cursor> const &cursor) {
   set_option(DECModeOption::CURSOR);
-  std::cout << "\x1b["sv << int(cursor) << " q"sv;
+  if (cursor) {
+    std::cout << "\x1b["sv << int(cursor->type()) << " q"sv;
+  }
 }
 
 void Terminal::set_option(Option option) {

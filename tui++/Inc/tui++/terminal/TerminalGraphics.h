@@ -77,10 +77,10 @@ public:
 
   virtual bool hit_clip_rect(int x, int y, int width, int height) const override;
 
-  virtual std::optional<Color> get_foreground_color() const override;
+  virtual std::optional<Color> const& get_foreground_color() const override;
   virtual void set_foreground_color(std::optional<Color> const &color) override;
 
-  virtual std::optional<Color> get_background_color() const override;
+  virtual std::optional<Color> const& get_background_color() const override;
   virtual void set_background_color(std::optional<Color> const &color) override;
 
   virtual Font get_font() const override;

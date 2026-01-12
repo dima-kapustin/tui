@@ -4,7 +4,6 @@
 #include <memory>
 #include <vector>
 #include <concepts>
-#include <exception>
 #include <unordered_set>
 #include <unordered_map>
 
@@ -46,7 +45,8 @@ class KeyboardManager;
 template<typename T>
 constexpr bool is_component_v = std::is_base_of_v<Component, T>;
 
-class Component: public Object, public std::enable_shared_from_this<Component>, public EventSource<ComponentEvent, ContainerEvent, FocusEvent, HierarchyEvent, HierarchyBoundsEvent, KeyEvent, MousePressEvent, MouseClickEvent, MouseMoveEvent, MouseOverEvent, MouseWheelEvent> {
+class Component: public Object, public std::enable_shared_from_this<Component>, public EventSource<ComponentEvent, ContainerEvent, FocusEvent, HierarchyEvent, HierarchyBoundsEvent, KeyEvent,
+    MousePressEvent, MouseClickEvent, MouseMoveEvent, MouseOverEvent, MouseWheelEvent> {
   using base = EventSource<ComponentEvent, ContainerEvent, FocusEvent, HierarchyEvent, HierarchyBoundsEvent, KeyEvent, MousePressEvent, MouseClickEvent, MouseMoveEvent, MouseOverEvent, MouseWheelEvent>;
 
 protected:
@@ -69,13 +69,13 @@ protected:
    */
   mutable std::weak_ptr<Component> focus_component;
 
-  float alignment_x = CENTER_ALIGNMENT;
-  float alignment_y = CENTER_ALIGNMENT;
-
-  ComponentOrientation orientation = ComponentOrientation::UNKNOWN;
-
   Point location { };
   Dimension size { };
+
+  Property<float> alignment_x { this, "AlignmentX", CENTER_ALIGNMENT };
+  Property<float> alignment_y { this, "AlignmentY", CENTER_ALIGNMENT };
+
+  Property<ComponentOrientation> orientation { this, "ComponentOrientation", ComponentOrientation::UNKNOWN };
 
   mutable Property<std::optional<Dimension>> minimum_size { this, "MinimumSize" };
   mutable Property<std::optional<Dimension>> maximum_size { this, "MaximumSize" };
@@ -83,15 +83,10 @@ protected:
 
   struct {
     unsigned is_valid :1;
-    unsigned is_alignment_x_set :1;
-    unsigned is_alignment_y_set :1;
     unsigned is_focus_traversable_overridden :1;
     unsigned was_focus_owner :1;
     unsigned inherits_popup_menu :1;
     unsigned is_repainting :1;
-    unsigned is_minimum_size_set :1;
-    unsigned is_maximum_size_set :1;
-    unsigned is_preferred_size_set :1;
   } flags { };
 
   Property<bool> enabled { this, "Enabled", true };
@@ -396,11 +391,11 @@ public:
   }
 
   void add(const std::shared_ptr<Component> &component) noexcept (false) {
-    add(component, {}, -1);
+    add(component, { }, -1);
   }
 
   void add(const std::shared_ptr<Component> &component, int index) noexcept (false) {
-    add(component, {}, index);
+    add(component, { }, index);
   }
 
   void add(const std::shared_ptr<Component> &component, const Constraints &constraints) noexcept (false) {
@@ -437,7 +432,7 @@ public:
     return this->border;
   }
 
-  void set_border(std::shared_ptr<Border> const& border) {
+  void set_border(std::shared_ptr<Border> const &border) {
     this->border = border;
   }
 
@@ -632,9 +627,9 @@ public:
 
   virtual void paint(Graphics &g);
 
-  virtual void paint_immediately(Rectangle const& rect) const;
+  virtual void paint_immediately(Rectangle const &rect) const;
   void paint_immediately(int x, int y, int width, int height) const {
-    paint_immediately( {x, y, width, height});
+    paint_immediately( { x, y, width, height });
   }
 
   virtual bool is_optimized_painting_enabled() const {
@@ -775,7 +770,7 @@ public:
     return this->background_color;
   }
 
-  void set_background_color(std::optional<Color> const& color) {
+  void set_background_color(Color const &color) {
     this->background_color = color;
   }
 
@@ -788,7 +783,7 @@ public:
     return this->foreground_color;
   }
 
-  void set_foreground_color(std::optional<Color> const& color) {
+  void set_foreground_color(Color const &color) {
     this->foreground_color = color;
   }
 
@@ -801,7 +796,7 @@ public:
     return this->cursor;
   }
 
-  void set_cursor(const std::optional<Cursor> &cursor) {
+  void set_cursor(Cursor const &cursor) {
     this->cursor = cursor;
   }
 
@@ -842,7 +837,7 @@ public:
   }
 
   auto get_tree_lock() const -> decltype(std::unique_lock {tree_mutex}) {
-    return std::unique_lock {tree_mutex};
+    return std::unique_lock { tree_mutex };
   }
 
   template<typename Callable>
@@ -1072,7 +1067,7 @@ using ComponentExtension = EventSourceExtension<BaseComponent, Events...>;
 template<typename T, typename ... Args>
 requires (is_component_v<T> )
 inline auto make_component(Args &&... args) noexcept (false) {
-  auto component = std::shared_ptr<T> {new T(std::forward<Args>(args)...)};
+  auto component = std::shared_ptr<T> { new T(std::forward<Args>(args)...) };
   component->init();
   return component;
 }
@@ -1081,7 +1076,7 @@ inline auto make_component(Args &&... args) noexcept (false) {
  * Convert a point from a screen coordinates to a component's coordinate system
  */
 Point convert_point_from_screen(int x, int y, std::shared_ptr<Component> to);
-inline Point convert_point_from_screen(Point const &p, std::shared_ptr<Component> const& to) {
+inline Point convert_point_from_screen(Point const &p, std::shared_ptr<Component> const &to) {
   return convert_point_from_screen(p.x, p.y, to);
 }
 
@@ -1089,7 +1084,7 @@ inline Point convert_point_from_screen(Point const &p, std::shared_ptr<Component
  * Convert a point from a component's coordinate system to screen coordinates.
  */
 Point convert_point_to_screen(int x, int y, std::shared_ptr<Component> from);
-inline Point convert_point_to_screen(Point const &p, std::shared_ptr<Component> const& from) {
+inline Point convert_point_to_screen(Point const &p, std::shared_ptr<Component> const &from) {
   return convert_point_to_screen(p.x, p.y, from);
 }
 

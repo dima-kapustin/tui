@@ -2,27 +2,26 @@
 
 #include <memory>
 #include <ranges>
-#include <string>
 #include <algorithm>
 #include <functional>
 #include <unordered_map>
 
 #include <tui++/Event.h>
-#include <tui++/AbstractAction.h>
+#include <tui++/Theme.h>
+#include <tui++/UIAction.h>
 
 namespace tui {
 
-class ActionMap {
+class ActionMap: public Themable {
   std::shared_ptr<ActionMap> parent;
   std::unordered_map<ActionKey, std::shared_ptr<Action>> map;
 
 private:
-  class ActionListenerAdapter: public AbstractAction {
+  class ActionListenerAdapter: public UIAction {
     ActionListener action_listener;
   public:
-    ActionListenerAdapter(const ActionListener &action_listener) :
-        action_listener(action_listener) {
-      set_enabled(true);
+    ActionListenerAdapter(ActionKey const &name, const ActionListener &action_listener) :
+        UIAction(name), action_listener(action_listener) {
     }
 
   public:
@@ -30,10 +29,6 @@ private:
       this->action_listener(e);
     }
   };
-
-public:
-  virtual ~ActionMap() {
-  }
 
 public:
   virtual std::vector<ActionKey> get_keys() const {
@@ -68,7 +63,7 @@ public:
   }
 
   virtual void emplace(const ActionKey &key, const ActionListener &action_listener) {
-    emplace(key, std::make_shared<ActionListenerAdapter>(action_listener));
+    emplace(key, std::make_shared<ActionListenerAdapter>(key, action_listener));
   }
 
   virtual void emplace(const ActionKey &key, const std::shared_ptr<Action> &action) {

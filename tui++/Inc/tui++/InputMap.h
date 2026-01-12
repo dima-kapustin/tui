@@ -6,18 +6,15 @@
 #include <optional>
 #include <unordered_map>
 
+#include <tui++/Theme.h>
 #include <tui++/ActionMap.h>
 #include <tui++/KeyStroke.h>
 
 namespace tui {
 
-class InputMap {
+class InputMap: public Themable {
   std::shared_ptr<InputMap> parent;
   std::unordered_map<KeyStroke, ActionKey> map;
-
-public:
-  virtual ~InputMap() {
-  }
 
 public:
   std::optional<ActionKey> at(const KeyStroke &key_stroke) const {

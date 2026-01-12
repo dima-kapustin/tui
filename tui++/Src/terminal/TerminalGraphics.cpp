@@ -232,12 +232,20 @@ Rectangle TerminalGraphics::get_clip_rect() const {
   return clip_rect;
 }
 
-std::optional<Color> TerminalGraphics::get_foreground_color() const {
+std::optional<Color> const& TerminalGraphics::get_foreground_color() const {
   return this->foreground_color;
 }
 
-std::optional<Color> TerminalGraphics::get_background_color() const {
+std::optional<Color> const& TerminalGraphics::get_background_color() const {
   return this->background_color;
+}
+
+void TerminalGraphics::set_foreground_color(std::optional<Color> const &color) {
+  this->foreground_color = color;
+}
+
+void TerminalGraphics::set_background_color(std::optional<Color> const &color) {
+  this->background_color = color;
 }
 
 Font TerminalGraphics::get_font() const {
@@ -261,14 +269,6 @@ void TerminalGraphics::set_clip_rect(const Rectangle &rect) {
 bool TerminalGraphics::hit_clip_rect(int x, int y, int width, int height) const {
   auto clip_rect = get_clip_rect();
   return clip_rect.intersects(x, y, width, height);
-}
-
-void TerminalGraphics::set_foreground_color(std::optional<Color> const &color) {
-  this->foreground_color = color;
-}
-
-void TerminalGraphics::set_background_color(std::optional<Color> const &color) {
-  this->background_color = color;
 }
 
 void TerminalGraphics::set_font(const Font &font) {

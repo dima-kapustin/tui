@@ -82,7 +82,7 @@ Point Menu::get_popup_menu_origin() const {
     auto x_offset = laf::LookAndFeel::get<int>("Menu.submenuPopupOffsetX");
     auto y_offset = laf::LookAndFeel::get<int>("Menu.submenuPopupOffsetY");
 
-    if (this->orientation.is_left_to_right()) {
+    if (this->orientation.value().is_left_to_right()) {
       x = size.width + x_offset; // Prefer placement to the right
       if ((position.x + x + popup_menu_size.width) >= (screen_bounds.width + screen_bounds.x) and //
           (screen_bounds.width - size.width) < 2 * (position.x - screen_bounds.x)) {
@@ -106,7 +106,7 @@ Point Menu::get_popup_menu_origin() const {
     auto x_offset = laf::LookAndFeel::get<int>("Menu.menuPopupOffsetX");
     auto y_offset = laf::LookAndFeel::get<int>("Menu.menuPopupOffsetY");
 
-    if (this->orientation.is_left_to_right()) {
+    if (this->orientation.value().is_left_to_right()) {
       x = x_offset; // Extend to the right
       if ((position.x + x + popup_menu_size.width) >= (screen_bounds.width + screen_bounds.x) and //
           (screen_bounds.width - size.width) < 2 * (position.x - screen_bounds.x)) {

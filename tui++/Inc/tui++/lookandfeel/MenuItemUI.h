@@ -8,6 +8,7 @@
 #include <functional>
 
 namespace tui {
+class Icon;
 class MenuSelectionManager;
 }
 
@@ -19,14 +20,16 @@ class MenuItemUI: public ComponentUI {
   using base = ComponentUI;
 
   MenuItem *menu_item;
+  std::shared_ptr<Icon> check_icon;
+  std::shared_ptr<Icon> arrow_icon;
 
 protected:
-  MouseOveredListener mouse_overed_listener = std::bind(mouse_overed, this, std::placeholders::_1);
-  MousePressedListener mouse_released_listener = std::bind(mouse_released, this, std::placeholders::_1);
-  MenuDragMouseOveredListener menu_drag_mouse_overed_listener = std::bind(menu_drag_mouse_overed, this, std::placeholders::_1);
-  MenuDragMouseDraggedListener menu_drag_mouse_dragged_listener = std::bind(menu_drag_mouse_dragged, this, std::placeholders::_1);
-  MenuDragMousePressedListener menu_drag_mouse_released_listener = std::bind(menu_drag_mouse_released, this, std::placeholders::_1);
-  PropertyChangeListener property_change_listener = std::bind(property_changed, this, std::placeholders::_1);
+  MouseOveredListener mouse_overed_listener = std::bind(&MenuItemUI::mouse_overed, this, std::placeholders::_1);
+  MousePressedListener mouse_released_listener = std::bind(&MenuItemUI::mouse_released, this, std::placeholders::_1);
+  MenuDragMouseOveredListener menu_drag_mouse_overed_listener = std::bind(&MenuItemUI::menu_drag_mouse_overed, this, std::placeholders::_1);
+  MenuDragMouseDraggedListener menu_drag_mouse_dragged_listener = std::bind(&MenuItemUI::menu_drag_mouse_dragged, this, std::placeholders::_1);
+  MenuDragMousePressedListener menu_drag_mouse_released_listener = std::bind(&MenuItemUI::menu_drag_mouse_released, this, std::placeholders::_1);
+  PropertyChangeListener property_change_listener = std::bind(&MenuItemUI::property_changed, this, std::placeholders::_1);
 
 public:
   virtual void install_ui(std::shared_ptr<Component> const &c) override;
@@ -64,6 +67,7 @@ protected:
 
 private:
   void update_accelerator_binding();
+  void update_check_icon();
 
   bool do_not_close_on_mouse_click() const;
 };

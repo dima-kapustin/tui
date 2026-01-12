@@ -255,7 +255,7 @@ private:
     this->input_parser.parse_event();
   }
 
-  Terminal& write(const char* data, size_t size);
+  Terminal& write(const char *data, size_t size);
 
   friend Terminal& operator<<(Terminal &term, std::string_view const &value);
   friend Terminal& operator<<(Terminal &term, std::string const &value);
@@ -282,7 +282,7 @@ public:
   Dimension get_size();
 
   void hide_cursor();
-  void show_cursor(Cursor cursor = Cursor::DEFAULT);
+  void show_cursor(std::optional<Cursor> const &cursor = { });
 
   void set_title(const std::string &title);
 

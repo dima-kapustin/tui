@@ -1,5 +1,6 @@
 #pragma once
 
+#include <tui++/Theme.h>
 #include <tui++/Insets.h>
 
 namespace tui {
@@ -7,11 +8,8 @@ namespace tui {
 class Graphics;
 class Component;
 
-class Border {
+class Border: public Themable {
 public:
-  virtual ~Border() {
-  }
-
   /**
    * Returns the insets of the border.
    */

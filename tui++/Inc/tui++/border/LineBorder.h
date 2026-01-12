@@ -4,15 +4,18 @@
 #include <tui++/Border.h>
 #include <tui++/Stroke.h>
 
+#include <memory>
+#include <optional>
+
 namespace tui {
 
 class LineBorder: public Border {
   Stroke const stroke;
   Color const line_color;
-  Color const background_color;
+  std::optional<Color> background_color;
 
 public:
-  LineBorder(Stroke const &stroke, Color const &line_color, Color const& background_color = DEFAULT_COLOR) :
+  LineBorder(Stroke const &stroke, Color const &line_color, std::optional<Color> const &background_color = { }) :
       stroke(stroke), line_color(line_color), background_color(background_color) {
   }
 
