@@ -3,6 +3,7 @@
 #include <tui++/Theme.h>
 
 #include <cstdint>
+#include <charconv>
 
 namespace tui {
 
@@ -57,5 +58,168 @@ constexpr Color BRIGHT_BLUE_COLOR { 0, 0, 255 };
 constexpr Color BRIGHT_MAGENTA_COLOR { 255, 0, 255 };
 constexpr Color BRIGHT_CYAN_COLOR { 0, 255, 255 };
 constexpr Color WHITE_COLOR { 255, 255, 255 };
+
+namespace detail {
+
+template<unsigned Base, unsigned Value>
+struct DigitValue {
+  static_assert(Value < Base);
+  constexpr static unsigned VALUE = Value;
+};
+
+template<unsigned Base, char Digit>
+struct NumberDigit;
+
+template<unsigned Base>
+struct NumberDigit<Base, '0'> : DigitValue<Base, 0> {
+};
+
+template<unsigned Base>
+struct NumberDigit<Base, '1'> : DigitValue<Base, 1> {
+};
+
+template<unsigned Base>
+struct NumberDigit<Base, '2'> : DigitValue<Base, 2> {
+};
+
+template<unsigned Base>
+struct NumberDigit<Base, '3'> : DigitValue<Base, 3> {
+};
+
+template<unsigned Base>
+struct NumberDigit<Base, '4'> : DigitValue<Base, 4> {
+};
+
+template<unsigned Base>
+struct NumberDigit<Base, '5'> : DigitValue<Base, 5> {
+};
+
+template<unsigned Base>
+struct NumberDigit<Base, '6'> : DigitValue<Base, 6> {
+};
+
+template<unsigned Base>
+struct NumberDigit<Base, '7'> : DigitValue<Base, 7> {
+};
+
+template<unsigned Base>
+struct NumberDigit<Base, '8'> : DigitValue<Base, 8> {
+};
+
+template<unsigned Base>
+struct NumberDigit<Base, '9'> : DigitValue<Base, 9> {
+};
+
+template<unsigned Base>
+struct NumberDigit<Base, 'a'> : DigitValue<Base, 0xa> {
+};
+
+template<unsigned Base>
+struct NumberDigit<Base, 'A'> : DigitValue<Base, 0xa> {
+};
+
+template<unsigned Base>
+struct NumberDigit<Base, 'b'> : DigitValue<Base, 0xb> {
+};
+
+template<unsigned Base>
+struct NumberDigit<Base, 'B'> : DigitValue<Base, 0xb> {
+};
+
+template<unsigned Base>
+struct NumberDigit<Base, 'c'> : DigitValue<Base, 0xc> {
+};
+
+template<unsigned Base>
+struct NumberDigit<Base, 'C'> : DigitValue<Base, 0xc> {
+};
+
+template<unsigned Base>
+struct NumberDigit<Base, 'd'> : DigitValue<Base, 0xd> {
+};
+
+template<unsigned Base>
+struct NumberDigit<Base, 'D'> : DigitValue<Base, 0xd> {
+};
+
+template<unsigned Base>
+struct NumberDigit<Base, 'e'> : DigitValue<Base, 0xe> {
+};
+
+template<unsigned Base>
+struct NumberDigit<Base, 'E'> : DigitValue<Base, 0xe> {
+};
+
+template<unsigned Base>
+struct NumberDigit<Base, 'f'> : DigitValue<Base, 0xf> {
+};
+
+template<unsigned Base>
+struct NumberDigit<Base, 'F'> : DigitValue<Base, 0xf> {
+};
+
+template<unsigned Base, char ... Digits>
+struct Number;
+
+template<unsigned Base, char Digit>
+struct Number<Base, Digit> {
+  constexpr static unsigned POWER = 1;
+  constexpr static unsigned VALUE = NumberDigit<Base, Digit>::VALUE;
+};
+
+template<unsigned Base>
+struct Number<Base, '\''> {
+  constexpr static unsigned POWER = 0;
+  constexpr static unsigned VALUE = 0;
+};
+
+template<unsigned Base, char Digit, char ... Digits>
+struct Number<Base, Digit, Digits...> {
+  constexpr static unsigned POWER = Number<Base, Digit>::POWER ? Base * Number<Base, Digits...>::POWER : Number<Base, Digits...>::POWER;
+  constexpr static unsigned VALUE = POWER * Number<Base, Digit>::VALUE + Number<Base, Digits...>::VALUE;
+};
+
+template<char ... Digits>
+struct ParseInteger;
+
+template<char ... Digits>
+struct ParseInteger<'0', 'x', Digits...> : Number<16, Digits...> {
+};
+
+template<char ... Digits>
+struct ParseInteger<'0', 'X', Digits...> : Number<16, Digits...> {
+};
+
+template<size_t N>
+struct RgbHexString { // e.g. #C0C0C0
+  char buff[N] { };
+  constexpr RgbHexString(char const (&s)[N]) {
+    std::copy(s, s + N, this->buff);
+  }
+
+  constexpr auto begin() const {
+    return this->buff;
+  }
+
+  constexpr auto end() const {
+    return this->buff + N;
+  }
+};
+
+}
+
+template<char ... Digits>
+constexpr Color operator ""_rgb() {
+//  static_assert(sizeof...(Digits) == 8);
+  auto value = detail::ParseInteger<Digits...>::VALUE;
+  return {uint8_t(value >> 16), uint8_t(value >> 8), uint8_t(value >> 0)};
+}
+
+template<detail::RgbHexString s>
+constexpr Color operator ""_rgb() {
+  auto value = 0U;
+  std::from_chars(s.begin() + 1, s.end(), value, 16);
+  return {uint8_t(value >> 16), uint8_t(value >> 8), uint8_t(value >> 0)};
+}
 
 }

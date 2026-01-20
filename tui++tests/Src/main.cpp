@@ -21,6 +21,7 @@ void test_KeyStroke();
 void test_EventSource();
 void test_CharIterator();
 void test_Action();
+void test_Color();
 
 auto make_file_menu() {
   auto file_menu = make_component<Menu>("File");
@@ -82,6 +83,7 @@ int main(int argc, char *argv[]) {
   test_EventSource();
   test_CharIterator();
   test_Action();
+  test_Color();
 
   terminal.set_title("Welcome to tui++");
   terminal.flush();

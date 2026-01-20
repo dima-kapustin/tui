@@ -19,10 +19,10 @@ class TuiTheme: public Theme {
 public:
   TuiTheme() {
     LookAndFeel::put( //
-        { { "menu.submenu-popup-offset-x", 0 }, //
-          { "menu.submenu-popup-offset-y", 0 }, //
-          { "menu.menu-popup-offset-x", 0 }, //
-          { "menu.menu-popup-offset-y", 0 }, //
+        { { "Menu.SubmenuPopupOffsetX", 0 }, //
+          { "Menu.SubmenuPopupOffsetY", 0 }, //
+          { "Menu.MenuPopupOffsetX", 0 }, //
+          { "Menu.MenuPopupOffsetY", 0 }, //
         });
   }
 };

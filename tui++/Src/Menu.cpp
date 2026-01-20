@@ -79,8 +79,8 @@ Point Menu::get_popup_menu_origin() const {
   auto x = 0, y = 9;
   if (std::dynamic_pointer_cast<PopupMenu>(get_parent()) != nullptr) {
     // We are a submenu (pull-right)
-    auto x_offset = laf::LookAndFeel::get<int>("Menu.submenuPopupOffsetX");
-    auto y_offset = laf::LookAndFeel::get<int>("Menu.submenuPopupOffsetY");
+    auto x_offset = laf::LookAndFeel::get<int>("Menu.SubmenuPopupOffsetX");
+    auto y_offset = laf::LookAndFeel::get<int>("Menu.SubmenuPopupOffsetY");
 
     if (this->orientation.value().is_left_to_right()) {
       x = size.width + x_offset; // Prefer placement to the right
@@ -103,8 +103,8 @@ Point Menu::get_popup_menu_origin() const {
     }
   } else {
     // We are a toplevel menu (pull-down)
-    auto x_offset = laf::LookAndFeel::get<int>("Menu.menuPopupOffsetX");
-    auto y_offset = laf::LookAndFeel::get<int>("Menu.menuPopupOffsetY");
+    auto x_offset = laf::LookAndFeel::get<int>("Menu.MenuPopupOffsetX");
+    auto y_offset = laf::LookAndFeel::get<int>("Menu.MenuPopupOffsetY");
 
     if (this->orientation.value().is_left_to_right()) {
       x = x_offset; // Extend to the right
