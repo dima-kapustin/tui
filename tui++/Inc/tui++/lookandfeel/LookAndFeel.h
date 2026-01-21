@@ -5,10 +5,6 @@
 #include <tui++/Component.h>
 #include <tui++/Theme.h>
 
-#include <any>
-#include <string_view>
-#include <unordered_map>
-
 namespace tui {
 class Icon;
 class Frame;
@@ -43,18 +39,18 @@ class SeparatorUI;
 class ToggleButtonUI;
 
 class LookAndFeel {
-  static std::unordered_map<std::string_view, std::any> properties;
   static std::shared_ptr<Theme> theme;
 
 public:
+  static std::shared_ptr<Theme> const& get_theme() {
+    return theme;
+  }
+
+  static void set_theme(std::shared_ptr<Theme> const &theme);
+
   template<typename T>
   static T get(std::string_view const &key, T &&default_value = { }) {
-    if (auto pos = properties.find(key); pos != properties.end()) {
-      if (auto *value = std::any_cast<T>(&pos->second)) {
-        return *value;
-      }
-    }
-    return default_value;
+    return theme->get<T>(key, std::forward<T>(default_value));
   }
 
   template<typename T>
@@ -76,10 +72,8 @@ public:
 
   template<typename T>
   static void put(std::string_view const &key, T &&value) {
-    properties.emplace(key, std::forward<T>(value));
+    theme->put(key, std::forward<T>(value));
   }
-
-  static void put(std::initializer_list<std::pair<std::string_view, std::any>> &&values);
 
   template<typename T, typename ... Args>
   static std::shared_ptr<T> make_theme_resource(Args &&... args) {

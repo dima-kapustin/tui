@@ -40,9 +40,7 @@ class TerminalScreen: public Screen {
   std::vector</* rows */std::vector</* columns */CharView>> view;
 
 private:
-  TerminalScreen() noexcept {
-    resize_view();
-  }
+  TerminalScreen() noexcept;
 
   void terminal_resized();
   void print();

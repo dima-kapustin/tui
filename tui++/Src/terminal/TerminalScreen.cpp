@@ -1,6 +1,9 @@
 #include <tui++/terminal/Terminal.h>
 #include <tui++/terminal/TerminalScreen.h>
 #include <tui++/terminal/TerminalGraphics.h>
+#include <tui++/terminal/TerminalTheme.h>
+
+#include <tui++/lookandfeel/LookAndFeel.h>
 
 #include <tui++/util/utf-8.h>
 
@@ -169,6 +172,11 @@ static void escape_foreground_color(TerminalColor const &color) {
 }
 
 TerminalScreen::CharView TerminalScreen::EMPTY_CHAR_VIEW;
+
+TerminalScreen::TerminalScreen() noexcept {
+  laf::LookAndFeel::set_theme(std::make_shared<TerminalTheme>());
+  resize_view();
+}
 
 void TerminalScreen::move_cursor_to(int line, int column) {
   terminal << "\x1b["sv << line << ';' << column << 'H';

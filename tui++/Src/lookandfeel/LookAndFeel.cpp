@@ -13,39 +13,17 @@
 #include <tui++/lookandfeel/SeparatorUI.h>
 #include <tui++/lookandfeel/PopupMenuSeparatorUI.h>
 
-#include <tui++/lookandfeel/SystemColorKeys.h>
-
 namespace tui::laf {
 
-class TuiTheme: public Theme {
-public:
-  TuiTheme() {
-    LookAndFeel::put( //
-        { { "Menu.SubmenuPopupOffsetX", 0 }, //
-          { "Menu.SubmenuPopupOffsetY", 0 }, //
-          { "Menu.MenuPopupOffsetX", 0 }, //
-          { "Menu.MenuPopupOffsetY", 0 }, //
-        });
+std::shared_ptr<Theme> LookAndFeel::theme;
 
-    install_system_colors();
+void LookAndFeel::set_theme(std::shared_ptr<Theme> const &new_theme) {
+  if (theme) {
+    theme->uninstall();
   }
-
-  void install_system_colors() {
-    update_system_colors();
-
-    using namespace SystemColorKeys;
-    for (auto &&key : SYSTEM_COLOR_KEYS) {
-      LookAndFeel::put(key, make_resource(get_system_color(key)));
-    }
-  }
-};
-
-std::unordered_map<std::string_view, std::any> LookAndFeel::properties;
-std::shared_ptr<Theme> LookAndFeel::theme = std::make_shared<TuiTheme>();
-
-void LookAndFeel::put(std::initializer_list<std::pair<std::string_view, std::any>> &&values) {
-  for (auto&& [key, value] : values) {
-    properties.emplace(std::move(key), std::move(value));
+  theme = new_theme;
+  if (theme) {
+    theme->install();
   }
 }
 
