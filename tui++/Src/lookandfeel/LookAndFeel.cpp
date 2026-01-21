@@ -13,6 +13,8 @@
 #include <tui++/lookandfeel/SeparatorUI.h>
 #include <tui++/lookandfeel/PopupMenuSeparatorUI.h>
 
+#include <tui++/lookandfeel/SystemColorKeys.h>
+
 namespace tui::laf {
 
 class TuiTheme: public Theme {
@@ -24,6 +26,17 @@ public:
           { "Menu.MenuPopupOffsetX", 0 }, //
           { "Menu.MenuPopupOffsetY", 0 }, //
         });
+
+    install_system_colors();
+  }
+
+  void install_system_colors() {
+    update_system_colors();
+
+    using namespace SystemColorKeys;
+    for (auto &&key : SYSTEM_COLOR_KEYS) {
+      LookAndFeel::put(key, get_system_color(key));
+    }
   }
 };
 
