@@ -57,7 +57,7 @@ public:
       return false;
     }
 
-    DWORD number_of_events = 0;
+    auto number_of_events = DWORD { };
     if (not ::GetNumberOfConsoleInputEvents(this->input_handle, &number_of_events) or number_of_events == 0) {
       return false;
     }
