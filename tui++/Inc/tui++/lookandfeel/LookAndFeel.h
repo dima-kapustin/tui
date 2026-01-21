@@ -75,8 +75,8 @@ public:
   }
 
   template<typename T>
-  static void put(std::string_view const &key, T const &value) {
-    properties.emplace(key, value);
+  static void put(std::string_view const &key, T &&value) {
+    properties.emplace(key, std::forward<T>(value));
   }
 
   static void put(std::initializer_list<std::pair<std::string_view, std::any>> &&values);
@@ -84,6 +84,11 @@ public:
   template<typename T, typename ... Args>
   static std::shared_ptr<T> make_theme_resource(Args &&... args) {
     return theme->make_resource<T>(std::forward<Args>(args)...);
+  }
+
+  template<typename T>
+  constexpr std::enable_if_t<std::is_base_of_v<Themable, T>, T&&> make_theme_resource(T &&obj) {
+    return theme->make_resource(std::move(obj));
   }
 
   template<typename T>

@@ -5,6 +5,7 @@
 namespace tui {
 
 class Themable;
+
 class Theme {
 public:
   template<typename T, typename ... Args>
@@ -12,6 +13,12 @@ public:
     auto resource = std::make_shared<T>(std::forward<Args>(args)...);
     resource->theme = this;
     return resource;
+  }
+
+  template<typename T>
+  constexpr std::enable_if_t<std::is_base_of_v<Themable, T>, T&&> make_resource(T &&obj) {
+    obj.theme = this;
+    return std::move(obj);
   }
 };
 

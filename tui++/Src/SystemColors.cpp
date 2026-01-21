@@ -38,7 +38,7 @@ static Color system_colors[] = {
   0x000000_rgb, //
 };
 
-inline Color const& get_system_color(SystemColorIndex index) {
+inline Color get_system_color(SystemColorIndex index) {
   return system_colors[std::to_underlying(index)];
 }
 

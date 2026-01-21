@@ -60,7 +60,7 @@ extern Color const &SCROLLBAR_COLOR;
 extern Color const &INFO_COLOR;
 extern Color const &INFO_TEXT_COLOR;
 
-Color const& get_system_color(SystemColorIndex index);
+Color get_system_color(SystemColorIndex index);
 void update_system_colors();
 
 }

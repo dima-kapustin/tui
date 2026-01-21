@@ -35,7 +35,7 @@ public:
 
     using namespace SystemColorKeys;
     for (auto &&key : SYSTEM_COLOR_KEYS) {
-      LookAndFeel::put(key, get_system_color(key));
+      LookAndFeel::put(key, make_resource(get_system_color(key)));
     }
   }
 };
