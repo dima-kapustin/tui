@@ -6,7 +6,7 @@ namespace tui {
 
 class TerminalTheme: public Theme {
 protected:
-  virtual void install() override;
+  virtual void init() override;
 
 private:
   void install_system_colors();

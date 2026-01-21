@@ -4,7 +4,7 @@
 
 namespace tui {
 
-void TerminalTheme::install() {
+void TerminalTheme::init() {
   put( //
       { { "Menu.SubmenuPopupOffsetX", 0 }, //
         { "Menu.SubmenuPopupOffsetY", 0 }, //

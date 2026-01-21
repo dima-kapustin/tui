@@ -19,11 +19,11 @@ std::shared_ptr<Theme> LookAndFeel::theme;
 
 void LookAndFeel::set_theme(std::shared_ptr<Theme> const &new_theme) {
   if (theme) {
-    theme->uninstall();
+    theme->deinit();
   }
   theme = new_theme;
   if (theme) {
-    theme->install();
+    theme->init();
   }
 }
 

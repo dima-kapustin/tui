@@ -61,8 +61,8 @@ protected:
   Theme() = default;
 
 protected:
-  virtual void install() = 0;
-  virtual void uninstall() {
+  virtual void init() = 0;
+  virtual void deinit() {
   }
 
   friend class laf::LookAndFeel;
