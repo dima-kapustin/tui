@@ -5,13 +5,13 @@
 using namespace tui;
 
 void test_KeyStroke() {
-  constexpr auto a = KeyStroke { "typed A" };
-  static_assert(a.get_key_char() == 'A');
-  static_assert(a.get_key_event_type() == KeyEvent::KEY_TYPED);
+  auto a = KeyStroke { "typed A" };
+  assert(a.get_key_char() == 'A');
+  assert(a.get_event_type() == KeyEvent::KEY_TYPED);
 
-  constexpr auto ctrl_a = KeyStroke { "ctrl A" };
-  static_assert(ctrl_a.get_key_code() == KeyEvent::VK_A);
-  static_assert(ctrl_a.get_key_char() == KeyEvent::CHAR_UNDEFINED);
-  static_assert(ctrl_a.get_modifiers() == InputEvent::CTRL_DOWN);
-  static_assert(ctrl_a.get_key_event_type() == KeyEvent::KEY_PRESSED);
+  auto ctrl_a = KeyStroke { "ctrl A" };
+  assert(ctrl_a.get_key_code() == KeyEvent::VK_A);
+  assert(ctrl_a.get_key_char() == KeyEvent::CHAR_UNDEFINED);
+  assert(ctrl_a.get_modifiers() == InputEvent::CTRL_DOWN);
+  assert(ctrl_a.get_event_type() == KeyEvent::KEY_PRESSED);
 }

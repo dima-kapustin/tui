@@ -55,7 +55,7 @@ public:
     return this->modifiers;
   }
 
-  constexpr KeyEvent::Type get_key_event_type() const {
+  constexpr KeyEvent::Type get_event_type() const {
     if (this->key_code == KeyEvent::VK_UNDEFINED) {
       return KeyEvent::KEY_TYPED;
     }
