@@ -37,10 +37,10 @@ protected:
   Property<std::shared_ptr<Icon const>> icon { this, "Icon" };
   Property<std::shared_ptr<Icon const>> disabled_icon { this, "DisabledIcon" };
 
-  ChangeListener change_listener = std::bind(state_changed, this, std::placeholders::_1);
-  ItemListener item_listener = std::bind(item_state_changed, this, std::placeholders::_1);
-  ActionListener action_listener = std::bind(action_performed, this, std::placeholders::_1);
-  PropertyChangeListener action_property_change_listener = std::bind(action_property_changed, this, std::placeholders::_1);
+  ChangeListener change_listener = std::bind(&AbstractButton::state_changed, this, std::placeholders::_1);
+  ItemListener item_listener = std::bind(&AbstractButton::item_state_changed, this, std::placeholders::_1);
+  ActionListener action_listener = std::bind(&AbstractButton::action_performed, this, std::placeholders::_1);
+  PropertyChangeListener action_property_change_listener = std::bind(&AbstractButton::action_property_changed, this, std::placeholders::_1);
 
   Char mnemonic;
 

@@ -32,14 +32,14 @@ public:
       KeyStroke(parse(str)) {
   }
 
-  constexpr KeyStroke(const KeyEvent &event) :
+  constexpr KeyStroke(KeyEvent const &event) :
       key_char(event.get_key_char()), key_code(event.get_key_code()), modifiers(event.modifiers) {
   }
 
-  constexpr KeyStroke(const KeyStroke&) = default;
+  constexpr KeyStroke(KeyStroke const&) = default;
   constexpr KeyStroke(KeyStroke&&) = default;
 
-  constexpr KeyStroke& operator=(const KeyStroke&) = default;
+  constexpr KeyStroke& operator=(KeyStroke const&) = default;
   constexpr KeyStroke& operator=(KeyStroke&&) = default;
 
 public:
@@ -62,9 +62,7 @@ public:
     return KeyEvent::KEY_PRESSED;
   }
 
-  constexpr bool operator==(const KeyStroke &other) const {
-    return this->key_char == other.key_char and this->key_code == other.key_code and this->modifiers == other.modifiers;
-  }
+  constexpr bool operator==(const KeyStroke &other) const = default;
 };
 
 }
