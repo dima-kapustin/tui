@@ -11,56 +11,7 @@ class KeyStroke {
   InputEvent::Modifiers modifiers;
 
 private:
-  constexpr KeyStroke parse(const u8string &str) {
-    using namespace std::string_literals;
-    using namespace std::string_view_literals;
-
-    auto throw_invalid_format = [&str] {
-      throw std::runtime_error("Invalid KeyStroke: "s + str);
-    };
-
-    auto typed = false;
-    auto char_index = size_t { 0 };
-    auto modifiers = InputEvent::Modifiers::NONE;
-    auto key_code = KeyEvent::VK_UNDEFINED;
-    while (char_index < str.size()) {
-      auto token = util::next_token(str, char_index, ' ');
-      if (not token.empty()) { // multiple spaces ?
-        if (typed) {
-          if (char_index == str.size()) {
-            auto cp = char32_t { 0 };
-            auto cp_len = util::mb_to_c32(token, &cp);
-            if (cp_len > 0 and token.length() == size_t(cp_len)) {
-              return {cp, modifiers};
-            }
-          }
-          throw_invalid_format();
-        }
-
-        if (token == "typed"sv) {
-          typed = true;
-        } else if (token == "ctrl"sv or token == "control"sv) {
-          modifiers |= InputEvent::CTRL_DOWN;
-        } else if (token == "shift"sv) {
-          modifiers |= InputEvent::SHIFT_DOWN;
-        } else if (token == "alt"sv) {
-          modifiers |= InputEvent::ALT_DOWN;
-        } else {
-          if (char_index == str.size()) {
-            auto cp = char32_t { 0 };
-            auto cp_len = util::mb_to_c32(token, &cp);
-            if (cp_len > 0 and token.length() == size_t(cp_len)) {
-              key_code = KeyEvent::KeyCode(cp);
-              break;
-            }
-          }
-          throw_invalid_format();
-        }
-      }
-    }
-
-    return {key_code, modifiers};
-  }
+  static KeyStroke parse(const u8string &str);
 
 public:
   constexpr KeyStroke() = default;
@@ -77,7 +28,7 @@ public:
       key_char(KeyEvent::CHAR_UNDEFINED), key_code(key_code), modifiers(modifiers) {
   }
 
-  constexpr KeyStroke(const u8string &str) :
+  KeyStroke(u8string const &str) :
       KeyStroke(parse(str)) {
   }
 
