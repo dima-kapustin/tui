@@ -17,6 +17,10 @@ public:
       blue_(blue), green_(green), red_(red) {
   }
 
+  constexpr Color(int red, int green, int blue) :
+      blue_(blue), green_(green), red_(red) {
+  }
+
   constexpr Color(Color const&) = default;
   constexpr Color(Color&&) = default;
 
@@ -49,14 +53,15 @@ constexpr Color YELLOW_COLOR { 128, 128, 0 };
 constexpr Color BLUE_COLOR { 0, 0, 128 };
 constexpr Color MAGENTA_COLOR { 128, 0, 128 };
 constexpr Color CYAN_COLOR { 0, 128, 128 };
-constexpr Color GREY_DARK_COLOR { 128, 128, 128 };
-constexpr Color BRIGHT_GREY_COLOR { 192, 192, 192 };
-constexpr Color BRIGHT_RED_COLOR { 255, 0, 0 };
-constexpr Color BRIGHT_GREEN_COLOR { 0, 255, 0 };
-constexpr Color BRIGHT_YELLOW_COLOR { 255, 255, 0 };
-constexpr Color BRIGHT_BLUE_COLOR { 0, 0, 255 };
-constexpr Color BRIGHT_MAGENTA_COLOR { 255, 0, 255 };
-constexpr Color BRIGHT_CYAN_COLOR { 0, 255, 255 };
+constexpr Color GRAY_COLOR { 128, 128, 128 };
+constexpr Color DARK_GRAY_COLOR { 64, 64, 64 };
+constexpr Color LIGHT_GRAY_COLOR { 192, 192, 192 };
+constexpr Color LIGHT_RED_COLOR { 255, 0, 0 };
+constexpr Color LIGHT_GREEN_COLOR { 0, 255, 0 };
+constexpr Color LIGHT_YELLOW_COLOR { 255, 255, 0 };
+constexpr Color LIGHT_BLUE_COLOR { 0, 0, 255 };
+constexpr Color LIGHT_MAGENTA_COLOR { 255, 0, 255 };
+constexpr Color LIGHT_CYAN_COLOR { 0, 255, 255 };
 constexpr Color WHITE_COLOR { 255, 255, 255 };
 
 namespace detail {

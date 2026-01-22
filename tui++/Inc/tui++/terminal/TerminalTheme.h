@@ -9,7 +9,8 @@ protected:
   virtual void init() override;
 
 private:
-  void install_system_colors();
+  void init_system_color_defaults();
+  void init_component_defaults();
 };
 
 }

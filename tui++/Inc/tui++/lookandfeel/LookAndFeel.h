@@ -63,11 +63,11 @@ public:
   }
 
   static std::shared_ptr<Icon> get_icon(std::string_view const &key) {
-    return get<std::shared_ptr<Icon>>(key);
+    return theme->get_icon(key);
   }
 
   static std::shared_ptr<Border> get_border(std::string_view const &key) {
-    return get<std::shared_ptr<Border>>(key);
+    return theme->get_border(key);
   }
 
   template<typename T>
