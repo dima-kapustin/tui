@@ -77,7 +77,7 @@ public:
 
   template<typename T, typename ... Args>
   static std::shared_ptr<T> make_theme_resource(Args &&... args) {
-    return theme->make_resource<T>(std::forward<Args>(args)...);
+    return theme->make_shared_resource<T>(std::forward<Args>(args)...);
   }
 
   template<typename T>

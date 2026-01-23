@@ -1,15 +1,16 @@
 #pragma once
 
 #include <tui++/Color.h>
-#include <tui++/Border.h>
 #include <tui++/Stroke.h>
+
+#include <tui++/border/AbstractBorder.h>
 
 #include <memory>
 #include <optional>
 
 namespace tui {
 
-class LineBorder: public Border {
+class LineBorder: public AbstractBorder {
   Stroke const stroke;
   Color const line_color;
   std::optional<Color> background_color;

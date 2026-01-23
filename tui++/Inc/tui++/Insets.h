@@ -16,6 +16,10 @@ struct Insets: public Themable {
   constexpr Insets(int top, int left, int bottom, int right) :
       top(top), left(left), bottom(bottom), right(right) {
   }
+
+  constexpr bool operator==(Insets const &other) const {
+    return this->top == other.top and this->left == other.left and this->bottom == other.bottom and this->right == other.right;
+  }
 };
 
 }

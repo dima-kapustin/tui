@@ -4,6 +4,7 @@
 #include <tui++/Action.h>
 #include <tui++/Component.h>
 #include <tui++/ButtonModel.h>
+#include <tui++/MarginContainer.h>
 
 #include <tui++/VerticalAlignment.h>
 #include <tui++/HorizontalAlignment.h>
@@ -14,13 +15,14 @@ namespace tui {
 
 class Icon;
 
-class AbstractButton: public ComponentExtension<Component, ChangeEvent, ItemEvent, ActionEvent> {
+class AbstractButton: public ComponentExtension<Component, ChangeEvent, ItemEvent, ActionEvent>, public MarginContainer {
   using base = ComponentExtension<Component, ChangeEvent, ItemEvent, ActionEvent>;
 
 protected:
   Property<std::shared_ptr<Action>> action { this, "Action" };
   Property<std::shared_ptr<ButtonModel>> model { this, "Model" };
   Property<std::string> text { this, "Text" };
+  Property<std::optional<Insets>> margin { this, "Margin" };
   Property<bool> hide_action_text { this, "HideActionText" };
   Property<int> displayed_mnemonic_index { this, "DisplayedMnemonicIndex", -1 };
   Property<bool> focus_painted { this, "FocusPainted", true };
@@ -101,7 +103,20 @@ public:
     auto old_text = this->text.value();
     this->text = text;
 
-    if (old_text != text) {
+    if (old_text != this->text) {
+      revalidate();
+      repaint();
+    }
+  }
+
+  virtual std::optional<Insets> const& get_margin() const override {
+    return this->margin;
+  }
+
+  virtual void set_margin(std::optional<Insets> const &margin) override {
+    auto old_margin = this->margin.value();
+    this->margin = margin;
+    if (old_margin != this->margin) {
       revalidate();
       repaint();
     }

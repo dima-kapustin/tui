@@ -55,7 +55,11 @@ public:
 
   template<typename T>
   void put(std::string_view const &key, T &&value) {
-    this->properties.insert_or_assign(key, std::forward<T>(value));
+    if constexpr (std::is_invocable_v<T>) {
+      this->properties.insert_or_assign(key, std::function { std::forward<T>(value) });
+    } else {
+      this->properties.insert_or_assign(key, std::forward<T>(value));
+    }
   }
 
   void put(std::initializer_list<std::pair<std::string_view, std::any>> &&values) {

@@ -3,6 +3,7 @@
 #include <tui++/lookandfeel/SystemColorKeys.h>
 
 #include <tui++/Insets.h>
+#include <tui++/border/LineBorder.h>
 
 namespace tui {
 
@@ -37,23 +38,27 @@ void TerminalTheme::init_component_defaults() {
   auto darkGray = make_resource(DARK_GRAY_COLOR);
   auto scrollBarTrack = make_resource<Color>(224, 224, 224);
 
-  auto control = get<std::optional<Color>>("control");
-  auto controlDkShadow = get<std::optional<Color>>("controlDkShadow");
-  auto controlHighlight = get<std::optional<Color>>("controlHighlight");
-  auto controlLtHighlight = get<std::optional<Color>>("controlLtHighlight");
-  auto controlShadow = get<std::optional<Color>>("controlShadow");
-  auto controlText = get<std::optional<Color>>("controlText");
-  auto menu = get<std::optional<Color>>("menu");
-  auto menuText = get<std::optional<Color>>("menuText");
-  auto textHighlight = get<std::optional<Color>>("textHighlight");
-  auto textHighlightText = get<std::optional<Color>>("textHighlightText");
-  auto textInactiveText = get<std::optional<Color>>("textInactiveText");
-  auto textText = get<std::optional<Color>>("textText");
-  auto window = get<std::optional<Color>>("window");
+  auto control = get<std::optional<Color>>(SystemColorKeys::CONTROL);
+  auto controlDkShadow = get<std::optional<Color>>(SystemColorKeys::CONTROL_DK_SHADOW);
+  auto controlHighlight = get<std::optional<Color>>(SystemColorKeys::CONTROL_HIGHLIGHT);
+  auto controlLtHighlight = get<std::optional<Color>>(SystemColorKeys::CONTROL_LT_HIGHLIGHT);
+  auto controlShadow = get<std::optional<Color>>(SystemColorKeys::CONTROL_SHADOW);
+  auto controlText = get<std::optional<Color>>(SystemColorKeys::CONTROL_TEXT);
+  auto menu = get<std::optional<Color>>(SystemColorKeys::MENU);
+  auto menuText = get<std::optional<Color>>(SystemColorKeys::MENU_TEXT);
+  auto textHighlight = get<std::optional<Color>>(SystemColorKeys::TEXT_HIGHLIGHT);
+  auto textHighlightText = get<std::optional<Color>>(SystemColorKeys::TEXT_HIGHLIGHT_TEXT);
+  auto textInactiveText = get<std::optional<Color>>(SystemColorKeys::TEXT_INACTIVE_TEXT);
+  auto textText = get<std::optional<Color>>(SystemColorKeys::TEXT_TEXT);
+  auto window = get<std::optional<Color>>(SystemColorKeys::WINDOW);
 
   auto zeroInsets = make_resource<Insets>(0, 0, 0, 0);
   auto twoInsets = make_resource<Insets>(2, 2, 2, 2);
   auto threeInsets = make_resource<Insets>(3, 3, 3, 3);
+
+//  put("Button.border", []{
+//    return std::make_shared<LineBorder>(Stroke::DOUBLE, RED_COLOR);
+//  });
 }
 
 }
