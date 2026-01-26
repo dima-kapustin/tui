@@ -67,6 +67,11 @@ public:
   virtual std::optional<Color> const& get_background_color() const = 0;
   virtual void set_background_color(std::optional<Color> const &color) = 0;
 
+  void set_color(std::optional<Color> const &color) {
+    set_foreground_color(color);
+    set_background_color(color);
+  }
+
   virtual Font get_font() const = 0;
   virtual void set_font(Font const &font) = 0;
 

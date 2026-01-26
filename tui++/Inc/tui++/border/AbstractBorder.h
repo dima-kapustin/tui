@@ -6,11 +6,11 @@ namespace tui {
 
 class AbstractBorder: public Border {
 public:
-  virtual Insets get_border_insets(const Component &c) const override {
+  virtual Insets get_border_insets(Component const &c) const override {
     return {};
   }
 
-  virtual void paint_border(const Component &c, Graphics &g, int x, int y, int width, int height) const override {
+  virtual void paint_border(Component const &c, Graphics &g, int x, int y, int width, int height) const override {
   }
 
   virtual bool is_border_opaque() const override {

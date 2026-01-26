@@ -1,9 +1,9 @@
 #include <tui++/terminal/TerminalTheme.h>
 
 #include <tui++/lookandfeel/SystemColorKeys.h>
+#include <tui++/lookandfeel/border/MarginBorder.h>
 
 #include <tui++/Insets.h>
-#include <tui++/border/LineBorder.h>
 
 namespace tui {
 
@@ -52,13 +52,18 @@ void TerminalTheme::init_component_defaults() {
   auto textText = get<std::optional<Color>>(SystemColorKeys::TEXT_TEXT);
   auto window = get<std::optional<Color>>(SystemColorKeys::WINDOW);
 
-  auto zeroInsets = make_resource<Insets>(0, 0, 0, 0);
-  auto twoInsets = make_resource<Insets>(2, 2, 2, 2);
-  auto threeInsets = make_resource<Insets>(3, 3, 3, 3);
+  auto zero_insets = make_resource<Insets>(0, 0, 0, 0);
+  auto two_insets = make_resource<Insets>(2, 2, 2, 2);
+  auto three_insets = make_resource<Insets>(3, 3, 3, 3);
 
-//  put("Button.border", []{
-//    return std::make_shared<LineBorder>(Stroke::DOUBLE, RED_COLOR);
-//  });
+  auto margin_border = BorderFactory { [] {
+    return std::make_shared<laf::MarginBorder>();
+  } };
+
+//  put( { { "MenuItem.border", margin_border } });
+//
+//  auto border = get_border("MenuItem.border");
+
 }
 
 }

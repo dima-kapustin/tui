@@ -12,6 +12,8 @@ class Color: public Themable {
   uint8_t green_;
   uint8_t red_;
 
+  constexpr static auto FACTOR = 0.7;
+
 public:
   constexpr Color(uint8_t red, uint8_t green, uint8_t blue) :
       blue_(blue), green_(green), red_(red) {
@@ -40,9 +42,55 @@ public:
     return this->blue_;
   }
 
+  constexpr uint8_t alpha() const {
+    return 255;
+  }
+
+  constexpr Color brighter() const {
+    auto r = red();
+    auto g = green();
+    auto b = blue();
+    auto a = alpha();
+
+    /* From 2D group:
+     * 1. black.brighter() should return grey
+     * 2. applying brighter to blue will always return blue, brighter
+     * 3. non pure color (non zero rgb) will eventually return white
+     */
+    auto i = (int) (1.0 / (1.0 - FACTOR));
+    if (r == 0 and g == 0 and b == 0) {
+      return Color(i, i, i, a);
+    }
+    if (r != 0 and r < i)
+      r = i;
+    if (g != 0 and g < i)
+      g = i;
+    if (b != 0 and b < i)
+      b = i;
+
+    return { //
+      std::min(int(r / FACTOR), 255),//
+      std::min(int(g / FACTOR), 255),//
+      std::min(int(b / FACTOR), 255),//
+      a};
+  }
+
+  constexpr Color darker() const {
+    return { //
+      std::max(int(red() * FACTOR), 0),//
+      std::max(int(green() * FACTOR), 0),//
+      std::max(int(blue() * FACTOR), 0),//
+      alpha()};
+  }
+
 public:
   constexpr bool operator==(Color const &other) const {
     return blue() == other.blue() and green() == other.green() and red() == other.red();
+  }
+
+private:
+  constexpr Color(int red, int green, int blue, int alpha) :
+      blue_(blue), green_(green), red_(red) {
   }
 };
 

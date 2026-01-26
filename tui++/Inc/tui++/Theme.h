@@ -64,7 +64,7 @@ public:
 
   void put(std::initializer_list<std::pair<std::string_view, std::any>> &&values) {
     for (auto&& [key, value] : values) {
-      this->properties.insert_or_assign(std::move(key), std::move(value));
+      put(key, std::move(value));
     }
   }
 
