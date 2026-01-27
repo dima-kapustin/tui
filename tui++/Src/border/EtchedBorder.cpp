@@ -24,18 +24,18 @@ void EtchedBorder::paint_border(Component const &c, Graphics &g, int x, int y, i
   paint_border_highlight(g, (this->etch_type == EtchType::LOWERED) ? get_shadow_color(c) : get_highlight_color(c), width, height, stkWidth);
 }
 
-void EtchedBorder::paint_border_highlight(Graphics &g, std::optional<Color> const &c, int w, int h, int stkWidth) const {
+void EtchedBorder::paint_border_highlight(Graphics &g, std::optional<Color> const &c, int w, int h, int stroke_width) const {
   g.set_color(c);
-  g.draw_rect(stkWidth / 2, stkWidth / 2, w - (2 * stkWidth), h - (2 * stkWidth));
+  g.draw_rect(stroke_width / 2, stroke_width / 2, w - (2 * stroke_width), h - (2 * stroke_width));
 }
 
-void EtchedBorder::paint_border_shadow(Graphics &g, std::optional<Color> const &c, int w, int h, int stkWidth) const {
+void EtchedBorder::paint_border_shadow(Graphics &g, std::optional<Color> const &c, int w, int h, int stroke_width) const {
   g.set_color(c);
-  g.draw_vline(((3 * stkWidth) / 2), ((3 * stkWidth) / 2), h - ((3 * stkWidth) / 2)); // left line
-  g.draw_hline(((3 * stkWidth) / 2), ((3 * stkWidth) / 2), w - ((3 * stkWidth) / 2)); // top line
+  g.draw_vline(((3 * stroke_width) / 2), ((3 * stroke_width) / 2), h - ((3 * stroke_width) / 2)); // left line
+  g.draw_hline(((3 * stroke_width) / 2), ((3 * stroke_width) / 2), w - ((3 * stroke_width) / 2)); // top line
 
-  g.draw_hline((stkWidth / 2), (stkWidth - stkWidth / 2), w - (stkWidth - stkWidth / 2)); // bottom line
-  g.draw_vline(w - (stkWidth - stkWidth / 2), stkWidth / 2, h - (stkWidth - stkWidth / 2)); // right line
+  g.draw_hline((stroke_width / 2), (stroke_width - stroke_width / 2), w - (stroke_width - stroke_width / 2)); // bottom line
+  g.draw_vline(w - (stroke_width - stroke_width / 2), stroke_width / 2, h - (stroke_width - stroke_width / 2)); // right line
 }
 
 }

@@ -42,8 +42,8 @@ public:
   std::optional<Color> get_shadow_color(Component const &c) const;
 
 private:
-  void paint_border_highlight(Graphics &g, std::optional<Color> const &c, int w, int h, int stkWidth) const;
-  void paint_border_shadow(Graphics &g, std::optional<Color> const &c, int w, int h, int stkWidth) const;
+  void paint_border_highlight(Graphics &g, std::optional<Color> const &c, int w, int h, int stroke_width) const;
+  void paint_border_shadow(Graphics &g, std::optional<Color> const &c, int w, int h, int stroke_width) const;
 
 private:
   EtchType etch_type;

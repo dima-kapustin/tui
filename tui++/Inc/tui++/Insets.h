@@ -17,8 +17,33 @@ struct Insets: public Themable {
       top(top), left(left), bottom(bottom), right(right) {
   }
 
+  constexpr int width() const {
+    return this->left + this->right;
+  }
+
+  constexpr int height() const {
+    return this->top + this->bottom;
+  }
+
   constexpr bool operator==(Insets const &other) const {
     return this->top == other.top and this->left == other.left and this->bottom == other.bottom and this->right == other.right;
+  }
+
+  constexpr Insets& operator+=(Insets const &other) {
+    this->top += other.top;
+    this->left += other.left;
+    this->bottom += other.bottom;
+    this->right += other.right;
+    return *this;
+  }
+
+  constexpr Insets operator+(Insets const &other) const {
+    auto result = *this;
+    result.top += other.top;
+    result.left += other.left;
+    result.bottom += other.bottom;
+    result.right += other.right;
+    return result;
   }
 };
 
