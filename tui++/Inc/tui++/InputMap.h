@@ -6,7 +6,7 @@
 #include <optional>
 #include <unordered_map>
 
-#include <tui++/Theme.h>
+#include <tui++/Themable.h>
 #include <tui++/ActionMap.h>
 #include <tui++/KeyStroke.h>
 

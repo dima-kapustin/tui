@@ -1,9 +1,7 @@
 #pragma once
 
-#include <tui++/Theme.h>
 #include <tui++/Insets.h>
-
-#include <optional>
+#include <tui++/Themable.h>
 
 namespace tui {
 

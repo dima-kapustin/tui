@@ -7,7 +7,7 @@
 #include <unordered_map>
 
 #include <tui++/Event.h>
-#include <tui++/Theme.h>
+#include <tui++/Themable.h>
 #include <tui++/UIAction.h>
 
 namespace tui {

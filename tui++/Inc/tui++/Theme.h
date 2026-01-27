@@ -6,6 +6,8 @@
 #include <string_view>
 #include <unordered_map>
 
+#include <tui++/Color.h>
+
 #include <tui++/util/type_traits.h>
 
 namespace tui {
@@ -103,6 +105,10 @@ public:
     return get_lazy<Border>(key);
   }
 
+  std::optional<Color> get_color(std::string_view const &key) const {
+    return get<std::optional<Color>>(key);
+  }
+
 protected:
   Theme() = default;
 
@@ -127,47 +133,5 @@ protected:
 
   friend class laf::LookAndFeel;
 };
-
-constexpr bool is_theme_resource(Themable const&);
-constexpr bool is_theme_resource(Themable const*);
-constexpr bool is_theme_resource(std::shared_ptr<Themable const> const&);
-constexpr bool is_theme_resource(std::unique_ptr<Themable const> const&);
-
-class Themable {
-  Theme *theme = nullptr;
-
-  friend constexpr bool is_theme_resource(Themable const&);
-  friend constexpr bool is_theme_resource(Themable const*);
-  friend constexpr bool is_theme_resource(std::shared_ptr<Themable const> const&);
-  friend constexpr bool is_theme_resource(std::unique_ptr<Themable const> const&);
-
-  friend class Theme;
-
-public:
-  constexpr virtual ~Themable() {
-  }
-
-  constexpr bool operator==(Themable const &other) const = delete;
-
-protected:
-  constexpr Themable() {
-  }
-};
-
-constexpr bool is_theme_resource(Themable const &obj) {
-  return obj.theme;
-}
-
-constexpr bool is_theme_resource(Themable const *obj) {
-  return obj and is_theme_resource(*obj);
-}
-
-constexpr bool is_theme_resource(std::shared_ptr<Themable const> const &obj) {
-  return obj and is_theme_resource(*obj);
-}
-
-constexpr bool is_theme_resource(std::unique_ptr<Themable const> const &obj) {
-  return obj and is_theme_resource(*obj);
-}
 
 }

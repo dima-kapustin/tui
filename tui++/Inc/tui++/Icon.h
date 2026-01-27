@@ -1,6 +1,6 @@
 #pragma once
 
-#include <tui++/Theme.h>
+#include <tui++/Themable.h>
 
 namespace tui {
 

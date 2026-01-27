@@ -1,9 +1,10 @@
 #pragma once
 
-#include <tui++/Theme.h>
+#include <tui++/Themable.h>
 
 #include <cstdint>
 #include <charconv>
+#include <algorithm>
 
 namespace tui {
 

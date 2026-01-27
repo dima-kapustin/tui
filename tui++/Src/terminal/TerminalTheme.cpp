@@ -38,19 +38,19 @@ void TerminalTheme::init_component_defaults() {
   auto darkGray = make_resource(DARK_GRAY_COLOR);
   auto scrollBarTrack = make_resource<Color>(224, 224, 224);
 
-  auto control = get<std::optional<Color>>(SystemColorKeys::CONTROL);
-  auto controlDkShadow = get<std::optional<Color>>(SystemColorKeys::CONTROL_DK_SHADOW);
-  auto controlHighlight = get<std::optional<Color>>(SystemColorKeys::CONTROL_HIGHLIGHT);
-  auto controlLtHighlight = get<std::optional<Color>>(SystemColorKeys::CONTROL_LT_HIGHLIGHT);
-  auto controlShadow = get<std::optional<Color>>(SystemColorKeys::CONTROL_SHADOW);
-  auto controlText = get<std::optional<Color>>(SystemColorKeys::CONTROL_TEXT);
-  auto menu = get<std::optional<Color>>(SystemColorKeys::MENU);
-  auto menuText = get<std::optional<Color>>(SystemColorKeys::MENU_TEXT);
-  auto textHighlight = get<std::optional<Color>>(SystemColorKeys::TEXT_HIGHLIGHT);
-  auto textHighlightText = get<std::optional<Color>>(SystemColorKeys::TEXT_HIGHLIGHT_TEXT);
-  auto textInactiveText = get<std::optional<Color>>(SystemColorKeys::TEXT_INACTIVE_TEXT);
-  auto textText = get<std::optional<Color>>(SystemColorKeys::TEXT_TEXT);
-  auto window = get<std::optional<Color>>(SystemColorKeys::WINDOW);
+  auto control = get_color(SystemColorKeys::CONTROL);
+  auto controlDkShadow = get_color(SystemColorKeys::CONTROL_DK_SHADOW);
+  auto controlHighlight = get_color(SystemColorKeys::CONTROL_HIGHLIGHT);
+  auto controlLtHighlight = get_color(SystemColorKeys::CONTROL_LT_HIGHLIGHT);
+  auto controlShadow = get_color(SystemColorKeys::CONTROL_SHADOW);
+  auto controlText = get_color(SystemColorKeys::CONTROL_TEXT);
+  auto menu = get_color(SystemColorKeys::MENU);
+  auto menuText = get_color(SystemColorKeys::MENU_TEXT);
+  auto textHighlight = get_color(SystemColorKeys::TEXT_HIGHLIGHT);
+  auto textHighlightText = get_color(SystemColorKeys::TEXT_HIGHLIGHT_TEXT);
+  auto textInactiveText = get_color(SystemColorKeys::TEXT_INACTIVE_TEXT);
+  auto textText = get_color(SystemColorKeys::TEXT_TEXT);
+  auto window = get_color(SystemColorKeys::WINDOW);
 
   auto zero_insets = make_resource<Insets>(0, 0, 0, 0);
   auto two_insets = make_resource<Insets>(2, 2, 2, 2);
