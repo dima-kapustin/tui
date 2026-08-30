@@ -305,7 +305,7 @@ public:
 template<typename ... Events>
 class MultipleEventSource: virtual public MultipleEventSourceBase, virtual protected SingleEventSource<Events> ... {
   template<typename Event>
-  constexpr void update_event_listener_mask() {
+  void update_event_listener_mask() {
     auto event_mask = event_mask_v<Event>;
     if (SingleEventSource<Event>::event_listeners.empty()) {
       this->event_listener_mask &= ~event_mask;
@@ -322,7 +322,7 @@ class MultipleEventSource: virtual public MultipleEventSourceBase, virtual prote
   template<typename E, typename ... Es>
   void invoke_process_event(Event &e) {
     if (event_type_v<E> == e.id.type) {
-      SingleEventSource<E>::process_event(*dynamic_cast<E*>(&e));
+      SingleEventSource<E>::process_event(dynamic_cast<E&>(e));
     } else if constexpr (sizeof...(Es)) {
       invoke_process_event<Es...>(e);
     }
@@ -350,7 +350,7 @@ protected:
 
   template<typename Event>
   requires (is_one_of_v<Event, Events...> )
-  constexpr size_t get_event_listener_count() const {
+  size_t get_event_listener_count() const {
     return SingleEventSource<Event>::event_listeners.size();
   }
 
@@ -358,7 +358,7 @@ public:
 
   template<typename Listener, typename Event = event_type_from_listener_t<Listener>>
   requires (is_one_of_v<Event, Events...> and std::is_convertible_v<Listener*, EventListener<Event>*>)
-  constexpr void add_listener(const std::shared_ptr<Listener> &listener) {
+  void add_listener(const std::shared_ptr<Listener> &listener) {
     if (SingleEventSource<Event>::add_listener(std::static_pointer_cast<EventListener<Event>>(listener))) {
       if constexpr (has_type_enum_v<Event>) {
         update_event_listener_mask<Event>();
@@ -368,7 +368,7 @@ public:
 
   template<typename Callable, typename Event = event_type_from_callable_t<Callable, Events...>>
   requires (is_one_of_v<Event, Events...> and is_callable_listener_v<Callable, Event>)
-  constexpr void add_listener(Callable &&callable) {
+  void add_listener(Callable &&callable) {
     if (SingleEventSource<Event>::add_listener(std::forward<Callable>(callable))) {
       if constexpr (has_type_enum_v<Event>) {
         update_event_listener_mask<Event>();
@@ -378,7 +378,7 @@ public:
 
   template<typename Callable, typename Event = event_type_from_callable_t<Callable, Events...>>
   requires (is_one_of_v<Event, Events...> and is_callable_listener_v<Callable, Event> and has_type_enum_v<Event>)
-  constexpr void add_listener(typename Event::Type type, Callable &&callable) {
+  void add_listener(typename Event::Type type, Callable &&callable) {
     if (SingleEventSource<Event>::add_listener(std::vector<typename Event::Type> {1, type}, std::forward<Callable>(callable))) {
       update_event_listener_mask<Event>();
     }
@@ -386,7 +386,7 @@ public:
 
   template<typename Callable, typename Event = event_type_from_callable_t<Callable, Events...>>
   requires (is_one_of_v<Event, Events...> and is_callable_listener_v<Callable, Event> and has_type_enum_v<Event>)
-  constexpr void add_listener(std::initializer_list<typename Event::Type> types, Callable &&callable) {
+  void add_listener(std::initializer_list<typename Event::Type> types, Callable &&callable) {
     if (SingleEventSource<Event>::add_listener(std::vector<typename Event::Type> {types.begin(), types.end()}, std::forward<Callable>(callable))) {
       update_event_listener_mask<Event>();
     }
@@ -394,7 +394,7 @@ public:
 
   template<typename Listener, typename Event = event_type_from_listener_t<Listener>>
   requires (is_one_of_v<Event, Events...> and std::is_convertible_v<Listener*, EventListener<Event>*>)
-  constexpr void remove_listener(const std::shared_ptr<Listener> &listener) {
+  void remove_listener(const std::shared_ptr<Listener> &listener) {
     if (SingleEventSource<Event>::remove_listener(std::static_pointer_cast<EventListener<Event>>(listener))) {
       update_event_listener_mask<Event>();
     }
@@ -402,7 +402,7 @@ public:
 
   template<typename Callable, typename Event = event_type_from_callable_t<Callable, Events...>>
   requires (is_one_of_v<Event, Events...> and is_callable_listener_v<Callable, Event>)
-  constexpr void remove_listener(const Callable &callable) {
+  void remove_listener(const Callable &callable) {
     if (SingleEventSource<Event>::remove_listener(callable)) {
       if constexpr (has_type_enum_v<Event>) {
         update_event_listener_mask<Event>();
@@ -412,7 +412,7 @@ public:
 
   template<typename Callable, typename Event = event_type_from_callable_t<Callable, Events...>>
   requires (is_one_of_v<Event, Events...> and is_callable_listener_v<Callable, Event> and has_type_enum_v<Event>)
-  constexpr void remove_listener(typename Event::Type type, const Callable &callable) {
+  void remove_listener(typename Event::Type type, const Callable &callable) {
     if (SingleEventSource<Event>::remove_listener(std::vector<typename Event::Type> {1, type}, callable)) {
       update_event_listener_mask<Event>();
     }

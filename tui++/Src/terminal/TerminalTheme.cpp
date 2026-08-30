@@ -1,7 +1,14 @@
 #include <tui++/terminal/TerminalTheme.h>
 
+#include <tui++/border/LineBorder.h>
+#include <tui++/border/BevelBorder.h>
+#include <tui++/border/EmptyBorder.h>
+#include <tui++/border/EtchedBorder.h>
+#include <tui++/border/CompoundBorder.h>
+
 #include <tui++/lookandfeel/SystemColorKeys.h>
-#include <tui++/lookandfeel/border/MarginBorder.h>
+#include <tui++/lookandfeel/basic/MarginBorder.h>
+#include <tui++/lookandfeel/basic/ButtonBorder.h>
 
 #include <tui++/Insets.h>
 
@@ -56,9 +63,62 @@ void TerminalTheme::init_component_defaults() {
   auto two_insets = make_resource<Insets>(2, 2, 2, 2);
   auto three_insets = make_resource<Insets>(3, 3, 3, 3);
 
-  auto margin_border = BorderFactory { [] {
-    return std::make_shared<laf::MarginBorder>();
+  auto margin_border = BorderFactory { [this] {
+    return make_shared_resource<laf::MarginBorder>();
   } };
+
+  auto etched_border = BorderFactory { [this] {
+    return make_shared_resource<EtchedBorder>();
+  } };
+
+  auto lowered_bevel_border = BorderFactory { [this] {
+    return make_shared_resource<BevelBorder>(BevelBorder::LOWERED);
+  } };
+
+  auto internal_frame_border = BorderFactory { [this] {
+    static auto border = make_shared_resource<CompoundBorder>( //
+        std::make_shared<BevelBorder>( //
+            BevelBorder::RAISED, //
+            get_color("InternalFrame.BorderLight"), //
+            get_color("InternalFrame.BorderHighlight"), //
+            get_color("InternalFrame.BorderDarkShadow"), //
+            get_color("InternalFrame.BorderShadow")), //
+        std::make_shared<LineBorder>( //
+            Stroke::LIGHT, //
+            get_color("InternalFrame.BorderColor")));
+    return border;
+  } };
+
+  auto black_line_border = BorderFactory { [this] {
+    return make_shared_resource<LineBorder>(Stroke::LIGHT, BLACK_COLOR);
+  } };
+
+  auto popup_menu_border = internal_frame_border;
+
+  auto focusCellHighlightBorder = BorderFactory { [this] {
+    return make_shared_resource<LineBorder>(Stroke::LIGHT, YELLOW_COLOR);
+  } };
+
+  auto noFocusBorder = make_shared_resource<EmptyBorder>(1, 1, 1, 1);
+
+  auto tableHeaderBorder = BorderFactory { [this] {
+    return make_shared_resource<BevelBorder>( //
+        BevelBorder::RAISED, //
+        get_color(SystemColorKeys::CONTROL_LT_HIGHLIGHT), //
+        get_color(SystemColorKeys::CONTROL), //
+        get_color(SystemColorKeys::CONTROL_DK_SHADOW), //
+        get_color(SystemColorKeys::CONTROL_SHADOW));
+  } };
+
+  auto button_border = BorderFactory { [this] {
+    return make_shared_resource<laf::ButtonBorder>( //
+        get_color(SystemColorKeys::CONTROL_SHADOW), //
+        get_color(SystemColorKeys::CONTROL_DK_SHADOW), //
+        get_color(SystemColorKeys::CONTROL_HIGHLIGHT), //
+        get_color(SystemColorKeys::CONTROL_LT_HIGHLIGHT));
+  } };
+
+  put("Button.Border", button_border);
 
 //  put( { { "MenuItem.border", margin_border } });
 //

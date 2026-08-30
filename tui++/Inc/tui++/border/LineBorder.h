@@ -12,11 +12,11 @@ namespace tui {
 
 class LineBorder: public AbstractBorder {
   Stroke const stroke;
-  Color const line_color;
+  std::optional<Color> const line_color;
   std::optional<Color> background_color;
 
 public:
-  LineBorder(Stroke const &stroke, Color const &line_color, std::optional<Color> const &background_color = { }) :
+  LineBorder(Stroke const &stroke, std::optional<Color> const &line_color, std::optional<Color> const &background_color = { }) :
       stroke(stroke), line_color(line_color), background_color(background_color) {
   }
 

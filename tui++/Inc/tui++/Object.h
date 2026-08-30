@@ -3,7 +3,6 @@
 #include <vector>
 #include <memory>
 #include <cstring>
-#include <concepts>
 #include <algorithm>
 
 #include <tui++/event/PropertyChangeEvent.h>
@@ -275,7 +274,7 @@ public:
   }
 
   Property& operator=(const Property &other) {
-    set_value(other.value);
+    set_value(other.value());
     return *this;
   }
 
@@ -285,7 +284,7 @@ public:
   }
 
   bool operator==(const Property &other) const {
-    return this->value_ == other.value;
+    return this->value_ == other.value();
   }
 
   bool operator==(const T &other) const {

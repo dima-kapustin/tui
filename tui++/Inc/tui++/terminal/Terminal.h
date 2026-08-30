@@ -4,12 +4,13 @@
 #include <variant>
 #include <iostream>
 #include <functional>
+#include <memory>
+#include <string_view>
 
 #include <tui++/Event.h>
 #include <tui++/Cursor.h>
+#include <tui++/Screen.h>
 #include <tui++/Dimension.h>
-
-#include <tui++/terminal/TerminalScreen.h>
 
 namespace tui {
 
@@ -19,6 +20,7 @@ extern Terminal &terminal;
 class TerminalImpl;
 class TerminalScreen;
 class TerminalGraphics;
+class SixelScreen;
 
 class Terminal {
   enum class DECModeOption {
@@ -209,6 +211,7 @@ class Terminal {
 
 private:
   bool quit;
+  std::string_view type = "text";
 
   std::vector<Option> set_options;
 
@@ -264,6 +267,7 @@ private:
   friend Terminal& operator<<(Terminal &term, signed value);
 
   friend class TerminalScreen;
+  friend class SixelScreen;
 
   Terminal();
   ~Terminal();
@@ -277,9 +281,14 @@ public:
   static Terminal& get_singleton();
 
 public:
-  TerminalScreen& get_screen();
+  Screen& get_screen();
 
   Dimension get_size();
+
+  // Selects the rendering backend: "char" for the escape-sequence terminal
+  // screen (the default) or "graphic" for the pixel-level sixel screen. The
+  // screen is created implicitly the first time it is requested.
+  void set_type(std::string_view type);
 
   void hide_cursor();
   void show_cursor(std::optional<Cursor> const &cursor = { });

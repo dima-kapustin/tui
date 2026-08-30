@@ -1,4 +1,4 @@
-#include <tui++/lookandfeel/border/MarginBorder.h>
+#include <tui++/lookandfeel/basic/MarginBorder.h>
 
 #include <tui++/Component.h>
 #include <tui++/MarginContainer.h>

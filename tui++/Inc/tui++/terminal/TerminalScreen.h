@@ -42,7 +42,6 @@ class TerminalScreen: public Screen {
 private:
   TerminalScreen() noexcept;
 
-  void terminal_resized();
   void print();
 
   friend class Terminal;
@@ -77,6 +76,7 @@ public:
   virtual std::unique_ptr<Graphics> get_graphics(Rectangle const &clip) override;
 
   virtual void refresh();
+  virtual void resized() override;
 
   void clear();
   void flush();

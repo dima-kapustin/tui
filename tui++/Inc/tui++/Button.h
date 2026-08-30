@@ -19,6 +19,9 @@ protected:
   friend auto make_component(Args&&...);
 
   std::shared_ptr<laf::ComponentUI> create_ui() override;
+  
+public:
+  bool is_default_button() const;
 };
 
 }

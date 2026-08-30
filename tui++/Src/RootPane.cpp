@@ -175,14 +175,14 @@ std::shared_ptr<laf::ComponentUI> RootPane::create_ui() {
   return laf::LookAndFeel::create_ui(this);
 }
 
-std::shared_ptr<RootPane> get_root_pane(const std::shared_ptr<Component> &c) {
-  if (auto root_pane_conainter = std::dynamic_pointer_cast<RootPaneContainer>(c)) {
+std::shared_ptr<RootPane> get_root_pane(const std::shared_ptr<Component const> &c) {
+  if (auto root_pane_conainter = std::dynamic_pointer_cast<RootPaneContainer const>(c)) {
     return root_pane_conainter->get_root_pane();
   }
 
   for (auto parent = c; parent; parent = parent->get_parent()) {
-    if (auto root_pane = std::dynamic_pointer_cast<RootPane>(parent)) {
-      return root_pane;
+    if (auto root_pane = std::dynamic_pointer_cast<RootPane const>(parent)) {
+      return std::const_pointer_cast<RootPane>(root_pane);
     }
   }
   return nullptr;

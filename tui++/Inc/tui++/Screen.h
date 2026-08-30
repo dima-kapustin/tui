@@ -10,10 +10,7 @@
 namespace tui {
 
 class Screen;
-namespace detail {
-Screen& get_screen();
-}
-static Screen& screen = detail::get_screen();
+extern Screen &screen;
 
 class Frame;
 class Dialog;
@@ -48,11 +45,15 @@ private:
   void focus(const std::shared_ptr<Window> &gained, const std::shared_ptr<Window> &lost);
 
   friend class Window;
+  friend class Terminal;
 
 protected:
   Screen() = default;
   Screen(Screen const&) = delete;
   Screen(Screen&&) = delete;
+
+  virtual ~Screen() {
+  }
 
   Screen& operator=(Screen const&) = delete;
   Screen& operator=(Screen&&) = delete;
@@ -118,6 +119,11 @@ public:
   }
 
   virtual void refresh() = 0;
+
+  // Notifies the screen that the terminal was resized. Screens that poll the
+  // size themselves (e.g. the pixel-level screens) may leave this empty.
+  virtual void resized() {
+  }
 
   void add_listener(const EventTypeMask &event_mask, const std::shared_ptr<EventListener<Event>> &listener);
   void remove_listener(const std::shared_ptr<EventListener<Event>> &listener);

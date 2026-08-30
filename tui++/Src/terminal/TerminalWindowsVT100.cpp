@@ -5,7 +5,6 @@
 #endif
 
 #include <tui++/terminal/Terminal.h>
-#include <tui++/terminal/TerminalScreen.h>
 
 #include <locale>
 #include <cstring>

@@ -9,12 +9,6 @@
 
 #include <string_view>
 
-namespace tui::detail {
-Screen& get_screen() {
-  return Terminal::get_singleton().get_screen();
-}
-}
-
 using namespace std::string_view_literals;
 
 namespace tui {
@@ -227,7 +221,7 @@ void TerminalScreen::resize_view() {
   }
 }
 
-void TerminalScreen::terminal_resized() {
+void TerminalScreen::resized() {
   resize_view();
   refresh();
 }

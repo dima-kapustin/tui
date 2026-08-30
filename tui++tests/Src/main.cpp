@@ -1,16 +1,17 @@
 #include <tui++/Event.h>
 #include <tui++/Frame.h>
+#include <tui++/Panel.h>
+#include <tui++/border/EmptyBorder.h>
+#include <tui++/border/LineBorder.h>
 
 #include <tui++/Menu.h>
 #include <tui++/MenuBar.h>
 #include <tui++/MenuItem.h>
 
 #include <tui++/terminal/Terminal.h>
-#include <tui++/terminal/TerminalGraphics.h>
-
-#include <tui++/MenuSelectionManager.h>
 
 #include <iostream>
+#include <string_view>
 
 using namespace tui;
 
@@ -86,7 +87,10 @@ int main(int argc, char *argv[]) {
   test_Color();
 
   terminal.set_title("Welcome to tui++");
-  terminal.flush();
+
+  // Select the rendering backend: "text" for the escape-sequence terminal
+  // (the default) or "graphic" for the pixel-level sixel terminal.
+  terminal.set_type(argc > 1 and std::string_view(argv[1]) == "sixel" ? "graphic" : "text");
 
 //  terminal.post([&terminal] {
 //    auto g = terminal.get_graphics();
@@ -109,6 +113,15 @@ int main(int argc, char *argv[]) {
 //    std::cout << e.property_name << std::endl;
 //  });
   frame->set_size(terminal.get_size());
+
+  // Inset the content so the frame's background is visible around the panel.
+  frame->get_content_pane()->set_border(std::make_shared<EmptyBorder>(2, 2, 2, 2));
+
+  auto panel = make_component<Panel>();
+  panel->set_background_color(BLUE_COLOR);
+  panel->set_border(std::make_shared<LineBorder>(Stroke::HEAVY, YELLOW_COLOR));
+  frame->add(panel);
+
   frame->set_visible(true);
 
   frame->add_listener([](MouseMoveEvent &e) {

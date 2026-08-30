@@ -9,7 +9,6 @@
 #include <unistd.h>
 
 #include <tui++/terminal/Terminal.h>
-#include <tui++/terminal/TerminalScreen.h>
 
 namespace tui {
 

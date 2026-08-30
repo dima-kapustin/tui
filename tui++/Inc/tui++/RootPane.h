@@ -111,6 +111,6 @@ public:
   virtual void set_glass_pane(const std::shared_ptr<Component> &glass_pane) = 0;
 };
 
-std::shared_ptr<RootPane> get_root_pane(const std::shared_ptr<Component> &c);
+std::shared_ptr<RootPane> get_root_pane(const std::shared_ptr<Component const> &c);
 
 }
