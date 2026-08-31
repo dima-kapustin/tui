@@ -1,12 +1,13 @@
-#include <tui++/sixel/SixelScreen.h>
-#include <tui++/sixel/SixelGraphics.h>
+#include <tui++/terminal/graphic/GraphicScreen.h>
+#include <tui++/terminal/graphic/GraphicGraphics.h>
 #include <tui++/terminal/Terminal.h>
 
-#include <tui++/sixel/SixelEncoder.h>
+#include <tui++/terminal/graphic/GraphicEncoder.h>
 
-#include <tui++/lookandfeel/LookAndFeel.h>
-#include <tui++/lookandfeel/GraphicLookAndFeel.h>
-#include <tui++/terminal/GraphicTheme.h>
+#include <tui++/lookandfeel/graphic/GraphicLookAndFeel.h>
+#include <tui++/TextMetrics.h>
+
+#include <tui++/Font.h>
 
 #include <chrono>
 #include <memory>
@@ -18,21 +19,21 @@ namespace tui {
 
 constexpr std::chrono::milliseconds WAIT_EVENT_TIMEOUT { 30 };
 
-SixelScreen::SixelScreen() {
-  laf::LookAndFeel::set_current(std::make_shared<laf::GraphicLookAndFeel>());
-  laf::LookAndFeel::set_theme(std::make_shared<GraphicTheme>());
+GraphicScreen::GraphicScreen() {
+  this->look_and_feel = std::make_shared<laf::GraphicLookAndFeel>();
+  this->text_metrics = std::make_shared<PixelTextMetrics>(Font { });
 
   auto size = terminal.get_size();
   this->size = { size.width * CELL_WIDTH, size.height * CELL_HEIGHT };
   resize_buffer();
 }
 
-void SixelScreen::resize_buffer() {
+void GraphicScreen::resize_buffer() {
   this->pixels.assign(get_pixel_width() * get_pixel_height() * 3, 0);
   mark_dirty({ 0, 0, get_pixel_width(), get_pixel_height() });
 }
 
-void SixelScreen::mark_dirty(Rectangle const &rect) {
+void GraphicScreen::mark_dirty(Rectangle const &rect) {
   if (rect.empty()) {
     return;
   }
@@ -40,11 +41,11 @@ void SixelScreen::mark_dirty(Rectangle const &rect) {
   this->has_dirty = true;
 }
 
-void SixelScreen::move_cursor_to(int line, int column) {
+void GraphicScreen::move_cursor_to(int line, int column) {
   terminal << "\x1b["sv << line << ';' << column << 'H';
 }
 
-void SixelScreen::fill_pixels(Rectangle const &rect, Color const &color) {
+void GraphicScreen::fill_pixels(Rectangle const &rect, Color const &color) {
   auto left = std::max(rect.x, 0);
   auto top = std::max(rect.y, 0);
   auto right = std::min(rect.right(), get_pixel_width());
@@ -65,7 +66,7 @@ void SixelScreen::fill_pixels(Rectangle const &rect, Color const &color) {
   mark_dirty({ left, top, right - left, bottom - top });
 }
 
-void SixelScreen::blit_glyph(int x, int y, uint8_t const *glyph, std::optional<Color> const &foreground, std::optional<Color> const &background) {
+void GraphicScreen::blit_glyph(int x, int y, uint8_t const *glyph, std::optional<Color> const &foreground, std::optional<Color> const &background) {
   auto left = std::max(x, 0);
   auto top = std::max(y, 0);
   auto right = std::min(x + 8, get_pixel_width());
@@ -91,18 +92,18 @@ void SixelScreen::blit_glyph(int x, int y, uint8_t const *glyph, std::optional<C
   mark_dirty({ left, top, right - left, bottom - top });
 }
 
-void SixelScreen::clear() {
+void GraphicScreen::clear() {
   std::fill(this->pixels.begin(), this->pixels.end(), 0);
   mark_dirty({ 0, 0, get_pixel_width(), get_pixel_height() });
 }
 
-void SixelScreen::refresh() {
-  auto g = SixelGraphics { *this };
+void GraphicScreen::refresh() {
+  auto g = GraphicGraphics { *this };
   paint(g);
   flush();
 }
 
-void SixelScreen::run_event_loop() {
+void GraphicScreen::run_event_loop() {
   event_dispatching_thread_id = std::this_thread::get_id();
 
   auto size = this->size;
@@ -126,15 +127,15 @@ void SixelScreen::run_event_loop() {
   }
 }
 
-std::unique_ptr<Graphics> SixelScreen::get_graphics() {
-  return std::make_unique<SixelGraphics>(*this);
+std::unique_ptr<Graphics> GraphicScreen::get_graphics() {
+  return std::make_unique<GraphicGraphics>(*this);
 }
 
-std::unique_ptr<Graphics> SixelScreen::get_graphics(Rectangle const &clip) {
-  return std::make_unique<SixelGraphics>(*this, Rectangle { 0, 0, clip.width, clip.height }, clip.x, clip.y);
+std::unique_ptr<Graphics> GraphicScreen::get_graphics(Rectangle const &clip) {
+  return std::make_unique<GraphicGraphics>(*this, Rectangle { 0, 0, clip.width, clip.height }, clip.x, clip.y);
 }
 
-void SixelScreen::flush() {
+void GraphicScreen::flush() {
   if (not this->has_dirty) {
     return;
   }
@@ -148,7 +149,7 @@ void SixelScreen::flush() {
   auto bottom = std::min((rect.bottom() + CELL_HEIGHT - 1) / CELL_HEIGHT * CELL_HEIGHT, get_pixel_height());
   rect = { left, top, right - left, bottom - top };
 
-  auto data = SixelEncoder::encode(this->pixels.data() + (rect.y * get_pixel_width() + rect.x) * 3, rect.width, rect.height, get_pixel_width());
+  auto data = GraphicEncoder::encode(this->pixels.data() + (rect.y * get_pixel_width() + rect.x) * 3, rect.width, rect.height, get_pixel_width());
 
   move_cursor_to(rect.y / CELL_HEIGHT + 1, rect.x / CELL_WIDTH + 1);
   terminal << data;

@@ -1,12 +1,13 @@
 #include <tui++/Symbols.h>
 #include <tui++/CharIterator.h>
+#include <tui++/TextMetrics.h>
 
-#include <tui++/terminal/TerminalScreen.h>
-#include <tui++/terminal/TerminalGraphics.h>
+#include <tui++/terminal/text/TextScreen.h>
+#include <tui++/terminal/text/TextGraphics.h>
 
 namespace tui {
 
-TerminalGraphics::BoxCharacters TerminalGraphics::LIGHT_BOX = //
+TextGraphics::BoxCharacters TextGraphics::LIGHT_BOX = //
     { .top_left = Symbols::DOWN_AND_RIGHT_LIGHT, //
       .top = Symbols::HORIZONTAL_LIGHT, //
       .top_right = Symbols::DOWN_AND_LEFT_LIGHT, //
@@ -18,7 +19,7 @@ TerminalGraphics::BoxCharacters TerminalGraphics::LIGHT_BOX = //
       .horizontal = Symbols::HORIZONTAL_LIGHT, //
       .vertical = Symbols::VERTICAL_LIGHT };
 
-TerminalGraphics::BoxCharacters TerminalGraphics::HEAVY_BOX = //
+TextGraphics::BoxCharacters TextGraphics::HEAVY_BOX = //
     { .top_left = Symbols::DOWN_AND_RIGHT_HEAVY, //
       .top = Symbols::HORIZONTAL_HEAVY, //
       .top_right = Symbols::DOWN_AND_LEFT_HEAVY, //
@@ -30,7 +31,7 @@ TerminalGraphics::BoxCharacters TerminalGraphics::HEAVY_BOX = //
       .horizontal = Symbols::HORIZONTAL_HEAVY, //
       .vertical = Symbols::VERTICAL_HEAVY };
 
-TerminalGraphics::BoxCharacters TerminalGraphics::DOUBLE_BOX = //
+TextGraphics::BoxCharacters TextGraphics::DOUBLE_BOX = //
     { .top_left = Symbols::DOWN_AND_RIGHT_DOUBLE, //
       .top = Symbols::HORIZONTAL_DOUBLE, //
       .top_right = Symbols::DOWN_AND_LEFT_DOUBLE, //
@@ -42,7 +43,7 @@ TerminalGraphics::BoxCharacters TerminalGraphics::DOUBLE_BOX = //
       .horizontal = Symbols::HORIZONTAL_DOUBLE, //
       .vertical = Symbols::VERTICAL_DOUBLE };
 
-TerminalGraphics::BoxCharacters TerminalGraphics::ROUNDED_LIGHT_BOX = //
+TextGraphics::BoxCharacters TextGraphics::ROUNDED_LIGHT_BOX = //
     { .top_left = Symbols::DOWN_AND_RIGHT_ARC, //
       .top = Symbols::HORIZONTAL_LIGHT, //
       .top_right = Symbols::DOWN_AND_LEFT_ARC, //
@@ -58,15 +59,15 @@ constexpr std::optional<Attributes> operator|(std::optional<Attributes> const &x
   return x ? (y ? (x.value() | y.value()) : x) : std::nullopt;
 }
 
-TerminalGraphics::TerminalGraphics(TerminalScreen &screen) :
-    TerminalGraphics(screen, { 0, 0, screen.get_width(), screen.get_height() }, 0, 0) {
+TextGraphics::TextGraphics(TextScreen &screen) :
+    TextGraphics(screen, { 0, 0, screen.get_width(), screen.get_height() }, 0, 0) {
 }
 
-TerminalGraphics::TerminalGraphics(TerminalScreen &screen, const Rectangle &clip_rect, int dx, int dy) :
+TextGraphics::TextGraphics(TextScreen &screen, const Rectangle &clip_rect, int dx, int dy) :
     screen(screen), dx(dx), dy(dy), clip(clip_rect) {
 }
 
-const TerminalGraphics::BoxCharacters& TerminalGraphics::get_box_chars(Stroke stroke) {
+const TextGraphics::BoxCharacters& TextGraphics::get_box_chars(Stroke stroke) {
   switch (stroke) {
   default:
   case Stroke::LIGHT:
@@ -78,7 +79,7 @@ const TerminalGraphics::BoxCharacters& TerminalGraphics::get_box_chars(Stroke st
   }
 }
 
-void TerminalGraphics::draw_rect(int x, int y, int width, int height, const BoxCharacters &chars) {
+void TextGraphics::draw_rect(int x, int y, int width, int height, const BoxCharacters &chars) {
   int left = x + this->dx, top = y + this->dy;
   int right = left + width, bottom = top + height;
   int clip_left = this->clip.x;
@@ -138,7 +139,7 @@ void TerminalGraphics::draw_rect(int x, int y, int width, int height, const BoxC
   }
 }
 
-void TerminalGraphics::clip_rect(int x, int y, int width, int height) {
+void TextGraphics::clip_rect(int x, int y, int width, int height) {
   int left = x + this->dx;
   int top = y + this->dy;
   int right = left + width;
@@ -155,24 +156,24 @@ void TerminalGraphics::clip_rect(int x, int y, int width, int height) {
   this->clip.set(clip_left, clip_top, clip_width, clip_height);
 }
 
-std::unique_ptr<Graphics> TerminalGraphics::create() {
-  return std::make_unique<TerminalGraphics>(this->screen, this->clip, this->dx, this->dx);
+std::unique_ptr<Graphics> TextGraphics::create() {
+  return std::make_unique<TextGraphics>(this->screen, this->clip, this->dx, this->dx);
 }
 
-std::unique_ptr<Graphics> TerminalGraphics::create(int x, int y, int width, int height) {
+std::unique_ptr<Graphics> TextGraphics::create(int x, int y, int width, int height) {
   auto g = create();
   g->translate(x, y);
   g->clip_rect(0, 0, width, height);
   return g;
 }
 
-void TerminalGraphics::draw_char(const Char &c, int x, int y, std::optional<Attributes> const &attributes) {
+void TextGraphics::draw_char(const Char &c, int x, int y, std::optional<Attributes> const &attributes) {
   if (this->clip.contains(x + this->dx, y + this->dy)) {
     this->screen.draw_char(c, x + this->dx, y + this->dy, this->foreground_color, this->background_color, this->attributes | attributes);
   }
 }
 
-void TerminalGraphics::draw_hline(int x, int y, int length, std::optional<Attributes> const &attributes) {
+void TextGraphics::draw_hline(int x, int y, int length, std::optional<Attributes> const &attributes) {
   if (auto const rect = this->clip.intersection(x + this->dx, y + this->dy, length, 1)) {
     auto &chars = get_box_chars(this->stroke);
     for (int x = rect.left(), right = rect.right(); x < right; ++x) {
@@ -181,21 +182,22 @@ void TerminalGraphics::draw_hline(int x, int y, int length, std::optional<Attrib
   }
 }
 
-void TerminalGraphics::draw_rect(int x, int y, int width, int height) {
+void TextGraphics::draw_rect(int x, int y, int width, int height) {
   draw_rect(x, y, width, height, get_box_chars(this->stroke));
 }
 
-void TerminalGraphics::draw_rounded_rect(int x, int y, int width, int height) {
+void TextGraphics::draw_rounded_rect(int x, int y, int width, int height) {
   draw_rect(x, y, width, height, ROUNDED_LIGHT_BOX);
 }
 
-void TerminalGraphics::draw_string(const std::string &str, int x, int y, std::optional<Attributes> const &attributes) {
+void TextGraphics::draw_string(const std::string &str, int x, int y, std::optional<Attributes> const &attributes) {
   x += this->dx;
   y += this->dy;
-  if (auto const rect = this->clip.intersection(x, y, util::glyph_width(str), 1)) {
+  auto metrics = this->screen.get_text_metrics();
+  if (auto const rect = this->clip.intersection(x, y, metrics->get_width(str), 1)) {
     auto const left = rect.left(), right = rect.right();
     for (auto &&ch : to_chars(str)) {
-      auto glyph_width = ch.glyph_width();
+      auto glyph_width = metrics->get_char_width(ch.get_code());
       if ((x + glyph_width) >= left) {
         this->screen.draw_char(ch, x, y, this->foreground_color, this->background_color, this->attributes | attributes);
       }
@@ -207,7 +209,7 @@ void TerminalGraphics::draw_string(const std::string &str, int x, int y, std::op
   }
 }
 
-void TerminalGraphics::draw_vline(int x, int y, int length, std::optional<Attributes> const &attributes) {
+void TextGraphics::draw_vline(int x, int y, int length, std::optional<Attributes> const &attributes) {
   if (auto const rect = this->clip.intersection(x + this->dx, y + this->dy, 1, length)) {
     auto &chars = get_box_chars(this->stroke);
     for (auto y = rect.top(), bottom = rect.bottom(); y < bottom; ++y) {
@@ -216,7 +218,7 @@ void TerminalGraphics::draw_vline(int x, int y, int length, std::optional<Attrib
   }
 }
 
-void TerminalGraphics::fill_rect(int x, int y, int width, int height) {
+void TextGraphics::fill_rect(int x, int y, int width, int height) {
   if (auto const rect = this->clip.intersection(x + this->dx, y + this->dy, width, height)) {
     for (auto j = rect.top(), bottom = rect.bottom(); j < bottom; j++) {
       for (auto i = rect.left(), right = rect.right(); i < right; i++) {
@@ -226,33 +228,33 @@ void TerminalGraphics::fill_rect(int x, int y, int width, int height) {
   }
 }
 
-Rectangle TerminalGraphics::get_clip_rect() const {
+Rectangle TextGraphics::get_clip_rect() const {
   auto clip_rect = this->clip;
   clip_rect.translate(-this->dx, -this->dy);
   return clip_rect;
 }
 
-std::optional<Color> const& TerminalGraphics::get_foreground_color() const {
+std::optional<Color> const& TextGraphics::get_foreground_color() const {
   return this->foreground_color;
 }
 
-std::optional<Color> const& TerminalGraphics::get_background_color() const {
+std::optional<Color> const& TextGraphics::get_background_color() const {
   return this->background_color;
 }
 
-void TerminalGraphics::set_foreground_color(std::optional<Color> const &color) {
+void TextGraphics::set_foreground_color(std::optional<Color> const &color) {
   this->foreground_color = color;
 }
 
-void TerminalGraphics::set_background_color(std::optional<Color> const &color) {
+void TextGraphics::set_background_color(std::optional<Color> const &color) {
   this->background_color = color;
 }
 
-Font TerminalGraphics::get_font() const {
+Font TextGraphics::get_font() const {
   return this->font;
 }
 
-void TerminalGraphics::reset(const Rectangle &clip) {
+void TextGraphics::reset(const Rectangle &clip) {
   this->foreground_color = { };
   this->background_color = { };
   this->font = { };
@@ -261,35 +263,35 @@ void TerminalGraphics::reset(const Rectangle &clip) {
   this->dx = this->dy = 0;
 }
 
-void TerminalGraphics::set_clip_rect(const Rectangle &rect) {
+void TextGraphics::set_clip_rect(const Rectangle &rect) {
   this->clip = rect;
   this->clip.translate(this->dx, this->dy);
 }
 
-bool TerminalGraphics::hit_clip_rect(int x, int y, int width, int height) const {
+bool TextGraphics::hit_clip_rect(int x, int y, int width, int height) const {
   auto clip_rect = get_clip_rect();
   return clip_rect.intersects(x, y, width, height);
 }
 
-void TerminalGraphics::set_font(const Font &font) {
+void TextGraphics::set_font(const Font &font) {
   this->font = font;
   update_attributes();
 }
 
-Stroke TerminalGraphics::get_stroke() const {
+Stroke TextGraphics::get_stroke() const {
   return this->stroke;
 }
 
-void TerminalGraphics::set_stroke(Stroke stroke) {
+void TextGraphics::set_stroke(Stroke stroke) {
   this->stroke = stroke;
 }
 
-void TerminalGraphics::translate(int dx, int dy) {
+void TextGraphics::translate(int dx, int dy) {
   this->dx += dx;
   this->dy += dy;
 }
 
-void TerminalGraphics::update_attributes() {
+void TextGraphics::update_attributes() {
   auto attributes = Attributes::NONE;
   if (this->font.get_style() & Font::BOLD) {
     attributes = Attribute::BOLD;
@@ -302,7 +304,7 @@ void TerminalGraphics::update_attributes() {
   this->attributes = attributes;
 }
 
-void TerminalGraphics::flush() {
+void TextGraphics::flush() {
   this->screen.flush();
 }
 

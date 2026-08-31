@@ -1,6 +1,7 @@
 #include <tui++/lookandfeel/MenuItemUI.h>
 #include <tui++/lookandfeel/LazyActionMap.h>
 #include <tui++/lookandfeel/MenuLayout.h>
+#include <tui++/TextMetrics.h>
 
 #include <tui++/Icon.h>
 #include <tui++/Menu.h>
@@ -9,6 +10,7 @@
 #include <tui++/RadioButtonMenuItem.h>
 #include <tui++/MenuSelectionManager.h>
 #include <tui++/Graphics.h>
+#include <tui++/Screen.h>
 
 #include <cassert>
 
@@ -219,8 +221,9 @@ std::optional<Dimension> MenuItemUI::get_preferred_size(std::shared_ptr<const Co
     }
   }
   auto &&text = this->menu_item->get_text();
-  auto width = text.empty() ? 0 : int(util::glyph_width(text));
-  return Dimension { width + 2, 1 };
+  auto metrics = screen.get_text_metrics();
+  auto width = text.empty() ? 0 : metrics->get_width(text);
+  return Dimension { width + 2, metrics->get_line_height() };
 }
 
 void MenuItemUI::paint(Graphics &g, std::shared_ptr<const Component> const &c) const {

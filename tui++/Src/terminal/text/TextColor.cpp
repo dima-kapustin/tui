@@ -1,8 +1,8 @@
-#include <tui++/terminal/TerminalColor.h>
+#include <tui++/terminal/text/TextColor.h>
 
 namespace tui {
 namespace detail {
-struct TerminalColorMapping {
+struct TextColorMapping {
   const char *name;
   uint8_t index_256;
   uint8_t index_16;
@@ -15,7 +15,7 @@ struct TerminalColorMapping {
 };
 
 // @formatter:off
-constexpr std::array<TerminalColorMapping, 256> terminal_color_table = {{
+constexpr std::array<TextColorMapping, 256> terminal_color_table = {{
      {"Black"              , 0   , 0  , 0   , 0   , 0   , 0   , 0   , 0   } ,
      {"Red"                , 1   , 1  , 128 , 0   , 0   , 0   , 255 , 128 } ,
      {"Green"              , 2   , 2  , 0   , 128 , 0   , 85  , 255 , 128 } ,

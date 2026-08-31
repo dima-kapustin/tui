@@ -4,6 +4,7 @@
 
 #include <tui++/Component.h>
 #include <tui++/Theme.h>
+#include <tui++/Screen.h>
 
 namespace tui {
 class Icon;
@@ -38,26 +39,45 @@ class PopupMenuSeparatorUI;
 class SeparatorUI;
 class ToggleButtonUI;
 
+// Interface for a look-and-feel. The concrete instance is created by (and
+// retrieved through) the screen, which is global and always instantiated.
 class LookAndFeel {
-  static std::shared_ptr<Theme> theme;
-  static std::shared_ptr<LookAndFeel> current;
-
 public:
   virtual ~LookAndFeel() = default;
 
-  static std::shared_ptr<Theme> const& get_theme() {
-    return theme;
+  virtual std::shared_ptr<Theme> get_theme() const = 0;
+
+  virtual std::shared_ptr<FrameUI> create_frame_ui(Frame *c) = 0;
+  virtual std::shared_ptr<PanelUI> create_panel_ui(Panel *c) = 0;
+  virtual std::shared_ptr<ButtonUI> create_button_ui(Button *c) = 0;
+  virtual std::shared_ptr<MenuItemUI> create_menu_item_ui(MenuItem *c) = 0;
+  virtual std::shared_ptr<MenuUI> create_menu_ui(Menu *c) = 0;
+  virtual std::shared_ptr<MenuBarUI> create_menu_bar_ui(MenuBar *c) = 0;
+  virtual std::shared_ptr<RootPaneUI> create_root_pane_ui(RootPane *c) = 0;
+  virtual std::shared_ptr<PopupMenuUI> create_popup_menu_ui(PopupMenu *c) = 0;
+  virtual std::shared_ptr<PopupMenuSeparatorUI> create_popup_menu_separator_ui(PopupMenuSeparator *c) = 0;
+  virtual std::shared_ptr<SeparatorUI> create_separator_ui(Separator *c) = 0;
+  virtual std::shared_ptr<ToggleButtonUI> create_toggle_button_ui(ToggleButton *c) = 0;
+
+protected:
+  void init_theme(std::shared_ptr<Theme> const &theme) {
+    theme->init();
   }
 
-  static void set_theme(std::shared_ptr<Theme> const &theme);
+public:
+  // ---- static facade (routes through the global screen's look-and-feel) ----
 
-  static void set_current(std::shared_ptr<LookAndFeel> const &lf) {
-    current = lf;
+  static std::shared_ptr<LookAndFeel> get_current() {
+    return screen.get_look_and_feel();
+  }
+
+  static std::shared_ptr<Theme> get_current_theme() {
+    return get_current()->get_theme();
   }
 
   template<typename T>
   static T get(std::string_view const &key, T &&default_value = { }) {
-    return theme->get<T>(key, std::forward<T>(default_value));
+    return get_current_theme()->get<T>(key, std::forward<T>(default_value));
   }
 
   template<typename T>
@@ -70,26 +90,26 @@ public:
   }
 
   static std::shared_ptr<Icon> get_icon(std::string_view const &key) {
-    return theme->get_icon(key);
+    return get_current_theme()->get_icon(key);
   }
 
   static std::shared_ptr<Border> get_border(std::string_view const &key) {
-    return theme->get_border(key);
+    return get_current_theme()->get_border(key);
   }
 
   template<typename T>
   static void put(std::string_view const &key, T &&value) {
-    theme->put(key, std::forward<T>(value));
+    get_current_theme()->put(key, std::forward<T>(value));
   }
 
   template<typename T, typename ... Args>
   static std::shared_ptr<T> make_theme_resource(Args &&... args) {
-    return theme->make_shared_resource<T>(std::forward<Args>(args)...);
+    return get_current_theme()->make_shared_resource<T>(std::forward<Args>(args)...);
   }
 
   template<typename T>
-  constexpr std::enable_if_t<std::is_base_of_v<Themable, T>, T&&> make_theme_resource(T &&obj) {
-    return theme->make_resource(std::move(obj));
+  static constexpr std::enable_if_t<std::is_base_of_v<Themable, T>, T&&> make_theme_resource(T &&obj) {
+    return get_current_theme()->make_resource(std::move(obj));
   }
 
   template<typename T>
@@ -123,51 +143,38 @@ public:
   static void replace_input_map(Component *c, Component::InputCondition condition, std::shared_ptr<InputMap> const &new_map);
   static void replace_action_map(Component *c, std::shared_ptr<ActionMap> const &new_map);
 
-public:
-  virtual std::shared_ptr<FrameUI> create_frame_ui(Frame *c) = 0;
-  virtual std::shared_ptr<PanelUI> create_panel_ui(Panel *c) = 0;
-  virtual std::shared_ptr<ButtonUI> create_button_ui(Button *c) = 0;
-  virtual std::shared_ptr<MenuItemUI> create_menu_item_ui(MenuItem *c) = 0;
-  virtual std::shared_ptr<MenuUI> create_menu_ui(Menu *c) = 0;
-  virtual std::shared_ptr<MenuBarUI> create_menu_bar_ui(MenuBar *c) = 0;
-  virtual std::shared_ptr<RootPaneUI> create_root_pane_ui(RootPane *c) = 0;
-  virtual std::shared_ptr<PopupMenuUI> create_popup_menu_ui(PopupMenu *c) = 0;
-  virtual std::shared_ptr<PopupMenuSeparatorUI> create_popup_menu_separator_ui(PopupMenuSeparator *c) = 0;
-  virtual std::shared_ptr<SeparatorUI> create_separator_ui(Separator *c) = 0;
-  virtual std::shared_ptr<ToggleButtonUI> create_toggle_button_ui(ToggleButton *c) = 0;
-
   static std::shared_ptr<FrameUI> create_ui(Frame *c) {
-    return current->create_frame_ui(c);
+    return get_current()->create_frame_ui(c);
   }
   static std::shared_ptr<PanelUI> create_ui(Panel *c) {
-    return current->create_panel_ui(c);
+    return get_current()->create_panel_ui(c);
   }
   static std::shared_ptr<ButtonUI> create_ui(Button *c) {
-    return current->create_button_ui(c);
+    return get_current()->create_button_ui(c);
   }
   static std::shared_ptr<MenuItemUI> create_ui(MenuItem *c) {
-    return current->create_menu_item_ui(c);
+    return get_current()->create_menu_item_ui(c);
   }
   static std::shared_ptr<MenuUI> create_ui(Menu *c) {
-    return current->create_menu_ui(c);
+    return get_current()->create_menu_ui(c);
   }
   static std::shared_ptr<MenuBarUI> create_ui(MenuBar *c) {
-    return current->create_menu_bar_ui(c);
+    return get_current()->create_menu_bar_ui(c);
   }
   static std::shared_ptr<RootPaneUI> create_ui(RootPane *c) {
-    return current->create_root_pane_ui(c);
+    return get_current()->create_root_pane_ui(c);
   }
   static std::shared_ptr<PopupMenuUI> create_ui(PopupMenu *c) {
-    return current->create_popup_menu_ui(c);
+    return get_current()->create_popup_menu_ui(c);
   }
   static std::shared_ptr<PopupMenuSeparatorUI> create_ui(PopupMenuSeparator *c) {
-    return current->create_popup_menu_separator_ui(c);
+    return get_current()->create_popup_menu_separator_ui(c);
   }
   static std::shared_ptr<SeparatorUI> create_ui(Separator *c) {
-    return current->create_separator_ui(c);
+    return get_current()->create_separator_ui(c);
   }
   static std::shared_ptr<ToggleButtonUI> create_ui(ToggleButton *c) {
-    return current->create_toggle_button_ui(c);
+    return get_current()->create_toggle_button_ui(c);
   }
 };
 

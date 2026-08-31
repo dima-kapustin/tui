@@ -18,9 +18,9 @@ class Terminal;
 extern Terminal &terminal;
 
 class TerminalImpl;
-class TerminalScreen;
-class TerminalGraphics;
-class SixelScreen;
+class TextScreen;
+class TextGraphics;
+class GraphicScreen;
 
 class Terminal {
   enum class DECModeOption {
@@ -266,8 +266,8 @@ private:
   friend Terminal& operator<<(Terminal &term, unsigned value);
   friend Terminal& operator<<(Terminal &term, signed value);
 
-  friend class TerminalScreen;
-  friend class SixelScreen;
+  friend class TextScreen;
+  friend class GraphicScreen;
 
   Terminal();
   ~Terminal();

@@ -4,58 +4,48 @@
 
 namespace tui {
 
-class TerminalScreen;
+class GraphicScreen;
 
-class TerminalGraphics: public Graphics {
-  struct BoxCharacters {
-    Char top_left;
-    Char top;
-    Char top_right;
-    Char right;
-    Char bottom_right;
-    Char bottom;
-    Char bottom_left;
-    Char left;
-    Char horizontal;
-    Char vertical;
-  };
+// Rasterizes the drawing API into the GraphicScreen's pixel framebuffer. All
+// coordinates and sizes are in pixels: the GraphicScreen reports its size in
+// pixels, so components lay out and draw directly against individual pixels.
+class GraphicGraphics: public Graphics {
+  GraphicScreen &screen;
 
-  static BoxCharacters LIGHT_BOX;
-  static BoxCharacters HEAVY_BOX;
-  static BoxCharacters DOUBLE_BOX;
-  static BoxCharacters ROUNDED_LIGHT_BOX;
-
-  static const BoxCharacters& get_box_chars(Stroke stroke);
-
-private:
-  TerminalScreen &screen;
-
-  Font font;
   int dx, dy;
   Rectangle clip;
 
   Stroke stroke = Stroke::LIGHT;
 
+  Font font;
+
   std::optional<Color> foreground_color;
   std::optional<Color> background_color;
-  std::optional<Attributes> attributes;
-
-public:
-  TerminalGraphics(TerminalScreen &screen);
-  TerminalGraphics(TerminalScreen &screen, const Rectangle &clip_rect, int dx, int dy);
 
 private:
-  void reset(const Rectangle &r);
+  std::optional<Color> get_fill_color() const;
+  std::optional<Color> get_line_color() const;
 
-  void update_attributes();
+  // Returns the pixel rectangle (in this graphics' coordinates, offset by
+  // dx/dy) clipped to the clip rect.
+  Rectangle clipped(int x, int y, int width, int height) const;
 
-  void draw_rect(int x, int y, int width, int height, const BoxCharacters &chars);
+  // Draws a solid pixel rectangle with the line color.
+  void draw_pixel_rect(int x, int y, int width, int height);
+
+  // Blits the glyph for `code` (from the embedded bitmap font) at pixel (x, y).
+  void blit_glyph(char32_t code, int x, int y);
+
+  int stroke_width() const;
+
+public:
+  GraphicGraphics(GraphicScreen &screen);
+  GraphicGraphics(GraphicScreen &screen, const Rectangle &clip_rect, int dx, int dy);
 
 public:
   virtual void clip_rect(int x, int y, int width, int height) override;
 
   virtual std::unique_ptr<Graphics> create();
-
   virtual std::unique_ptr<Graphics> create(int x, int y, int width, int height) override;
 
   virtual void draw_char(const Char &c, int x, int y, std::optional<Attributes> const &attributes = std::nullopt) override;

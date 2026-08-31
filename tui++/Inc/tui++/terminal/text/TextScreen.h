@@ -8,39 +8,32 @@
 #include <tui++/Screen.h>
 #include <tui++/Attributes.h>
 
-#include <tui++/terminal/TerminalColor.h>
-
-#include <tui++/util/utf-8.h>
+#include <tui++/terminal/text/TextColor.h>
 
 namespace tui {
 
 class Terminal;
-class TerminalGraphics;
+class TextGraphics;
 
-class TerminalScreen: public Screen {
+class TextScreen: public Screen {
   using base = Screen;
 
   struct CharView {
     Char ch = ' ';
     Attributes attributes = Attributes::NONE;
-    TerminalColor foreground_color = { };
-    TerminalColor background_color = { };
-
-    const size_t get_width() const {
-      return util::glyph_width(this->ch);
-    }
-
-    const bool is_wide() const {
-      return get_width() == 2;
-    }
+    TextColor foreground_color = { };
+    TextColor background_color = { };
   };
 
   static CharView EMPTY_CHAR_VIEW;
 
   std::vector</* rows */std::vector</* columns */CharView>> view;
 
+  std::shared_ptr<laf::LookAndFeel> look_and_feel;
+  std::shared_ptr<TextMetrics> text_metrics;
+
 private:
-  TerminalScreen() noexcept;
+  TextScreen() noexcept;
 
   void print();
 
@@ -49,7 +42,7 @@ private:
 private:
   void resize_view();
 
-  TerminalColor to_terminal(Color const& c);
+  TextColor to_terminal(Color const& c);
 
   void draw_char(Char ch, int x, int y, std::optional<Color> const &foreground_color, std::optional<Color> const &background_color, std::optional<Attributes> const &attributes) {
     auto &cv = this->view[y][x];
@@ -65,7 +58,7 @@ private:
     }
   }
 
-  friend class TerminalGraphics;
+  friend class TextGraphics;
 
 public:
   void move_cursor_to(int line, int column);
@@ -74,6 +67,14 @@ public:
   virtual void run_event_loop() override;
   virtual std::unique_ptr<Graphics> get_graphics() override;
   virtual std::unique_ptr<Graphics> get_graphics(Rectangle const &clip) override;
+
+  virtual std::shared_ptr<laf::LookAndFeel> get_look_and_feel() const override {
+    return this->look_and_feel;
+  }
+
+  virtual std::shared_ptr<TextMetrics> get_text_metrics() const override {
+    return this->text_metrics;
+  }
 
   virtual void refresh();
   virtual void resized() override;

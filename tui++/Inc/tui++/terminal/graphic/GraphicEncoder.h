@@ -11,7 +11,7 @@ namespace tui {
 // wrapper, raster attributes, band palettes and the sixel data itself.
 // Renderers just hand over pixels and get back a string that can be written
 // to the terminal.
-class SixelEncoder {
+class GraphicEncoder {
 public:
   // Encodes a width x height image. The pixels are tightly packed rows of
   // 24-bit RGB (8 bits per channel), `stride` pixels per row.

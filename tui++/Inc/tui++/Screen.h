@@ -17,6 +17,11 @@ class Dialog;
 class Window;
 class Graphics;
 
+namespace laf {
+class LookAndFeel;
+}
+class TextMetrics;
+
 class Screen {
   struct SelectiveListener {
     EventTypeMask event_mask;
@@ -87,6 +92,10 @@ public:
   virtual void run_event_loop() = 0;
   virtual std::unique_ptr<Graphics> get_graphics() = 0;
   virtual std::unique_ptr<Graphics> get_graphics(Rectangle const& clip) = 0;
+
+  // The look-and-feel (and text metrics) installed by this screen.
+  virtual std::shared_ptr<laf::LookAndFeel> get_look_and_feel() const = 0;
+  virtual std::shared_ptr<TextMetrics> get_text_metrics() const = 0;
 
   int get_width() const {
     return this->size.width;

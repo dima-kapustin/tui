@@ -2,6 +2,8 @@
 
 #include <tui++/lookandfeel/LookAndFeel.h>
 
+#include <tui++/terminal/text/TextTheme.h>
+
 #include <tui++/lookandfeel/PanelUI.h>
 #include <tui++/lookandfeel/FrameUI.h>
 #include <tui++/lookandfeel/ButtonUI.h>
@@ -20,6 +22,19 @@ namespace tui::laf {
 // The default look-and-feel for the "text" (character-cell) terminal. Its UI
 // delegates express sizes and positions in terminal cells.
 class TextLookAndFeel: public LookAndFeel {
+protected:
+  std::shared_ptr<Theme> theme;
+
+public:
+  TextLookAndFeel() :
+      theme(std::make_shared<TextTheme>()) {
+    init_theme(this->theme);
+  }
+
+  virtual std::shared_ptr<Theme> get_theme() const override {
+    return this->theme;
+  }
+
   virtual std::shared_ptr<FrameUI> create_frame_ui(Frame *c) override {
     return std::make_shared<FrameUI>();
   }

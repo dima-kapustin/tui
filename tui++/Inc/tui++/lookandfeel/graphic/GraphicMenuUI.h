@@ -1,11 +1,11 @@
 #pragma once
 
 #include <tui++/lookandfeel/MenuUI.h>
-#include <tui++/lookandfeel/GraphicMenuItemUI.h>
+#include <tui++/TextMetrics.h>
 
 #include <tui++/Graphics.h>
 #include <tui++/MenuItem.h>
-#include <tui++/util/utf-8.h>
+#include <tui++/Screen.h>
 
 namespace tui::laf {
 
@@ -16,8 +16,9 @@ public:
   virtual std::optional<Dimension> get_preferred_size(std::shared_ptr<const Component> const &c) const override {
     auto menu_item = std::static_pointer_cast<const MenuItem>(c);
     auto &&text = menu_item->get_text();
-    auto width = text.empty() ? 0 : int(util::glyph_width(text));
-    return Dimension { width * GRAPHIC_CELL_WIDTH + 2 * GRAPHIC_CELL_WIDTH, GRAPHIC_CELL_HEIGHT };
+    auto metrics = screen.get_text_metrics();
+    auto width = text.empty() ? 0 : metrics->get_width(text);
+    return Dimension { width + 2 * GRAPHIC_CELL_WIDTH, metrics->get_line_height() };
   }
 
 protected:

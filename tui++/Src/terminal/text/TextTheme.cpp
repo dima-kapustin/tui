@@ -1,4 +1,4 @@
-#include <tui++/terminal/TextTheme.h>
+#include <tui++/terminal/text/TextTheme.h>
 
 #include <tui++/border/LineBorder.h>
 #include <tui++/border/BevelBorder.h>

@@ -1,9 +1,11 @@
 #pragma once
 
-#include <tui++/lookandfeel/TextLookAndFeel.h>
+#include <tui++/lookandfeel/text/TextLookAndFeel.h>
 
-#include <tui++/lookandfeel/GraphicMenuItemUI.h>
-#include <tui++/lookandfeel/GraphicMenuUI.h>
+#include <tui++/terminal/graphic/GraphicTheme.h>
+
+#include <tui++/lookandfeel/graphic/GraphicMenuItemUI.h>
+#include <tui++/lookandfeel/graphic/GraphicMenuUI.h>
 
 namespace tui::laf {
 
@@ -11,6 +13,12 @@ namespace tui::laf {
 // look-and-feel's delegates except for menu items and menus, whose sizes and
 // text positions are expressed in pixels.
 class GraphicLookAndFeel: public TextLookAndFeel {
+public:
+  GraphicLookAndFeel() {
+    this->theme = std::make_shared<GraphicTheme>();
+    init_theme(this->theme);
+  }
+
   virtual std::shared_ptr<MenuItemUI> create_menu_item_ui(MenuItem *c) override {
     return std::make_shared<GraphicMenuItemUI>();
   }

@@ -4,20 +4,15 @@
 #include <tui++/KeyboardFocusManager.h>
 
 #include <tui++/terminal/Terminal.h>
-#include <tui++/terminal/TerminalScreen.h>
-#include <tui++/terminal/TerminalGraphics.h>
-#include <tui++/terminal/TextTheme.h>
-#include <tui++/terminal/GraphicTheme.h>
-#include <tui++/sixel/SixelScreen.h>
-
-#include <tui++/lookandfeel/TextLookAndFeel.h>
-#include <tui++/lookandfeel/GraphicLookAndFeel.h>
+#include <tui++/terminal/text/TextScreen.h>
+#include <tui++/terminal/text/TextGraphics.h>
+#include <tui++/terminal/graphic/GraphicScreen.h>
 
 using namespace std::string_view_literals;
 
 static std::atomic<unsigned> terminal_ref_counter = 0;
 static std::byte terminal_buf[sizeof(tui::Terminal)];
-static std::byte screen_buf[std::max(sizeof(tui::TerminalScreen), sizeof(tui::SixelScreen))];
+static std::byte screen_buf[std::max(sizeof(tui::TextScreen), sizeof(tui::GraphicScreen))];
 
 namespace tui {
 Terminal &terminal = reinterpret_cast<Terminal&>(terminal_buf);
@@ -29,7 +24,7 @@ namespace tui {
 Terminal& Terminal::get_singleton() {
   if (terminal_ref_counter++ == 0) {
     ::new (&terminal) Terminal();
-    ::new (&screen) TerminalScreen();
+    ::new (&screen) TextScreen();
   }
   return terminal;
 }
@@ -254,11 +249,9 @@ void Terminal::set_type(std::string_view type) {
     screen.~Screen();
 
     if (type == "graphic") {
-      ::new (&screen) SixelScreen();
-	    laf::LookAndFeel::set_current(std::make_shared<laf::GraphicLookAndFeel>());
-  	  laf::LookAndFeel::set_theme(std::make_shared<GraphicTheme>());
+      ::new (&screen) GraphicScreen();
     } else {
-      ::new (&screen) TerminalScreen();
+      ::new (&screen) TextScreen();
     }
 
     this->type = type;

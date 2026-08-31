@@ -1,10 +1,11 @@
 #include <tui++/terminal/Terminal.h>
-#include <tui++/terminal/TerminalScreen.h>
-#include <tui++/terminal/TerminalGraphics.h>
-#include <tui++/terminal/TextTheme.h>
+#include <tui++/terminal/text/TextScreen.h>
+#include <tui++/terminal/text/TextGraphics.h>
 
-#include <tui++/lookandfeel/LookAndFeel.h>
-#include <tui++/lookandfeel/TextLookAndFeel.h>
+#include <tui++/lookandfeel/text/TextLookAndFeel.h>
+#include <tui++/TextMetrics.h>
+
+#include <tui++/Font.h>
 
 #include <tui++/util/utf-8.h>
 
@@ -124,7 +125,7 @@ constexpr std::array<std::string_view, 33> palette16_color_codes = //
       "96", "106",  //
       "97", "107" };
 
-static void escape_background_color(TerminalColor const &color) {
+static void escape_background_color(TextColor const &color) {
   struct SetBackgroundColor {
     void operator()(detail::DefaultColor const&) {
       terminal << "\x1b[49m"sv;
@@ -145,7 +146,7 @@ static void escape_background_color(TerminalColor const &color) {
   std::visit(SetBackgroundColor { }, color);
 }
 
-static void escape_foreground_color(TerminalColor const &color) {
+static void escape_foreground_color(TextColor const &color) {
   struct SetForegroundColor {
     void operator()(detail::DefaultColor const&) {
       terminal << "\x1b[39m"sv;
@@ -166,19 +167,19 @@ static void escape_foreground_color(TerminalColor const &color) {
   std::visit(SetForegroundColor { }, color);
 }
 
-TerminalScreen::CharView TerminalScreen::EMPTY_CHAR_VIEW;
+TextScreen::CharView TextScreen::EMPTY_CHAR_VIEW;
 
-TerminalScreen::TerminalScreen() noexcept {
-  laf::LookAndFeel::set_current(std::make_shared<laf::TextLookAndFeel>());
-  laf::LookAndFeel::set_theme(std::make_shared<TextTheme>());
+TextScreen::TextScreen() noexcept {
+  this->look_and_feel = std::make_shared<laf::TextLookAndFeel>();
+  this->text_metrics = std::make_shared<CellTextMetrics>(Font { });
   resize_view();
 }
 
-void TerminalScreen::move_cursor_to(int line, int column) {
+void TextScreen::move_cursor_to(int line, int column) {
   terminal << "\x1b["sv << line << ';' << column << 'H';
 }
 
-void TerminalScreen::move_cursor_by(int lines, int columns) {
+void TextScreen::move_cursor_by(int lines, int columns) {
   if (lines > 0) {
     terminal << "\x1b["sv << lines << 'B';
   } else if (lines < 0) {
@@ -192,7 +193,7 @@ void TerminalScreen::move_cursor_by(int lines, int columns) {
   }
 }
 
-void TerminalScreen::run_event_loop() {
+void TextScreen::run_event_loop() {
   event_dispatching_thread_id = std::this_thread::get_id();
 
   while (not this->quit) {
@@ -203,15 +204,15 @@ void TerminalScreen::run_event_loop() {
   }
 }
 
-std::unique_ptr<Graphics> TerminalScreen::get_graphics() {
-  return std::make_unique<TerminalGraphics>(*this);
+std::unique_ptr<Graphics> TextScreen::get_graphics() {
+  return std::make_unique<TextGraphics>(*this);
 }
 
-std::unique_ptr<Graphics> TerminalScreen::get_graphics(Rectangle const &clip) {
-  return std::make_unique<TerminalGraphics>(*this, Rectangle { 0, 0, clip.width, clip.height }, clip.x, clip.y);
+std::unique_ptr<Graphics> TextScreen::get_graphics(Rectangle const &clip) {
+  return std::make_unique<TextGraphics>(*this, Rectangle { 0, 0, clip.width, clip.height }, clip.x, clip.y);
 }
 
-void TerminalScreen::resize_view() {
+void TextScreen::resize_view() {
   auto size = this->size;
   this->size = terminal.get_size();
   if (size != this->size) {
@@ -223,22 +224,22 @@ void TerminalScreen::resize_view() {
   }
 }
 
-void TerminalScreen::resized() {
+void TextScreen::resized() {
   resize_view();
   refresh();
 }
 
-void TerminalScreen::refresh() {
-  auto g = TerminalGraphics { *this };
+void TextScreen::refresh() {
+  auto g = TextGraphics { *this };
   paint(g);
   flush();
 }
 
-TerminalColor TerminalScreen::to_terminal(Color const &c) {
+TextColor TextScreen::to_terminal(Color const &c) {
   return detail::TrueColor { c.red(), c.green(), c.blue() };
 }
 
-void TerminalScreen::print() {
+void TextScreen::print() {
   move_cursor_to(1, 1);
 
   const auto *prev_cv = &EMPTY_CHAR_VIEW;
@@ -272,14 +273,14 @@ void TerminalScreen::print() {
         escape_attrs_and_colors(cv);
         terminal << cv.ch;
       }
-      skip = cv.is_wide();
+      skip = this->text_metrics->get_char_width(cv.ch.get_code()) == 2;
     }
   }
 
   escape_attrs_and_colors(EMPTY_CHAR_VIEW);
 }
 
-void TerminalScreen::clear() {
+void TextScreen::clear() {
   for (auto &line : this->view) {
     for (auto &cell : line) {
       cell = EMPTY_CHAR_VIEW;
@@ -287,7 +288,7 @@ void TerminalScreen::clear() {
   }
 }
 
-void TerminalScreen::flush() {
+void TextScreen::flush() {
   print();
   terminal.flush();
 }
