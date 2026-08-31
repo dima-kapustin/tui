@@ -2,6 +2,8 @@
 #include <tui++/terminal/graphic/GraphicGraphics.h>
 #include <tui++/terminal/Terminal.h>
 
+#include <tui++/Window.h>
+
 #include <tui++/terminal/graphic/GraphicEncoder.h>
 
 #include <tui++/lookandfeel/graphic/GraphicLookAndFeel.h>
@@ -118,6 +120,21 @@ void GraphicScreen::run_event_loop() {
       size = pixel_size;
       this->size = pixel_size;
       resize_buffer();
+
+      // Top-level windows track the screen size so the layout fills the new
+      // terminal instead of leaving stale, mis-sized frames behind.
+      {
+        std::unique_lock lock(this->windows_mutex);
+        for (auto &&window : this->windows) {
+          window->set_size(pixel_size);
+        }
+      }
+
+      // The terminal still displays the previous sixel image; erase it so a
+      // smaller new image does not leave stale pixels around it.
+      terminal << "\x1b[2J\x1b[1;1H"sv;
+      terminal.flush();
+
       refresh();
     }
 

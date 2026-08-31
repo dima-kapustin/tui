@@ -2,6 +2,7 @@
 #include <tui++/terminal/text/TextScreen.h>
 #include <tui++/terminal/text/TextGraphics.h>
 
+#include <tui++/Window.h>
 #include <tui++/lookandfeel/text/TextLookAndFeel.h>
 #include <tui++/TextMetrics.h>
 
@@ -226,6 +227,14 @@ void TextScreen::resize_view() {
 
 void TextScreen::resized() {
   resize_view();
+  // Top-level windows track the terminal size so the layout fills the new
+  // screen instead of leaving stale, mis-sized frames behind.
+  {
+    std::unique_lock lock(this->windows_mutex);
+    for (auto &&window : this->windows) {
+      window->set_size(this->size);
+    }
+  }
   refresh();
 }
 
