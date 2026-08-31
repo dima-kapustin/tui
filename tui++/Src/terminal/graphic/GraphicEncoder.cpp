@@ -28,10 +28,12 @@ void append_int(std::string &out, unsigned value) {
 }
 
 void append_raster_attributes(std::string &out, int width, int height) {
+  // DECGRA: `" Pan ; Pad ; Pv ; Ph ` -- the third parameter is the vertical
+  // extent (height) and the fourth the horizontal extent (width).
   out += "\"1;1;";
-  append_int(out, width);
-  out += ';';
   append_int(out, height);
+  out += ';';
+  append_int(out, width);
 }
 
 void append_palette(std::string &out, std::vector<RGB> const &palette) {

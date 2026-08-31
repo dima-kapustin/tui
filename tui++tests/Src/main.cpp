@@ -112,7 +112,9 @@ int main(int argc, char *argv[]) {
 //  frame->add_property_change_listener("visible", [](PropertyChangeEvent &e) {
 //    std::cout << e.property_name << std::endl;
 //  });
-  frame->set_size(terminal.get_size());
+  // Size the frame to the screen: cell units on the text screen, pixels on
+  // the graphic (sixel) screen, where components address individual pixels.
+  frame->set_size(screen.get_size());
 
   // Inset the content so the frame's background is visible around the panel.
   frame->get_content_pane()->set_border(std::make_shared<EmptyBorder>(2, 2, 2, 2));
