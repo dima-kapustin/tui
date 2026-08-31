@@ -10,6 +10,8 @@
 
 #include <tui++/terminal/Terminal.h>
 
+#include <tui++/TextMetrics.h>
+
 #include <iostream>
 #include <string_view>
 
@@ -117,7 +119,10 @@ int main(int argc, char *argv[]) {
   frame->set_size(screen.get_size());
 
   // Inset the content so the frame's background is visible around the panel.
-  frame->get_content_pane()->set_border(std::make_shared<EmptyBorder>(2, 2, 2, 2));
+  // Two cells in both backends: 2 units on the text screen, 2 cells (32 px)
+  // on the graphic screen, whose layout is measured in pixels.
+  auto cell = screen.get_text_metrics()->get_line_height();
+  frame->get_content_pane()->set_border(std::make_shared<EmptyBorder>(2 * cell, 2 * cell, 2 * cell, 2 * cell));
 
   auto panel = make_component<Panel>();
   panel->set_background_color(BLUE_COLOR);

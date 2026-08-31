@@ -81,7 +81,10 @@ void GraphicGraphics::blit_glyph(char32_t code, int x, int y) {
   auto px = x + this->dx;
   auto py = y + this->dy;
   if (this->clip.intersects(px, py, detail::FONT_WIDTH, detail::FONT_HEIGHT)) {
-    this->screen.blit_glyph(px, py, glyph, this->foreground_color, this->background_color);
+    // An unset foreground means "the terminal's default text color", which the
+    // text screen renders as the terminal default (white); mirror that here. A
+    // null background leaves the pixels under the glyph untouched.
+    this->screen.blit_glyph(px, py, glyph, this->foreground_color.value_or(WHITE_COLOR), this->background_color);
   }
 }
 
