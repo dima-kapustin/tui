@@ -1,12 +1,22 @@
 #include <tui++/sixel/SixelGraphics.h>
 #include <tui++/sixel/SixelScreen.h>
+#include <tui++/sixel/Font8x8.h>
+
+#include <tui++/util/utf-8.h>
 
 #include <algorithm>
 
 namespace tui {
 
+namespace {
+
+// Rendered for code points the bitmap font does not cover (U+0080 and above).
+constexpr uint8_t MISSING_GLYPH[8] = { 0xFF, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0xFF };
+
+}
+
 SixelGraphics::SixelGraphics(SixelScreen &screen) :
-    SixelGraphics(screen, { 0, 0, screen.get_width() * SixelScreen::CELL_WIDTH, screen.get_height() * SixelScreen::CELL_HEIGHT }, 0, 0) {
+    SixelGraphics(screen, { 0, 0, screen.get_width(), screen.get_height() }, 0, 0) {
 }
 
 SixelGraphics::SixelGraphics(SixelScreen &screen, const Rectangle &clip_rect, int dx, int dy) :
@@ -21,26 +31,13 @@ std::optional<Color> SixelGraphics::get_line_color() const {
   return this->foreground_color ? this->foreground_color : this->background_color;
 }
 
-Rectangle SixelGraphics::to_pixels(int x, int y, int width, int height) const {
-  auto rect = Rectangle { //
-    (x + this->dx) * SixelScreen::CELL_WIDTH, //
-    (y + this->dy) * SixelScreen::CELL_HEIGHT, //
-    width * SixelScreen::CELL_WIDTH, //
-    height * SixelScreen::CELL_HEIGHT };
-  return rect & this->clip;
+// Returns the pixel rectangle (offset by dx/dy) clipped to the clip rect.
+Rectangle SixelGraphics::clipped(int x, int y, int width, int height) const {
+  return Rectangle { x + this->dx, y + this->dy, width, height } & this->clip;
 }
 
-void SixelGraphics::fill_cells(int x, int y, int width, int height) {
-  if (not this->background_color) {
-    return;
-  }
-  if (auto rect = to_pixels(x, y, width, height); not rect.empty()) {
-    this->screen.fill_pixels(rect, *this->background_color);
-  }
-}
-
-void SixelGraphics::draw_pixel_line(int x, int y, int width, int height) {
-  if (auto rect = this->clip.intersection(x, y, width, height); not rect.empty()) {
+void SixelGraphics::draw_pixel_rect(int x, int y, int width, int height) {
+  if (auto rect = clipped(x, y, width, height); not rect.empty()) {
     if (auto color = get_line_color()) {
       this->screen.fill_pixels(rect, *color);
     }
@@ -61,17 +58,7 @@ int SixelGraphics::stroke_width() const {
 }
 
 void SixelGraphics::clip_rect(int x, int y, int width, int height) {
-  auto left = (x + this->dx) * SixelScreen::CELL_WIDTH;
-  auto top = (y + this->dy) * SixelScreen::CELL_HEIGHT;
-  auto right = left + width * SixelScreen::CELL_WIDTH;
-  auto bottom = top + height * SixelScreen::CELL_HEIGHT;
-
-  auto clip_left = std::max(this->clip.x, left);
-  auto clip_right = std::min(clip_left + this->clip.width, right);
-  auto clip_top = std::max(this->clip.y, top);
-  auto clip_bottom = std::min(clip_top + this->clip.height, bottom);
-
-  this->clip.set(clip_left, clip_top, clip_right - clip_left, clip_bottom - clip_top);
+  this->clip = Rectangle { x + this->dx, y + this->dy, width, height } & this->clip;
 }
 
 std::unique_ptr<Graphics> SixelGraphics::create() {
@@ -86,83 +73,86 @@ std::unique_ptr<Graphics> SixelGraphics::create(int x, int y, int width, int hei
 }
 
 void SixelGraphics::draw_char(const Char &c, int x, int y, std::optional<Attributes> const &attributes) {
-  // Text rendering requires a font rasterizer, which is not implemented yet.
+  blit_glyph(c.get_code(), x, y);
+}
+
+void SixelGraphics::blit_glyph(char32_t code, int x, int y) {
+  auto const *glyph = (code < 128) ? detail::FONT8X8_BASIC[code] : MISSING_GLYPH;
+  auto px = x + this->dx;
+  auto py = y + this->dy;
+  if (this->clip.intersects(px, py, detail::FONT_WIDTH, detail::FONT_HEIGHT)) {
+    this->screen.blit_glyph(px, py, glyph, this->foreground_color, this->background_color);
+  }
 }
 
 void SixelGraphics::draw_hline(int x, int y, int length, std::optional<Attributes> const &attributes) {
-  auto px = x + this->dx;
-  auto py = y + this->dy;
-  auto cy = py * SixelScreen::CELL_HEIGHT + SixelScreen::CELL_HEIGHT / 2;
-  auto w = length * SixelScreen::CELL_WIDTH;
-
-  fill_cells(px, py, length, 1);
-
   if (this->stroke == Stroke::DOUBLE) {
-    draw_pixel_line(px * SixelScreen::CELL_WIDTH, cy - 1, w, 1);
-    draw_pixel_line(px * SixelScreen::CELL_WIDTH, cy + 1, w, 1);
+    draw_pixel_rect(x, y - 1, length, 1);
+    draw_pixel_rect(x, y + 1, length, 1);
   } else {
     auto line_w = stroke_width();
-    draw_pixel_line(px * SixelScreen::CELL_WIDTH, cy - line_w / 2, w, line_w);
+    draw_pixel_rect(x, y - line_w / 2, length, line_w);
   }
 }
 
 void SixelGraphics::draw_vline(int x, int y, int length, std::optional<Attributes> const &attributes) {
-  auto px = x + this->dx;
-  auto py = y + this->dy;
-  auto cx = px * SixelScreen::CELL_WIDTH + SixelScreen::CELL_WIDTH / 2;
-  auto h = length * SixelScreen::CELL_HEIGHT;
-
-  fill_cells(px, py, 1, length);
-
   if (this->stroke == Stroke::DOUBLE) {
-    draw_pixel_line(cx - 1, py * SixelScreen::CELL_HEIGHT, 1, h);
-    draw_pixel_line(cx + 1, py * SixelScreen::CELL_HEIGHT, 1, h);
+    draw_pixel_rect(x - 1, y, 1, length);
+    draw_pixel_rect(x + 1, y, 1, length);
   } else {
     auto line_w = stroke_width();
-    draw_pixel_line(cx - line_w / 2, py * SixelScreen::CELL_HEIGHT, line_w, h);
+    draw_pixel_rect(x - line_w / 2, y, line_w, length);
   }
 }
 
 void SixelGraphics::draw_rect(int x, int y, int width, int height) {
-  auto px = x + this->dx;
-  auto py = y + this->dy;
-  auto left = px * SixelScreen::CELL_WIDTH;
-  auto top = py * SixelScreen::CELL_HEIGHT;
-  auto right = left + width * SixelScreen::CELL_WIDTH;
-  auto bottom = top + height * SixelScreen::CELL_HEIGHT;
+  auto rect = clipped(x, y, width, height);
+  if (rect.empty()) {
+    return;
+  }
+  if (auto color = get_line_color()) {
+    auto line_w = std::min(stroke_width(), std::min(rect.width, rect.height));
 
-  auto line_w = stroke_width();
+    this->screen.fill_pixels({ rect.x, rect.y, rect.width, line_w }, *color); // top
+    this->screen.fill_pixels({ rect.x, rect.bottom() - line_w, rect.width, line_w }, *color); // bottom
+    this->screen.fill_pixels({ rect.x, rect.y, line_w, rect.height }, *color); // left
+    this->screen.fill_pixels({ rect.right() - line_w, rect.y, line_w, rect.height }, *color); // right
 
-  // The border occupies the outer cell ring; fill its background first.
-  fill_cells(px, py, width, 1);
-  fill_cells(px, py + height - 1, width, 1);
-  fill_cells(px, py, 1, height);
-  fill_cells(px + width - 1, py, 1, height);
-
-  draw_pixel_line(left, top, right - left, line_w);
-  draw_pixel_line(left, bottom - line_w, right - left, line_w);
-  draw_pixel_line(left, top + line_w, line_w, bottom - top - 2 * line_w);
-  draw_pixel_line(right - line_w, top + line_w, line_w, bottom - top - 2 * line_w);
-
-  if (this->stroke == Stroke::DOUBLE) {
-    draw_pixel_line(left + 2, top + 2, right - left - 4, 1);
-    draw_pixel_line(left + 2, bottom - 3, right - left - 4, 1);
-    draw_pixel_line(left + 2, top + 2, 1, bottom - top - 4);
-    draw_pixel_line(right - 3, top + 2, 1, bottom - top - 4);
+    if (this->stroke == Stroke::DOUBLE) {
+      auto inset = 2;
+      if (rect.width > 2 * inset + 2 and rect.height > 2 * inset + 2) {
+        this->screen.fill_pixels({ rect.x + inset, rect.y + inset, rect.width - 2 * inset, 1 }, *color);
+        this->screen.fill_pixels({ rect.x + inset, rect.bottom() - inset - 1, rect.width - 2 * inset, 1 }, *color);
+        this->screen.fill_pixels({ rect.x + inset, rect.y + inset, 1, rect.height - 2 * inset }, *color);
+        this->screen.fill_pixels({ rect.right() - inset - 1, rect.y + inset, 1, rect.height - 2 * inset }, *color);
+      }
+    }
   }
 }
 
 void SixelGraphics::draw_rounded_rect(int x, int y, int width, int height) {
-  // The sixel backend does not round the corners yet.
+  // Rounding the corners is not implemented yet; fall back to a rectangle.
   draw_rect(x, y, width, height);
 }
 
 void SixelGraphics::draw_string(const std::string &str, int x, int y, std::optional<Attributes> const &attributes) {
-  // Text rendering requires a font rasterizer, which is not implemented yet.
+  auto cx = x;
+  auto index = std::size_t { 0 };
+  while (index < str.size()) {
+    auto code = char32_t { };
+    auto len = util::mb_to_c32(str.data() + index, str.size() - index, &code);
+    if (len <= 0) {
+      index += 1;
+      continue;
+    }
+    draw_char(Char(code), cx, y, attributes);
+    cx += detail::FONT_WIDTH;
+    index += std::size_t(len);
+  }
 }
 
 void SixelGraphics::fill_rect(int x, int y, int width, int height) {
-  if (auto rect = to_pixels(x, y, width, height); not rect.empty()) {
+  if (auto rect = clipped(x, y, width, height); not rect.empty()) {
     if (auto color = get_fill_color()) {
       this->screen.fill_pixels(rect, *color);
     }
@@ -170,27 +160,15 @@ void SixelGraphics::fill_rect(int x, int y, int width, int height) {
 }
 
 Rectangle SixelGraphics::get_clip_rect() const {
-  return { //
-    (this->clip.x - this->dx * SixelScreen::CELL_WIDTH) / SixelScreen::CELL_WIDTH, //
-    (this->clip.y - this->dy * SixelScreen::CELL_HEIGHT) / SixelScreen::CELL_HEIGHT, //
-    this->clip.width / SixelScreen::CELL_WIDTH, //
-    this->clip.height / SixelScreen::CELL_HEIGHT };
+  return { this->clip.x - this->dx, this->clip.y - this->dy, this->clip.width, this->clip.height };
 }
 
 void SixelGraphics::set_clip_rect(const Rectangle &rect) {
-  this->clip = { //
-    (rect.x + this->dx) * SixelScreen::CELL_WIDTH, //
-    (rect.y + this->dy) * SixelScreen::CELL_HEIGHT, //
-    rect.width * SixelScreen::CELL_WIDTH, //
-    rect.height * SixelScreen::CELL_HEIGHT };
+  this->clip = { rect.x + this->dx, rect.y + this->dy, rect.width, rect.height };
 }
 
 bool SixelGraphics::hit_clip_rect(int x, int y, int width, int height) const {
-  return this->clip.intersects( //
-      (x + this->dx) * SixelScreen::CELL_WIDTH, //
-      (y + this->dy) * SixelScreen::CELL_HEIGHT, //
-      width * SixelScreen::CELL_WIDTH, //
-      height * SixelScreen::CELL_HEIGHT);
+  return this->clip.intersects(x + this->dx, y + this->dy, width, height);
 }
 
 std::optional<Color> const& SixelGraphics::get_foreground_color() const {

@@ -4,7 +4,7 @@
 
 namespace tui {
 
-class TerminalTheme: public Theme {
+class TextTheme: public Theme {
 protected:
   virtual void init() override;
 

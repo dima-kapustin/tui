@@ -1,6 +1,8 @@
 #pragma once
 
+#include <array>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include <tui++/Color.h>
@@ -10,9 +12,10 @@ namespace tui {
 
 class SixelGraphics;
 
-// A screen that rasterizes the component tree into a pixel framebuffer
-// (CELL_WIDTH x CELL_HEIGHT pixels per terminal cell) and outputs it using
-// the DEC sixel graphics protocol.
+// A screen that rasterizes the component tree into a pixel framebuffer and
+// outputs it using the DEC sixel graphics protocol. Its size (and therefore
+// the component layout) is measured in pixels, one terminal cell being
+// CELL_WIDTH x CELL_HEIGHT pixels.
 class SixelScreen: public Screen {
   using base = Screen;
 
@@ -44,14 +47,20 @@ public:
   virtual void refresh() override;
 
   int get_pixel_width() const {
-    return this->size.width * CELL_WIDTH;
+    return this->size.width;
   }
 
   int get_pixel_height() const {
-    return this->size.height * CELL_HEIGHT;
+    return this->size.height;
   }
 
   void fill_pixels(Rectangle const &rect, Color const &color);
+
+  // Blits an 8x8 monochrome glyph at pixel (x, y). `glyph` points to 8 rows,
+  // bit 7 of each byte being the leftmost pixel. Set bits are painted with the
+  // foreground color, unset bits with the background color when one is present
+  // (otherwise they are left untouched).
+  void blit_glyph(int x, int y, uint8_t const *glyph, std::optional<Color> const &foreground, std::optional<Color> const &background);
 
   void clear();
   void flush();

@@ -16,6 +16,7 @@
 namespace tui::laf {
 
 std::shared_ptr<Theme> LookAndFeel::theme;
+std::shared_ptr<LookAndFeel> LookAndFeel::current;
 
 void LookAndFeel::set_theme(std::shared_ptr<Theme> const &new_theme) {
   if (theme) {
@@ -69,50 +70,6 @@ void LookAndFeel::replace_action_map(Component *c, std::shared_ptr<ActionMap> co
     }
     map = parent;
   }
-}
-
-std::shared_ptr<FrameUI> LookAndFeel::create_ui(Frame *c) {
-  return std::make_shared<FrameUI>();
-}
-
-std::shared_ptr<PanelUI> LookAndFeel::create_ui(Panel *c) {
-  return std::make_shared<PanelUI>();
-}
-
-std::shared_ptr<ButtonUI> LookAndFeel::create_ui(Button *c) {
-  return std::make_shared<ButtonUI>();
-}
-
-std::shared_ptr<MenuUI> LookAndFeel::create_ui(Menu *c) {
-  return std::make_shared<MenuUI>();
-}
-
-std::shared_ptr<MenuBarUI> LookAndFeel::create_ui(MenuBar *c) {
-  return std::make_shared<MenuBarUI>();
-}
-
-std::shared_ptr<MenuItemUI> LookAndFeel::create_ui(MenuItem *c) {
-  return std::make_shared<MenuItemUI>();
-}
-
-std::shared_ptr<RootPaneUI> LookAndFeel::create_ui(RootPane *c) {
-  return std::make_shared<RootPaneUI>();
-}
-
-std::shared_ptr<PopupMenuUI> LookAndFeel::create_ui(PopupMenu *c) {
-  return std::make_shared<PopupMenuUI>();
-}
-
-std::shared_ptr<PopupMenuSeparatorUI> LookAndFeel::create_ui(PopupMenuSeparator *c) {
-  return std::make_shared<PopupMenuSeparatorUI>();
-}
-
-std::shared_ptr<SeparatorUI> LookAndFeel::create_ui(Separator *c) {
-  return std::make_shared<SeparatorUI>();
-}
-
-std::shared_ptr<ToggleButtonUI> LookAndFeel::create_ui(ToggleButton *c) {
-  return std::make_shared<ToggleButtonUI>();
 }
 
 }

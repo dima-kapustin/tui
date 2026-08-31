@@ -1,4 +1,4 @@
-#include <tui++/terminal/TerminalTheme.h>
+#include <tui++/terminal/TextTheme.h>
 
 #include <tui++/border/LineBorder.h>
 #include <tui++/border/BevelBorder.h>
@@ -14,7 +14,7 @@
 
 namespace tui {
 
-void TerminalTheme::init() {
+void TextTheme::init() {
   put( //
       { { "Menu.SubmenuPopupOffsetX", 0 }, //
         { "Menu.SubmenuPopupOffsetY", 0 }, //
@@ -26,7 +26,7 @@ void TerminalTheme::init() {
   init_component_defaults();
 }
 
-void TerminalTheme::init_system_color_defaults() {
+void TextTheme::init_system_color_defaults() {
   update_system_colors();
 
   using namespace SystemColorKeys;
@@ -35,7 +35,7 @@ void TerminalTheme::init_system_color_defaults() {
   }
 }
 
-void TerminalTheme::init_component_defaults() {
+void TextTheme::init_component_defaults() {
   auto red = make_resource(RED_COLOR);
   auto black = make_resource(BLACK_COLOR);
   auto white = make_resource(WHITE_COLOR);

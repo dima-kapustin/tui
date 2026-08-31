@@ -6,12 +6,9 @@ namespace tui {
 
 class SixelScreen;
 
-// Rasterizes the cell-based drawing API into the SixelScreen's pixel
-// framebuffer. Coordinates and sizes are in terminal cells, each cell being
-// rendered as a CELL_WIDTH x CELL_HEIGHT pixel block.
-//
-// Text rendering (draw_char, draw_string) is not implemented yet: it requires
-// a font rasterizer, which is out of scope for the sixel backend.
+// Rasterizes the drawing API into the SixelScreen's pixel framebuffer. All
+// coordinates and sizes are in pixels: the SixelScreen reports its size in
+// pixels, so components lay out and draw directly against individual pixels.
 class SixelGraphics: public Graphics {
   SixelScreen &screen;
 
@@ -29,15 +26,15 @@ private:
   std::optional<Color> get_fill_color() const;
   std::optional<Color> get_line_color() const;
 
-  // Converts a cell rectangle (in this graphics' coordinates) to a pixel
-  // rectangle clipped to the clip rect.
-  Rectangle to_pixels(int x, int y, int width, int height) const;
+  // Returns the pixel rectangle (in this graphics' coordinates, offset by
+  // dx/dy) clipped to the clip rect.
+  Rectangle clipped(int x, int y, int width, int height) const;
 
-  // Fills the cell block's pixels with the current background color, if set.
-  void fill_cells(int x, int y, int width, int height);
+  // Draws a solid pixel rectangle with the line color.
+  void draw_pixel_rect(int x, int y, int width, int height);
 
-  // Draws a solid pixel rectangle with the line color, clipped to the clip rect.
-  void draw_pixel_line(int x, int y, int width, int height);
+  // Blits the glyph for `code` (from the embedded bitmap font) at pixel (x, y).
+  void blit_glyph(char32_t code, int x, int y);
 
   int stroke_width() const;
 

@@ -4,9 +4,14 @@
 #include <tui++/KeyboardFocusManager.h>
 
 #include <tui++/terminal/Terminal.h>
-#include <tui++/terminal/Terminalscreen.h>
+#include <tui++/terminal/TerminalScreen.h>
 #include <tui++/terminal/TerminalGraphics.h>
+#include <tui++/terminal/TextTheme.h>
+#include <tui++/terminal/GraphicTheme.h>
 #include <tui++/sixel/SixelScreen.h>
+
+#include <tui++/lookandfeel/TextLookAndFeel.h>
+#include <tui++/lookandfeel/GraphicLookAndFeel.h>
 
 using namespace std::string_view_literals;
 
@@ -250,6 +255,8 @@ void Terminal::set_type(std::string_view type) {
 
     if (type == "graphic") {
       ::new (&screen) SixelScreen();
+	    laf::LookAndFeel::set_current(std::make_shared<laf::GraphicLookAndFeel>());
+  	  laf::LookAndFeel::set_theme(std::make_shared<GraphicTheme>());
     } else {
       ::new (&screen) TerminalScreen();
     }

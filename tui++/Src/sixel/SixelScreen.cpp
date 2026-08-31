@@ -4,8 +4,13 @@
 
 #include <tui++/sixel/SixelEncoder.h>
 
-#include <algorithm>
+#include <tui++/lookandfeel/LookAndFeel.h>
+#include <tui++/lookandfeel/GraphicLookAndFeel.h>
+#include <tui++/terminal/GraphicTheme.h>
+
 #include <chrono>
+#include <memory>
+#include <algorithm>
 
 using namespace std::string_view_literals;
 
@@ -14,7 +19,11 @@ namespace tui {
 constexpr std::chrono::milliseconds WAIT_EVENT_TIMEOUT { 30 };
 
 SixelScreen::SixelScreen() {
-  this->size = terminal.get_size();
+  laf::LookAndFeel::set_current(std::make_shared<laf::GraphicLookAndFeel>());
+  laf::LookAndFeel::set_theme(std::make_shared<GraphicTheme>());
+
+  auto size = terminal.get_size();
+  this->size = { size.width * CELL_WIDTH, size.height * CELL_HEIGHT };
   resize_buffer();
 }
 
@@ -56,6 +65,32 @@ void SixelScreen::fill_pixels(Rectangle const &rect, Color const &color) {
   mark_dirty({ left, top, right - left, bottom - top });
 }
 
+void SixelScreen::blit_glyph(int x, int y, uint8_t const *glyph, std::optional<Color> const &foreground, std::optional<Color> const &background) {
+  auto left = std::max(x, 0);
+  auto top = std::max(y, 0);
+  auto right = std::min(x + 8, get_pixel_width());
+  auto bottom = std::min(y + 8, get_pixel_height());
+  if (left >= right or top >= bottom) {
+    return;
+  }
+
+  for (auto py = top; py < bottom; ++py) {
+    auto row = glyph[py - y];
+    for (auto px = left; px < right; ++px) {
+      auto color = (row & (0x80 >> (px - x))) ? foreground : background;
+      if (not color) {
+        continue;
+      }
+      auto *p = this->pixels.data() + (py * get_pixel_width() + px) * 3;
+      *p++ = color->red();
+      *p++ = color->green();
+      *p++ = color->blue();
+    }
+  }
+
+  mark_dirty({ left, top, right - left, bottom - top });
+}
+
 void SixelScreen::clear() {
   std::fill(this->pixels.begin(), this->pixels.end(), 0);
   mark_dirty({ 0, 0, get_pixel_width(), get_pixel_height() });
@@ -76,9 +111,11 @@ void SixelScreen::run_event_loop() {
 
     // The terminal screen owns the physical display and clears it when the
     // terminal is resized; detect the resize here and repaint the windows.
-    if (terminal.get_size() != size) {
-      size = terminal.get_size();
-      this->size = size;
+    auto ts = terminal.get_size();
+    auto pixel_size = Dimension { ts.width * CELL_WIDTH, ts.height * CELL_HEIGHT };
+    if (pixel_size != size) {
+      size = pixel_size;
+      this->size = pixel_size;
       resize_buffer();
       refresh();
     }
@@ -102,11 +139,24 @@ void SixelScreen::flush() {
     return;
   }
 
+  // The sixel image is addressed in whole terminal cells, so align the dirty
+  // region to cell boundaries before encoding it.
   auto rect = this->dirty;
+  auto left = rect.x / CELL_WIDTH * CELL_WIDTH;
+  auto top = rect.y / CELL_HEIGHT * CELL_HEIGHT;
+  auto right = std::min((rect.right() + CELL_WIDTH - 1) / CELL_WIDTH * CELL_WIDTH, get_pixel_width());
+  auto bottom = std::min((rect.bottom() + CELL_HEIGHT - 1) / CELL_HEIGHT * CELL_HEIGHT, get_pixel_height());
+  rect = { left, top, right - left, bottom - top };
+
   auto data = SixelEncoder::encode(this->pixels.data() + (rect.y * get_pixel_width() + rect.x) * 3, rect.width, rect.height, get_pixel_width());
 
   move_cursor_to(rect.y / CELL_HEIGHT + 1, rect.x / CELL_WIDTH + 1);
   terminal << data;
+  terminal.flush();
+
+  // A sixel image advances the terminal's text cursor past its bottom edge;
+  // park it back at the top-left so the next redraw does not scroll.
+  move_cursor_to(1, 1);
   terminal.flush();
 
   this->has_dirty = false;

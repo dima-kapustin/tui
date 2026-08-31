@@ -36,14 +36,17 @@ void append_raster_attributes(std::string &out, int width, int height) {
 
 void append_palette(std::string &out, std::vector<RGB> const &palette) {
   for (auto i = 0; i < int(palette.size()); ++i) {
+    // A sixel palette entry is `#Pc;Pu;Px;Py;Pz`: palette index, color
+    // coordinate system (2 = RGB), then the three components in the 0..100
+    // range. The RGB values are stored here as 0..255 and scaled down.
     out += '#';
     append_int(out, i);
+    out += ";2;";
+    append_int(out, palette[i].red * 100 / 255);
     out += ';';
-    append_int(out, palette[i].red);
+    append_int(out, palette[i].green * 100 / 255);
     out += ';';
-    append_int(out, palette[i].green);
-    out += ';';
-    append_int(out, palette[i].blue);
+    append_int(out, palette[i].blue * 100 / 255);
   }
 }
 
@@ -83,7 +86,7 @@ int build_palette(const uint8_t *rgb, int width, int band_y, int band_height, in
         auto key = quantize(px, bits);
         if (index_map.find(key) == index_map.end()) {
           index_map.emplace(key, int(palette.size()));
-          palette.push_back({ quantize_channel(px[0], bits), quantize_channel(px[1], bits), quantize_channel(px[2], bits) });
+          palette.push_back({ px[0], px[1], px[2] });
         }
       }
     }
