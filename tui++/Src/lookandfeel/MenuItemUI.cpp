@@ -4,6 +4,8 @@
 #include <tui++/TextMetrics.h>
 
 #include <tui++/Icon.h>
+#include <tui++/Insets.h>
+#include <tui++/lookandfeel/LookAndFeel.h>
 #include <tui++/Menu.h>
 #include <tui++/MenuItem.h>
 #include <tui++/CheckBoxMenuItem.h>
@@ -223,12 +225,14 @@ std::optional<Dimension> MenuItemUI::get_preferred_size(std::shared_ptr<const Co
   auto &&text = this->menu_item->get_text();
   auto metrics = screen.get_text_metrics();
   auto width = text.empty() ? 0 : metrics->get_width(text);
-  return Dimension { width + 2, metrics->get_line_height() };
+  auto margin = LookAndFeel::get<Insets>("MenuItem.margin", Insets { 0, 1, 0, 1 });
+  return Dimension { width + margin.left + margin.right, metrics->get_line_height() };
 }
 
 void MenuItemUI::paint(Graphics &g, std::shared_ptr<const Component> const &c) const {
   assert(this->menu_item == std::dynamic_pointer_cast<const MenuItem>(c).get());
-  g.draw_string(this->menu_item->get_text(), 1, 0);
+  auto margin = LookAndFeel::get<Insets>("MenuItem.margin", Insets { 0, 1, 0, 1 });
+  g.draw_string(this->menu_item->get_text(), margin.left, margin.top);
 }
 
 }

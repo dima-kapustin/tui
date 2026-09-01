@@ -22,6 +22,11 @@ void TextTheme::init() {
         { "Menu.MenuPopupOffsetY", 0 }, //
       });
 
+  // Menu label margins, in cells, like Swing's "MenuItem.margin" /
+  // "Menu.margin" (the graphic theme overrides them in pixels).
+  put("MenuItem.margin", make_resource<Insets>(0, 1, 0, 1));
+  put("Menu.margin", make_resource<Insets>(0, 1, 0, 1));
+
   init_system_color_defaults();
   init_component_defaults();
 }
