@@ -6,6 +6,7 @@
 
 #include <tui++/terminal/Terminal.h>
 
+#include <csignal>
 #include <locale>
 #include <cstring>
 #include <iostream>
@@ -19,6 +20,77 @@
 #include <windows.h>
 
 namespace tui {
+
+namespace {
+
+// The console settings this process changed, saved so that an abnormal exit
+// can still put them back. A normal exit runs TerminalImpl's destructor, but
+// Ctrl+C, Ctrl+Break, abort() or a crash never will, so the console control
+// handler and the CRT signal handlers below restore this state instead.
+struct ConsoleState {
+  HANDLE input = nullptr;
+  HANDLE output = nullptr;
+  DWORD input_mode = 0;
+  DWORD output_mode = 0;
+  UINT input_cp = 0;
+  UINT output_cp = 0;
+  volatile LONG restored = 0;
+};
+
+ConsoleState console_state;
+
+// Puts the console back the way it was found: console modes, code pages and
+// (when the caller asks) the terminal state changed by the escape sequences.
+// Idempotent: whichever of the destructor and the handlers runs first wins.
+void restore_console(bool emit_sequence) {
+  if (InterlockedExchange(&console_state.restored, 1)) {
+    return;
+  }
+  if (console_state.input) {
+    ::SetConsoleMode(console_state.input, console_state.input_mode);
+  }
+  if (console_state.output) {
+    ::SetConsoleMode(console_state.output, console_state.output_mode);
+    if (emit_sequence) {
+      auto &seq = Terminal::RESTORE_SEQUENCE;
+      auto written = DWORD { };
+      ::WriteFile(console_state.output, seq.data(), DWORD(seq.size()), &written, nullptr);
+    }
+  }
+  if (console_state.input_cp) {
+    ::SetConsoleCP(console_state.input_cp);
+    ::SetConsoleOutputCP(console_state.output_cp);
+  }
+}
+
+// Ctrl+C and Ctrl+Break arrive as console control events on a dedicated
+// thread, so the full restore (including the escape sequences) is safe here.
+BOOL WINAPI console_ctrl_handler(DWORD type) {
+  switch (type) {
+  case CTRL_C_EVENT:
+  case CTRL_BREAK_EVENT:
+    restore_console(true);
+    ::ExitProcess(130); // 128 + SIGINT, matching POSIX convention
+  case CTRL_CLOSE_EVENT:
+  case CTRL_LOGOFF_EVENT:
+  case CTRL_SHUTDOWN_EVENT:
+    // The console is already going away; let the default handling terminate
+    // the process (there is no terminal left to restore into).
+    return FALSE;
+  }
+  return FALSE;
+}
+
+// abort(), std::terminate (an uncaught exception) and raise() come through
+// the CRT signals; restore, then re-raise with the default disposition so
+// the exit status still reflects the original signal.
+void crt_signal_handler(int sig) {
+  restore_console(true);
+  std::signal(sig, SIG_DFL);
+  std::raise(sig);
+}
+
+}
 
 class TerminalImpl {
   Terminal &terminal;
@@ -49,6 +121,16 @@ public:
     ::SetConsoleOutputCP(CP_UTF8);
     ::SetConsoleCP(CP_UTF8);
     setlocale(LC_ALL, ".utf8");
+
+    // From here on, even a Ctrl+C, abort() or crash restores the console:
+    // the handlers run when the process dies abnormally, before any
+    // destructor would get the chance.
+    console_state = { this->input_handle, this->output_handle, this->input_mode, this->output_mode, this->input_cp, this->output_cp, 0 };
+    ::SetConsoleCtrlHandler(console_ctrl_handler, TRUE);
+    std::signal(SIGINT, crt_signal_handler);
+    std::signal(SIGTERM, crt_signal_handler);
+    std::signal(SIGABRT, crt_signal_handler);
+    std::signal(SIGSEGV, crt_signal_handler);
   }
 
   bool read_input(const std::chrono::milliseconds &timeout, Terminal::InputBuffer &into) {
@@ -117,10 +199,15 @@ public:
   }
 
   ~TerminalImpl() {
-    ::SetConsoleMode(this->output_handle, this->output_mode);
-    ::SetConsoleMode(this->input_handle, this->input_mode);
-    ::SetConsoleOutputCP(this->output_cp);
-    ::SetConsoleCP(this->input_cp);
+    // Remove the handlers first so a signal arriving during teardown does
+    // not race the restore below. deinit() has already sent the escape
+    // sequences, so only the console modes and code pages are restored.
+    ::SetConsoleCtrlHandler(console_ctrl_handler, FALSE);
+    std::signal(SIGINT, SIG_DFL);
+    std::signal(SIGTERM, SIG_DFL);
+    std::signal(SIGABRT, SIG_DFL);
+    std::signal(SIGSEGV, SIG_DFL);
+    restore_console(false);
   }
 };
 

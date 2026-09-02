@@ -161,6 +161,12 @@ void Terminal::deinit() {
   reset_option(DECModeOption::USE_ALTERNATE_SCREEN_BUFFER);
   set_option(DECModeOption::SIXEL_DISPLAY_MODE);
 
+  // The cursor and line wrap are changed outside the option list (init()
+  // hides the cursor and resets line wrap), so restore them here too. This
+  // matches RESTORE_SEQUENCE, which the signal handlers emit on abnormal
+  // exits.
+  std::cout << "\x1b[?25h\x1b[?7h"sv;
+
   flush();
 }
 

@@ -30,7 +30,7 @@ void test_SixelEncoder();
 void test_Menu();
 
 void run_font_visual_test();
-void run_font_editor(bool bench = false, bool scrollbench = false);
+void run_font_editor(bool bench = false, bool scrollbench = false, bool sigtest = false);
 
 auto make_file_menu() {
   auto file_menu = make_component<Menu>("File");
@@ -109,9 +109,10 @@ int main(int argc, char *argv[]) {
   // The interactive font editor: a 16x32 pixel grid per glyph, mouse-editable,
   // that dumps the corrected bitmaps as C rows for Font16x32.h. The optional
   // "bench" argument replaces the event loop with a full-repaint benchmark,
-  // "scrollbench" feeds the wheel handler a synthetic event burst.
+  // "scrollbench" feeds the wheel handler a synthetic event burst, and
+  // "sigtest" raises SIGINT to verify the abnormal-exit terminal restore.
   if (argc > 1 and std::string_view(argv[1]) == "fontedit") {
-    run_font_editor(argc > 2 and std::string_view(argv[2]) == "bench", argc > 2 and std::string_view(argv[2]) == "scrollbench");
+    run_font_editor(argc > 2 and std::string_view(argv[2]) == "bench", argc > 2 and std::string_view(argv[2]) == "scrollbench", argc > 2 and std::string_view(argv[2]) == "sigtest");
     return 0;
   }
 

@@ -42,6 +42,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <functional>
@@ -667,7 +668,7 @@ public:
 
 // Runs the interactive font editor on the graphic (sixel) backend. Lives at
 // global scope like the other entry points declared in main.cpp.
-void run_font_editor(bool bench, bool scrollbench) {
+void run_font_editor(bool bench, bool scrollbench, bool sigtest) {
   terminal.set_title("tui++ font editor");
   terminal.set_type("sixel");
 
@@ -989,6 +990,18 @@ void run_font_editor(bool bench, bool scrollbench) {
         std::fprintf(stderr, "scrollbench: flushes after: %zu (initial draw + scroll frames; a burst must add at most 2)\n", gs->get_flush_count());
         std::exit(0);
       });
+    });
+    terminal.run_event_loop();
+  }
+
+  if (sigtest) {
+    // Signal-restore test: after the editor is up, raise SIGINT. The CRT
+    // signal handler must put the terminal back (RESTORE_SEQUENCE) before
+    // re-raising, so the captured output ends with the escape sequences and
+    // the process dies by the signal. Run with stdout redirected.
+    screen.post([] {
+      std::this_thread::sleep_for(std::chrono::milliseconds(300));
+      std::raise(SIGINT);
     });
     terminal.run_event_loop();
   }

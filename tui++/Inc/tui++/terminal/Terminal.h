@@ -336,6 +336,15 @@ public:
 
   void set_title(const std::string &title);
 
+  // Escape sequence that undoes every piece of terminal state init()
+  // changes: mouse reporting (?1000h ?1003h ?1015h ?1006h), the alternate
+  // screen buffer (?1049h), the hidden cursor (?25l), DECSDM (?80l) and
+  // line wrap (?7l). deinit() sends it on a normal exit; the platform
+  // signal handlers write it directly when the process dies abnormally
+  // (Ctrl+C, a fatal signal or an uncaught exception), so the terminal is
+  // restored even when no destructor runs.
+  static constexpr std::string_view RESTORE_SEQUENCE = "\x1b[?1006l\x1b[?1015l\x1b[?1003l\x1b[?1000l\x1b[?1049l\x1b[?80h\x1b[?25h\x1b[?7h";
+
   void flush();
 
   void run_event_loop() {
