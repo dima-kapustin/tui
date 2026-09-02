@@ -43,9 +43,10 @@ private:
 
   // The largest sixel image the terminal will display, in pixels (xterm's
   // maxGraphicSize, default 1000x1000; empty when the terminal has no such
-  // limit, e.g. Windows Terminal). The screen size -- and therefore the
-  // component layout -- is clamped to it so the terminal never truncates
-  // the right or bottom edge of an image.
+  // limit, e.g. Windows Terminal). The terminal silently truncates any
+  // larger image, so every flush slices its dirty region into tiles no
+  // larger than this instead of shrinking the screen: the layout keeps the
+  // full terminal area and nothing is ever cut off.
   std::optional<Dimension> max_graphic_size;
 
   // Timing of the last flush: how long the sixel encoding took, how long the
@@ -61,7 +62,6 @@ private:
 private:
   void resize_buffer();
   void mark_dirty(Rectangle const &rect);
-  void clamp_to_terminal();
 
   void move_cursor_to(int line, int column);
 

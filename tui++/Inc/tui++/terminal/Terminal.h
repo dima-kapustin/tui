@@ -242,6 +242,19 @@ private:
 
   InputParser input_parser { *this };
 
+  // The Device Attributes reply, queried once and shared by
+  // query_graphics_support (sixel detection) and query_graphics_geometry
+  // (the maxGraphicSize fallback), so the DA round-trip runs at most once.
+  struct DeviceAttributes {
+    bool answered = false;     // the terminal sent a DA reply
+    bool has_graphics = false; // Primary DA Ps = 4/62, or Secondary DA Pp = 2/18/19/32
+    bool is_xterm = false;     // Secondary DA with xterm's firmware signature (Pc = 0, Pv >= 95)
+  };
+  DeviceAttributes device_attributes;
+  bool device_attributes_queried = false;
+
+  DeviceAttributes query_device_attributes();
+
 private:
   void set_option(Option option);
   void reset_option(Option option);
@@ -320,10 +333,11 @@ public:
   // Asks the terminal for the largest sixel image it will display, in
   // pixels (XTSMGRAPHICS: `CSI ? 2 ; 4 S` reads the maximum allowed geometry;
   // xterm's maxGraphicSize resource, default 1000x1000). The sixel screen
-  // clamps its layout to this so nothing is clipped by the terminal: e.g.
-  // xterm silently truncates every image wider or taller than its limit.
-  // Returns an empty optional when the terminal does not answer (Windows
-  // Terminal has no such limit).
+  // tiles every flushed image to at most this size so nothing is truncated:
+  // xterm silently drops the right and bottom of any larger image. xterm
+  // builds that predate XTSMGRAPHICS answer nothing; they are identified by
+  // their Device Attributes and get the default 1000x1000. Terminals with
+  // no such limit (Windows Terminal) get an empty optional.
   std::optional<Dimension> query_graphics_geometry();
 
   // Selects the rendering backend: "char" for the escape-sequence terminal

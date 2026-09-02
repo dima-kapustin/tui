@@ -305,70 +305,110 @@ std::optional<Dimension> Terminal::query_cell_size_from_terminal() {
   return { };
 }
 
-std::optional<bool> Terminal::query_graphics_support() {
-  // Primary DA reports what the terminal is; xterm appends Ps = 4 to it when
-  // sixel graphics are enabled (a real VT340 reports 62). Secondary DA
-  // reports xterm's emulation level: Pp = 2/18/19/32 are the graphics
-  // emulations (VT240/VT330/VT340/VT382), and Pp = 0/1/24/41/61/64/65 with
-  // the xterm firmware signature (Pc = 0, patch level Pv >= 95) are xterm
-  // emulations without graphics.
-  std::cout << "\x1b[c\x1b[>c" << std::flush;
+Terminal::DeviceAttributes Terminal::query_device_attributes() {
+  if (not this->device_attributes_queried) {
+    this->device_attributes_queried = true;
+    auto &da = this->device_attributes;
 
-  auto deadline = Clock::now() + std::chrono::milliseconds(250);
-  std::string reply;
-  reply.reserve(64);
-  InputReader reader { *this };
-  while (Clock::now() < deadline) {
-    auto ms = std::max(int64_t(1), std::chrono::duration_cast<std::chrono::milliseconds>(deadline - Clock::now()).count());
-    auto c = reader.get(std::chrono::milliseconds(ms));
-    if (c == 0) {
-      break; // no more input before the deadline
-    }
-    reply += c;
-    while (auto more = reader.consume()) {
-      reply += more;
-    }
+    // Primary DA reports what the terminal is; xterm appends Ps = 4 to it
+    // when sixel graphics are enabled (a real VT340 reports 62). Secondary
+    // DA reports the emulation level: Pp = 2/18/19/32 are the graphics
+    // emulations (VT240/VT330/VT340/VT382), and the xterm firmware
+    // signature (Pc = 0, patch level Pv >= 95) identifies xterm itself
+    // whatever Pp it reports.
+    std::cout << "\x1b[c\x1b[>c" << std::flush;
 
-    // Primary DA: `CSI ? Ps ; ... c`.
-    if (auto pos = reply.find("\x1b[?"); pos != std::string::npos) {
-      if (auto end = reply.find('c', pos); end != std::string::npos) {
-        auto val = 0;
-        for (auto i = pos + 3; i < end; ++i) {
-          if (reply[std::size_t(i)] == ';') {
-            if (val == 4 or val == 62) {
-              return true;
+    auto deadline = Clock::now() + std::chrono::milliseconds(250);
+    std::string reply;
+    reply.reserve(64);
+    InputReader reader { *this };
+    auto got_primary = false;
+    auto got_secondary = false;
+    while (Clock::now() < deadline and not (got_primary and got_secondary)) {
+      auto ms = std::max(int64_t(1), std::chrono::duration_cast<std::chrono::milliseconds>(deadline - Clock::now()).count());
+      auto c = reader.get(std::chrono::milliseconds(ms));
+      if (c == 0) {
+        break; // no more input before the deadline
+      }
+      reply += c;
+      while (auto more = reader.consume()) {
+        reply += more;
+      }
+
+      // Primary DA: `CSI ? Ps ; ... c`.
+      if (auto pos = reply.find("\x1b[?"); pos != std::string::npos) {
+        if (auto end = reply.find('c', pos); end != std::string::npos) {
+          da.answered = true;
+          got_primary = true;
+          auto val = 0;
+          for (auto i = pos + 3; i < end; ++i) {
+            if (reply[std::size_t(i)] == ';') {
+              if (val == 4 or val == 62) {
+                da.has_graphics = true;
+              }
+              val = 0;
+            } else if (reply[std::size_t(i)] >= '0' and reply[std::size_t(i)] <= '9') {
+              val = val * 10 + (reply[std::size_t(i)] - '0');
             }
-            val = 0;
-          } else if (reply[std::size_t(i)] >= '0' and reply[std::size_t(i)] <= '9') {
-            val = val * 10 + (reply[std::size_t(i)] - '0');
           }
-        }
-        if (val == 4 or val == 62) {
-          return true;
+          if (val == 4 or val == 62) {
+            da.has_graphics = true;
+          }
         }
       }
-    }
 
-    // Secondary DA: `CSI > Pp ; Pv ; Pc c`.
-    if (auto pos = reply.find("\x1b[>"); pos != std::string::npos) {
-      if (auto end = reply.find('c', pos); end != std::string::npos) {
-        auto pp = 0, pv = 0, pc = -1;
-        if (std::sscanf(reply.c_str() + pos + 3, "%d;%d;%d", &pp, &pv, &pc) == 3) {
-          if (pp == 2 or pp == 18 or pp == 19 or pp == 32) {
-            return true; // a graphics emulation
-          }
-          if (pc == 0 and pv >= 95 and (pp == 0 or pp == 1 or pp == 24 or pp == 41 or pp == 61 or pp == 64 or pp == 65)) {
-            return false; // an xterm emulation without graphics
+      // Secondary DA: `CSI > Pp ; Pv ; Pc c`.
+      if (auto pos = reply.find("\x1b[>"); pos != std::string::npos) {
+        if (auto end = reply.find('c', pos); end != std::string::npos) {
+          da.answered = true;
+          got_secondary = true;
+          auto pp = 0, pv = 0, pc = -1;
+          if (std::sscanf(reply.c_str() + pos + 3, "%d;%d;%d", &pp, &pv, &pc) == 3) {
+            if (pp == 2 or pp == 18 or pp == 19 or pp == 32) {
+              da.has_graphics = true; // a graphics emulation
+            }
+            if (pc == 0 and pv >= 95) {
+              da.is_xterm = true; // an xterm, whatever emulation it reports
+            }
           }
         }
       }
     }
   }
 
+  return this->device_attributes;
+}
+
+std::optional<bool> Terminal::query_graphics_support() {
+  // Sixel is available when the terminal reports a graphics emulation; it
+  // is known absent when the terminal identifies itself as an xterm-style
+  // emulation without graphics (so the caller can fail with an explanation
+  // instead of drawing a black screen); an unrecognized or silent terminal
+  // (Windows Terminal and others) yields an empty optional.
+  auto da = query_device_attributes();
+  if (not da.answered) {
+    return { };
+  }
+  if (da.has_graphics) {
+    return true;
+  }
+  if (da.is_xterm) {
+    return false;
+  }
   return { };
 }
 
 std::optional<Dimension> Terminal::query_graphics_geometry() {
+  // Diagnostic override: TUI_SIXEL_MAX=WxH pins the image-size limit so the
+  // tiled flush can be exercised on terminals that answer no query
+  // (Windows Terminal) or that ignore it.
+  if (auto env = std::getenv("TUI_SIXEL_MAX")) {
+    auto w = 0, h = 0;
+    if (std::sscanf(env, "%dx%d", &w, &h) == 2 and w > 0 and h > 0) {
+      return Dimension { w, h };
+    }
+  }
+
   // XTSMGRAPHICS `CSI ? 2 ; 4 S`: item 2 (sixel geometry), action 4 (read
   // the maximum allowed value). xterm replies `CSI ? 2 ; 0 ; W ; H S` with
   // the maxGraphicSize dimensions; terminals without the control (Windows
@@ -399,6 +439,15 @@ std::optional<Dimension> Terminal::query_graphics_geometry() {
         return Dimension { width, height };
       }
     }
+  }
+
+  // No XTSMGRAPHICS answer. xterm builds that predate the control still
+  // truncate every image at their limit, whose default is 1000x1000;
+  // identify xterm by its Secondary DA firmware signature and assume the
+  // default so images are tiled under it. Terminals without the control and
+  // without that signature (Windows Terminal) have no limit and get none.
+  if (query_device_attributes().is_xterm) {
+    return Dimension { 1000, 1000 };
   }
 
   return { };

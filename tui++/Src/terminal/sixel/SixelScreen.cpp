@@ -33,8 +33,10 @@ SixelScreen::SixelScreen() {
   }
 
   // The largest image the terminal will display (xterm's maxGraphicSize,
-  // default 1000x1000): xterm silently truncates anything bigger, so the
-  // layout is clamped to it. Terminals without the control answer nothing.
+  // default 1000x1000): xterm silently truncates anything bigger, so every
+  // flush tiles its dirty region to at most this size. Terminals without
+  // the limit report nothing; xterm answers, or is identified via Device
+  // Attributes and gets the default.
   this->max_graphic_size = terminal.query_graphics_geometry();
 
   laf::LookAndFeel::put<Font>("defaultFont", Font { "Monospaced", this->cell_width, Font::PLAIN });
@@ -42,7 +44,6 @@ SixelScreen::SixelScreen() {
 
   auto size = terminal.get_size();
   this->size = { size.width * this->cell_width, size.height * this->cell_height };
-  clamp_to_terminal();
   resize_buffer();
 
   // Text printed before this screen took over (the unit tests) may have
@@ -54,12 +55,6 @@ SixelScreen::SixelScreen() {
   // land the wrong distance below the drawn content.
   terminal << "\x1b[?1049l\x1b[?1049h"sv;
   terminal.flush();
-}
-
-void SixelScreen::clamp_to_terminal() {
-  if (this->max_graphic_size) {
-    this->size = { std::min(this->size.width, this->max_graphic_size->width), std::min(this->size.height, this->max_graphic_size->height) };
-  }
 }
 
 void SixelScreen::resize_buffer() {
@@ -169,9 +164,6 @@ void SixelScreen::run_event_loop() {
     // terminal is resized; detect the resize here and repaint the windows.
     auto ts = terminal.get_size();
     auto pixel_size = Dimension { ts.width * this->cell_width, ts.height * this->cell_height };
-    if (this->max_graphic_size) {
-      pixel_size = { std::min(pixel_size.width, this->max_graphic_size->width), std::min(pixel_size.height, this->max_graphic_size->height) };
-    }
     if (pixel_size != size) {
       size = pixel_size;
       this->size = pixel_size;
@@ -241,31 +233,53 @@ void SixelScreen::flush() {
   }
   rect = { left, top, right - left, bottom - top };
 
+  // The terminal silently truncates any image wider or taller than its
+  // limit (xterm's maxGraphicSize, default 1000x1000); the first full draw
+  // lost everything right of the limit to exactly this. Slice the dirty
+  // region into tiles no larger than the limit, each on the cell lattice
+  // so every cursor position stays exact; adjacent tiles abut, so the seams
+  // never show. Terminals without a limit (Windows Terminal) keep a single
+  // image.
+  auto tile_w = right - left;
+  auto tile_h = bottom - top;
+  if (this->max_graphic_size) {
+    tile_w = std::max(this->cell_width, this->max_graphic_size->width / this->cell_width * this->cell_width);
+    tile_h = std::max(this->cell_height, this->max_graphic_size->height / this->cell_height * this->cell_height);
+  }
+
   auto encode_t0 = std::chrono::steady_clock::now();
-  auto data = SixelEncoder::encode(this->pixels.data() + (rect.y * get_pixel_width() + rect.x) * 3, rect.width, rect.height, get_pixel_width());
+  std::string out;
+  out.reserve(rect.width * rect.height / 8 + 64);
+  auto total_bytes = size_t { 0 };
+  for (auto ty = top; ty < bottom; ty += tile_h) {
+    auto th = std::min(tile_h, bottom - ty);
+    for (auto tx = left; tx < right; tx += tile_w) {
+      auto tw = std::min(tile_w, right - tx);
+      auto data = SixelEncoder::encode(this->pixels.data() + (ty * get_pixel_width() + tx) * 3, tw, th, get_pixel_width());
+      total_bytes += data.size();
+
+      // Move to the tile origin and emit its image. One combined write and
+      // a single flush per frame keeps the ConPTY round-trips to a minimum;
+      // the cursor is parked back at the top-left after the last tile so
+      // the next flush is placed from a known position.
+      out += "\x1b[";
+      out += std::to_string(ty / this->cell_height + 1);
+      out += ';';
+      out += std::to_string(tx / this->cell_width + 1);
+      out += 'H';
+      out += data;
+    }
+  }
+  out += "\x1b[1;1H";
   auto encode_t1 = std::chrono::steady_clock::now();
   this->last_encode_ms = std::chrono::duration<double, std::milli>(encode_t1 - encode_t0).count();
-
-  // One combined write: move to the region origin, emit the image, then park
-  // the cursor back at the top-left so the next image is placed from a known
-  // position. A single write and a single flush per frame keeps the ConPTY
-  // round-trips to a minimum.
-  std::string out;
-  out.reserve(data.size() + 32);
-  out += "\x1b[";
-  out += std::to_string(rect.y / this->cell_height + 1);
-  out += ';';
-  out += std::to_string(rect.x / this->cell_width + 1);
-  out += 'H';
-  out += data;
-  out += "\x1b[1;1H";
 
   auto write_t0 = std::chrono::steady_clock::now();
   terminal << out;
   terminal.flush();
   auto write_t1 = std::chrono::steady_clock::now();
   this->last_write_ms = std::chrono::duration<double, std::milli>(write_t1 - write_t0).count();
-  this->last_bytes = data.size();
+  this->last_bytes = total_bytes;
   ++this->flush_count;
 
   this->has_dirty = false;
