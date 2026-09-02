@@ -8,7 +8,13 @@
 namespace tui {
 
 WindowMouseEventDispatcher::~WindowMouseEventDispatcher() {
-  stop_listening_for_other_drags();
+  // The dispatcher only registered itself with the screen while a drag was
+  // in progress; the screen holds a strong reference while it is registered,
+  // so during teardown the last reference may be the one being released and
+  // shared_from_this() would throw. Skip the removal when unregistered.
+  if (not this->weak_from_this().expired()) {
+    stop_listening_for_other_drags();
+  }
 }
 
 void WindowMouseEventDispatcher::retarget_mouse_event(const std::shared_ptr<Component> &target, MouseEvent &e) {

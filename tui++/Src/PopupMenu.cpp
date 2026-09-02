@@ -197,19 +197,18 @@ void PopupMenu::show(std::shared_ptr<Component> const &invoker, int x, int y) {
 }
 
 void PopupMenu::set_visible(bool value) {
-  if (is_visible() != value) {
+  if (is_popup_showing() != value) {
     if (not value) {
       this->selection_model->clear_selection();
 
-      if (not this->popup) {
+      if (this->popup) {
         fire_event<PopupMenuEvent>(std::static_pointer_cast<PopupMenu>(shared_from_this()), PopupMenuEvent::BECOMES_INVISIBLE);
         this->popup->hide();
         this->popup = nullptr;
-        this->visible = value;
+      }
 
-        if (is_popup_menu()) {
-          MenuSelectionManager::single->clear_selected_path();
-        }
+      if (is_popup_menu()) {
+        MenuSelectionManager::single->clear_selected_path();
       }
     } else {
       // This is a popup menu with MenuElement children,
@@ -221,7 +220,6 @@ void PopupMenu::set_visible(bool value) {
 
       fire_event<PopupMenuEvent>(std::static_pointer_cast<PopupMenu>(shared_from_this()), PopupMenuEvent::BECOMES_VISIBLE);
       show_popup();
-      this->visible = value;
     }
   }
 }
@@ -241,7 +239,7 @@ void PopupMenu::show_popup() {
     old_popup->hide();
   }
 
-  this->popup = get_ui()->get_popup(std::static_pointer_cast<PopupMenu>(shared_from_this()), this->desired_location.x, this->desired_location.x);
+  this->popup = get_ui()->get_popup(std::static_pointer_cast<PopupMenu>(shared_from_this()), this->desired_location.x, this->desired_location.y);
   this->popup->show();
 }
 

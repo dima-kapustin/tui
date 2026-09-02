@@ -49,7 +49,7 @@ void Menu::add_impl(const std::shared_ptr<Component> &c, const Constraints &cons
 }
 
 bool Menu::is_popup_menu_visible() const {
-  return this->popup_menu->is_visible();
+  return this->popup_menu->is_popup_showing();
 }
 
 void Menu::set_popup_menu_visible(bool value) {

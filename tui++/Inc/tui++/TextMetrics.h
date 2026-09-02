@@ -11,10 +11,11 @@
 
 namespace tui {
 
-// Size of one terminal cell in the "graphic" (sixel) renderer, in pixels.
-// Kept in sync with GraphicScreen::CELL_WIDTH / CELL_HEIGHT.
-constexpr int GRAPHIC_CELL_WIDTH = 8;
-constexpr int GRAPHIC_CELL_HEIGHT = 16;
+// Default size of one terminal cell in the "graphic" (sixel) renderer, in
+// pixels. The real size is queried from the terminal at startup (see
+// GraphicScreen::get_cell_width); these are only the fallback defaults.
+constexpr int GRAPHIC_CELL_WIDTH = 16;
+constexpr int GRAPHIC_CELL_HEIGHT = 32;
 
 // Measures the dimensions of a (possibly multi-line) piece of text in the
 // screen's units: terminal cells for the text screen, pixels for the graphic
@@ -109,8 +110,9 @@ public:
   }
 };
 
-// Measures text in pixels, one terminal cell being GRAPHIC_CELL_WIDTH x
-// GRAPHIC_CELL_HEIGHT pixels.
+// Measures text in pixels. The raster glyphs are 16x32 (see
+// terminal/graphic/Font16x32.h), so a font of size S draws glyphs S pixels
+// wide and 2*S tall; a size-16 font fills the 16x32 terminal cell exactly.
 class PixelTextMetrics: public TextMetrics {
 public:
   PixelTextMetrics(const Font &font) :
@@ -118,15 +120,15 @@ public:
   }
 
   virtual int get_char_width(char32_t ch) const override {
-    return util::unicode::glyph_width(ch) * GRAPHIC_CELL_WIDTH;
+    return util::unicode::glyph_width(ch) * this->font.get_size();
   }
 
   virtual int get_line_height() const override {
-    return GRAPHIC_CELL_HEIGHT;
+    return 2 * this->font.get_size();
   }
 
   virtual int get_width(std::string_view text) const override {
-    return int(detail::max_line_glyph_width(text) * GRAPHIC_CELL_WIDTH);
+    return int(detail::max_line_glyph_width(text) * this->font.get_size());
   }
 
   virtual int get_height(std::string_view text) const override {

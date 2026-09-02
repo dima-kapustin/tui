@@ -2,6 +2,7 @@
 /Release/
 /.settings/
 build
+build-dbg
 *.user
 /build.log
 /.cache

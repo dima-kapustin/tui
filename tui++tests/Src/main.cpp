@@ -25,6 +25,12 @@ void test_EventSource();
 void test_CharIterator();
 void test_Action();
 void test_Color();
+void test_Font();
+void test_GraphicEncoder();
+void test_Menu();
+
+void run_font_visual_test();
+void run_font_editor(bool bench = false, bool scrollbench = false);
 
 auto make_file_menu() {
   auto file_menu = make_component<Menu>("File");
@@ -87,8 +93,27 @@ int main(int argc, char *argv[]) {
   test_CharIterator();
   test_Action();
   test_Color();
+  test_Font();
+  test_GraphicEncoder();
+  test_Menu();
 
   terminal.set_title("Welcome to tui++");
+
+  // The interactive font visual test: renders every glyph of the graphic
+  // font in all styles and lets the user rate each letter.
+  if (argc > 1 and std::string_view(argv[1]) == "font") {
+    run_font_visual_test();
+    return 0;
+  }
+
+  // The interactive font editor: a 16x32 pixel grid per glyph, mouse-editable,
+  // that dumps the corrected bitmaps as C rows for Font16x32.h. The optional
+  // "bench" argument replaces the event loop with a full-repaint benchmark,
+  // "scrollbench" feeds the wheel handler a synthetic event burst.
+  if (argc > 1 and std::string_view(argv[1]) == "fontedit") {
+    run_font_editor(argc > 2 and std::string_view(argv[2]) == "bench", argc > 2 and std::string_view(argv[2]) == "scrollbench");
+    return 0;
+  }
 
   // Select the rendering backend: "text" for the escape-sequence terminal
   // (the default) or "graphic" for the pixel-level sixel terminal.

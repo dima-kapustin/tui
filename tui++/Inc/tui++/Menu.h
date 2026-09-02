@@ -43,6 +43,12 @@ public:
   bool is_popup_menu_visible() const;
   void set_popup_menu_visible(bool value);
 
+  // The popup menu this top-level menu shows; callers may style or lay it out
+  // (e.g. set its background color) before it appears.
+  std::shared_ptr<PopupMenu> get_popup_menu() const {
+    return this->popup_menu;
+  }
+
   void set_menu_location(Point const &p);
 
   bool is_top_level_menu() const;

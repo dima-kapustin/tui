@@ -12,6 +12,8 @@
 
 #include <tui++/Insets.h>
 
+#include <tui++/Font.h>
+
 namespace tui {
 
 void TextTheme::init() {
@@ -21,6 +23,11 @@ void TextTheme::init() {
         { "Menu.MenuPopupOffsetX", 0 }, //
         { "Menu.MenuPopupOffsetY", 0 }, //
       });
+
+  // The default font used by the graphic (sixel) screen: the size is the
+  // glyph width in pixels, the style selects bold/italic. The text screen
+  // measures in cells and ignores it.
+  put("defaultFont", Font { });
 
   // Menu label margins, in cells, like Swing's "MenuItem.margin" /
   // "Menu.margin" (the graphic theme overrides them in pixels).

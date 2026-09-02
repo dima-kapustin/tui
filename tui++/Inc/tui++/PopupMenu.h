@@ -61,6 +61,14 @@ public:
 
   void set_invoker(std::shared_ptr<Component> const &invoker);
 
+  // Whether the popup window is currently on the screen. The component's own
+  // `visible` stays true (hiding it would also hide the popup from its
+  // parent's layout, collapsing the popup to zero size); the shown state is
+  // the popup window's existence instead.
+  bool is_popup_showing() const {
+    return this->popup != nullptr;
+  }
+
   using base::show;
   void show(std::shared_ptr<Component> const &invoker, int x, int y);
 

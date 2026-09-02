@@ -33,11 +33,11 @@ Popup::Popup(std::shared_ptr<Component> const &owner, std::shared_ptr<Component>
 }
 
 void Popup::show() {
-
+  this->window->set_visible(true);
 }
 
 void Popup::hide() {
-
+  this->window->set_visible(false);
 }
 
 }

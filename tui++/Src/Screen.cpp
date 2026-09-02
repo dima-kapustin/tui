@@ -15,12 +15,16 @@ void Screen::paint(Graphics &g) {
 
 std::shared_ptr<Window> Screen::get_window_at(int x, int y) const {
   std::unique_lock lock(this->windows_mutex);
-  for (auto &&window : this->windows) {
-    if (window->contains(x, y)) {
-      return window;
+  // Windows are painted in list order, so the last one is on top; hit-test
+  // from the top down so a popup receives clicks over the window behind it.
+  // contains() takes window-local coordinates, so offset by the window's
+  // screen position.
+  for (auto i = this->windows.rbegin(); i != this->windows.rend(); ++i) {
+    if ((*i)->contains(x - (*i)->get_x(), y - (*i)->get_y())) {
+      return *i;
     }
   }
-  return {};
+  return { };
 }
 
 void Screen::show_window(const std::shared_ptr<Window> &window) {
@@ -39,6 +43,9 @@ void Screen::hide_window(const std::shared_ptr<Window> &window) {
   std::unique_lock lock(this->windows_mutex);
   if (auto pos = std::find(this->windows.begin(), this->windows.end(), window); pos != this->windows.end()) {
     this->windows.erase(pos, this->windows.end());
+    // Repaint what the hidden window uncovered (e.g. a closed popup menu);
+    // pixel-level screens flush the repaint, text screens are unaffected.
+    refresh();
   } else {
     throw std::runtime_error("window not visible");
   }

@@ -12,8 +12,7 @@ namespace tui {
 namespace {
 
 constexpr int BAND_HEIGHT = 6;        // one sixel band covers 6 pixel rows
-constexpr int MAX_PALETTE_SIZE = 256; // palette entries per band
-constexpr int MAX_BAND_COLORS = 6;    // one sixel char has 6 phases, one per row of the band
+constexpr int MAX_PALETTE_SIZE = 256; // palette entries per image
 
 struct RGB {
   uint8_t red;
@@ -75,44 +74,81 @@ uint32_t quantize(const uint8_t *rgb, int bits) {
       quantize_channel(rgb[2], bits);
 }
 
-// Builds a per-band palette with at most MAX_PALETTE_SIZE entries, reducing
-// the color resolution until it fits. Returns the number of bits used.
-int build_palette(const uint8_t *rgb, int width, int band_y, int band_height, int stride, std::vector<RGB> &palette, std::unordered_map<uint32_t, int> &index_map) {
-  for (auto bits = 5; bits >= 2; --bits) {
-    palette.clear();
-    index_map.clear();
-
-    for (auto y = band_y; y < band_y + band_height; ++y) {
-      for (auto x = 0; x < width; ++x) {
-        auto const *px = rgb + (y * stride + x) * 3;
-        auto key = quantize(px, bits);
-        if (index_map.find(key) == index_map.end()) {
-          index_map.emplace(key, int(palette.size()));
-          palette.push_back({ px[0], px[1], px[2] });
-        }
+// Builds one palette for the whole image. The palette is emitted once, before
+// the first band: terminals keep a single palette per image, so redefining an
+// entry in a later band would recolor every pixel of the earlier bands that
+// shares the index (the per-band palettes made parts of the image flash
+// through random colors while it drew).
+//
+// Exact colors are kept while there are at most MAX_PALETTE_SIZE of them
+// (the editor's handful of colors round-trips exactly); otherwise the color
+// resolution is reduced until they fit. `bits` is the channel resolution used
+// to classify pixels (8 == exact colors).
+void build_palette(const uint8_t *rgb, int width, int height, int stride, std::vector<RGB> &palette, std::unordered_map<uint32_t, int> &index_map, int &bits) {
+  // Pass 1: the distinct exact colors of the image.
+  auto exact = std::vector<RGB> { };
+  auto exact_seen = std::unordered_map<uint32_t, int> { };
+  for (auto y = 0; y < height; ++y) {
+    for (auto x = 0; x < width; ++x) {
+      auto const *px = rgb + (y * stride + x) * 3;
+      auto key = quantize(px, 8);
+      if (exact_seen.find(key) == exact_seen.end()) {
+        exact_seen.emplace(key, int(exact.size()));
+        exact.push_back({ px[0], px[1], px[2] });
       }
     }
+  }
 
+  if (int(exact.size()) <= MAX_PALETTE_SIZE) {
+    palette = std::move(exact);
+    index_map = std::move(exact_seen);
+    bits = 8;
+    return;
+  }
+
+  // Pass 2: quantize the exact colors until they fit one palette. Two bits
+  // per channel yields at most 64 colors, so the loop always terminates.
+  for (bits = 5; bits >= 2; --bits) {
+    palette.clear();
+    index_map.clear();
+    for (auto const &color : exact) {
+      auto px = std::array<uint8_t, 3> { color.red, color.green, color.blue };
+      auto key = quantize(px.data(), bits);
+      if (index_map.find(key) == index_map.end()) {
+        index_map.emplace(key, int(palette.size()));
+        palette.push_back(color);
+      }
+    }
     if (int(palette.size()) <= MAX_PALETTE_SIZE) {
-      return bits;
+      return;
     }
   }
-  return 2;
 }
 
 // Classifies the columns of one band: the most frequent color of a column
-// becomes its fill and the second most frequent color becomes the line drawn
-// over it. Returns whether any column has a line. A sixel char carries a
-// single color, so a column with more than two colors approximates the extra
-// colors with the nearest of the two.
-bool classify_band(const uint8_t *rgb, int width, int band_y, int band_height, int stride, int bits, std::vector<RGB> const &palette, std::unordered_map<uint32_t, int> const &index_map, std::vector<int> &fill, std::vector<int> &line, std::vector<uint8_t> &line_mask) {
-  auto any_lines = false;
+// becomes its opaque fill, and every other color's rows are recorded as a
+// row mask (one mask per palette color). A sixel data char carries a single
+// color, so the band is painted with one pass per color: the fill first,
+// then each additional color rewound with `$` and drawn over its own rows.
+// Every pixel therefore keeps its exact color, however many colors share a
+// column (a 1px glyph line over a background that also holds a border keeps
+// all three).
+// Records, for every palette color, the row mask per column: the rows where
+// the pixel has that color. There is no separate opaque fill: every pixel is
+// painted exactly once, by its own color's pass, so a renderer that
+// mishandles the fill-then-repaint passes cannot bleed one color into rows
+// it does not cover (the old fill painted the gap rows between the editor's
+// grid cells with the cell color and depended on a later pass repainting
+// them, which Windows Terminal sometimes skipped, leaving a light line).
+// `pass_order` lists the palette indices from the most to the least frequent
+// color, which compresses best.
+void classify_band(const uint8_t *rgb, int width, int band_y, int band_height, int stride, int bits, int palette_size, std::unordered_map<uint32_t, int> const &index_map, std::vector<std::vector<uint8_t>> &color_mask, std::vector<int> &pass_order) {
   auto counts = std::array<int, MAX_PALETTE_SIZE> { };
 
-  for (auto x = 0; x < width; ++x) {
-    counts.fill(0);
-    auto column = std::array<int, MAX_BAND_COLORS> { };
+  color_mask.assign(std::size_t(palette_size), std::vector<uint8_t>(std::size_t(width), 0));
+  pass_order.resize(std::size_t(palette_size));
 
+  for (auto x = 0; x < width; ++x) {
     for (auto row = 0; row < band_height; ++row) {
       auto const *px = rgb + ((band_y + row) * stride + x) * 3;
 
@@ -121,96 +157,66 @@ bool classify_band(const uint8_t *rgb, int width, int band_y, int band_height, i
         idx = pos->second;
       }
 
-      column[row] = idx;
+      color_mask[std::size_t(idx)][std::size_t(x)] |= uint8_t(1 << row);
       ++counts[idx];
     }
-
-    auto fill_idx = int(std::max_element(counts.begin(), counts.begin() + int(palette.size())) - counts.begin());
-
-    auto line_idx = fill_idx;
-    auto line_count = 0;
-    for (auto i = 0; i < int(palette.size()); ++i) {
-      if (i != fill_idx and counts[i] > line_count) {
-        line_count = counts[i];
-        line_idx = i;
-      }
-    }
-
-    fill[x] = fill_idx;
-    line[x] = line_idx;
-
-    auto mask = uint8_t(0);
-    for (auto row = 0; row < band_height; ++row) {
-      if (column[row] == line_idx) {
-        mask |= uint8_t(1 << row);
-      }
-    }
-    line_mask[x] = mask;
-    any_lines = any_lines or mask != 0;
   }
 
-  return any_lines;
+  for (auto color = 0; color < palette_size; ++color) {
+    pass_order[std::size_t(color)] = color;
+  }
+  std::sort(pass_order.begin(), pass_order.end(), [&counts](int a, int b) {
+    return counts[a] != counts[b] ? counts[a] > counts[b] : a < b;
+  });
 }
 
-// Emits one band: the palette, the band advance, the opaque fills, then a `$`
-// rewind to column 0 followed by the line pixels on top. Every phase emits
-// exactly one data char per image column, so nothing shifts to the right.
-void emit_band(std::string &out, const uint8_t *rgb, int width, int band_y, int band_height, int stride, std::vector<RGB> &palette, std::unordered_map<uint32_t, int> &index_map, std::vector<int> &fill, std::vector<int> &line, std::vector<uint8_t> &line_mask) {
-  auto bits = build_palette(rgb, width, band_y, band_height, stride, palette, index_map);
-
-  fill.assign(width, 0);
-  line.assign(width, 0);
-  line_mask.assign(width, 0);
-  classify_band(rgb, width, band_y, band_height, stride, bits, palette, index_map, fill, line, line_mask);
-
-  append_palette(out, palette);
+// Emits one band: the band advance, then one pass per color, each pass
+// painting only the rows where that color occurs (rewound with `$` between
+// the passes). Every pixel is painted exactly once, by its own color, and
+// every pass emits exactly one data char per image column, so nothing shifts
+// to the right. The image palette is defined once by the caller.
+void emit_band(std::string &out, const uint8_t *rgb, int width, int band_y, int band_height, int stride, int bits, int palette_size, std::unordered_map<uint32_t, int> const &index_map, std::vector<std::vector<uint8_t>> &color_mask, std::vector<int> &pass_order) {
+  classify_band(rgb, width, band_y, band_height, stride, bits, palette_size, index_map, color_mask, pass_order);
 
   if (band_y > 0) {
     // Carriage return, then advance to the next band row.
     out += "$-";
   }
 
-  // Fills: every column is painted with its fill color on all band rows.
-  auto current_color = -1;
-  auto fill_char = char(0x3F + (1 << band_height) - 1);
-  for (auto x = 0; x < width;) {
-    auto color = fill[x];
-    auto start = x;
-    while (x < width and fill[x] == color) {
-      ++x;
+  auto first = true;
+  for (auto color : pass_order) {
+    auto const &mask = color_mask[std::size_t(color)];
+    auto any = false;
+    for (auto x = 0; x < width; ++x) {
+      if (mask[x]) {
+        any = true;
+        break;
+      }
     }
-    if (color != current_color) {
-      out += '#';
-      append_int(out, color);
-      current_color = color;
+    if (not any) {
+      continue;
     }
-    append_run(out, x - start, fill_char);
-  }
 
-  // Rewind to column 0 of the same band and draw the lines over the fills;
-  // a zero char is transparent, leaving the fill pixels in place.
-  out += '$';
-
-  current_color = -1;
-  for (auto x = 0; x < width;) {
-    auto mask = line_mask[x];
-    auto start = x;
-    if (mask == 0) {
-      while (x < width and line_mask[x] == 0) {
-        ++x;
+    if (not first) {
+      out += '$';
+    }
+    first = false;
+    out += '#';
+    append_int(out, color);
+    for (auto x = 0; x < width;) {
+      auto m = mask[x];
+      auto start = x;
+      if (m == 0) {
+        while (x < width and mask[x] == 0) {
+          ++x;
+        }
+        append_run(out, x - start, '?');
+      } else {
+        while (x < width and mask[x] == m) {
+          ++x;
+        }
+        append_run(out, x - start, char(0x3F + m));
       }
-      append_run(out, x - start, '?');
-    } else {
-      auto color = line[x];
-      while (x < width and line_mask[x] == mask and line[x] == color) {
-        ++x;
-      }
-      if (color != current_color) {
-        out += '#';
-        append_int(out, color);
-        current_color = color;
-      }
-      append_run(out, x - start, char(0x3F + mask));
     }
   }
 }
@@ -227,24 +233,27 @@ std::string GraphicEncoder::encode(const uint8_t *rgb, int width, int height, in
 
   auto palette = std::vector<RGB> { };
   auto index_map = std::unordered_map<uint32_t, int> { };
-  auto fill = std::vector<int> { };
-  auto line = std::vector<int> { };
-  auto line_mask = std::vector<uint8_t> { };
+  auto bits = 0;
+  build_palette(rgb, width, height, stride, palette, index_map, bits);
 
-  // A column holding a line and a fill color cannot be drawn with a single
-  // sixel char: each data char advances the pen one column, so a second char
-  // would shift the rest of the band to the right. The band is therefore
-  // emitted twice, with a `$` carriage return between the two runs: first the
-  // fills, then the lines drawn over them. The whole image uses a transparent
-  // background (P2=1), so a zero char in the line run leaves the fill pixel in
-  // place. Both runs still advance exactly one column per image column.
+  // The image is emitted with a transparent background (P2=1). Its palette is
+  // defined once, before the first band: every band then references those
+  // entries, so no color is ever redefined mid-image. Every band is painted
+  // with one pass per color (most frequent first), each pass drawing only the
+  // rows where that color occurs, rewound with a `$` carriage return between
+  // the passes. A pixel is painted exactly once, by its own color, so nothing
+  // depends on a later pass repainting an earlier one, and every pass
+  // advances exactly one column per image column.
 
   out += "\x1bP0;1;0q";
   append_raster_attributes(out, width, height);
+  append_palette(out, palette);
 
+  auto color_mask = std::vector<std::vector<uint8_t>> { };
+  auto pass_order = std::vector<int> { };
   for (auto band_y = 0; band_y < height; band_y += BAND_HEIGHT) {
     auto band_height = std::min(BAND_HEIGHT, height - band_y);
-    emit_band(out, rgb, width, band_y, band_height, stride, palette, index_map, fill, line, line_mask);
+    emit_band(out, rgb, width, band_y, band_height, stride, bits, int(palette.size()), index_map, color_mask, pass_order);
   }
 
   // ST: end of the DCS.

@@ -30,6 +30,13 @@ protected:
   } state;
 
 public:
+  ButtonModel() {
+    // As in Swing's DefaultButtonModel, a new model starts enabled; the
+    // bitfield otherwise zero-initializes and a disabled model never fires
+    // the button's ActionEvent on release.
+    this->state.is_enabled = 1;
+  }
+
   std::shared_ptr<ButtonGroup> get_group() const {
     return this->group.lock();
   }

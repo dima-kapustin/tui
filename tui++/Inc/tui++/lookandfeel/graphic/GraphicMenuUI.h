@@ -8,7 +8,6 @@
 #include <tui++/lookandfeel/LookAndFeel.h>
 #include <tui++/MenuItem.h>
 #include <tui++/Screen.h>
-#include <tui++/terminal/graphic/Font8x8.h>
 
 namespace tui::laf {
 
@@ -30,7 +29,10 @@ protected:
   virtual void paint(Graphics &g, std::shared_ptr<const Component> const &c) const override {
     auto menu_item = std::static_pointer_cast<const MenuItem>(c);
     auto margin = LookAndFeel::get<Insets>("Menu.margin", Insets { 2, 2, 2, 2 });
-    auto y = margin.top + (menu_item->get_height() - margin.top - margin.bottom - detail::FONT_HEIGHT) / 2;
+    // The glyph is twice as tall as the font size (16x32 raster); center it
+    // vertically in the area left inside the margin.
+    auto glyph_height = 2 * g.get_font().get_size();
+    auto y = margin.top + (menu_item->get_height() - margin.top - margin.bottom - glyph_height) / 2;
     g.draw_string(menu_item->get_text(), margin.left, y);
   }
 };

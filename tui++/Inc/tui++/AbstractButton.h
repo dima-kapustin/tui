@@ -58,7 +58,10 @@ protected:
   }
 
   AbstractButton(std::shared_ptr<ButtonModel> const &model, std::string const &text, Char const &mnemonic) {
-    this->model = model;
+    // Route through set_model so the button listens to the model's action
+    // and state events (a raw property assignment would leave the model's
+    // ActionEvent with no path to the button's listeners).
+    set_model(model);
     this->text = text;
     this->mnemonic = mnemonic;
   }

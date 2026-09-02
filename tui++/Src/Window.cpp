@@ -154,7 +154,14 @@ void Window::pack() {
     add_notify();
   }
 
-  set_size(get_preferred_size());
+  // The window's own layout is redirected to the root pane, so its preferred
+  // size is empty; size the window from the root pane (the content plus the
+  // window insets and menu bar), which is what a popup needs to fit its menu.
+  auto size = this->root_pane->get_preferred_size();
+  if (size.width <= 0 or size.height <= 0) {
+    size = get_preferred_size();
+  }
+  set_size(size);
   validate_unconditionally();
 }
 

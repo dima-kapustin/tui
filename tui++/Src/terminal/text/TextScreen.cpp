@@ -271,10 +271,10 @@ void TextScreen::print() {
   };
 
   for (auto y = 0U; y < this->view.size(); ++y) {
-    if (y) {
-//      escape_attrs_and_colors(EMPTY_CHAR_VIEW);
-      terminal << "\r\n"sv;
-    }
+    // Position each row absolutely: a line feed after the last row would
+    // scroll the screen when the cursor sits on the bottom row, shifting
+    // everything the next screen draws off by a row.
+    move_cursor_to(int(y) + 1, 1);
 
     auto skip = false;
     for (auto &&cv : this->view[y]) {

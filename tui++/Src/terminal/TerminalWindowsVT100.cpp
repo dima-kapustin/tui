@@ -102,6 +102,20 @@ public:
     return was_available != into.get_available();
   }
 
+  std::optional<Dimension> query_cell_size() {
+    // The console font size is the terminal cell size in pixels (TrueType
+    // fonts); used when the terminal ignores the escape-sequence queries.
+    CONSOLE_FONT_INFO info { };
+    if (::GetCurrentConsoleFont(this->output_handle, FALSE, &info) and info.dwFontSize.X > 0 and info.dwFontSize.Y > 0) {
+      auto width = int(info.dwFontSize.X);
+      auto height = int(info.dwFontSize.Y);
+      if (width >= 4 and width <= 64 and height >= 4 and height <= 64) {
+        return Dimension { width, height };
+      }
+    }
+    return { };
+  }
+
   ~TerminalImpl() {
     ::SetConsoleMode(this->output_handle, this->output_mode);
     ::SetConsoleMode(this->input_handle, this->input_mode);
@@ -137,6 +151,13 @@ Dimension Terminal::get_size() {
   }
 
   return get_default_size();
+}
+
+std::optional<Dimension> Terminal::query_cell_size() {
+  if (auto size = query_cell_size_from_terminal()) {
+    return size;
+  }
+  return this->impl->query_cell_size();
 }
 
 }

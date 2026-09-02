@@ -40,7 +40,17 @@ class Terminal {
     MOUSE_PIXEL_POSITION_MODE = 1016,
 
     // The alternate buffer is exactly the dimensions of the window, without any scrollback region.
-    USE_ALTERNATE_SCREEN_BUFFER = 1049
+    USE_ALTERNATE_SCREEN_BUFFER = 1049,
+
+    // DECSDM (Sixel Display Mode): when set, the text cursor stays at the
+    // top-left corner of a sixel image after it is drawn. It is kept reset
+    // (the default): some terminals (Windows Terminal among them) stop
+    // following the cursor position for each image while the mode is set, so
+    // repainted regions would pile up at the top-left of the screen. The
+    // graphic screen instead keeps every image one cell short of the
+    // bottom-right corner so the cursor advance after an image cannot leave
+    // the visible area and scroll the buffer.
+    SIXEL_DISPLAY_MODE = 80
   };
 
   // Normally xterm makes a special case regarding modifiers (shift, control, etc.)
@@ -239,6 +249,10 @@ private:
   void init();
   void deinit();
 
+  // The escape-sequence part of query_cell_size (shared by all platforms);
+  // the platform files wrap it with their own fallback source.
+  std::optional<Dimension> query_cell_size_from_terminal();
+
   void new_resize_event();
   void new_key_event(const Char &c, InputEvent::Modifiers key_modifiers);
   void new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers key_modifiers);
@@ -284,6 +298,14 @@ public:
   Screen& get_screen();
 
   Dimension get_size();
+
+  // Queries the terminal for its cell size in pixels: CSI 16 t (cell size)
+  // with CSI 14 t / CSI 18 t (text area in pixels / characters) as fallback,
+  // and finally the platform's own source (e.g. the console font size on
+  // Windows). Returns an empty optional when the terminal does not answer
+  // within a short timeout, in which case the caller falls back to its
+  // defaults.
+  std::optional<Dimension> query_cell_size();
 
   // Selects the rendering backend: "char" for the escape-sequence terminal
   // screen (the default) or "graphic" for the pixel-level sixel screen. The

@@ -1,5 +1,7 @@
 #include <iostream>
 
+#include <cstdio>
+
 #include <tui++/Window.h>
 #include <tui++/KeyboardFocusManager.h>
 
@@ -139,6 +141,12 @@ void Terminal::init() {
   set_option(DECModeOption::MOUSE_URXVT_EXT_MODE);
   set_option(DECModeOption::MOUSE_SGR_EXT_MODE);
 
+  // Keep the terminal's default sixel cursor behaviour: the cursor advances
+  // past each image's bottom-right corner (the mode set variant makes some
+  // terminals stop honoring the cursor position for later images). The
+  // graphic screen keeps images short of the bottom-right corner instead.
+  reset_option(DECModeOption::SIXEL_DISPLAY_MODE);
+
   hide_cursor();
 
   flush();
@@ -150,6 +158,7 @@ void Terminal::deinit() {
   reset_option(DECModeOption::MOUSE_ANY_EVENT);
   reset_option(DECModeOption::MOUSE_VT200);
   reset_option(DECModeOption::USE_ALTERNATE_SCREEN_BUFFER);
+  set_option(DECModeOption::SIXEL_DISPLAY_MODE);
 
   flush();
 }
@@ -191,7 +200,7 @@ void Terminal::new_mouse_event(MousePressEvent::Type type, MousePressEvent::Butt
     modifiers &= ~to_modifiers(button);
   }
 
-  auto p = Point { x, y };
+  auto p = screen.convert_mouse_point(x, y);
 
   auto window = screen.get_window_at(p);
   if (window) {
@@ -230,7 +239,7 @@ void Terminal::new_mouse_event(MousePressEvent::Type type, MousePressEvent::Butt
 }
 
 void Terminal::new_mouse_wheel_event(int wheel_rotation, InputEvent::Modifiers key_modifiers, int x, int y) {
-  auto p = Point { x, y };
+  auto p = screen.convert_mouse_point(x, y);
 
   auto window = screen.get_window_at(p);
   if (window) {
@@ -242,6 +251,51 @@ void Terminal::new_mouse_wheel_event(int wheel_rotation, InputEvent::Modifiers k
 
 Screen& Terminal::get_screen() {
   return screen;
+}
+
+std::optional<Dimension> Terminal::query_cell_size_from_terminal() {
+  // Ask for the cell size directly and, as a fallback, for the text area in
+  // pixels and in characters (the cell size is then pixels / characters).
+  std::cout << "\x1b[16t\x1b[14t\x1b[18t" << std::flush;
+
+  auto deadline = Clock::now() + std::chrono::milliseconds(150);
+  std::string reply;
+  reply.reserve(64);
+  InputReader reader { *this };
+  while (Clock::now() < deadline) {
+    auto ms = std::max(int64_t(1), std::chrono::duration_cast<std::chrono::milliseconds>(deadline - Clock::now()).count());
+    auto c = reader.get(std::chrono::milliseconds(ms));
+    if (c == 0) {
+      break; // no more input before the deadline
+    }
+    reply += c;
+    while (auto more = reader.consume()) {
+      reply += more;
+    }
+
+    // CSI 6 ; height ; width t -- the cell size directly.
+    if (auto pos = reply.find("\x1b[6;"); pos != std::string::npos) {
+      auto height = 0, width = 0;
+      if (std::sscanf(reply.c_str() + pos, "\x1b[6;%d;%dt", &height, &width) == 2 and height > 0 and width > 0) {
+        return Dimension { width, height };
+      }
+    }
+  }
+
+  // Fallback: text area in pixels (CSI 4 ; h ; w t) divided by the text area
+  // in characters (CSI 8 ; r ; c t).
+  auto px_h = 0, px_w = 0, ch_h = 0, ch_w = 0;
+  if (auto pos = reply.find("\x1b[4;"); pos != std::string::npos) {
+    std::sscanf(reply.c_str() + pos, "\x1b[4;%d;%dt", &px_h, &px_w);
+  }
+  if (auto pos = reply.find("\x1b[8;"); pos != std::string::npos) {
+    std::sscanf(reply.c_str() + pos, "\x1b[8;%d;%dt", &ch_h, &ch_w);
+  }
+  if (px_h > 0 and px_w > 0 and ch_h > 0 and ch_w > 0) {
+    return Dimension { std::max(1, px_w / ch_w), std::max(1, px_h / ch_h) };
+  }
+
+  return { };
 }
 
 void Terminal::set_type(std::string_view type) {

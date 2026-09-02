@@ -1,17 +1,33 @@
 #include <tui++/terminal/graphic/GraphicGraphics.h>
 #include <tui++/terminal/graphic/GraphicScreen.h>
-#include <tui++/terminal/graphic/Font8x8.h>
+#include <tui++/terminal/graphic/Font16x32.h>
+
+#include <tui++/lookandfeel/LookAndFeel.h>
 
 #include <tui++/util/utf-8.h>
+#include <tui++/util/unicode.h>
 
 #include <algorithm>
+#include <array>
+#include <vector>
 
 namespace tui {
 
 namespace {
 
-// Rendered for code points the bitmap font does not cover (U+0080 and above).
-constexpr uint8_t MISSING_GLYPH[8] = { 0xFF, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0xFF };
+// Rendered for code points the bitmap font does not cover (U+0080 and above):
+// a 16x32 box, matching the raster's cell.
+constexpr uint8_t MISSING_GLYPH[detail::FONT_HEIGHT * 2] = {
+    0xFF, 0xFF, 0xFF, 0xFF, // top edge (2 px)
+    0xC0, 0x03, 0xC0, 0x03, 0xC0, 0x03, 0xC0, 0x03, // left / right edges
+    0xC0, 0x03, 0xC0, 0x03, 0xC0, 0x03, 0xC0, 0x03,
+    0xC0, 0x03, 0xC0, 0x03, 0xC0, 0x03, 0xC0, 0x03,
+    0xC0, 0x03, 0xC0, 0x03, 0xC0, 0x03, 0xC0, 0x03,
+    0xC0, 0x03, 0xC0, 0x03, 0xC0, 0x03, 0xC0, 0x03,
+    0xC0, 0x03, 0xC0, 0x03, 0xC0, 0x03, 0xC0, 0x03,
+    0xC0, 0x03, 0xC0, 0x03, 0xC0, 0x03, 0xC0, 0x03,
+    0xFF, 0xFF, 0xFF, 0xFF  // bottom edge (2 px)
+};
 
 }
 
@@ -20,7 +36,8 @@ GraphicGraphics::GraphicGraphics(GraphicScreen &screen) :
 }
 
 GraphicGraphics::GraphicGraphics(GraphicScreen &screen, const Rectangle &clip_rect, int dx, int dy) :
-    screen(screen), dx(dx), dy(dy), clip(clip_rect) {
+    screen(screen), dx(dx), dy(dy), clip(clip_rect),
+    font(laf::LookAndFeel::get<Font>("defaultFont", Font { })) {
 }
 
 std::optional<Color> GraphicGraphics::get_fill_color() const {
@@ -77,15 +94,57 @@ void GraphicGraphics::draw_char(const Char &c, int x, int y, std::optional<Attri
 }
 
 void GraphicGraphics::blit_glyph(char32_t code, int x, int y) {
-  auto const *glyph = (code < 128) ? detail::FONT8X8_BASIC[code] : MISSING_GLYPH;
+  auto const *glyph = (code < 128) ? detail::FONT16X32_BASIC[code] : MISSING_GLYPH;
   auto px = x + this->dx;
   auto py = y + this->dy;
-  if (this->clip.intersects(px, py, detail::FONT_WIDTH, detail::FONT_HEIGHT)) {
-    // An unset foreground means "the terminal's default text color", which the
-    // text screen renders as the terminal default (white); mirror that here. A
-    // null background leaves the pixels under the glyph untouched.
-    this->screen.blit_glyph(px, py, glyph, this->foreground_color.value_or(WHITE_COLOR), this->background_color);
+
+  // The font size is the glyph width in pixels; the 16x32 raster is twice as
+  // tall as it is wide.
+  auto width = std::max(this->font.get_size(), 1);
+  auto height = 2 * width;
+
+  if (not this->clip.intersects(px, py, width, height)) {
+    return;
   }
+
+  // BOLD doubles every stroke by mirroring each set pixel one column to the
+  // right, at the 16x32 raster resolution.
+  auto bold = bool(this->font.get_style() & Font::BOLD);
+  auto styled = std::array<uint16_t, detail::FONT_HEIGHT> { };
+  for (auto sy = 0; sy < detail::FONT_HEIGHT; ++sy) {
+    auto row = uint16_t((glyph[sy * 2] << 8) | glyph[sy * 2 + 1]);
+    styled[sy] = bold ? uint16_t(row | (row >> 1)) : row;
+  }
+
+  // Scale the raster to the requested size (nearest-neighbor); ITALIC shears
+  // the rows, shifting the top rows right so the glyph leans forward.
+  auto italic = bool(this->font.get_style() & Font::ITALIC);
+  auto shear_max = italic ? std::max(1, width / 4) : 0;
+  auto row_bytes = (width + 7) / 8;
+  auto scaled = std::vector<uint8_t>(std::size_t(row_bytes) * height, 0);
+
+  for (auto row_y = 0; row_y < height; ++row_y) {
+    auto sy = row_y * detail::FONT_HEIGHT / height;
+    auto shear = italic ? (height - 1 - row_y) * shear_max / (height - 1) : 0;
+    auto row = styled[sy];
+    for (auto col_x = 0; col_x < width; ++col_x) {
+      // The sheared column is checked before scaling: division truncates
+      // toward zero, so a negative column must not wrap around to column 0.
+      auto shifted = col_x - shear;
+      if (shifted < 0) {
+        continue;
+      }
+      auto sx = shifted * detail::FONT_WIDTH / width;
+      if (row & (0x8000 >> sx)) {
+        scaled[std::size_t(row_y) * row_bytes + col_x / 8] |= uint8_t(0x80 >> (col_x % 8));
+      }
+    }
+  }
+
+  // An unset foreground means "the terminal's default text color", which the
+  // text screen renders as the terminal default (white); mirror that here. A
+  // null background leaves the pixels under the glyph untouched.
+  this->screen.blit_glyph(px, py, scaled.data(), width, height, this->foreground_color.value_or(WHITE_COLOR), this->background_color);
 }
 
 void GraphicGraphics::draw_hline(int x, int y, int length, std::optional<Attributes> const &attributes) {
@@ -149,7 +208,7 @@ void GraphicGraphics::draw_string(const std::string &str, int x, int y, std::opt
       continue;
     }
     draw_char(Char(code), cx, y, attributes);
-    cx += detail::FONT_WIDTH;
+    cx += util::unicode::glyph_width(code) * this->font.get_size();
     index += std::size_t(len);
   }
 }

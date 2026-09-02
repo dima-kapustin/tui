@@ -127,7 +127,23 @@ public:
     return get_window_at(p.x, p.y);
   }
 
+  // Converts a terminal mouse position (reported in text cells) into this
+  // screen's coordinate system: identity for the text screen, whose layout is
+  // measured in cells; pixels for the graphic (sixel) screen, whose layout is
+  // measured in pixels. The converted point is used for window hit-testing
+  // and event retargeting, so both backends stay unit-consistent.
+  virtual Point convert_mouse_point(int x, int y) const {
+    return { x, y };
+  }
+
   virtual void refresh() = 0;
+
+  // Repaints and flushes only `rect` (screen coordinates). The default
+  // implementation repaints everything; pixel-level screens repaint just the
+  // damaged region so small edits do not re-encode the whole image.
+  virtual void repaint_region(Rectangle const &rect) {
+    refresh();
+  }
 
   // Notifies the screen that the terminal was resized. Screens that poll the
   // size themselves (e.g. the pixel-level screens) may leave this empty.

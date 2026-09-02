@@ -51,8 +51,13 @@ protected:
 
   virtual ~Window() {
     if (this->owner) {
+      // Drop this window's weak entry in the owner's list. shared_from_this()
+      // is unusable here: when the last reference is being released the weak
+      // handle has already expired (and the entry expires on its own anyway).
       with_tree_locked([this] {
-        this->owner->remove_owned_window(std::static_pointer_cast<Window>(shared_from_this()));
+        std::erase_if(this->owner->owned_windows, [this](auto const &candidate) {
+          return candidate.expired() or candidate.lock().get() == this;
+        });
       });
     }
   }

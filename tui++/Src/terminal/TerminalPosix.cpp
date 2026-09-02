@@ -56,6 +56,10 @@ public:
     return false;
   }
 
+  std::optional<Dimension> query_cell_size() {
+    return { }; // no platform-specific cell-size source on POSIX
+  }
+
   ~TerminalImpl() {
     //::fcntl(STDIN_FILENO, F_GETFL, this->input_flags);
 
@@ -90,6 +94,10 @@ Dimension Terminal::get_size() {
       return {80, 24};
   }
   return {w.ws_col, w.ws_row};
+}
+
+std::optional<Dimension> Terminal::query_cell_size() {
+  return query_cell_size_from_terminal();
 }
 
 }
