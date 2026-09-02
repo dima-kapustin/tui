@@ -61,7 +61,8 @@ struct Decoder {
       return false;
     }
     ++i;
-    // Raster attributes: " Pan ; Pad ; Pv ; Ph
+    // Raster attributes: " Pan ; Pad ; Ph ; Pv (skipped; the values are
+    // only the declared image size, the decoder derives it from the data)
     if (i >= s.size() or s[i] != '"') {
       return false;
     }

@@ -27,12 +27,17 @@ void append_int(std::string &out, unsigned value) {
 }
 
 void append_raster_attributes(std::string &out, int width, int height) {
-  // DECGRA: `" Pan ; Pad ; Pv ; Ph ` -- the third parameter is the vertical
-  // extent (height) and the fourth the horizontal extent (width).
+  // DECGRA: `" Pan ; Pad ; Ph ; Pv ` -- Pan/Pad are the pixel aspect ratio
+  // (1:1, square pixels), Ph is the horizontal extent (width) and Pv the
+  // vertical extent (height), both in pixels. xterm (graphics_sixel.c),
+  // Windows Terminal (SixelParser.cpp) and the DEC VT330/VT340 manuals all
+  // agree on this order; emitting them swapped made xterm treat every wide
+  // image as if it were that many pixels tall, scrolling the window as the
+  // image was "written past the bottom line".
   out += "\"1;1;";
-  append_int(out, height);
-  out += ';';
   append_int(out, width);
+  out += ';';
+  append_int(out, height);
 }
 
 void append_palette(std::string &out, std::vector<RGB> const &palette) {
