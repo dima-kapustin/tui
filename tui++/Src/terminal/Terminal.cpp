@@ -385,8 +385,11 @@ std::optional<Dimension> Terminal::query_graphics_geometry() {
     }
 
     if (auto pos = reply.find("\x1b[?2;"); pos != std::string::npos) {
+      // The reply is `CSI ? 2 ; Ps ; W ; H S`; parse from the sequence start
+      // so the offset into the parameters cannot drift (the prefix is five
+      // characters: ESC [ ? 2 ;).
       auto status = 0, width = 0, height = 0;
-      if (std::sscanf(reply.c_str() + pos + 4, "%d;%d;%dS", &status, &width, &height) == 3 and width > 0 and height > 0) {
+      if (std::sscanf(reply.c_str() + pos, "\x1b[?2;%d;%d;%dS", &status, &width, &height) == 3 and width > 0 and height > 0) {
         return Dimension { width, height };
       }
     }

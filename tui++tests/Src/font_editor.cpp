@@ -425,14 +425,19 @@ private:
   }
 
   Rectangle status_rect() const {
-    return { 16, header_top() + 2 * header_line(), 30 * HEADER_FONT, 2 * HEADER_FONT };
+    // Wide enough for the modified state plus the terminal-geometry
+    // diagnostics appended to the status line.
+    return { 16, header_top() + 2 * header_line(), 42 * HEADER_FONT, 2 * HEADER_FONT };
   }
 
   // The 4x and 1x previews; the hex byte matrix that used to sit between
   // the grid and the previews is gone (every row's two bytes are already
   // shown next to the grid), so the previews moved up right below the grid.
+  // The 1x glyph hangs GLYPH_H - 16 pixels below the 4x block's bottom
+  // edge (its baseline sits on it), so the rect extends down to cover it:
+  // a repaint clipped to this rect must not cut the glyph's descenders.
   Rectangle preview_rect() const {
-    return { this->dump_x() - 2, grid_y() + 2 * HEX_FONT - 2, 4 * GLYPH_W + 7 * HEX_FONT + GLYPH_W + 16, 4 * GLYPH_H + 6 };
+    return { this->dump_x() - 2, grid_y() + 2 * HEX_FONT - 2, 4 * GLYPH_W + 7 * HEX_FONT + GLYPH_W + 16, 4 * GLYPH_H + 20 };
   }
 
   // The changed pixel of the 4x preview (scale 4) and of the 1x preview.
@@ -536,7 +541,15 @@ public:
       g.draw_string("click: toggle  right: clear  c/r: clear  d/D: dump  q: quit  wheel: scroll", 16, htop + hline);
 
       g.set_foreground_color(this->is_changed() ? changed_color : dim);
-      g.draw_string(this->is_changed() ? "modified (d to dump)" : "unmodified", 16, htop + 2 * hline);
+      // The terminal geometry doubles as a diagnostic when a terminal clips
+      // or mis-scales the layout: cells, cell pixel size, and the largest
+      // image the terminal displays (xterm's maxGraphicSize).
+      char status[128];
+      auto &gs = static_cast<SixelScreen&>(screen);
+      auto cells = screen.get_size();
+      auto max = gs.get_max_graphic_size();
+      std::snprintf(status, sizeof status, "%s   %dx%d@%dx%d  sixel max %dx%d", this->is_changed() ? "modified" : "unmodified", cells.width / std::max(1, cell_width()), cells.height / std::max(1, cell_height()), cell_width(), cell_height(), max ? max->width : 0, max ? max->height : 0);
+      g.draw_string(status, 16, htop + 2 * hline);
     }
 
     // ---- column labels (0..15, fixed above the grid) -----------------------

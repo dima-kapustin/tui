@@ -112,6 +112,10 @@ public:
     return this->cell_height;
   }
 
+  std::optional<Dimension> get_max_graphic_size() const {
+    return this->max_graphic_size;
+  }
+
   double get_last_encode_ms() const {
     return this->last_encode_ms;
   }
