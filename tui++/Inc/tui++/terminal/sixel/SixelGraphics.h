@@ -4,13 +4,13 @@
 
 namespace tui {
 
-class GraphicScreen;
+class SixelScreen;
 
-// Rasterizes the drawing API into the GraphicScreen's pixel framebuffer. All
-// coordinates and sizes are in pixels: the GraphicScreen reports its size in
+// Rasterizes the drawing API into the SixelScreen's pixel framebuffer. All
+// coordinates and sizes are in pixels: the SixelScreen reports its size in
 // pixels, so components lay out and draw directly against individual pixels.
-class GraphicGraphics: public Graphics {
-  GraphicScreen &screen;
+class SixelGraphics: public Graphics {
+  SixelScreen &screen;
 
   int dx, dy;
   Rectangle clip;
@@ -39,8 +39,8 @@ private:
   int stroke_width() const;
 
 public:
-  GraphicGraphics(GraphicScreen &screen);
-  GraphicGraphics(GraphicScreen &screen, const Rectangle &clip_rect, int dx, int dy);
+  SixelGraphics(SixelScreen &screen);
+  SixelGraphics(SixelScreen &screen, const Rectangle &clip_rect, int dx, int dy);
 
 public:
   virtual void clip_rect(int x, int y, int width, int height) override;

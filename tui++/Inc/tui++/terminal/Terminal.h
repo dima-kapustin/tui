@@ -20,7 +20,7 @@ extern Terminal &terminal;
 class TerminalImpl;
 class TextScreen;
 class TextGraphics;
-class GraphicScreen;
+class SixelScreen;
 
 class Terminal {
   enum class DECModeOption {
@@ -281,7 +281,7 @@ private:
   friend Terminal& operator<<(Terminal &term, signed value);
 
   friend class TextScreen;
-  friend class GraphicScreen;
+  friend class SixelScreen;
 
   Terminal();
   ~Terminal();
@@ -317,8 +317,17 @@ public:
   // or is unrecognized (Windows Terminal and others).
   std::optional<bool> query_graphics_support();
 
+  // Asks the terminal for the largest sixel image it will display, in
+  // pixels (XTSMGRAPHICS: `CSI ? 2 ; 4 S` reads the maximum allowed geometry;
+  // xterm's maxGraphicSize resource, default 1000x1000). The sixel screen
+  // clamps its layout to this so nothing is clipped by the terminal: e.g.
+  // xterm silently truncates every image wider or taller than its limit.
+  // Returns an empty optional when the terminal does not answer (Windows
+  // Terminal has no such limit).
+  std::optional<Dimension> query_graphics_geometry();
+
   // Selects the rendering backend: "char" for the escape-sequence terminal
-  // screen (the default) or "graphic" for the pixel-level sixel screen. The
+  // screen (the default) or "sixel" for the pixel-level sixel screen. The
   // screen is created implicitly the first time it is requested.
   void set_type(std::string_view type);
 

@@ -9,13 +9,13 @@
 #include <tui++/terminal/Terminal.h>
 #include <tui++/terminal/text/TextScreen.h>
 #include <tui++/terminal/text/TextGraphics.h>
-#include <tui++/terminal/graphic/GraphicScreen.h>
+#include <tui++/terminal/sixel/SixelScreen.h>
 
 using namespace std::string_view_literals;
 
 static std::atomic<unsigned> terminal_ref_counter = 0;
 static std::byte terminal_buf[sizeof(tui::Terminal)];
-static std::byte screen_buf[std::max(sizeof(tui::TextScreen), sizeof(tui::GraphicScreen))];
+static std::byte screen_buf[std::max(sizeof(tui::TextScreen), sizeof(tui::SixelScreen))];
 
 namespace tui {
 Terminal &terminal = reinterpret_cast<Terminal&>(terminal_buf);
@@ -362,9 +362,42 @@ std::optional<bool> Terminal::query_graphics_support() {
   return { };
 }
 
+std::optional<Dimension> Terminal::query_graphics_geometry() {
+  // XTSMGRAPHICS `CSI ? 2 ; 4 S`: item 2 (sixel geometry), action 4 (read
+  // the maximum allowed value). xterm replies `CSI ? 2 ; 0 ; W ; H S` with
+  // the maxGraphicSize dimensions; terminals without the control (Windows
+  // Terminal) answer nothing.
+  std::cout << "\x1b[?2;4S" << std::flush;
+
+  auto deadline = Clock::now() + std::chrono::milliseconds(250);
+  std::string reply;
+  reply.reserve(64);
+  InputReader reader { *this };
+  while (Clock::now() < deadline) {
+    auto ms = std::max(int64_t(1), std::chrono::duration_cast<std::chrono::milliseconds>(deadline - Clock::now()).count());
+    auto c = reader.get(std::chrono::milliseconds(ms));
+    if (c == 0) {
+      break;
+    }
+    reply += c;
+    while (auto more = reader.consume()) {
+      reply += more;
+    }
+
+    if (auto pos = reply.find("\x1b[?2;"); pos != std::string::npos) {
+      auto status = 0, width = 0, height = 0;
+      if (std::sscanf(reply.c_str() + pos + 4, "%d;%d;%dS", &status, &width, &height) == 3 and width > 0 and height > 0) {
+        return Dimension { width, height };
+      }
+    }
+  }
+
+  return { };
+}
+
 void Terminal::set_type(std::string_view type) {
   if (this->type != type) {
-    if (type == "graphic" and not std::getenv("TUI_FORCE_SIXEL")) {
+    if (type == "sixel" and not std::getenv("TUI_FORCE_SIXEL")) {
       if (auto support = query_graphics_support(); support.has_value() and not *support) {
         // The terminal identified itself as one without sixel graphics;
         // drawing would produce a blank screen. Leave the alternate screen
@@ -372,9 +405,7 @@ void Terminal::set_type(std::string_view type) {
         std::cout << "\x1b[?1049l"sv;
         std::cout << "tui++: sixel graphics are not enabled in this terminal.\n"
                      "  xterm: start it with sixel enabled, e.g.   xterm -ti 340\n"
-                     "  (requires an xterm built with sixel support; images larger\n"
-                     "   than 1000x1000 px also need, e.g.,\n"
-                     "   xterm -ti 340 -xrm 'XTerm*maxGraphicSize: 4000x2000')\n"
+                     "  (requires an xterm built with sixel support)\n"
                      "  To skip this check, run with TUI_FORCE_SIXEL=1\n" << std::flush;
         std::exit(1);
       }
@@ -382,8 +413,8 @@ void Terminal::set_type(std::string_view type) {
 
     screen.~Screen();
 
-    if (type == "graphic") {
-      ::new (&screen) GraphicScreen();
+    if (type == "sixel") {
+      ::new (&screen) SixelScreen();
     } else {
       ::new (&screen) TextScreen();
     }

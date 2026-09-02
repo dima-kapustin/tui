@@ -228,7 +228,7 @@ public:
 // Lives at global scope like the other test entry points declared in main.cpp.
 void run_font_visual_test() {
   terminal.set_title("tui++ font visual test");
-  terminal.set_type("graphic");
+  terminal.set_type("sixel");
 
   auto frame = make_component<Frame>();
   frame->set_size(screen.get_size());

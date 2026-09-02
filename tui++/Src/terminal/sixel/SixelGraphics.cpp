@@ -1,6 +1,6 @@
-#include <tui++/terminal/graphic/GraphicGraphics.h>
-#include <tui++/terminal/graphic/GraphicScreen.h>
-#include <tui++/terminal/graphic/Font16x32.h>
+#include <tui++/terminal/sixel/SixelGraphics.h>
+#include <tui++/terminal/sixel/SixelScreen.h>
+#include <tui++/terminal/sixel/Font16x32.h>
 
 #include <tui++/lookandfeel/LookAndFeel.h>
 
@@ -31,29 +31,29 @@ constexpr uint8_t MISSING_GLYPH[detail::FONT_HEIGHT * 2] = {
 
 }
 
-GraphicGraphics::GraphicGraphics(GraphicScreen &screen) :
-    GraphicGraphics(screen, { 0, 0, screen.get_width(), screen.get_height() }, 0, 0) {
+SixelGraphics::SixelGraphics(SixelScreen &screen) :
+    SixelGraphics(screen, { 0, 0, screen.get_width(), screen.get_height() }, 0, 0) {
 }
 
-GraphicGraphics::GraphicGraphics(GraphicScreen &screen, const Rectangle &clip_rect, int dx, int dy) :
+SixelGraphics::SixelGraphics(SixelScreen &screen, const Rectangle &clip_rect, int dx, int dy) :
     screen(screen), dx(dx), dy(dy), clip(clip_rect),
     font(laf::LookAndFeel::get<Font>("defaultFont", Font { })) {
 }
 
-std::optional<Color> GraphicGraphics::get_fill_color() const {
+std::optional<Color> SixelGraphics::get_fill_color() const {
   return this->background_color ? this->background_color : this->foreground_color;
 }
 
-std::optional<Color> GraphicGraphics::get_line_color() const {
+std::optional<Color> SixelGraphics::get_line_color() const {
   return this->foreground_color ? this->foreground_color : this->background_color;
 }
 
 // Returns the pixel rectangle (offset by dx/dy) clipped to the clip rect.
-Rectangle GraphicGraphics::clipped(int x, int y, int width, int height) const {
+Rectangle SixelGraphics::clipped(int x, int y, int width, int height) const {
   return Rectangle { x + this->dx, y + this->dy, width, height } & this->clip;
 }
 
-void GraphicGraphics::draw_pixel_rect(int x, int y, int width, int height) {
+void SixelGraphics::draw_pixel_rect(int x, int y, int width, int height) {
   if (auto rect = clipped(x, y, width, height); not rect.empty()) {
     if (auto color = get_line_color()) {
       this->screen.fill_pixels(rect, *color);
@@ -61,7 +61,7 @@ void GraphicGraphics::draw_pixel_rect(int x, int y, int width, int height) {
   }
 }
 
-int GraphicGraphics::stroke_width() const {
+int SixelGraphics::stroke_width() const {
   switch (this->stroke) {
   case Stroke::LIGHT:
   case Stroke::DASHED:
@@ -74,26 +74,26 @@ int GraphicGraphics::stroke_width() const {
   return 1;
 }
 
-void GraphicGraphics::clip_rect(int x, int y, int width, int height) {
+void SixelGraphics::clip_rect(int x, int y, int width, int height) {
   this->clip = Rectangle { x + this->dx, y + this->dy, width, height } & this->clip;
 }
 
-std::unique_ptr<Graphics> GraphicGraphics::create() {
-  return std::make_unique<GraphicGraphics>(this->screen, this->clip, this->dx, this->dy);
+std::unique_ptr<Graphics> SixelGraphics::create() {
+  return std::make_unique<SixelGraphics>(this->screen, this->clip, this->dx, this->dy);
 }
 
-std::unique_ptr<Graphics> GraphicGraphics::create(int x, int y, int width, int height) {
+std::unique_ptr<Graphics> SixelGraphics::create(int x, int y, int width, int height) {
   auto g = create();
   g->translate(x, y);
   g->clip_rect(0, 0, width, height);
   return g;
 }
 
-void GraphicGraphics::draw_char(const Char &c, int x, int y, std::optional<Attributes> const &attributes) {
+void SixelGraphics::draw_char(const Char &c, int x, int y, std::optional<Attributes> const &attributes) {
   blit_glyph(c.get_code(), x, y);
 }
 
-void GraphicGraphics::blit_glyph(char32_t code, int x, int y) {
+void SixelGraphics::blit_glyph(char32_t code, int x, int y) {
   auto const *glyph = (code < 128) ? detail::FONT16X32_BASIC[code] : MISSING_GLYPH;
   auto px = x + this->dx;
   auto py = y + this->dy;
@@ -147,7 +147,7 @@ void GraphicGraphics::blit_glyph(char32_t code, int x, int y) {
   this->screen.blit_glyph(px, py, scaled.data(), width, height, this->foreground_color.value_or(WHITE_COLOR), this->background_color);
 }
 
-void GraphicGraphics::draw_hline(int x, int y, int length, std::optional<Attributes> const &attributes) {
+void SixelGraphics::draw_hline(int x, int y, int length, std::optional<Attributes> const &attributes) {
   if (this->stroke == Stroke::DOUBLE) {
     draw_pixel_rect(x, y - 1, length, 1);
     draw_pixel_rect(x, y + 1, length, 1);
@@ -157,7 +157,7 @@ void GraphicGraphics::draw_hline(int x, int y, int length, std::optional<Attribu
   }
 }
 
-void GraphicGraphics::draw_vline(int x, int y, int length, std::optional<Attributes> const &attributes) {
+void SixelGraphics::draw_vline(int x, int y, int length, std::optional<Attributes> const &attributes) {
   if (this->stroke == Stroke::DOUBLE) {
     draw_pixel_rect(x - 1, y, 1, length);
     draw_pixel_rect(x + 1, y, 1, length);
@@ -167,7 +167,7 @@ void GraphicGraphics::draw_vline(int x, int y, int length, std::optional<Attribu
   }
 }
 
-void GraphicGraphics::draw_rect(int x, int y, int width, int height) {
+void SixelGraphics::draw_rect(int x, int y, int width, int height) {
   auto rect = clipped(x, y, width, height);
   if (rect.empty()) {
     return;
@@ -192,12 +192,12 @@ void GraphicGraphics::draw_rect(int x, int y, int width, int height) {
   }
 }
 
-void GraphicGraphics::draw_rounded_rect(int x, int y, int width, int height) {
+void SixelGraphics::draw_rounded_rect(int x, int y, int width, int height) {
   // Rounding the corners is not implemented yet; fall back to a rectangle.
   draw_rect(x, y, width, height);
 }
 
-void GraphicGraphics::draw_string(const std::string &str, int x, int y, std::optional<Attributes> const &attributes) {
+void SixelGraphics::draw_string(const std::string &str, int x, int y, std::optional<Attributes> const &attributes) {
   auto cx = x;
   auto index = std::size_t { 0 };
   while (index < str.size()) {
@@ -213,7 +213,7 @@ void GraphicGraphics::draw_string(const std::string &str, int x, int y, std::opt
   }
 }
 
-void GraphicGraphics::fill_rect(int x, int y, int width, int height) {
+void SixelGraphics::fill_rect(int x, int y, int width, int height) {
   if (auto rect = clipped(x, y, width, height); not rect.empty()) {
     if (auto color = get_fill_color()) {
       this->screen.fill_pixels(rect, *color);
@@ -221,56 +221,56 @@ void GraphicGraphics::fill_rect(int x, int y, int width, int height) {
   }
 }
 
-Rectangle GraphicGraphics::get_clip_rect() const {
+Rectangle SixelGraphics::get_clip_rect() const {
   return { this->clip.x - this->dx, this->clip.y - this->dy, this->clip.width, this->clip.height };
 }
 
-void GraphicGraphics::set_clip_rect(const Rectangle &rect) {
+void SixelGraphics::set_clip_rect(const Rectangle &rect) {
   this->clip = { rect.x + this->dx, rect.y + this->dy, rect.width, rect.height };
 }
 
-bool GraphicGraphics::hit_clip_rect(int x, int y, int width, int height) const {
+bool SixelGraphics::hit_clip_rect(int x, int y, int width, int height) const {
   return this->clip.intersects(x + this->dx, y + this->dy, width, height);
 }
 
-std::optional<Color> const& GraphicGraphics::get_foreground_color() const {
+std::optional<Color> const& SixelGraphics::get_foreground_color() const {
   return this->foreground_color;
 }
 
-void GraphicGraphics::set_foreground_color(std::optional<Color> const &color) {
+void SixelGraphics::set_foreground_color(std::optional<Color> const &color) {
   this->foreground_color = color;
 }
 
-std::optional<Color> const& GraphicGraphics::get_background_color() const {
+std::optional<Color> const& SixelGraphics::get_background_color() const {
   return this->background_color;
 }
 
-void GraphicGraphics::set_background_color(std::optional<Color> const &color) {
+void SixelGraphics::set_background_color(std::optional<Color> const &color) {
   this->background_color = color;
 }
 
-Font GraphicGraphics::get_font() const {
+Font SixelGraphics::get_font() const {
   return this->font;
 }
 
-void GraphicGraphics::set_font(const Font &font) {
+void SixelGraphics::set_font(const Font &font) {
   this->font = font;
 }
 
-Stroke GraphicGraphics::get_stroke() const {
+Stroke SixelGraphics::get_stroke() const {
   return this->stroke;
 }
 
-void GraphicGraphics::set_stroke(Stroke stroke) {
+void SixelGraphics::set_stroke(Stroke stroke) {
   this->stroke = stroke;
 }
 
-void GraphicGraphics::translate(int dx, int dy) {
+void SixelGraphics::translate(int dx, int dy) {
   this->dx += dx;
   this->dy += dy;
 }
 
-void GraphicGraphics::flush() {
+void SixelGraphics::flush() {
   this->screen.flush();
 }
 

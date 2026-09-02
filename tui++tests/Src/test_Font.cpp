@@ -1,4 +1,4 @@
-#include <tui++/terminal/graphic/Font16x32.h>
+#include <tui++/terminal/sixel/Font16x32.h>
 
 using namespace tui;
 using namespace tui::detail;

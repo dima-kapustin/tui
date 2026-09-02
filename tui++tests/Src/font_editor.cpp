@@ -4,7 +4,7 @@
 //
 // Shows a 16x32 pixel grid of the current glyph. Click a cell to toggle its
 // pixel (right-click clears), navigate glyphs with the arrows, and dump the
-// corrected bitmap as the C hex rows that GraphicGraphics::blit_glyph renders
+// corrected bitmap as the C hex rows that SixelGraphics::blit_glyph renders
 // from (see Font16x32.h).
 //
 //   click            toggle a pixel (left button) / clear it (right button)
@@ -36,8 +36,8 @@
 #include <tui++/border/EmptyBorder.h>
 
 #include <tui++/terminal/Terminal.h>
-#include <tui++/terminal/graphic/GraphicScreen.h>
-#include <tui++/terminal/graphic/Font16x32.h>
+#include <tui++/terminal/sixel/SixelScreen.h>
+#include <tui++/terminal/sixel/Font16x32.h>
 
 #include <algorithm>
 #include <array>
@@ -206,13 +206,12 @@ public:
 
   // ---- damaged regions ----------------------------------------------------
 
-  // Repaints the regions a grid edit changes: the toggled cell, the one hex
-  // byte that changed, the two preview pixels, and (only when the glyph's
-  // modified state flipped) the status line and the glyph's strip cell. A
-  // click therefore re-encodes a handful of tiny images, never the screen.
+  // Repaints the regions a grid edit changes: the toggled cell, the two
+  // preview pixels, the row's hex bytes, and (only when the glyph's modified
+  // state flipped) the status line and the glyph's strip cell. A click
+  // therefore re-encodes a handful of tiny images, never the screen.
   void repaint_after_cell_edit(int gx, int gy, bool was_modified) {
-    auto byte = gy * ROW_BYTES + gx / 8;
-    auto regions = std::vector<Rectangle> { grid_cell_rect(gx, gy), hex_byte_rect(byte), preview4_rect(gx, gy), preview1_rect(gx, gy), row_hex_rect(gy) };
+    auto regions = std::vector<Rectangle> { grid_cell_rect(gx, gy), preview4_rect(gx, gy), preview1_rect(gx, gy), row_hex_rect(gy) };
     if (was_modified != is_modified()) {
       regions.push_back(status_rect());
       regions.push_back(strip_cell_rect(this->glyph));
@@ -224,7 +223,7 @@ public:
   // navigating to another glyph). `previous_glyph` is the glyph shown before
   // the change (-1 when the glyph itself did not change).
   void repaint_after_glyph_edit(int previous_glyph) {
-    auto regions = std::vector<Rectangle> { title_rect(), grid_rect(), status_rect(), hex_rect(), preview_rect(), strip_cell_rect(this->glyph), row_hex_all_rect() };
+    auto regions = std::vector<Rectangle> { title_rect(), grid_rect(), status_rect(), preview_rect(), strip_cell_rect(this->glyph), row_hex_all_rect() };
     if (previous_glyph >= 0x20 and previous_glyph != this->glyph) {
       regions.push_back(strip_cell_rect(previous_glyph));
     }
@@ -278,11 +277,11 @@ private:
   // One terminal cell in (virtual) pixels -- the unit both the sixel raster
   // and the mouse reports are addressed in.
   int cell_width() const {
-    return static_cast<GraphicScreen&>(screen).get_cell_width();
+    return static_cast<SixelScreen&>(screen).get_cell_width();
   }
 
   int cell_height() const {
-    return static_cast<GraphicScreen&>(screen).get_cell_height();
+    return static_cast<SixelScreen&>(screen).get_cell_height();
   }
 
   // Snaps a nominal position up to the next terminal-cell boundary in screen
@@ -407,10 +406,10 @@ private:
     return (overflow + ch - 1) / ch * ch;
   }
 
-  // The hex dump and the previews sit to the right of the grid; they are
-  // drawn only when they fit within the panel width.
+  // The previews sit to the right of the grid; they are drawn only when
+  // they fit within the panel width.
   bool side_area_fits() const {
-    return dump_x() + 8 * 7 * HEX_FONT + 60 <= get_width();
+    return dump_x() + 4 * GLYPH_W + 7 * HEX_FONT + GLYPH_W + 16 <= get_width();
   }
 
   Rectangle grid_cell_rect(int gx, int gy) const {
@@ -429,32 +428,20 @@ private:
     return { 16, header_top() + 2 * header_line(), 30 * HEADER_FONT, 2 * HEADER_FONT };
   }
 
-  Rectangle hex_byte_rect(int byte) const {
-    // One "0xNN, " slot (6 chars) of a hex line; the line layout is
-    // "{0x1F, 0x1F, ..." with each byte taking 6 characters.
-    auto line = byte / 8;
-    auto slot = byte % 8;
-    auto x = this->dump_x() + (1 + slot * 6) * HEX_FONT;
-    return { x, grid_y() + (line + 1) * 2 * HEX_FONT, 6 * HEX_FONT, 2 * HEX_FONT };
-  }
-
-  // The whole hex dump block and preview block; used by glyph-level edits
-  // (navigating, clearing, resetting), where everything changes.
-  Rectangle hex_rect() const {
-    return { this->dump_x(), grid_y() + 2 * HEX_FONT, 8 * 7 * HEX_FONT + 40, 8 * 2 * HEX_FONT };
-  }
-
+  // The 4x and 1x previews; the hex byte matrix that used to sit between
+  // the grid and the previews is gone (every row's two bytes are already
+  // shown next to the grid), so the previews moved up right below the grid.
   Rectangle preview_rect() const {
-    return { this->dump_x() - 2, grid_y() + 9 * 2 * HEX_FONT - 2, 4 * GLYPH_W + 4 * HEX_FONT + GLYPH_W + 16, 4 * GLYPH_H + 6 * HEX_FONT };
+    return { this->dump_x() - 2, grid_y() + 2 * HEX_FONT - 2, 4 * GLYPH_W + 7 * HEX_FONT + GLYPH_W + 16, 4 * GLYPH_H + 6 };
   }
 
   // The changed pixel of the 4x preview (scale 4) and of the 1x preview.
   Rectangle preview4_rect(int gx, int gy) const {
-    return { this->dump_x() + gx * 4, grid_y() + 10 * 2 * HEX_FONT + gy * 4, 4, 4 };
+    return { this->dump_x() + gx * 4, grid_y() + 2 * HEX_FONT + gy * 4, 4, 4 };
   }
 
   Rectangle preview1_rect(int gx, int gy) const {
-    return { this->dump_x() + GLYPH_W * 4 + 12 + 16 + gx, grid_y() + 10 * 2 * HEX_FONT + GLYPH_H * 4 - 16 + gy, 1, 1 };
+    return { this->dump_x() + 4 * GLYPH_W + 12 + 3 * HEX_FONT + 8 + gx, grid_y() + 2 * HEX_FONT + GLYPH_H * 4 - 16 + gy, 1, 1 };
   }
 
   Rectangle strip_cell_rect(int code) const {
@@ -615,40 +602,28 @@ public:
       }
     }
 
-    // ---- hex dump and preview ---------------------------------------------
+    // ---- 4x and 1x previews ----------------------------------------------
     // Hidden while the content is scrolled: their top row would overlap the
     // fixed header (they scroll with the grid below it).
-    if (gy0 >= hy and side_area_fits() and hits(hex_rect() | preview_rect())) {
+    if (gy0 >= hy and side_area_fits() and hits(preview_rect())) {
       auto dump_x = this->dump_x();
       g.set_font(Font { "Monospaced", HEX_FONT, Font::PLAIN });
-      g.set_foreground_color(dim);
-      g.draw_string("hex:", dump_x, gy0);
-
-      auto *rows = this->current();
-      char hex[128];
-      for (auto line = 0; line < GLYPH_H * ROW_BYTES / 8; ++line) {
-        auto n = std::snprintf(hex, sizeof hex, "%s", line == 0 ? "{" : " ");
-        for (auto b = 0; b < 8; ++b) {
-          auto i = line * 8 + b;
-          n += std::snprintf(hex + n, sizeof hex - std::size_t(n), "0x%02X%s", rows[i], b < 7 ? ", " : "");
-        }
-        std::snprintf(hex + n, sizeof hex - std::size_t(n), "%s", line == 7 ? "}," : ",");
-        g.set_foreground_color(hex_color);
-        g.draw_string(hex, dump_x, gy0 + (line + 1) * hexline);
-      }
-
-      g.set_foreground_color(dim);
-      g.draw_string("4x preview:", dump_x, gy0 + 9 * hexline);
 
       auto preview_x = dump_x;
-      auto preview_y = gy0 + 10 * hexline;
+      auto preview_y = gy0 + hexline;
       auto scale = 4;
-      fill(g, preview_x - 2, preview_y - 2, GLYPH_W * scale + 4, GLYPH_H * scale + 4, Color { 30, 30, 38 });
-      this->blit_glyph_rows(g, rows, preview_x, preview_y, scale, ink);
-
       g.set_foreground_color(dim);
-      g.draw_string("1x:", preview_x + GLYPH_W * scale + 12, preview_y + GLYPH_H * scale - 8);
-      this->blit_glyph_rows(g, rows, preview_x + GLYPH_W * scale + 12 + 16, preview_y + GLYPH_H * scale - 16, 1, ink);
+      g.draw_string("4x preview:", dump_x, gy0);
+      fill(g, preview_x - 2, preview_y - 2, GLYPH_W * scale + 4, GLYPH_H * scale + 4, Color { 30, 30, 38 });
+      this->blit_glyph_rows(g, this->current(), preview_x, preview_y, scale, ink);
+
+      // The unscaled glyph sits after the whole "1x:" label: the label is
+      // three HEX_FONT cells wide, not one, so the old +16 offset let the
+      // glyph overlap the "x" and ":" of the label.
+      auto label_x = preview_x + GLYPH_W * scale + 12;
+      g.set_foreground_color(dim);
+      g.draw_string("1x:", label_x, preview_y + GLYPH_H * scale - 8);
+      this->blit_glyph_rows(g, this->current(), label_x + 3 * HEX_FONT + 8, preview_y + GLYPH_H * scale - 16, 1, ink);
     }
 
     // ---- overview strip of the printable glyphs ----------------------------
@@ -681,7 +656,7 @@ public:
 // global scope like the other entry points declared in main.cpp.
 void run_font_editor(bool bench, bool scrollbench) {
   terminal.set_title("tui++ font editor");
-  terminal.set_type("graphic");
+  terminal.set_type("sixel");
 
   auto frame = make_component<Frame>();
   frame->set_size(screen.get_size());
@@ -756,12 +731,21 @@ void run_font_editor(bool bench, bool scrollbench) {
   menu_bar->add(edit_menu);
   frame->set_menu_bar(menu_bar);
 
-  // Clicking a top-level menu toggles its popup; clicking anywhere else in
-  // the editor closes the open popup again.
+  // Clicking a top-level menu toggles its popup; opening one closes any
+  // other open menu first (Swing's MenuSelectionManager behaviour), and
+  // clicking anywhere else in the editor closes the open popup again.
   for (auto &&menu : { file_menu, edit_menu }) {
-    menu->add_listener([menu](MousePressEvent &e) {
+    menu->add_listener([menu, file_menu, edit_menu](MousePressEvent &e) {
       if (e.id == MousePressEvent::MOUSE_RELEASED) {
-        menu->set_popup_menu_visible(not menu->is_popup_menu_visible());
+        auto open = not menu->is_popup_menu_visible();
+        if (open) {
+          for (auto &&other : { file_menu, edit_menu }) {
+            if (other != menu) {
+              other->set_popup_menu_visible(false);
+            }
+          }
+        }
+        menu->set_popup_menu_visible(open);
         e.consume();
       }
     });
@@ -838,14 +822,14 @@ void run_font_editor(bool bench, bool scrollbench) {
   };
 
   panel->add_listener([panel, scroll_state, flush_scroll](MouseWheelEvent &e) {
-    auto ch = static_cast<GraphicScreen&>(screen).get_cell_height();
+    auto ch = static_cast<SixelScreen&>(screen).get_cell_height();
     scroll_state->pending += e.wheel_rotation * ch;
 
     // The previous frame's write time reflects how long the terminal took to
     // accept it. A terminal that drains its input fast can follow live 30 fps
     // repaints; a slow one gets only the final position after the input goes
     // quiet, so the frames never pile up behind the wheel.
-    auto write_ms = static_cast<GraphicScreen&>(screen).get_last_write_ms();
+    auto write_ms = static_cast<SixelScreen&>(screen).get_last_write_ms();
     auto now = std::chrono::steady_clock::now();
     auto fast_terminal = write_ms <= 60.0;
     if (scroll_state->last_frame == std::chrono::steady_clock::time_point { } or (fast_terminal and now - scroll_state->last_frame >= std::chrono::milliseconds(33))) {
@@ -948,7 +932,7 @@ void run_font_editor(bool bench, bool scrollbench) {
     // two scroll positions so every frame's content actually changes, and
     // report the per-frame cost. Runs with stdout redirected so the sixel
     // bytes and the timings land in the capture file.
-    auto &gs = static_cast<GraphicScreen&>(screen);
+    auto &gs = static_cast<SixelScreen&>(screen);
     auto ch = gs.get_cell_height();
     auto origin = panel->get_location_on_screen();
     auto const frames = 30;
@@ -973,7 +957,7 @@ void run_font_editor(bool bench, bool scrollbench) {
     // coalescing neither hangs nor repaints once per event. A burst should
     // produce one immediate frame plus one trailing frame at the final
     // position, so the flush count must stay tiny.
-    auto &gs = static_cast<GraphicScreen&>(screen);
+    auto &gs = static_cast<SixelScreen&>(screen);
     std::fprintf(stderr, "scrollbench: %dx%d px, cell %dx%d, flushes before: %zu\n", gs.get_pixel_width(), gs.get_pixel_height(), gs.get_cell_width(), gs.get_cell_height(), gs.get_flush_count());
     screen.post([panel, gs = &gs] {
       auto const events = 20;

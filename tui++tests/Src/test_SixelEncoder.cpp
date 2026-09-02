@@ -1,4 +1,4 @@
-#include <tui++/terminal/graphic/GraphicEncoder.h>
+#include <tui++/terminal/sixel/SixelEncoder.h>
 
 #include <algorithm>
 #include <array>
@@ -9,7 +9,7 @@
 
 using namespace tui;
 
-// Round-trips images through GraphicEncoder: the emitted sixel stream is
+// Round-trips images through SixelEncoder: the emitted sixel stream is
 // decoded back into pixels and compared to the input. Guards the band
 // classification, which once kept only two colors per column and dropped (or
 // recolored) thin glyph pixels sharing a band with a border color.
@@ -141,7 +141,7 @@ bool round_trip(const char *name, const std::vector<RGB> &input, int width, int 
     packed.push_back(p.b);
   }
 
-  auto encoded = GraphicEncoder::encode(packed.data(), width, height, width);
+  auto encoded = SixelEncoder::encode(packed.data(), width, height, width);
   auto dec = Decoder { width, height };
   if (not dec.decode(encoded)) {
     std::printf("FAIL %s: decode failed\n", name);
@@ -170,7 +170,7 @@ bool round_trip(const char *name, const std::vector<RGB> &input, int width, int 
 
 }
 
-void test_GraphicEncoder() {
+void test_SixelEncoder() {
   constexpr auto W = 40;
 
   // The reported bug: a band holding a 3-pixel cyan border, a 2-pixel menu
@@ -274,7 +274,7 @@ void test_GraphicEncoder() {
       packed.push_back(p.g);
       packed.push_back(p.b);
     }
-    auto encoded = GraphicEncoder::encode(packed.data(), W, H, W);
+    auto encoded = SixelEncoder::encode(packed.data(), W, H, W);
 
     auto definitions = std::vector<int> { };
     for (std::size_t i = 0; i < encoded.size();) {

@@ -11,11 +11,11 @@
 
 namespace tui {
 
-// Default size of one terminal cell in the "graphic" (sixel) renderer, in
+// Default size of one terminal cell in the "sixel" (sixel) renderer, in
 // pixels. The real size is queried from the terminal at startup (see
-// GraphicScreen::get_cell_width); these are only the fallback defaults.
-constexpr int GRAPHIC_CELL_WIDTH = 16;
-constexpr int GRAPHIC_CELL_HEIGHT = 32;
+// SixelScreen::get_cell_width); these are only the fallback defaults.
+constexpr int SIXEL_CELL_WIDTH = 16;
+constexpr int SIXEL_CELL_HEIGHT = 32;
 
 // Measures the dimensions of a (possibly multi-line) piece of text in the
 // screen's units: terminal cells for the text screen, pixels for the graphic
@@ -111,7 +111,7 @@ public:
 };
 
 // Measures text in pixels. The raster glyphs are 16x32 (see
-// terminal/graphic/Font16x32.h), so a font of size S draws glyphs S pixels
+// terminal/sixel/Font16x32.h), so a font of size S draws glyphs S pixels
 // wide and 2*S tall; a size-16 font fills the 16x32 terminal cell exactly.
 class PixelTextMetrics: public TextMetrics {
 public:

@@ -26,7 +26,7 @@ void test_CharIterator();
 void test_Action();
 void test_Color();
 void test_Font();
-void test_GraphicEncoder();
+void test_SixelEncoder();
 void test_Menu();
 
 void run_font_visual_test();
@@ -94,7 +94,7 @@ int main(int argc, char *argv[]) {
   test_Action();
   test_Color();
   test_Font();
-  test_GraphicEncoder();
+  test_SixelEncoder();
   test_Menu();
 
   terminal.set_title("Welcome to tui++");
@@ -116,8 +116,8 @@ int main(int argc, char *argv[]) {
   }
 
   // Select the rendering backend: "text" for the escape-sequence terminal
-  // (the default) or "graphic" for the pixel-level sixel terminal.
-  terminal.set_type(argc > 1 and std::string_view(argv[1]) == "sixel" ? "graphic" : "text");
+  // (the default) or "sixel" for the pixel-level sixel terminal.
+  terminal.set_type(argc > 1 and std::string_view(argv[1]) == "sixel" ? "sixel" : "text");
 
 //  terminal.post([&terminal] {
 //    auto g = terminal.get_graphics();

@@ -11,21 +11,21 @@
 
 namespace tui {
 
-class GraphicGraphics;
+class SixelGraphics;
 
 // A screen that rasterizes the component tree into a pixel framebuffer and
 // outputs it using the DEC sixel graphics protocol. Its size (and therefore
 // the component layout) is measured in pixels, one terminal cell being
 // CELL_WIDTH x CELL_HEIGHT pixels.
-class GraphicScreen: public Screen {
+class SixelScreen: public Screen {
   using base = Screen;
 
 public:
   // Default rasterization size of one terminal cell, in pixels. The actual
   // cell size is queried from the terminal at construction (see
   // get_cell_width / get_cell_height) and these are only the fallback.
-  constexpr static int CELL_WIDTH = GRAPHIC_CELL_WIDTH;
-  constexpr static int CELL_HEIGHT = GRAPHIC_CELL_HEIGHT;
+  constexpr static int CELL_WIDTH = SIXEL_CELL_WIDTH;
+  constexpr static int CELL_HEIGHT = SIXEL_CELL_HEIGHT;
 
 private:
   std::vector<uint8_t> pixels; // RGB, 3 bytes per pixel, row-major
@@ -38,8 +38,15 @@ private:
 
   // The terminal's real cell size in pixels (CSI 16 t); falls back to
   // CELL_WIDTH / CELL_HEIGHT when the terminal does not answer.
-  int cell_width = GRAPHIC_CELL_WIDTH;
-  int cell_height = GRAPHIC_CELL_HEIGHT;
+  int cell_width = SIXEL_CELL_WIDTH;
+  int cell_height = SIXEL_CELL_HEIGHT;
+
+  // The largest sixel image the terminal will display, in pixels (xterm's
+  // maxGraphicSize, default 1000x1000; empty when the terminal has no such
+  // limit, e.g. Windows Terminal). The screen size -- and therefore the
+  // component layout -- is clamped to it so the terminal never truncates
+  // the right or bottom edge of an image.
+  std::optional<Dimension> max_graphic_size;
 
   // Timing of the last flush: how long the sixel encoding took, how long the
   // write to the terminal took, and how many bytes were emitted. Used by the
@@ -54,11 +61,12 @@ private:
 private:
   void resize_buffer();
   void mark_dirty(Rectangle const &rect);
+  void clamp_to_terminal();
 
   void move_cursor_to(int line, int column);
 
 public:
-  GraphicScreen();
+  SixelScreen();
 
   virtual void run_event_loop() override;
 

@@ -1,4 +1,4 @@
-#include <tui++/terminal/graphic/GraphicEncoder.h>
+#include <tui++/terminal/sixel/SixelEncoder.h>
 
 #include <algorithm>
 #include <array>
@@ -228,7 +228,7 @@ void emit_band(std::string &out, const uint8_t *rgb, int width, int band_y, int 
 
 }
 
-std::string GraphicEncoder::encode(const uint8_t *rgb, int width, int height, int stride) {
+std::string SixelEncoder::encode(const uint8_t *rgb, int width, int height, int stride) {
   if (not rgb or width <= 0 or height <= 0) {
     return { };
   }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <tui++/lookandfeel/MenuUI.h>
+#include <tui++/lookandfeel/MenuItemUI.h>
 #include <tui++/TextMetrics.h>
 
 #include <tui++/Graphics.h>
@@ -11,24 +11,25 @@
 
 namespace tui::laf {
 
-// Pixel-level menu UI. Inherits MenuUI's behaviour but sizes and draws text
-// in pixels, matching GraphicMenuItemUI: the label is inset by the theme's
-// "Menu.margin" and vertically centered, as in Swing's BasicLookAndFeel.
-class GraphicMenuUI: public MenuUI {
+// Pixel-level menu item UI: sizes and text positions are expressed in pixels.
+// The label is laid out the way Swing's BasicMenuItemUI does it: it is inset
+// by the theme's "MenuItem.margin" (pixels on the graphic screen) and the
+// text is vertically centered in the remaining area.
+class SixelMenuItemUI: public MenuItemUI {
 public:
   virtual std::optional<Dimension> get_preferred_size(std::shared_ptr<const Component> const &c) const override {
     auto menu_item = std::static_pointer_cast<const MenuItem>(c);
     auto &&text = menu_item->get_text();
     auto metrics = screen.get_text_metrics();
     auto width = text.empty() ? 0 : metrics->get_width(text);
-    auto margin = LookAndFeel::get<Insets>("Menu.margin", Insets { 2, 2, 2, 2 });
+    auto margin = LookAndFeel::get<Insets>("MenuItem.margin", Insets { 2, 2, 2, 2 });
     return Dimension { width + margin.left + margin.right, metrics->get_line_height() };
   }
 
 protected:
   virtual void paint(Graphics &g, std::shared_ptr<const Component> const &c) const override {
     auto menu_item = std::static_pointer_cast<const MenuItem>(c);
-    auto margin = LookAndFeel::get<Insets>("Menu.margin", Insets { 2, 2, 2, 2 });
+    auto margin = LookAndFeel::get<Insets>("MenuItem.margin", Insets { 2, 2, 2, 2 });
     // The glyph is twice as tall as the font size (16x32 raster); center it
     // vertically in the area left inside the margin.
     auto glyph_height = 2 * g.get_font().get_size();

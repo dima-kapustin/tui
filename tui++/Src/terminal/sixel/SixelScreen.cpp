@@ -1,12 +1,12 @@
-#include <tui++/terminal/graphic/GraphicScreen.h>
-#include <tui++/terminal/graphic/GraphicGraphics.h>
+#include <tui++/terminal/sixel/SixelScreen.h>
+#include <tui++/terminal/sixel/SixelGraphics.h>
 #include <tui++/terminal/Terminal.h>
 
 #include <tui++/Window.h>
 
-#include <tui++/terminal/graphic/GraphicEncoder.h>
+#include <tui++/terminal/sixel/SixelEncoder.h>
 
-#include <tui++/lookandfeel/graphic/GraphicLookAndFeel.h>
+#include <tui++/lookandfeel/sixel/SixelLookAndFeel.h>
 #include <tui++/TextMetrics.h>
 
 #include <tui++/Font.h>
@@ -21,8 +21,8 @@ namespace tui {
 
 constexpr std::chrono::milliseconds WAIT_EVENT_TIMEOUT { 30 };
 
-GraphicScreen::GraphicScreen() {
-  this->look_and_feel = std::make_shared<laf::GraphicLookAndFeel>();
+SixelScreen::SixelScreen() {
+  this->look_and_feel = std::make_shared<laf::SixelLookAndFeel>();
 
   // The terminal reports its cell size in pixels (CSI 16 t); use it so every
   // image is emitted at the size the terminal actually displays. The default
@@ -31,11 +31,18 @@ GraphicScreen::GraphicScreen() {
     this->cell_width = std::max(4, cell_size->width);
     this->cell_height = std::max(4, cell_size->height);
   }
+
+  // The largest image the terminal will display (xterm's maxGraphicSize,
+  // default 1000x1000): xterm silently truncates anything bigger, so the
+  // layout is clamped to it. Terminals without the control answer nothing.
+  this->max_graphic_size = terminal.query_graphics_geometry();
+
   laf::LookAndFeel::put<Font>("defaultFont", Font { "Monospaced", this->cell_width, Font::PLAIN });
   this->text_metrics = std::make_shared<PixelTextMetrics>(laf::LookAndFeel::get<Font>("defaultFont", Font { }));
 
   auto size = terminal.get_size();
   this->size = { size.width * this->cell_width, size.height * this->cell_height };
+  clamp_to_terminal();
   resize_buffer();
 
   // Text printed before this screen took over (the unit tests) may have
@@ -49,7 +56,13 @@ GraphicScreen::GraphicScreen() {
   terminal.flush();
 }
 
-void GraphicScreen::resize_buffer() {
+void SixelScreen::clamp_to_terminal() {
+  if (this->max_graphic_size) {
+    this->size = { std::min(this->size.width, this->max_graphic_size->width), std::min(this->size.height, this->max_graphic_size->height) };
+  }
+}
+
+void SixelScreen::resize_buffer() {
   this->pixels.assign(get_pixel_width() * get_pixel_height() * 3, 0);
   // The caller repaints (and therefore re-dirties) whatever needs to be
   // emitted, so the cleared buffer must not itself mark the screen dirty:
@@ -59,7 +72,7 @@ void GraphicScreen::resize_buffer() {
   this->has_dirty = false;
 }
 
-void GraphicScreen::mark_dirty(Rectangle const &rect) {
+void SixelScreen::mark_dirty(Rectangle const &rect) {
   if (rect.empty()) {
     return;
   }
@@ -67,11 +80,11 @@ void GraphicScreen::mark_dirty(Rectangle const &rect) {
   this->has_dirty = true;
 }
 
-void GraphicScreen::move_cursor_to(int line, int column) {
+void SixelScreen::move_cursor_to(int line, int column) {
   terminal << "\x1b["sv << line << ';' << column << 'H';
 }
 
-void GraphicScreen::fill_pixels(Rectangle const &rect, Color const &color) {
+void SixelScreen::fill_pixels(Rectangle const &rect, Color const &color) {
   auto left = std::max(rect.x, 0);
   auto top = std::max(rect.y, 0);
   auto right = std::min(rect.right(), get_pixel_width());
@@ -92,7 +105,7 @@ void GraphicScreen::fill_pixels(Rectangle const &rect, Color const &color) {
   mark_dirty({ left, top, right - left, bottom - top });
 }
 
-void GraphicScreen::blit_glyph(int x, int y, uint8_t const *rows, int width, int height, std::optional<Color> const &foreground, std::optional<Color> const &background) {
+void SixelScreen::blit_glyph(int x, int y, uint8_t const *rows, int width, int height, std::optional<Color> const &foreground, std::optional<Color> const &background) {
   auto left = std::max(x, 0);
   auto top = std::max(y, 0);
   auto right = std::min(x + width, get_pixel_width());
@@ -120,18 +133,18 @@ void GraphicScreen::blit_glyph(int x, int y, uint8_t const *rows, int width, int
   mark_dirty({ left, top, right - left, bottom - top });
 }
 
-void GraphicScreen::clear() {
+void SixelScreen::clear() {
   std::fill(this->pixels.begin(), this->pixels.end(), 0);
   mark_dirty({ 0, 0, get_pixel_width(), get_pixel_height() });
 }
 
-void GraphicScreen::refresh() {
-  auto g = GraphicGraphics { *this };
+void SixelScreen::refresh() {
+  auto g = SixelGraphics { *this };
   paint(g);
   flush();
 }
 
-void GraphicScreen::repaint_region(Rectangle const &rect) {
+void SixelScreen::repaint_region(Rectangle const &rect) {
   auto region = rect & Rectangle { 0, 0, get_pixel_width(), get_pixel_height() };
   if (region.empty()) {
     return;
@@ -140,12 +153,12 @@ void GraphicScreen::repaint_region(Rectangle const &rect) {
   // Paint the tree with a graphics clipped to the region: every draw is
   // clipped to it, so the dirty rect (and therefore the encoded sixel image)
   // stays limited to the damaged area.
-  auto g = GraphicGraphics { *this, region, 0, 0 };
+  auto g = SixelGraphics { *this, region, 0, 0 };
   paint(g);
   flush();
 }
 
-void GraphicScreen::run_event_loop() {
+void SixelScreen::run_event_loop() {
   event_dispatching_thread_id = std::this_thread::get_id();
 
   auto size = this->size;
@@ -156,6 +169,9 @@ void GraphicScreen::run_event_loop() {
     // terminal is resized; detect the resize here and repaint the windows.
     auto ts = terminal.get_size();
     auto pixel_size = Dimension { ts.width * this->cell_width, ts.height * this->cell_height };
+    if (this->max_graphic_size) {
+      pixel_size = { std::min(pixel_size.width, this->max_graphic_size->width), std::min(pixel_size.height, this->max_graphic_size->height) };
+    }
     if (pixel_size != size) {
       size = pixel_size;
       this->size = pixel_size;
@@ -184,15 +200,15 @@ void GraphicScreen::run_event_loop() {
   }
 }
 
-std::unique_ptr<Graphics> GraphicScreen::get_graphics() {
-  return std::make_unique<GraphicGraphics>(*this);
+std::unique_ptr<Graphics> SixelScreen::get_graphics() {
+  return std::make_unique<SixelGraphics>(*this);
 }
 
-std::unique_ptr<Graphics> GraphicScreen::get_graphics(Rectangle const &clip) {
-  return std::make_unique<GraphicGraphics>(*this, Rectangle { 0, 0, clip.width, clip.height }, clip.x, clip.y);
+std::unique_ptr<Graphics> SixelScreen::get_graphics(Rectangle const &clip) {
+  return std::make_unique<SixelGraphics>(*this, Rectangle { 0, 0, clip.width, clip.height }, clip.x, clip.y);
 }
 
-void GraphicScreen::flush() {
+void SixelScreen::flush() {
   if (not this->has_dirty) {
     return;
   }
@@ -226,7 +242,7 @@ void GraphicScreen::flush() {
   rect = { left, top, right - left, bottom - top };
 
   auto encode_t0 = std::chrono::steady_clock::now();
-  auto data = GraphicEncoder::encode(this->pixels.data() + (rect.y * get_pixel_width() + rect.x) * 3, rect.width, rect.height, get_pixel_width());
+  auto data = SixelEncoder::encode(this->pixels.data() + (rect.y * get_pixel_width() + rect.x) * 3, rect.width, rect.height, get_pixel_width());
   auto encode_t1 = std::chrono::steady_clock::now();
   this->last_encode_ms = std::chrono::duration<double, std::milli>(encode_t1 - encode_t0).count();
 
