@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include <cstdio>
+#include <cstdlib>
 
 #include <tui++/Window.h>
 #include <tui++/KeyboardFocusManager.h>
@@ -298,8 +299,87 @@ std::optional<Dimension> Terminal::query_cell_size_from_terminal() {
   return { };
 }
 
+std::optional<bool> Terminal::query_graphics_support() {
+  // Primary DA reports what the terminal is; xterm appends Ps = 4 to it when
+  // sixel graphics are enabled (a real VT340 reports 62). Secondary DA
+  // reports xterm's emulation level: Pp = 2/18/19/32 are the graphics
+  // emulations (VT240/VT330/VT340/VT382), and Pp = 0/1/24/41/61/64/65 with
+  // the xterm firmware signature (Pc = 0, patch level Pv >= 95) are xterm
+  // emulations without graphics.
+  std::cout << "\x1b[c\x1b[>c" << std::flush;
+
+  auto deadline = Clock::now() + std::chrono::milliseconds(250);
+  std::string reply;
+  reply.reserve(64);
+  InputReader reader { *this };
+  while (Clock::now() < deadline) {
+    auto ms = std::max(int64_t(1), std::chrono::duration_cast<std::chrono::milliseconds>(deadline - Clock::now()).count());
+    auto c = reader.get(std::chrono::milliseconds(ms));
+    if (c == 0) {
+      break; // no more input before the deadline
+    }
+    reply += c;
+    while (auto more = reader.consume()) {
+      reply += more;
+    }
+
+    // Primary DA: `CSI ? Ps ; ... c`.
+    if (auto pos = reply.find("\x1b[?"); pos != std::string::npos) {
+      if (auto end = reply.find('c', pos); end != std::string::npos) {
+        auto val = 0;
+        for (auto i = pos + 3; i < end; ++i) {
+          if (reply[std::size_t(i)] == ';') {
+            if (val == 4 or val == 62) {
+              return true;
+            }
+            val = 0;
+          } else if (reply[std::size_t(i)] >= '0' and reply[std::size_t(i)] <= '9') {
+            val = val * 10 + (reply[std::size_t(i)] - '0');
+          }
+        }
+        if (val == 4 or val == 62) {
+          return true;
+        }
+      }
+    }
+
+    // Secondary DA: `CSI > Pp ; Pv ; Pc c`.
+    if (auto pos = reply.find("\x1b[>"); pos != std::string::npos) {
+      if (auto end = reply.find('c', pos); end != std::string::npos) {
+        auto pp = 0, pv = 0, pc = -1;
+        if (std::sscanf(reply.c_str() + pos + 3, "%d;%d;%d", &pp, &pv, &pc) == 3) {
+          if (pp == 2 or pp == 18 or pp == 19 or pp == 32) {
+            return true; // a graphics emulation
+          }
+          if (pc == 0 and pv >= 95 and (pp == 0 or pp == 1 or pp == 24 or pp == 41 or pp == 61 or pp == 64 or pp == 65)) {
+            return false; // an xterm emulation without graphics
+          }
+        }
+      }
+    }
+  }
+
+  return { };
+}
+
 void Terminal::set_type(std::string_view type) {
   if (this->type != type) {
+    if (type == "graphic" and not std::getenv("TUI_FORCE_SIXEL")) {
+      if (auto support = query_graphics_support(); support.has_value() and not *support) {
+        // The terminal identified itself as one without sixel graphics;
+        // drawing would produce a blank screen. Leave the alternate screen
+        // buffer before printing so the explanation stays visible.
+        std::cout << "\x1b[?1049l"sv;
+        std::cout << "tui++: sixel graphics are not enabled in this terminal.\n"
+                     "  xterm: start it with sixel enabled, e.g.   xterm -ti 340\n"
+                     "  (requires an xterm built with sixel support; images larger\n"
+                     "   than 1000x1000 px also need, e.g.,\n"
+                     "   xterm -ti 340 -xrm 'XTerm*maxGraphicSize: 4000x2000')\n"
+                     "  To skip this check, run with TUI_FORCE_SIXEL=1\n" << std::flush;
+        std::exit(1);
+      }
+    }
+
     screen.~Screen();
 
     if (type == "graphic") {

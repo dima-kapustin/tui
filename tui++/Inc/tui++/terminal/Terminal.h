@@ -307,6 +307,16 @@ public:
   // defaults.
   std::optional<Dimension> query_cell_size();
 
+  // Asks the terminal whether it supports sixel graphics, via the Primary
+  // and Secondary Device Attributes. Returns true when the terminal reports
+  // a graphics emulation (xterm adds Ps = 4 to its Primary DA when sixel is
+  // enabled and identifies as VT240/VT330/VT340/VT382 in its Secondary DA),
+  // false when it identifies itself as an xterm-style emulation without
+  // graphics (so the caller can fail with an explanation instead of drawing
+  // a black screen), and an empty optional when the terminal does not answer
+  // or is unrecognized (Windows Terminal and others).
+  std::optional<bool> query_graphics_support();
+
   // Selects the rendering backend: "char" for the escape-sequence terminal
   // screen (the default) or "graphic" for the pixel-level sixel screen. The
   // screen is created implicitly the first time it is requested.
