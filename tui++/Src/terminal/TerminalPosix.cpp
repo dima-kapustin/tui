@@ -86,6 +86,10 @@ public:
     //::fcntl(STDIN_FILENO, F_GETFL, this->input_flags);
 
     ::tcsetattr(STDIN_FILENO, TCSANOW, &this->termios);
+    // Discard anything the app never read (mouse-tracking sequences,
+    // replies to the startup queries) so the shell does not type them
+    // into the prompt after the app exits.
+    ::tcflush(STDIN_FILENO, TCIFLUSH);
   }
 
   static void signal_handler(int signal) {
@@ -117,6 +121,9 @@ void restore_terminal_state() {
   restore_in_progress = 1;
   if (TerminalImpl::impl) {
     ::tcsetattr(STDIN_FILENO, TCSANOW, &TerminalImpl::impl->termios);
+    // tcflush is async-signal-safe; discard the input the app never read
+    // so the shell does not type it into the prompt after the process dies.
+    ::tcflush(STDIN_FILENO, TCIFLUSH);
   }
   auto &seq = Terminal::RESTORE_SEQUENCE;
   ::write(STDOUT_FILENO, seq.data(), seq.size());

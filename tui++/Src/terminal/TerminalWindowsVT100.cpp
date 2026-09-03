@@ -48,6 +48,11 @@ void restore_console(bool emit_sequence) {
   }
   if (console_state.input) {
     ::SetConsoleMode(console_state.input, console_state.input_mode);
+    // Discard whatever the app never read -- trailing mouse-tracking key
+    // events, replies to the startup queries, the keypress that quit.
+    // Without this the shell reads them after the app exits and types
+    // control characters into the prompt.
+    ::FlushConsoleInputBuffer(console_state.input);
   }
   if (console_state.output) {
     ::SetConsoleMode(console_state.output, console_state.output_mode);
