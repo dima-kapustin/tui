@@ -39,6 +39,7 @@
 #include <tui++/util/log.h>
 #include <tui++/util/typeid.h>
 
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <functional>
@@ -160,12 +161,66 @@ struct HoverInfo {
 class HoverPanel: public Component {
   std::shared_ptr<HoverInfo> info;
 
+  // Everything paint() draws, as one comparable string (the hovered
+  // component's type, name and address, its showing state and bounds, and the
+  // pointer position). update_if_changed() repaints only when this changes.
+  std::string content_key() const {
+    auto key = std::string { };
+    if (this->info->has_component and this->info->component) {
+      auto c = this->info->component;
+      key = std::to_string(typeid(*c));
+      key += '|';
+      key += c->get_name();
+      key += '|';
+      key += std::to_string(reinterpret_cast<uintptr_t>(c.get()));
+      if (c->is_showing()) {
+        // get_location_on_screen throws for a component that is not showing,
+        // so only include bounds while it is (the showing flag above tells
+        // the two "hidden" states apart).
+        auto bounds = Rectangle { c->get_location_on_screen(), c->get_size() };
+        key += '|';
+        key += std::to_string(bounds.x);
+        key += ',';
+        key += std::to_string(bounds.y);
+        key += ',';
+        key += std::to_string(bounds.width);
+        key += ',';
+        key += std::to_string(bounds.height);
+      } else {
+        key += "|-1"; // paint() shows "bounds=(component no longer showing)"
+      }
+    } else {
+      key = "-";
+    }
+    key += '@';
+    key += std::to_string(this->info->pointer.x);
+    key += ',';
+    key += std::to_string(this->info->pointer.y);
+    return key;
+  }
+
+  std::string last_key;
+
 public:
   explicit HoverPanel(const std::shared_ptr<HoverInfo> &info) :
       info(info) {
     set_opaque(true);
     set_background_color(Color { 24, 26, 34 });
     set_foreground_color(Color { 200, 200, 205 });
+    // The panel is painted once when the frame is shown; seed the key with
+    // that first content so the first mouse move does not repaint it again.
+    this->last_key = content_key();
+  }
+
+  // Repaints only when the displayed content actually changed. A mouse move
+  // that stays inside the same cell, or over an already-hovered component,
+  // would otherwise schedule a repaint of identical rows on every event.
+  void update_if_changed() {
+    auto key = content_key();
+    if (key != this->last_key) {
+      this->last_key = std::move(key);
+      repaint();
+    }
   }
 
   void paint(Graphics &g) override {
@@ -215,7 +270,7 @@ public:
 // the raw mouse movement/drag, keeping the hover panel current.
 class HoverTracker: public EventListener<Event> {
   std::shared_ptr<HoverInfo> info;
-  std::shared_ptr<Component> panel;
+  std::shared_ptr<HoverPanel> panel;
 
   // Updates the pointer position from a mouse event given in source-local
   // coordinates (Swing convention) and shows the window itself when no
@@ -248,7 +303,7 @@ class HoverTracker: public EventListener<Event> {
   }
 
 public:
-  HoverTracker(const std::shared_ptr<HoverInfo> &info, const std::shared_ptr<Component> &panel) :
+  HoverTracker(const std::shared_ptr<HoverInfo> &info, const std::shared_ptr<HoverPanel> &panel) :
       info(info), panel(panel) {
   }
 
@@ -261,7 +316,7 @@ public:
         auto &m = static_cast<MouseOverEvent &>(e);
         this->info->pointer = convert_point_to_screen(m.x, m.y, c);
       }
-      this->panel->repaint();
+      this->panel->update_if_changed();
     } else if (e.id == MouseOverEvent::MOUSE_EXITED) {
       if (auto c = std::dynamic_pointer_cast<Component>(e.source); c == this->info->component) {
         this->info->component = nullptr;
@@ -273,10 +328,10 @@ public:
       } else {
         this->info->pointer = { m.x, m.y };
       }
-      this->panel->repaint();
+      this->panel->update_if_changed();
     } else if (e.id == MouseMoveEvent::MOUSE_MOVED or e.id == MouseDragEvent::MOUSE_DRAGGED) {
       track(static_cast<MouseEvent &>(e));
-      this->panel->repaint();
+      this->panel->update_if_changed();
     }
   }
 };
@@ -296,10 +351,14 @@ std::shared_ptr<Frame> build_menu_bar_demo() {
   auto frame = make_component<Frame>();
   frame->set_background_color(GREEN_COLOR);
   frame->set_size(screen.get_size());
+  // Named for the event log (the frame has no title that would give it a
+  // natural name).
+  frame->set_name("main frame");
 
   auto content = make_component<Panel>();
   state->content = content;
   frame->add(content);
+  content->set_name("content");
   frame->get_content_pane()->set_border(std::make_shared<EmptyBorder>(2 * cell, 2 * cell, 2 * cell, 2 * cell));
   apply_palette(state);
 
@@ -339,6 +398,7 @@ std::shared_ptr<Frame> build_menu_bar_demo() {
   menu_bar->add(file_menu);
   menu_bar->add(edit_menu);
   frame->set_menu_bar(menu_bar);
+  menu_bar->set_name("menu bar");
 
   wire_menu_popup_toggle(file_menu, { edit_menu });
   wire_menu_popup_toggle(edit_menu, { file_menu });
@@ -362,6 +422,7 @@ std::shared_ptr<Frame> build_menu_bar_demo() {
   auto hover_panel = make_component<HoverPanel>(hover_info);
   hover_panel->set_preferred_size(Dimension { 0, 3 * cell });
   frame->add(hover_panel, BorderLayout::SOUTH);
+  hover_panel->set_name("hover panel");
 
   auto hover_tracker = std::make_shared<HoverTracker>(hover_info, hover_panel);
   screen.add_listener(EventType::MOUSE_MOVE | EventType::MOUSE_DRAG | EventType::MOUSE_OVER, hover_tracker);
