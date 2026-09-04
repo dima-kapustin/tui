@@ -112,6 +112,10 @@ public:
     }
   }
 
+  // "tui::MenuItem(Open)": buttons and menu items identify themselves by
+  // their label (an explicit name still wins).
+  std::string to_string() const override;
+
   virtual std::optional<Insets> const& get_margin() const override {
     return this->margin;
   }

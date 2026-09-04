@@ -154,7 +154,7 @@ bool WindowMouseEventDispatcher::dispatch_event(MouseEvent &e) {
       // This may send it somewhere that doesn't have MouseWheelEvents
       // enabled.  In this case, Component::dispatch_event() will
       // retarget the event to a parent that DOES have the events enabled.
-      log_event_ln("retargeting mouse wheel to " << mouse_over->get_name() << ", " << typeid(*mouse_over.get()));
+      log_event_ln("retargeting mouse wheel to " << mouse_over->to_string());
       retarget_mouse_event(mouse_over, e);
       break;
     }

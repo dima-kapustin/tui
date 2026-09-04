@@ -3,11 +3,14 @@
 #include <tui++/KeyboardFocusManager.h>
 
 #include <tui++/util/log.h>
+#include <tui++/util/typeid.h>
 
 #include <chrono>
 #include <cstddef>
 #include <limits>
 #include <stdexcept>
+#include <string>
+#include <typeinfo>
 #include <utility>
 #include <vector>
 
@@ -33,6 +36,16 @@ long long area(Rectangle const &r) {
 
 Rectangle bbox(Rectangle const &a, Rectangle const &b) {
   return a | b;
+}
+
+// The concrete event type as a short name ("MouseMoveEvent",
+// "InvocationEvent", ...), so dispatch lines say what is being dispatched.
+std::string event_type_name(Event const &event) {
+  auto name = util::demangle(typeid(event).name());
+  if (auto pos = name.rfind("::"); pos != std::string::npos) {
+    name.erase(0, pos + 2);
+  }
+  return name;
 }
 
 } // namespace
@@ -122,10 +135,14 @@ void Screen::dispatch_event(Event &event) {
   // log_event_ln; here the cost of handling it is logged, so an enabled event
   // log reads as an ordered, timestamped history of events with their cost.
   auto ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-  log_dispatch_ln("id " << event.id.id << " took " << ms << " ms");
+  log_dispatch_ln(event_type_name(event) << " id " << event.id.id << " took " << ms << " ms");
 }
 
 void Screen::add_damage(Rectangle const &rect) {
+  add_damage(rect, { });
+}
+
+void Screen::add_damage(Rectangle const &rect, std::shared_ptr<Component> const &source) {
   if (rect.empty()) {
     return;
   }
@@ -138,7 +155,7 @@ void Screen::add_damage(Rectangle const &rect) {
   auto best_area = std::numeric_limits<long long>::max();
   auto rect_area = area(rect);
   for (auto i = size_t { 0 }; i < regions.size(); ++i) {
-    auto merged_area = area(bbox(rect, regions[i]));
+    auto merged_area = area(bbox(rect, regions[i].rect));
     if (merged_area < best_area) {
       best_area = merged_area;
       best = i;
@@ -150,17 +167,20 @@ void Screen::add_damage(Rectangle const &rect) {
     // Merging is cheap when the union covers little more than the two regions
     // themselves; if the new rectangle is far away the union is a huge box of
     // unchanged content and it is cheaper to keep the regions separate.
-    can_merge = best_area <= (rect_area + area(regions[best])) * MERGE_ALLOWANCE;
+    can_merge = best_area <= (rect_area + area(regions[best].rect)) * MERGE_ALLOWANCE;
   }
 
   if (can_merge or regions.size() >= MAX_DAMAGE_REGIONS) {
     if (best < regions.size()) {
-      regions[best] = bbox(rect, regions[best]);
+      regions[best].rect = bbox(rect, regions[best].rect);
+      // The region now covers this request too; the latest requester is the
+      // one the flush log should blame.
+      regions[best].source = source;
     } else {
-      regions.emplace_back(rect);
+      regions.emplace_back(DamagedRegion { rect, source });
     }
   } else {
-    regions.emplace_back(rect);
+    regions.emplace_back(DamagedRegion { rect, source });
   }
 
   // Overlapping regions would be flushed twice; coalesce them. The list is
@@ -170,8 +190,9 @@ void Screen::add_damage(Rectangle const &rect) {
     changed = false;
     for (auto i = size_t { 0 }; i < regions.size() and not changed; ++i) {
       for (auto j = i + 1; j < regions.size(); ++j) {
-        if (not (regions[i] & regions[j]).empty()) {
-          regions[i] = bbox(regions[i], regions[j]);
+        if (not (regions[i].rect & regions[j].rect).empty()) {
+          regions[i].rect = bbox(regions[i].rect, regions[j].rect);
+          regions[i].source = source;
           regions.erase(regions.begin() + std::ptrdiff_t(j));
           changed = true;
           break;
@@ -202,13 +223,13 @@ void Screen::repaint_damaged() {
   log_repaint_ln(regions.size() << " region(s)");
 
   for (auto const &region : regions) {
-    if (region.empty()) {
+    if (region.rect.empty()) {
       continue;
     }
     auto t0 = std::chrono::steady_clock::now();
-    repaint_region(region);
+    repaint_region(region.rect);
     auto ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-    log_repaint_ln("  region (" << region.x << ", " << region.y << " " << region.width << "x" << region.height << ") took " << ms << " ms");
+    log_repaint_ln((region.source ? region.source->to_string() : std::string { "screen" }) << ": region (" << region.rect.x << ", " << region.rect.y << " " << region.rect.width << "x" << region.rect.height << ") took " << ms << " ms");
   }
 }
 

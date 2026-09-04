@@ -103,6 +103,22 @@ void test_Menu() {
   CHECK(file_menu->is_top_level_menu());
   CHECK(not file_menu->is_popup_menu_visible());
 
+  // Component identification (virtual to_string): a menu item identifies
+  // itself by its label, an explicit name wins over it, and unnamed
+  // components carry their per-instance id.
+  {
+    CHECK(file_menu->to_string() == "tui::Menu(File)");
+    CHECK(item->to_string() == "tui::MenuItem(Dump)");
+    auto frame_tag = frame->to_string();
+    CHECK(frame_tag.rfind("tui::Frame(id=", 0) == 0);
+    auto bar_tag = menu_bar->to_string();
+    CHECK(bar_tag.rfind("tui::MenuBar(id=", 0) == 0);
+    frame->set_name("window");
+    CHECK(frame->to_string() == "tui::Frame(window)");
+    frame->set_name("");
+    CHECK(frame->to_string() == frame_tag);
+  }
+
   // Hovering the File menu arms it (the Swing rollover/hover highlight).
   auto loc = file_menu->get_location_on_screen();
   auto sz = file_menu->get_size();

@@ -89,6 +89,10 @@ public:
     this->title = title;
   }
 
+  // "tui::Frame(MenuBar demo)": windows identify themselves by their title
+  // (an explicit name still wins).
+  std::string to_string() const override;
+
   virtual void remove(const std::shared_ptr<Component> &c) override;
   virtual void set_layout(const std::shared_ptr<Layout> &layout) override;
   virtual void dispatch_event(Event &e) override;

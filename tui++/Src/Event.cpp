@@ -233,12 +233,15 @@ std::ostream& operator<<(std::ostream &os, const MouseWheelEvent &event) {
 }
 
 std::ostream& operator<<(std::ostream &os, const MouseOverEvent &event) {
+  // The log line already carries the component identification (the dispatch
+  // target's log tag precedes the event description), so the description
+  // itself stays clean.
   switch (event.id) {
   case MouseOverEvent::MOUSE_ENTERED:
-    os << "Mouse ENTERED " << event.component()->get_name();
+    os << "Mouse ENTERED";
     break;
   case MouseOverEvent::MOUSE_EXITED:
-    os << "Mouse EXITED " << event.component()->get_name();
+    os << "Mouse EXITED";
     break;
   }
   return os;

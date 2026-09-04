@@ -16,6 +16,7 @@ extern Screen &screen;
 class Frame;
 class Dialog;
 class Window;
+class Component;
 class Graphics;
 
 namespace laf {
@@ -42,7 +43,16 @@ protected:
   // kept separate when they cover very different parts of the screen and
   // merged when doing so is cheap, so a repaint pass does not flush one huge
   // bounding box that mostly contains unchanged content.
-  std::vector<Rectangle> damaged_regions;
+  struct DamagedRegion {
+    Rectangle rect;
+
+    // The component whose repaint() request recorded this damage, when the
+    // request bubbled up through the component tree (a repaint requested
+    // straight on the screen has none). Logged when the region is flushed so
+    // the log says what is being repainted and why.
+    std::shared_ptr<Component> source;
+  };
+  std::vector<DamagedRegion> damaged_regions;
 
   // True while a repaint invocation is queued: damage that accumulates until
   // that invocation runs is painted together, at most once per queue pass.
@@ -165,8 +175,17 @@ public:
   // painted together.
   void add_damage(Rectangle const &rect);
 
+  // Records a repaint request on behalf of `source` -- the component whose
+  // repaint() call caused the damage -- so the repaint log can say what is
+  // being repainted.
+  void add_damage(Rectangle const &rect, std::shared_ptr<Component> const &source);
+
   void add_damage(int x, int y, int width, int height) {
     add_damage(Rectangle { x, y, width, height });
+  }
+
+  void add_damage(int x, int y, int width, int height, std::shared_ptr<Component> const &source) {
+    add_damage(Rectangle { x, y, width, height }, source);
   }
 
   // Repaints the accumulated damaged regions now and clears them. Called by

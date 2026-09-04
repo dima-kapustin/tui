@@ -7,6 +7,17 @@
 
 namespace tui {
 
+std::string Window::to_string() const {
+  // A window's title reads better than its id; an explicit name (see
+  // Component::set_name) still wins over the title.
+  if (this->name.empty()) {
+    if (auto const &title = get_title(); not title.empty()) {
+      return describe(title);
+    }
+  }
+  return Component::to_string();
+}
+
 void Window::add_notify() {
   if (auto parent = std::dynamic_pointer_cast<Window>(get_parent()); parent and not parent->mouse_event_dispatcher) {
     parent->add_notify();

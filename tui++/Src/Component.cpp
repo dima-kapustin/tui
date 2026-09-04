@@ -11,6 +11,11 @@
 #include <tui++/Screen.h>
 
 #include <tui++/util/log.h>
+#include <tui++/util/typeid.h>
+
+#include <format>
+#include <string>
+#include <typeinfo>
 
 namespace tui {
 
@@ -126,6 +131,10 @@ void Component::paint(Graphics &g) {
 }
 
 void Component::repaint(int x, int y, int width, int height) {
+  repaint_from(x, y, width, height, shared_from_this());
+}
+
+void Component::repaint_from(int x, int y, int width, int height, const std::shared_ptr<Component> &source) {
   // The request needs to be translated to parent coordinates since
   // a parent native container provides the actual repaint services.
   // Additionally, the request is restricted to the bounds of the component.
@@ -148,7 +157,7 @@ void Component::repaint(int x, int y, int width, int height) {
 
     int px = this->location.x + x;
     int py = this->location.y + y;
-    parent->repaint(px, py, pwidth, pheight);
+    parent->repaint_from(px, py, pwidth, pheight, source);
   } else if (is_visible() and width > 0 and height > 0) {
     // A top-level window: it has no parent whose "peer" repaints for it,
     // so the screen takes that role. Swing posts a PaintEvent for the
@@ -160,7 +169,7 @@ void Component::repaint(int x, int y, int width, int height) {
     if (pwidth <= 0 or pheight <= 0) {
       return;
     }
-    screen.add_damage(this->location.x + x, this->location.y + y, pwidth, pheight);
+    screen.add_damage(this->location.x + x, this->location.y + y, pwidth, pheight, source);
   }
 }
 
@@ -604,8 +613,24 @@ void Component::remove(size_t index) {
   }
 }
 
+unsigned Component::next_log_id() {
+  static auto next = 0u;
+  return ++next;
+}
+
+std::string Component::describe(std::string const &label) const {
+  return std::format("{}({})", util::demangle(typeid(*this).name()), label);
+}
+
+std::string Component::to_string() const {
+  // An explicit name reads better than the raw type; without one the
+  // per-instance id keeps same-type components apart.
+  auto label = this->name.empty() ? "id=" + std::to_string(this->log_id) : this->name;
+  return describe(label);
+}
+
 void Component::dispatch_event(Event &e) {
-  log_event_ln(e);
+  log_event_ln(to_string() << ": " << e);
 
   if (not e.is_being_dispatched_by_focus_manager) {
     if (KeyboardFocusManager::single->dispatch_event(e)) {

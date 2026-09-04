@@ -12,6 +12,17 @@ void AbstractButton::init() {
   set_alignment_y(CENTER_ALIGNMENT);
 }
 
+std::string AbstractButton::to_string() const {
+  // The button's own label reads better than its id; an explicit name (see
+  // Component::set_name) still wins over the label.
+  if (this->name.empty()) {
+    if (auto const &text = get_text(); not text.empty()) {
+      return describe(text);
+    }
+  }
+  return Component::to_string();
+}
+
 void AbstractButton::add_impl(const std::shared_ptr<Component> &c, const Constraints &constraints, int z_order) {
   if (not this->layout) {
     set_layout(std::make_shared<OverlayLayout>(this));

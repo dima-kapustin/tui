@@ -56,6 +56,10 @@ protected:
 
   std::string name;
 
+  // Monotonic per-instance number assigned at construction; disambiguates
+  // components that have no name in to_string().
+  const unsigned log_id;
+
   std::shared_ptr<Border> border;
 
   std::vector<std::shared_ptr<Component>> components;
@@ -153,6 +157,8 @@ public:
   };
 
 private:
+  static unsigned next_log_id();
+
   void repaint_parent_if_needed(int old_x, int old_y, int old_width, int old_height) {
     if (auto parent = this->parent.lock(); parent and is_showing()) {
       // Have the parent redraw the area this component occupied.
@@ -161,6 +167,11 @@ private:
       repaint();
     }
   }
+
+  // repaint() bubbles up the component tree; `source` is the component whose
+  // repaint() started the request, carried all the way to the top-level
+  // window so the screen can log what is being repainted.
+  void repaint_from(int x, int y, int width, int height, std::shared_ptr<Component> const &source);
 
   /**
    * Invalidates the component unless it is already invalid.
@@ -216,10 +227,16 @@ private:
   void unregister_with_keyboard_manager(KeyStroke const &key_stroke) const;
 
 protected:
-  Component() {
+  Component() :
+      log_id(next_log_id()) {
   }
 
   virtual void init();
+
+  // "tui::MenuItem(Save)": `label` wrapped with this component's dynamic
+  // type name. Shared by to_string() and its overrides so every component
+  // prints in the same shape.
+  std::string describe(std::string const &label) const;
 
   template<typename T, typename ... Args>
   requires (is_component_v<T> )
@@ -386,9 +403,15 @@ public:
     return this->name;
   }
 
-  void set_name(std::string &name) {
+  void set_name(std::string const &name) {
     this->name = name;
   }
+
+  // Identification of this component, e.g. "tui::MenuBar(menu bar)" or
+  // "tui::Panel(id=3)" (the per-instance id when no name is set).
+  // Subclasses override it to identify themselves by their own content -- a
+  // menu item's text, a window's title -- for better readability.
+  virtual std::string to_string() const;
 
   void add(const std::shared_ptr<Component> &component) noexcept (false) {
     add(component, { }, -1);
