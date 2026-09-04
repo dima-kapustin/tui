@@ -81,6 +81,17 @@ private:
   size_t skipped_tiles = 0;
   size_t emitted_tiles = 0;
 
+  // The areas the terminal currently displays, one entry per sixel image
+  // sent since the last resize, in cell-aligned screen coordinates. The
+  // terminal composites every new image over the previous ones, and Windows
+  // Terminal keeps 1-3 px fragments of an older image at the edge where a
+  // newer image stops short of it (a full-screen repaint of the same state
+  // never leaves artifacts). Before encoding a dirty tile, every listed
+  // image the tile overlaps is absorbed into it (write_images), so the
+  // replacement re-covers the whole span of the content it replaces; the
+  // absorbed entries are removed and the union is listed in their place.
+  std::vector<Rectangle> emitted_images;
+
 private:
   void resize_buffer();
   void mark_dirty(Rectangle const &rect);
