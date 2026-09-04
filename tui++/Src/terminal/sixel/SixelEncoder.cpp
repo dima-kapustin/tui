@@ -286,10 +286,30 @@ void classify_band(PaletteMap const &pm, const uint8_t *rgb, int width, int band
   color_mask.assign(std::size_t(palette_size), std::vector<uint8_t>(std::size_t(width), 0));
   pass_order.resize(std::size_t(palette_size));
 
+  // UI pixels repeat down a column (borders, cell interiors and text runs
+  // are taller than one band), so a pixel equal to the one above it shares
+  // its palette index and skips the lookup table. The 4-byte read covers the
+  // pixel except in the last column, where the fourth byte may lie past the
+  // image; there the bytes are assembled by hand with the same little-endian
+  // packing, so the comparisons stay consistent.
+  auto prev_px = std::vector<uint32_t>(std::size_t(width), uint32_t(1) << 24);
+  auto prev_idx = std::vector<uint8_t>(std::size_t(width), 0);
   for (auto x = 0; x < width; ++x) {
     for (auto row = 0; row < band_height; ++row) {
       auto const *px = rgb + ((band_y + row) * stride + x) * 3;
-      auto idx = pm.lookup(px);
+      auto idx = prev_idx[std::size_t(x)];
+      uint32_t raw;
+      if (x + 1 < width) {
+        std::memcpy(&raw, px, 4);
+        raw &= 0x00FFFFFFu;
+      } else {
+        raw = uint32_t(px[0]) | (uint32_t(px[1]) << 8) | (uint32_t(px[2]) << 16);
+      }
+      if (raw != prev_px[std::size_t(x)]) {
+        idx = pm.lookup(px);
+        prev_px[std::size_t(x)] = raw;
+        prev_idx[std::size_t(x)] = uint8_t(idx);
+      }
 
       color_mask[std::size_t(idx)][std::size_t(x)] |= uint8_t(1 << row);
       ++counts[idx];
