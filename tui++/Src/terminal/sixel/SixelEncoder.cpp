@@ -4,8 +4,8 @@
 #include <array>
 #include <charconv>
 #include <cstdint>
+#include <cstring>
 #include <iterator>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -84,6 +84,61 @@ uint32_t quantize(RGB color, int bits) {
   return quantize(rgb.data(), bits);
 }
 
+// Open-addressing key set (no heap nodes, no per-insert allocation): the
+// membership container for the palette passes. Keys are stored +1 so 0 can
+// mean "empty slot". Grows by doubling past a 0.7 load factor.
+struct KeySet {
+  std::vector<uint32_t> keys;
+  uint32_t lg2 = 0; // log2 of capacity
+  uint32_t count = 0;
+
+  explicit KeySet(size_t capacity_hint) {
+    auto need = size_t(1);
+    while (need < capacity_hint * 2) {
+      need <<= 1;
+    }
+    this->lg2 = 0;
+    while (size_t(1) << this->lg2 < need) {
+      ++this->lg2;
+    }
+    this->keys.assign(size_t(1) << this->lg2, 0);
+  }
+
+  static uint32_t hash(uint32_t key) {
+    return key * 2654435761u; // Knuth multiplicative
+  }
+
+  void rehash() {
+    auto old = std::move(this->keys);
+    ++this->lg2;
+    this->keys.assign(size_t(1) << this->lg2, 0);
+    this->count = 0;
+    for (auto k : old) {
+      if (k != 0) {
+        insert(k - 1);
+      }
+    }
+  }
+
+  // Returns true when the key was not present and has been inserted.
+  bool insert(uint32_t key) {
+    auto k = key + 1;
+    auto mask = (uint32_t(1) << this->lg2) - 1;
+    for (auto i = hash(k) >> (32 - this->lg2);; i = (i + 1) & mask) {
+      if (this->keys[i] == 0) {
+        this->keys[i] = k;
+        if (++this->count * 10 >= (size_t(1) << this->lg2) * 7) {
+          rehash();
+        }
+        return true;
+      }
+      if (this->keys[i] == k) {
+        return false;
+      }
+    }
+  }
+};
+
 // Maps pixels to palette indices by a direct table instead of a hash lookup
 // per pixel: palette keys are the top `bits` bits of each channel, so at
 // most 2^(3*bits) distinct keys exist. An exact (8-bit) palette keys its
@@ -124,16 +179,31 @@ struct PaletteMap {
   // them exist (the editor's handful of colors round-trips exactly);
   // otherwise the color resolution is reduced until they fit.
   void build(const uint8_t *rgb, int width, int height, int stride, std::vector<RGB> &palette) {
-    // Pass 1: the distinct exact colors of the image.
+    // Pass 1: the distinct exact colors of the image, in order of first
+    // occurrence. UI pixels are contiguous, so a pixel whose color equals its
+    // scan predecessor's shares a key with an already inserted pixel and is
+    // skipped without touching the key set (the 4-byte read is safe because
+    // only the image's final pixel has no fourth byte).
     auto exact = std::vector<RGB> { };
     auto exact_keys = std::vector<uint32_t> { };
-    auto exact_seen = std::unordered_map<uint32_t, int> { };
+    auto exact_seen = KeySet(256);
+    auto prev = uint32_t(1) << 24; // above any masked pixel value
     for (auto y = 0; y < height; ++y) {
       for (auto x = 0; x < width; ++x) {
         auto const *px = rgb + (y * stride + x) * 3;
+        uint32_t raw;
+        if (y + 1 < height or x + 1 < width) {
+          std::memcpy(&raw, px, 4);
+          raw &= 0x00FFFFFFu;
+        } else {
+          raw = quantize(px, 8); // final pixel of the image
+        }
+        if (raw == prev) {
+          continue;
+        }
+        prev = raw;
         auto key = quantize(px, 8);
-        if (exact_seen.find(key) == exact_seen.end()) {
-          exact_seen.emplace(key, int(exact.size()));
+        if (exact_seen.insert(key)) {
           exact.push_back({ px[0], px[1], px[2] });
           exact_keys.push_back(key);
         }
@@ -153,9 +223,10 @@ struct PaletteMap {
       palette.clear();
       auto keys = std::vector<uint32_t> { };
       keys.reserve(exact.size());
+      auto keyed = KeySet(std::min<std::size_t>(exact.size(), std::size_t(1) << (3 * this->bits)));
       for (auto const &color : exact) {
         auto key = quantize(color, this->bits);
-        if (std::find(keys.begin(), keys.end(), key) == keys.end()) {
+        if (keyed.insert(key)) {
           keys.push_back(key);
           palette.push_back(color);
         }
