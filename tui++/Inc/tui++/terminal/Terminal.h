@@ -365,6 +365,14 @@ public:
     screen.run_event_loop();
   }
 
+  // Requests the event loop to finish on its next iteration. Components may
+  // call this to shut the application down cleanly (the screen keeps
+  // draining the remaining queued events, then run_event_loop returns and
+  // the terminal state is restored on destruction).
+  void shutdown() {
+    screen.quit = true;
+  }
+
   void post(std::function<void()> fn) {
     screen.post(std::move(fn));
   }

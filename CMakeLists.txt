@@ -10,3 +10,4 @@ endif()
 
 add_subdirectory(tui++)
 add_subdirectory(tui++tests)
+add_subdirectory(MenuBarDemo)
