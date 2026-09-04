@@ -77,8 +77,6 @@ void SixelScreen::resize_buffer() {
   // unpainted black tail below the content.
   this->dirty = { };
   this->has_dirty = false;
-  // The terminal lost every displayed image (blank screen or new size).
-  this->emitted_images.clear();
 }
 
 void SixelScreen::mark_dirty(Rectangle const &rect) {
@@ -441,61 +439,22 @@ void SixelScreen::write_images(std::vector<Rectangle> const &rects) {
           ++this->skipped_tiles;
           continue;
         }
+        ++this->emitted_tiles;
 
-        // The terminal composites every new sixel image over the previous
-        // ones (see emitted_images): grow the tile over every sent image it
-        // overlaps, so the replacement re-covers the whole span of the
-        // content it replaces. The scan restarts after each absorption
-        // because the grown tile may now reach yet older images; the list
-        // holds only a handful of entries and every pass consumes one, so
-        // the loop is short. A tile that failed sent_matches above can never
-        // match its (larger) union, so no second check is needed.
-        auto covered = tile;
-        auto absorbed = false;
-        do {
-          absorbed = false;
-          for (auto it = this->emitted_images.begin(); it != this->emitted_images.end(); ++it) {
-            if (!covered.intersects(*it)) {
-              continue;
-            }
-            covered |= *it;
-            this->emitted_images.erase(it);
-            absorbed = true;
-            break;
-          }
-        } while (absorbed);
+        auto data = SixelEncoder::encode(this->pixels.data() + (ty * get_pixel_width() + tx) * 3, tw, th, get_pixel_width());
+        total_bytes += data.size();
 
-        // Encode and send the covered span, sliced by the terminal's image
-        // limit like the original rect (the span may exceed it when it
-        // absorbed several images). The parts are disjoint and together
-        // re-cover everything the span replaced; each is listed as an image
-        // the terminal now shows.
-        auto emitted = size_t { 0 };
-        for (auto ty2 = covered.y; ty2 < covered.bottom(); ty2 += tile_h) {
-          auto th2 = std::min(tile_h, covered.bottom() - ty2);
-          for (auto tx2 = covered.x; tx2 < covered.right(); tx2 += tile_w) {
-            auto tw2 = std::min(tile_w, covered.right() - tx2);
-            auto part = Rectangle { tx2, ty2, tw2, th2 };
-
-            auto data = SixelEncoder::encode(this->pixels.data() + (ty2 * get_pixel_width() + tx2) * 3, tw2, th2, get_pixel_width());
-            total_bytes += data.size();
-
-            // Move to the tile origin and emit its image. One combined write
-            // and a single flush per frame keeps the ConPTY round-trips to a
-            // minimum; the cursor is parked back at the top-left after the
-            // last tile so the next flush is placed from a known position.
-            out += "\x1b[";
-            out += std::to_string(ty2 / this->cell_height + 1);
-            out += ';';
-            out += std::to_string(tx2 / this->cell_width + 1);
-            out += 'H';
-            out += data;
-            store_sent(part);
-            this->emitted_images.push_back(part);
-            ++emitted;
-          }
-        }
-        this->emitted_tiles += emitted;
+        // Move to the tile origin and emit its image. One combined write and
+        // a single flush per frame keeps the ConPTY round-trips to a minimum;
+        // the cursor is parked back at the top-left after the last tile so
+        // the next flush is placed from a known position.
+        out += "\x1b[";
+        out += std::to_string(ty / this->cell_height + 1);
+        out += ';';
+        out += std::to_string(tx / this->cell_width + 1);
+        out += 'H';
+        out += data;
+        store_sent(tile);
       }
     }
   }
