@@ -3,8 +3,10 @@
 #include <algorithm>
 #include <array>
 #include <charconv>
+#include <cstdint>
 #include <iterator>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace tui {
@@ -68,73 +70,133 @@ void append_run(std::string &out, int count, char c) {
   }
 }
 
-// Keeps the `bits` most significant bits of an 8-bit channel.
-uint8_t quantize_channel(uint8_t value, int bits) {
-  return value & uint8_t(0xFF << (8 - bits));
-}
-
+// Compacts the top `bits` bits of each channel into one dense key: each
+// channel contributes bits bits, so a key fits in 3*bits bits (at most 15
+// for the 5-bit buckets the lookup table is indexed by).
 uint32_t quantize(const uint8_t *rgb, int bits) {
-  return (uint32_t(quantize_channel(rgb[0], bits)) << 16) | //
-      (uint32_t(quantize_channel(rgb[1], bits)) << 8) | //
-      quantize_channel(rgb[2], bits);
+  return (uint32_t(rgb[0] >> (8 - bits)) << (2 * bits)) | //
+      (uint32_t(rgb[1] >> (8 - bits)) << bits) | //
+      uint32_t(rgb[2] >> (8 - bits));
 }
 
-// Builds one palette for the whole image. The palette is emitted once, before
-// the first band: terminals keep a single palette per image, so redefining an
-// entry in a later band would recolor every pixel of the earlier bands that
-// shares the index (the per-band palettes made parts of the image flash
-// through random colors while it drew).
-//
-// Exact colors are kept while there are at most MAX_PALETTE_SIZE of them
-// (the editor's handful of colors round-trips exactly); otherwise the color
-// resolution is reduced until they fit. `bits` is the channel resolution used
-// to classify pixels (8 == exact colors).
-void build_palette(const uint8_t *rgb, int width, int height, int stride, std::vector<RGB> &palette, std::unordered_map<uint32_t, int> &index_map, int &bits) {
-  // Pass 1: the distinct exact colors of the image.
-  auto exact = std::vector<RGB> { };
-  auto exact_seen = std::unordered_map<uint32_t, int> { };
-  for (auto y = 0; y < height; ++y) {
-    for (auto x = 0; x < width; ++x) {
-      auto const *px = rgb + (y * stride + x) * 3;
-      auto key = quantize(px, 8);
-      if (exact_seen.find(key) == exact_seen.end()) {
-        exact_seen.emplace(key, int(exact.size()));
-        exact.push_back({ px[0], px[1], px[2] });
-      }
-    }
+uint32_t quantize(RGB color, int bits) {
+  auto rgb = std::array<uint8_t, 3> { color.red, color.green, color.blue };
+  return quantize(rgb.data(), bits);
+}
+
+// Maps pixels to palette indices by a direct table instead of a hash lookup
+// per pixel: palette keys are the top `bits` bits of each channel, so at
+// most 2^(3*bits) distinct keys exist. An exact (8-bit) palette keys its
+// 5-5-5 bucket table; when two exact colors share a bucket they are rare
+// enough to resolve through a short collision list.
+struct PaletteMap {
+  int bits = 8; // palette key resolution (2..8)
+
+  // Direct table: +1 = palette index, 0 = absent, -1 = collided bucket
+  // (only possible for the 5-5-5 table of an exact palette).
+  std::vector<int16_t> table;
+
+  // (exact key, palette index) pairs of colors that share one 5-5-5 bucket.
+  std::vector<std::pair<uint32_t, int>> collided;
+
+  static int bucket_bits(int bits) {
+    return bits < 5 ? bits : 5;
   }
 
-  if (int(exact.size()) <= MAX_PALETTE_SIZE) {
-    palette = std::move(exact);
-    index_map = std::move(exact_seen);
-    bits = 8;
-    return;
-  }
-
-  // Pass 2: quantize the exact colors until they fit one palette. Two bits
-  // per channel yields at most 64 colors, so the loop always terminates.
-  for (bits = 5; bits >= 2; --bits) {
-    palette.clear();
-    index_map.clear();
-    for (auto const &color : exact) {
-      auto px = std::array<uint8_t, 3> { color.red, color.green, color.blue };
-      auto key = quantize(px.data(), bits);
-      if (index_map.find(key) == index_map.end()) {
-        index_map.emplace(key, int(palette.size()));
-        palette.push_back(color);
+  int lookup(const uint8_t *rgb) const {
+    auto q = quantize(rgb, bucket_bits(this->bits));
+    auto t = this->table[q];
+    if (t != -1) {
+      return t == 0 ? 0 : int(t - 1);
+    }
+    // Collided 5-5-5 bucket (exact palette only): match the exact color.
+    auto key = quantize(rgb, 8);
+    for (auto &&[k, i] : this->collided) {
+      if (k == key) {
+        return i;
       }
     }
-    if (int(palette.size()) <= MAX_PALETTE_SIZE) {
+    return 0;
+  }
+
+  // Builds the palette (ordered by first occurrence) and the lookup table
+  // for one image. Exact colors are kept while at most MAX_PALETTE_SIZE of
+  // them exist (the editor's handful of colors round-trips exactly);
+  // otherwise the color resolution is reduced until they fit.
+  void build(const uint8_t *rgb, int width, int height, int stride, std::vector<RGB> &palette) {
+    // Pass 1: the distinct exact colors of the image.
+    auto exact = std::vector<RGB> { };
+    auto exact_keys = std::vector<uint32_t> { };
+    auto exact_seen = std::unordered_map<uint32_t, int> { };
+    for (auto y = 0; y < height; ++y) {
+      for (auto x = 0; x < width; ++x) {
+        auto const *px = rgb + (y * stride + x) * 3;
+        auto key = quantize(px, 8);
+        if (exact_seen.find(key) == exact_seen.end()) {
+          exact_seen.emplace(key, int(exact.size()));
+          exact.push_back({ px[0], px[1], px[2] });
+          exact_keys.push_back(key);
+        }
+      }
+    }
+
+    if (int(exact.size()) <= MAX_PALETTE_SIZE) {
+      palette = std::move(exact);
+      this->bits = 8;
+      build_table(palette, exact_keys);
       return;
     }
-  }
-}
 
-// Classifies the columns of one band: the most frequent color of a column
-// becomes its opaque fill, and every other color's rows are recorded as a
-// row mask (one mask per palette color). A sixel data char carries a single
-// color, so the band is painted with one pass per color: the fill first,
-// then each additional color rewound with `$` and drawn over its own rows.
+    // Pass 2: quantize the exact colors until they fit one palette. Two bits
+    // per channel yields at most 64 colors, so the loop always terminates.
+    for (this->bits = 5; this->bits >= 2; --this->bits) {
+      palette.clear();
+      auto keys = std::vector<uint32_t> { };
+      keys.reserve(exact.size());
+      for (auto const &color : exact) {
+        auto key = quantize(color, this->bits);
+        if (std::find(keys.begin(), keys.end(), key) == keys.end()) {
+          keys.push_back(key);
+          palette.push_back(color);
+        }
+      }
+      if (int(palette.size()) <= MAX_PALETTE_SIZE) {
+        build_table(palette, keys);
+        return;
+      }
+    }
+  }
+
+private:
+  void build_table(std::vector<RGB> const &palette, std::vector<uint32_t> const &keys) {
+    auto b = bucket_bits(this->bits);
+    this->table.assign(size_t(1) << (3 * b), 0);
+    this->collided.clear();
+    for (auto i = 0; i < int(palette.size()); ++i) {
+      if (this->bits == 8) { // exact palette, 5-5-5 bucket table
+        auto q = quantize(palette[size_t(i)], 5);
+        if (this->table[q] == 0) {
+          this->table[q] = int16_t(i + 1);
+        } else {
+          if (this->table[q] != -1) {
+            // The bucket's first color moves to the collision list.
+            auto first_key = quantize(palette[this->table[q] - 1], 8);
+            this->collided.emplace_back(first_key, this->table[q] - 1);
+          }
+          this->table[q] = -1;
+          this->collided.emplace_back(keys[size_t(i)], i);
+        }
+      } else {
+        this->table[keys[size_t(i)]] = int16_t(i + 1);
+      }
+    }
+  }
+};
+
+// Classifies the columns of one band: every pixel's color index is resolved
+// once through the direct lookup table and recorded as a row mask per column
+// (one mask per palette color). A sixel data char carries a single color, so
+// the band is painted with one pass per color, each rewound with `$`.
 // Every pixel therefore keeps its exact color, however many colors share a
 // column (a 1px glyph line over a background that also holds a border keeps
 // all three).
@@ -147,7 +209,7 @@ void build_palette(const uint8_t *rgb, int width, int height, int stride, std::v
 // them, which Windows Terminal sometimes skipped, leaving a light line).
 // `pass_order` lists the palette indices from the most to the least frequent
 // color, which compresses best.
-void classify_band(const uint8_t *rgb, int width, int band_y, int band_height, int stride, int bits, int palette_size, std::unordered_map<uint32_t, int> const &index_map, std::vector<std::vector<uint8_t>> &color_mask, std::vector<int> &pass_order) {
+void classify_band(PaletteMap const &pm, const uint8_t *rgb, int width, int band_y, int band_height, int stride, int palette_size, std::vector<std::vector<uint8_t>> &color_mask, std::vector<int> &pass_order) {
   auto counts = std::array<int, MAX_PALETTE_SIZE> { };
 
   color_mask.assign(std::size_t(palette_size), std::vector<uint8_t>(std::size_t(width), 0));
@@ -156,11 +218,7 @@ void classify_band(const uint8_t *rgb, int width, int band_y, int band_height, i
   for (auto x = 0; x < width; ++x) {
     for (auto row = 0; row < band_height; ++row) {
       auto const *px = rgb + ((band_y + row) * stride + x) * 3;
-
-      auto idx = 0;
-      if (auto pos = index_map.find(quantize(px, bits)); pos != index_map.end()) {
-        idx = pos->second;
-      }
+      auto idx = pm.lookup(px);
 
       color_mask[std::size_t(idx)][std::size_t(x)] |= uint8_t(1 << row);
       ++counts[idx];
@@ -180,8 +238,8 @@ void classify_band(const uint8_t *rgb, int width, int band_y, int band_height, i
 // the passes). Every pixel is painted exactly once, by its own color, and
 // every pass emits exactly one data char per image column, so nothing shifts
 // to the right. The image palette is defined once by the caller.
-void emit_band(std::string &out, const uint8_t *rgb, int width, int band_y, int band_height, int stride, int bits, int palette_size, std::unordered_map<uint32_t, int> const &index_map, std::vector<std::vector<uint8_t>> &color_mask, std::vector<int> &pass_order) {
-  classify_band(rgb, width, band_y, band_height, stride, bits, palette_size, index_map, color_mask, pass_order);
+void emit_band(std::string &out, PaletteMap const &pm, const uint8_t *rgb, int width, int band_y, int band_height, int stride, int palette_size, std::vector<std::vector<uint8_t>> &color_mask, std::vector<int> &pass_order) {
+  classify_band(pm, rgb, width, band_y, band_height, stride, palette_size, color_mask, pass_order);
 
   if (band_y > 0) {
     // Carriage return, then advance to the next band row.
@@ -237,9 +295,8 @@ std::string SixelEncoder::encode(const uint8_t *rgb, int width, int height, int 
   out.reserve(std::size_t(width) * height / 4);
 
   auto palette = std::vector<RGB> { };
-  auto index_map = std::unordered_map<uint32_t, int> { };
-  auto bits = 0;
-  build_palette(rgb, width, height, stride, palette, index_map, bits);
+  auto pm = PaletteMap { };
+  pm.build(rgb, width, height, stride, palette);
 
   // The image is emitted with a transparent background (P2=1). Its palette is
   // defined once, before the first band: every band then references those
@@ -258,7 +315,7 @@ std::string SixelEncoder::encode(const uint8_t *rgb, int width, int height, int 
   auto pass_order = std::vector<int> { };
   for (auto band_y = 0; band_y < height; band_y += BAND_HEIGHT) {
     auto band_height = std::min(BAND_HEIGHT, height - band_y);
-    emit_band(out, rgb, width, band_y, band_height, stride, bits, int(palette.size()), index_map, color_mask, pass_order);
+    emit_band(out, pm, rgb, width, band_y, band_height, stride, int(palette.size()), color_mask, pass_order);
   }
 
   // ST: end of the DCS.
