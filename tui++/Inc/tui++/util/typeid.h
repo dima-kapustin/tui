@@ -22,9 +22,13 @@ constexpr bool CXXABI {
 
 }
 
-auto demangle(const char *name, size_t *length = nullptr) noexcept (not detail::CXXABI) {
+inline auto demangle(const char *name, size_t *length = nullptr) noexcept (not detail::CXXABI) {
   if constexpr (detail::CXXABI) {
-    auto dmg = abi::__cxa_demangle(name, nullptr, length, nullptr);
+    auto status = 0;
+    auto dmg = abi::__cxa_demangle(name, nullptr, length, &status);
+    if (length and status == 0 and dmg) {
+      *length = std::strlen(dmg);
+    }
     return std::unique_ptr<char, decltype(std::free)*>(dmg, std::free);
   } else {
     return name;         // NOP: assume already demangled if not on CXXABI
@@ -39,8 +43,8 @@ inline ostream& operator<<(ostream &os, const type_info &type_info) {
   return os << tui::util::demangle(type_info.name());
 }
 
-constexpr string to_string(const type_info &type_info) {
-  size_t length = 0;
+inline string to_string(const type_info &type_info) {
+  auto length = size_t { };
   if (auto name = tui::util::demangle(type_info.name(), &length)) {
     return {name.get(), length};
   }
