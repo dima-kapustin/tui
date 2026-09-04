@@ -157,7 +157,7 @@ void TextGraphics::clip_rect(int x, int y, int width, int height) {
 }
 
 std::unique_ptr<Graphics> TextGraphics::create() {
-  return std::make_unique<TextGraphics>(this->screen, this->clip, this->dx, this->dx);
+  return std::make_unique<TextGraphics>(this->screen, this->clip, this->dx, this->dy);
 }
 
 std::unique_ptr<Graphics> TextGraphics::create(int x, int y, int width, int height) {
