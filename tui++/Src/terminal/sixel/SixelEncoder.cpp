@@ -283,7 +283,11 @@ private:
 void classify_band(PaletteMap const &pm, const uint8_t *rgb, int width, int band_y, int band_height, int stride, int palette_size, std::vector<std::vector<uint8_t>> &color_mask, std::vector<int> &pass_order) {
   auto counts = std::array<int, MAX_PALETTE_SIZE> { };
 
-  color_mask.assign(std::size_t(palette_size), std::vector<uint8_t>(std::size_t(width), 0));
+  // The mask rows are owned by the caller (allocated once per image); each
+  // band only zeroes them.
+  for (auto &row : color_mask) {
+    std::memset(row.data(), 0, std::size_t(width));
+  }
   pass_order.resize(std::size_t(palette_size));
 
   // UI pixels repeat down a column (borders, cell interiors and text runs
@@ -402,7 +406,7 @@ std::string SixelEncoder::encode(const uint8_t *rgb, int width, int height, int 
   append_raster_attributes(out, width, height);
   append_palette(out, palette);
 
-  auto color_mask = std::vector<std::vector<uint8_t>> { };
+  auto color_mask = std::vector<std::vector<uint8_t>>(std::size_t(palette.size()), std::vector<uint8_t>(std::size_t(width), 0));
   auto pass_order = std::vector<int> { };
   for (auto band_y = 0; band_y < height; band_y += BAND_HEIGHT) {
     auto band_height = std::min(BAND_HEIGHT, height - band_y);
