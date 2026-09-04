@@ -58,6 +58,12 @@ static void print_ocs(const P &param, const Params &... params) {
 }
 
 void Terminal::InputParser::new_mouse_event(bool pressed) {
+  // A mouse report is button;x;y (SGR 1006); anything shorter is malformed
+  // input and must not be turned into an event (or read out of bounds).
+  if (this->csi_params.size() < 3) {
+    return;
+  }
+
   auto button = this->csi_params[0] & 3;
   auto key_modifiers = this->csi_params[0] & 4 ? InputEvent::SHIFT_DOWN : InputEvent::NO_MODIFIERS;
   key_modifiers |= this->csi_params[0] & 8 ? InputEvent::META_DOWN : InputEvent::NO_MODIFIERS;

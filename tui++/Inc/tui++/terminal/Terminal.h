@@ -112,14 +112,27 @@ class Terminal {
 
   class InputBuffer {
   protected:
-    constexpr static size_t BUFFER_SIZE = 256;
+    // A console read fills the whole buffer at once (the platform readers
+    // only read when the buffer is empty), so it must hold an entire input
+    // burst: a fast mouse flick can deliver hundreds of SGR report bytes, and
+    // a paste far more. 256 bytes was small enough that a burst wrapped the
+    // ring and overwrote its unparsed head.
+    constexpr static size_t BUFFER_SIZE = 4096;
     char buffer[BUFFER_SIZE];
     size_t read_pos = 0, write_pos = 0;
 
   public:
+    // Appends a byte. When the buffer is full the byte is dropped (the newest
+    // input loses to the oldest unparsed input): the stream the parser sees
+    // is never corrupted by a wrap, which would tear every sequence around
+    // the wrap point.
     void put(char c) {
+      auto next = (this->write_pos + 1) % BUFFER_SIZE;
+      if (next == this->read_pos) {
+        return;
+      }
       this->buffer[this->write_pos] = c;
-      this->write_pos = (this->write_pos + 1) % BUFFER_SIZE;
+      this->write_pos = next;
     }
 
     auto get_available() const {
@@ -153,15 +166,19 @@ class Terminal {
       return this->buffer[this->read_pos];
     }
 
-    char consume() {
+    char consume(const std::chrono::milliseconds &timeout) {
       if (this->read_pos == this->write_pos) {
-        if (not read_terminal_input(std::chrono::milliseconds::zero())) {
+        if (not read_terminal_input(timeout)) {
           return 0;
         }
       }
       auto pos = this->read_pos;
       this->read_pos = (this->read_pos + 1) % BUFFER_SIZE;
       return this->buffer[pos];
+    }
+
+    char consume() {
+      return consume(std::chrono::milliseconds::zero());
     }
   };
 
@@ -197,6 +214,14 @@ class Terminal {
       return this->reader.get();
     }
 
+    // Peeks the next byte, waiting up to `timeout` for it when the input
+    // buffer is empty (0 on timeout). Sequence parsers use this so a control
+    // sequence that is split across reads is never torn: the byte is first
+    // waited for, then consumed via consume() once it is known to be there.
+    char get(const std::chrono::milliseconds &timeout) {
+      return this->reader.get(timeout);
+    }
+
     char consume() {
       return this->reader.consume();
     }
@@ -215,6 +240,13 @@ class Terminal {
     }
 
     void parse_event();
+
+    // True when unparsed input bytes are already buffered (the terminal read
+    // that filled the buffer was given a timeout, so buffered bytes are real
+    // input and not a wait artifact).
+    bool has_buffered_input() const {
+      return this->reader.get_available() > 0;
+    }
   };
 
   using Clock = std::chrono::steady_clock;
@@ -282,7 +314,21 @@ private:
   bool read_input(const std::chrono::milliseconds &timeout, InputBuffer &into);
 
   void read_events() {
-    this->input_parser.parse_event();
+    // Parses every complete input sequence the terminal delivered since the
+    // last tick, not just one. Mouse motion arrives as a burst of reports;
+    // parsing (and dispatching) the whole burst in one tick lets its side
+    // effects coalesce -- the repaint requests merge into the single pending
+    // repaint invocation, so a burst costs one paint instead of one paint per
+    // report. A report-per-tick drain would keep painting long after the
+    // mouse stops (each paint takes tens of ms on a ConPTY terminal, and the
+    // remaining buffered reports would each schedule their own). The cap
+    // keeps a pathological paste or key autorepeat from starving the
+    // dispatch loop.
+    constexpr size_t MAX_INPUT_EVENTS_PER_TICK = 256;
+    auto parsed = size_t { 0 };
+    do {
+      this->input_parser.parse_event();
+    } while (++parsed < MAX_INPUT_EVENTS_PER_TICK and this->input_parser.has_buffered_input());
   }
 
   Terminal& write(const char *data, size_t size);

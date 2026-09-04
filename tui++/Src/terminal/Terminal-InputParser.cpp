@@ -76,7 +76,12 @@ void Terminal::InputParser::parse_utf8(char first_byte) {
 }
 
 void Terminal::InputParser::parse_esc() {
-  switch (char c = consume()) {
+  // The byte after ESC is waited for with the read timeout: the terminal
+  // writes each control sequence as one unit, so a byte that is not there
+  // yet is simply lagging behind the ESC -- reading it with a zero timeout
+  // would tear the sequence apart and leak the fragments as key events. A
+  // lone ESC key still resolves to an ESCAPE after the timeout.
+  switch (char c = consume(this->terminal.read_input_timeout)) {
   case 'O':
     parse_ss3();
     break;
@@ -108,7 +113,7 @@ void Terminal::InputParser::parse_esc() {
 }
 
 void Terminal::InputParser::parse_ss3() {
-  switch (consume()) {
+  switch (consume(this->terminal.read_input_timeout)) {
   case '\x1b': // new esc sequence ?
     parse_esc();
     break;
@@ -148,7 +153,7 @@ void Terminal::InputParser::parse_ss3() {
 }
 
 void Terminal::InputParser::parse_dcs() {
-  switch (consume()) {
+  switch (consume(this->terminal.read_input_timeout)) {
   case '\x1b': // new esc sequence ?
     parse_esc();
     break;
@@ -158,7 +163,13 @@ void Terminal::InputParser::parse_dcs() {
 }
 
 void Terminal::InputParser::parse_csi() {
-  switch (get()) {
+  // Wait for the byte after "ESC [" with the read timeout (see parse_esc:
+  // sequence bytes lag behind their ESC under load and must not be read with
+  // a zero timeout). A CSI that never completes is dropped.
+  switch (char c = get(this->terminal.read_input_timeout)) {
+  case 0:
+    return;
+
   case 'A':
     consume();
     new_key_event(KeyEvent::VK_UP);
@@ -205,40 +216,49 @@ void Terminal::InputParser::parse_csi_params() {
   this->csi_params.resize(1);
   this->csi_params[0] = 0;
 
-  do {
-    switch (char c = get()) {
-    case 0:
-      return;
-
-    case '0':
-    case '1':
-    case '2':
-    case '3':
-    case '4':
-    case '5':
-    case '6':
-    case '7':
-    case '8':
-    case '9':
-      do {
-        this->csi_params.back() = this->csi_params.back() * 10 + (consume() - '0');
-      } while (std::isdigit(c = get()));
-
-      if (c != ';') {
-        parse_csi_selector();
-        return;
-      }
-      [[fallthrough]];
-    case ';':
-      consume();
-      this->csi_params.emplace_back(0);
-      break;
-
-    default:
-      parse_csi_selector();
+  // Parameter bytes are waited for with the read timeout and a sequence that
+  // never completes is dropped (a terminal writes each report in one unit, so
+  // missing bytes mean the stream broke -- never emit fragments as keys).
+  constexpr size_t MAX_PARAMS = 16;
+  for (;;) {
+    auto c = get(this->terminal.read_input_timeout);
+    if (c == 0) {
       return;
     }
-  } while (true);
+
+    if (c == ';') {
+      consume();
+      if (this->csi_params.size() < MAX_PARAMS) {
+        this->csi_params.emplace_back(0);
+      }
+      continue;
+    }
+
+    if (c >= '0' and c <= '9') {
+      auto value = 0u;
+      do {
+        value = value * 10 + unsigned(c - '0');
+        consume(); // take the digit just peeked above
+        c = get(this->terminal.read_input_timeout);
+      } while (c >= '0' and c <= '9');
+      this->csi_params.back() = value;
+      if (c == 0) {
+        return; // truncated after the digits
+      }
+      if (c == ';') {
+        consume();
+        if (this->csi_params.size() < MAX_PARAMS) {
+          this->csi_params.emplace_back(0);
+        }
+        continue;
+      }
+    }
+
+    // A final byte (the selector, e.g. 'M' for a mouse report): it was only
+    // peeked, so parse_csi_selector() consumes it and dispatches.
+    parse_csi_selector();
+    return;
+  }
 }
 
 static InputEvent::Modifiers parse_modifiers(const std::vector<unsigned> &args) {
@@ -364,7 +384,7 @@ void Terminal::InputParser::parse_csi_selector() {
 }
 
 void Terminal::InputParser::parse_osc() {
-  switch (consume()) {
+  switch (consume(this->terminal.read_input_timeout)) {
   case '\x1b': // new esc sequence ?
     parse_esc();
     break;
