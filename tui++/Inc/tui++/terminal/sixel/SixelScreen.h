@@ -30,8 +30,18 @@ public:
 private:
   std::vector<uint8_t> pixels; // RGB, 3 bytes per pixel, row-major
 
+  // Union of the pixels drawn outside a repaint pass (direct graphics
+  // flushes, refresh); encoded by flush().
   Rectangle dirty;
   bool has_dirty = false;
+
+  // Repaint-pass state: while a pass is open (Screen::repaint_damaged),
+  // repaint_region() only records its rect and the pass end encodes each
+  // rect as its own image in one write+flush. The rects are kept separate
+  // on purpose: the union of two distant small rects would span (and
+  // re-encode) everything between them, at ~10x the cost of the two images.
+  bool in_repaint_pass = false;
+  std::vector<Rectangle> pass_rects;
 
   std::shared_ptr<laf::LookAndFeel> look_and_feel;
   std::shared_ptr<TextMetrics> text_metrics;
@@ -63,6 +73,15 @@ private:
   void resize_buffer();
   void mark_dirty(Rectangle const &rect);
 
+  // Records one damaged rect of the open repaint pass, merging it into the
+  // existing rects when the union stays cheap (see Screen::add_damage) and
+  // bounding everything together once the list grows too long.
+  void add_pass_rect(Rectangle const &rect);
+
+  // Encodes each rect as one (possibly tiled) sixel image, placed by cursor
+  // moves, and writes them all with a single flush. Clears the flush state.
+  void write_images(std::vector<Rectangle> const &rects);
+
   void move_cursor_to(int line, int column);
 
 public:
@@ -84,8 +103,13 @@ public:
   virtual void refresh() override;
 
   // Repaints only `rect` (screen coordinates): paints the component tree with
-  // a graphics clipped to the region and flushes just the pixels it touches.
+  // a graphics clipped to the region. The pixels it touches are flushed at
+  // the end of the repaint pass (one combined write), or immediately when no
+  // pass is open.
   virtual void repaint_region(Rectangle const &rect) override;
+
+  virtual void repaint_pass_begin() override;
+  virtual void repaint_pass_end() override;
 
   // The mouse is reported by the terminal in text cells; this screen lays
   // components out in pixels. Use the centre of the reported cell: the click

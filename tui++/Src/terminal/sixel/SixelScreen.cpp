@@ -12,8 +12,10 @@
 #include <tui++/Font.h>
 
 #include <chrono>
+#include <limits>
 #include <memory>
 #include <algorithm>
+#include <utility>
 
 using namespace std::string_view_literals;
 
@@ -76,6 +78,9 @@ void SixelScreen::mark_dirty(Rectangle const &rect) {
   if (rect.empty()) {
     return;
   }
+  // Pixels drawn while a repaint pass is open are covered by the pass's
+  // region rects (the graphics are clipped to them), so this union is only
+  // encoded by flush() -- the direct, non-pass path.
   this->dirty = this->has_dirty ? this->dirty | rect : rect;
   this->has_dirty = true;
 }
@@ -156,11 +161,76 @@ void SixelScreen::repaint_region(Rectangle const &rect) {
   }
 
   // Paint the tree with a graphics clipped to the region: every draw is
-  // clipped to it, so the dirty rect (and therefore the encoded sixel image)
-  // stays limited to the damaged area.
+  // clipped to it, so the pixels it changes lie inside the region rect.
   auto g = SixelGraphics { *this, region, 0, 0 };
   paint(g);
-  flush();
+
+  if (this->in_repaint_pass) {
+    // The repaint pass encodes every damaged rect together at its end, one
+    // image per rect, with a single write and flush.
+    add_pass_rect(region);
+  } else {
+    // No pass open (e.g. the screen's own immediate repaints): flush now.
+    flush();
+  }
+}
+
+void SixelScreen::repaint_pass_begin() {
+  this->in_repaint_pass = true;
+  this->pass_rects.clear();
+}
+
+void SixelScreen::repaint_pass_end() {
+  this->in_repaint_pass = false;
+  auto rects = std::exchange(this->pass_rects, { });
+  // The pixels painted during the pass lie inside the recorded region rects
+  // (each paint was clipped to its region), so the union accumulated by
+  // mark_dirty is fully covered by them.
+  this->dirty = { };
+  this->has_dirty = false;
+  write_images(rects);
+}
+
+void SixelScreen::add_pass_rect(Rectangle const &rect) {
+  if (rect.empty()) {
+    return;
+  }
+
+  auto area = [](Rectangle const &r) {
+    return 1LL * r.width * r.height;
+  };
+
+  // Merge into the region whose union with the new rect grows least, but
+  // only when the union stays cheap (same heuristic as Screen::add_damage);
+  // otherwise keep the rects separate so two distant small repaints do not
+  // become one tall image that re-encodes everything between them.
+  constexpr size_t MAX_RECTS = 8;
+  constexpr long long MERGE_ALLOWANCE = 2;
+
+  auto best = this->pass_rects.size();
+  auto best_area = std::numeric_limits<long long>::max();
+  auto rect_area = area(rect);
+  for (auto i = size_t { 0 }; i < this->pass_rects.size(); ++i) {
+    auto merged = area(this->pass_rects[i] | rect);
+    if (merged < best_area) {
+      best_area = merged;
+      best = i;
+    }
+  }
+
+  auto can_merge = false;
+  if (best < this->pass_rects.size()) {
+    can_merge = best_area <= (rect_area + area(this->pass_rects[best])) * MERGE_ALLOWANCE;
+  }
+
+  if (can_merge) {
+    this->pass_rects[best] |= rect;
+  } else if (this->pass_rects.size() < MAX_RECTS) {
+    this->pass_rects.emplace_back(rect);
+  } else {
+    // A pathological burst: bound the list by merging into the cheapest.
+    this->pass_rects[best] |= rect;
+  }
 }
 
 void SixelScreen::run_event_loop() {
@@ -222,76 +292,86 @@ void SixelScreen::flush() {
   if (not this->has_dirty) {
     return;
   }
+  auto rects = std::vector<Rectangle> { this->dirty };
+  this->dirty = { };
+  this->has_dirty = false;
+  write_images(rects);
+}
 
-  // The sixel image is addressed in whole terminal cells, so align the dirty
-  // region to cell boundaries before encoding it.
-  auto rect = this->dirty;
-  auto left = rect.x / this->cell_width * this->cell_width;
-  auto top = rect.y / this->cell_height * this->cell_height;
-  auto right = std::min((rect.right() + this->cell_width - 1) / this->cell_width * this->cell_width, get_pixel_width());
-  auto bottom = std::min((rect.bottom() + this->cell_height - 1) / this->cell_height * this->cell_height, get_pixel_height());
-
-  // After an image the terminal advances the text cursor past its bottom-right
-  // corner; an image reaching the screen's last row or column would push the
-  // cursor off the visible area and scroll the buffer (the first full draw
-  // scrolled up a line). Keep every image one cell short of the bottom-right
-  // corner; layouts reserve the same margin, so this never cuts content.
-  auto cells = terminal.get_size();
-  if (cells.width > 1) {
-    right = std::min(right, (cells.width - 1) * this->cell_width);
-  }
-  if (cells.height > 1) {
-    bottom = std::min(bottom, (cells.height - 1) * this->cell_height);
-  }
-
-  if (bottom <= top or right <= left) {
-    this->has_dirty = false;
-    this->dirty = { };
-    return;
-  }
-  rect = { left, top, right - left, bottom - top };
-
-  // The terminal silently truncates any image wider or taller than its
-  // limit (xterm's maxGraphicSize, default 1000x1000); the first full draw
-  // lost everything right of the limit to exactly this. Slice the dirty
-  // region into tiles no larger than the limit, each on the cell lattice
-  // so every cursor position stays exact; adjacent tiles abut, so the seams
-  // never show. Terminals without a limit (Windows Terminal) keep a single
-  // image.
-  auto tile_w = right - left;
-  auto tile_h = bottom - top;
-  if (this->max_graphic_size) {
-    tile_w = std::max(this->cell_width, this->max_graphic_size->width / this->cell_width * this->cell_width);
-    tile_h = std::max(this->cell_height, this->max_graphic_size->height / this->cell_height * this->cell_height);
-  }
-
+void SixelScreen::write_images(std::vector<Rectangle> const &rects) {
   auto encode_t0 = std::chrono::steady_clock::now();
   std::string out;
-  out.reserve(rect.width * rect.height / 8 + 64);
   auto total_bytes = size_t { 0 };
-  for (auto ty = top; ty < bottom; ty += tile_h) {
-    auto th = std::min(tile_h, bottom - ty);
-    for (auto tx = left; tx < right; tx += tile_w) {
-      auto tw = std::min(tile_w, right - tx);
-      auto data = SixelEncoder::encode(this->pixels.data() + (ty * get_pixel_width() + tx) * 3, tw, th, get_pixel_width());
-      total_bytes += data.size();
 
-      // Move to the tile origin and emit its image. One combined write and
-      // a single flush per frame keeps the ConPTY round-trips to a minimum;
-      // the cursor is parked back at the top-left after the last tile so
-      // the next flush is placed from a known position.
-      out += "\x1b[";
-      out += std::to_string(ty / this->cell_height + 1);
-      out += ';';
-      out += std::to_string(tx / this->cell_width + 1);
-      out += 'H';
-      out += data;
+  for (auto const &dirty : rects) {
+    // The sixel image is addressed in whole terminal cells, so align the
+    // damaged rect to cell boundaries before encoding it.
+    auto rect = dirty;
+    auto left = rect.x / this->cell_width * this->cell_width;
+    auto top = rect.y / this->cell_height * this->cell_height;
+    auto right = std::min((rect.right() + this->cell_width - 1) / this->cell_width * this->cell_width, get_pixel_width());
+    auto bottom = std::min((rect.bottom() + this->cell_height - 1) / this->cell_height * this->cell_height, get_pixel_height());
+
+    // After an image the terminal advances the text cursor past its bottom-right
+    // corner; an image reaching the screen's last row or column would push the
+    // cursor off the visible area and scroll the buffer (the first full draw
+    // scrolled up a line). Keep every image one cell short of the bottom-right
+    // corner; layouts reserve the same margin, so this never cuts content.
+    auto cells = terminal.get_size();
+    if (cells.width > 1) {
+      right = std::min(right, (cells.width - 1) * this->cell_width);
+    }
+    if (cells.height > 1) {
+      bottom = std::min(bottom, (cells.height - 1) * this->cell_height);
+    }
+
+    if (bottom <= top or right <= left) {
+      continue;
+    }
+    rect = { left, top, right - left, bottom - top };
+
+    // The terminal silently truncates any image wider or taller than its
+    // limit (xterm's maxGraphicSize, default 1000x1000); the first full draw
+    // lost everything right of the limit to exactly this. Slice the damaged
+    // rect into tiles no larger than the limit, each on the cell lattice so
+    // every cursor position stays exact; adjacent tiles abut, so the seams
+    // never show. Terminals without a limit (Windows Terminal) keep a single
+    // image.
+    auto tile_w = rect.width;
+    auto tile_h = rect.height;
+    if (this->max_graphic_size) {
+      tile_w = std::max(this->cell_width, this->max_graphic_size->width / this->cell_width * this->cell_width);
+      tile_h = std::max(this->cell_height, this->max_graphic_size->height / this->cell_height * this->cell_height);
+    }
+
+    for (auto ty = rect.y; ty < rect.bottom(); ty += tile_h) {
+      auto th = std::min(tile_h, rect.bottom() - ty);
+      for (auto tx = rect.x; tx < rect.right(); tx += tile_w) {
+        auto tw = std::min(tile_w, rect.right() - tx);
+        auto data = SixelEncoder::encode(this->pixels.data() + (ty * get_pixel_width() + tx) * 3, tw, th, get_pixel_width());
+        total_bytes += data.size();
+
+        // Move to the tile origin and emit its image. One combined write and
+        // a single flush per frame keeps the ConPTY round-trips to a minimum;
+        // the cursor is parked back at the top-left after the last tile so
+        // the next flush is placed from a known position.
+        out += "\x1b[";
+        out += std::to_string(ty / this->cell_height + 1);
+        out += ';';
+        out += std::to_string(tx / this->cell_width + 1);
+        out += 'H';
+        out += data;
+      }
     }
   }
-  out += "\x1b[1;1H";
   auto encode_t1 = std::chrono::steady_clock::now();
   this->last_encode_ms = std::chrono::duration<double, std::milli>(encode_t1 - encode_t0).count();
 
+  if (out.empty()) {
+    return;
+  }
+
+  out += "\x1b[1;1H";
   auto write_t0 = std::chrono::steady_clock::now();
   terminal << out;
   terminal.flush();
@@ -299,9 +379,6 @@ void SixelScreen::flush() {
   this->last_write_ms = std::chrono::duration<double, std::milli>(write_t1 - write_t0).count();
   this->last_bytes = total_bytes;
   ++this->flush_count;
-
-  this->has_dirty = false;
-  this->dirty = { };
 }
 
 }
