@@ -27,7 +27,7 @@ protected:
     unsigned is_armed :1;
     unsigned is_rollover :1;
     unsigned is_menu_item :1;
-  } state;
+  } state { };
 
 public:
   ButtonModel() {

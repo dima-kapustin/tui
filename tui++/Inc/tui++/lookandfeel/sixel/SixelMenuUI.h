@@ -29,6 +29,14 @@ protected:
   virtual void paint(Graphics &g, std::shared_ptr<const Component> const &c) const override {
     auto menu_item = std::static_pointer_cast<const MenuItem>(c);
     auto margin = LookAndFeel::get<Insets>("Menu.margin", Insets { 2, 2, 2, 2 });
+
+    // The hovered top-level menu is painted on the selection colors.
+    if (menu_item->is_armed()) {
+      g.set_background_color(get_selection_background(menu_item.get()));
+      g.fill_rect(0, 0, menu_item->get_width(), menu_item->get_height());
+      g.set_foreground_color(get_selection_foreground(menu_item.get()));
+    }
+
     // The glyph is twice as tall as the font size (16x32 raster); center it
     // vertically in the area left inside the margin.
     auto glyph_height = 2 * g.get_font().get_size();

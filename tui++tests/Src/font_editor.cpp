@@ -760,6 +760,11 @@ void run_font_editor(bool bench, bool scrollbench, bool sigtest) {
           }
         }
         menu->set_popup_menu_visible(open);
+        // The item UI's do_click un-arms the menu after the release; the
+        // pointer is still on the menu, so re-arm it to keep the hover
+        // highlight shown while its popup stays open.
+        menu->set_armed(true);
+        menu->repaint();
         e.consume();
       }
     });

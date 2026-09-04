@@ -166,16 +166,46 @@ void MenuItemUI::mouse_released(MousePressEvent &e) {
 }
 
 void MenuItemUI::mouse_overed(MouseOverEvent &e) {
-  if (not (e.modifiers & (InputEvent::LEFT_BUTTON_DOWN | InputEvent::MIDDLE_BUTTON_DOWN | InputEvent::RIGHT_BUTTON_DOWN))) {
-    auto &&manager = MenuSelectionManager::single;
-    if (e.id == MouseOverEvent::MOUSE_ENTERED) {
-      manager->set_selected_path(get_path());
-    } else {
-      auto &&path = MenuSelectionManager::single->get_selected_path();
-      if (path.size() > 1 and path.back().get() == this->menu_item) {
-        auto new_path = std::vector(path.begin(), std::next(path.begin(), path.size() - 1));
-        manager->set_selected_path(new_path);
+  if (e.modifiers & (InputEvent::LEFT_BUTTON_DOWN | InputEvent::MIDDLE_BUTTON_DOWN | InputEvent::RIGHT_BUTTON_DOWN)) {
+    return;
+  }
+
+  // Hover highlight: the menu/menu item under the mouse is armed, so the
+  // look-and-feel paints it selected. This covers items of popups that were
+  // opened directly (as the demos do) and are therefore not part of the
+  // MenuSelectionManager's selection path.
+  auto entered = e.id == MouseOverEvent::MOUSE_ENTERED;
+  if (this->menu_item->is_armed() != entered) {
+    this->menu_item->set_armed(entered);
+    this->menu_item->repaint();
+  }
+
+  auto &&manager = MenuSelectionManager::single;
+  if (entered) {
+    manager->set_selected_path(get_path());
+
+    // Hovering another top-level menu while a popup of the same menu bar is
+    // open switches the open popup to the hovered menu (as in Swing's menu
+    // bar); with no popup open a hover only highlights the menu.
+    if (auto menu = dynamic_cast<Menu*>(this->menu_item); menu and menu->is_top_level_menu()) {
+      auto other_open = false;
+      if (auto parent = menu->get_parent()) {
+        for (auto &&sibling : parent->get_components()) {
+          if (auto other = std::dynamic_pointer_cast<Menu>(sibling); other and other.get() != menu and other->is_popup_menu_visible()) {
+            other_open = true;
+            other->set_popup_menu_visible(false);
+          }
+        }
       }
+      if (other_open) {
+        menu->set_popup_menu_visible(true);
+      }
+    }
+  } else {
+    auto &&path = manager->get_selected_path();
+    if (path.size() > 1 and path.back().get() == this->menu_item) {
+      auto new_path = std::vector(path.begin(), std::next(path.begin(), path.size() - 1));
+      manager->set_selected_path(new_path);
     }
   }
 }
@@ -231,8 +261,24 @@ std::optional<Dimension> MenuItemUI::get_preferred_size(std::shared_ptr<const Co
 
 void MenuItemUI::paint(Graphics &g, std::shared_ptr<const Component> const &c) const {
   assert(this->menu_item == std::dynamic_pointer_cast<const MenuItem>(c).get());
+
+  // The hovered/selected menu text is painted on the selection colors.
+  if (this->menu_item->is_armed()) {
+    g.set_background_color(get_selection_background(this->menu_item));
+    g.fill_rect(0, 0, this->menu_item->get_width(), this->menu_item->get_height());
+    g.set_foreground_color(get_selection_foreground(this->menu_item));
+  }
+
   auto margin = LookAndFeel::get<Insets>("MenuItem.margin", Insets { 0, 1, 0, 1 });
   g.draw_string(this->menu_item->get_text(), margin.left, margin.top);
+}
+
+Color MenuItemUI::get_selection_background(MenuItem const *item) {
+  return LookAndFeel::get<Color>(item, "MenuItem.SelectionBackground", Color { 0, 0, 128 });
+}
+
+Color MenuItemUI::get_selection_foreground(MenuItem const *item) {
+  return LookAndFeel::get<Color>(item, "MenuItem.SelectionForeground", Color { WHITE_COLOR });
 }
 
 }

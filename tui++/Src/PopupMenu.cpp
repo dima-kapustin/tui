@@ -207,6 +207,14 @@ void PopupMenu::set_visible(bool value) {
         this->popup = nullptr;
       }
 
+      // Drop the hover/selection highlight of every item so a popup that is
+      // re-shown later starts unarmed (the pointer is no longer on them).
+      for (auto &&child : this->components) {
+        if (auto item = std::dynamic_pointer_cast<MenuItem>(child); item and item->is_armed()) {
+          item->set_armed(false);
+        }
+      }
+
       if (is_popup_menu()) {
         MenuSelectionManager::single->clear_selected_path();
       }

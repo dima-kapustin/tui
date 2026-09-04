@@ -71,6 +71,11 @@ void TextTheme::init_component_defaults() {
   auto textText = get_color(SystemColorKeys::TEXT_TEXT);
   auto window = get_color(SystemColorKeys::WINDOW);
 
+  // Hovered/selected menu text (both top-level menus and popup menu items)
+  // is painted on these colors; the graphic theme inherits them.
+  put("MenuItem.SelectionBackground", textHighlight.value_or(Color { 0, 0, 128 }));
+  put("MenuItem.SelectionForeground", textHighlightText.value_or(WHITE_COLOR));
+
   auto zero_insets = make_resource<Insets>(0, 0, 0, 0);
   auto two_insets = make_resource<Insets>(2, 2, 2, 2);
   auto three_insets = make_resource<Insets>(3, 3, 3, 3);

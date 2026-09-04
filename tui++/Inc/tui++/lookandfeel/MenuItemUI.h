@@ -51,6 +51,12 @@ protected:
 
   virtual void paint(Graphics &g, std::shared_ptr<const Component> const &c) const override;
 
+  // Colors of the hovered/selected menu text, from the theme's
+  // "MenuItem.SelectionBackground" / "MenuItem.SelectionForeground" keys
+  // (with the system text-highlight colors as fallback).
+  static Color get_selection_background(MenuItem const *item);
+  static Color get_selection_foreground(MenuItem const *item);
+
 protected:
   virtual void mouse_released(MousePressEvent &e);
   virtual void mouse_overed(MouseOverEvent &e);
