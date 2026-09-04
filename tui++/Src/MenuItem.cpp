@@ -64,7 +64,17 @@ void MenuItem::process_event(MenuDragMouseEvent<MouseOverEvent> &e) {
 }
 
 void MenuItem::menu_selection_changed(bool is_included) {
-  set_armed(is_included);
+  // Swing's BasicMenuItemUI repaints the item whenever its place in the
+  // selection path changes. Dropping an item from the path un-arms it
+  // without a mouse event (opening a popup replaces the whole path, closing
+  // one clears it), so the armed highlight has to be erased here -- a later
+  // MOUSE_EXITED sees is_armed() already false and repaints nothing, leaving
+  // the stale highlight painted until the region is repainted for another
+  // reason.
+  if (is_armed() != is_included) {
+    set_armed(is_included);
+    repaint();
+  }
 }
 
 std::vector<std::shared_ptr<MenuElement>> MenuItem::get_sub_elements() const {
