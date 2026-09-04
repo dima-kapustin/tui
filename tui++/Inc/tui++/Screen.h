@@ -99,6 +99,16 @@ protected:
 
   void dispatch_event(Event &event);
 
+  // Called around a repaint pass (the flush of all accumulated damaged
+  // regions). Screens whose region flush is expensive use these to batch:
+  // TextScreen defers its terminal flush to the end of the pass and skips it
+  // entirely when no cell changed (see TextScreen::repaint_pass_end).
+  virtual void repaint_pass_begin() {
+  }
+
+  virtual void repaint_pass_end() {
+  }
+
 public:
   EventQueue& get_event_queue() {
     return event_queue;

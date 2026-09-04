@@ -179,6 +179,7 @@ TextScreen::CharView TextScreen::EMPTY_CHAR_VIEW;
 TextScreen::TextScreen() noexcept {
   this->look_and_feel = std::make_shared<laf::TextLookAndFeel>();
   this->text_metrics = std::make_shared<CellTextMetrics>(Font { });
+  this->last_state = EMPTY_CHAR_VIEW;
   resize_view();
 }
 
@@ -233,9 +234,16 @@ void TextScreen::resize_view() {
   this->size = terminal.get_size();
   if (size != this->size) {
     this->view.resize(this->size.height);
-    for (auto &&row : this->view) {
-      row.resize(this->size.width);
-      std::fill(row.begin(), row.end(), EMPTY_CHAR_VIEW);
+    this->shadow.resize(this->size.height);
+    this->row_sent.resize(this->size.height);
+    for (auto y = 0; y < this->size.height; ++y) {
+      this->view[y].resize(this->size.width);
+      this->shadow[y].resize(this->size.width);
+      std::fill(this->view[y].begin(), this->view[y].end(), EMPTY_CHAR_VIEW);
+      std::fill(this->shadow[y].begin(), this->shadow[y].end(), EMPTY_CHAR_VIEW);
+      // The terminal still shows the pre-resize content, so nothing is
+      // "sent" yet: the next flush re-emits every row.
+      this->row_sent[y] = false;
     }
   }
 }
@@ -259,9 +267,13 @@ void TextScreen::refresh() {
   // whole screen a second time.
   this->damaged_regions.clear();
 
+  // The terminal content may be unknown (first paint, resize), so treat this
+  // as a fresh pass: rows not marked as sent are emitted in full.
+  this->emitted_any = false;
   auto g = TextGraphics { *this };
   paint(g);
-  flush();
+  flush_rows(Rectangle { 0, 0, get_width(), get_height() });
+  end_flush();
 }
 
 void TextScreen::repaint_region(Rectangle const &rect) {
@@ -272,85 +284,51 @@ void TextScreen::repaint_region(Rectangle const &rect) {
 
   // Paint the tree with a graphics clipped to the region: every draw is
   // clipped to it, so only the damaged cells of the view change. The view
-  // itself is the back buffer, so emitting only the rows the damage touches
-  // is enough -- the untouched rows still hold their last painted content.
+  // itself is the back buffer, so emitting only what changed in the rows the
+  // damage touches is enough -- the untouched rows still hold their last
+  // painted content.
   auto g = TextGraphics { *this, region, 0, 0 };
   paint(g);
 
-  print_rows_region(region);
-  terminal.flush();
+  flush_rows(region);
+  // No terminal flush here: the repaint pass (Screen::repaint_damaged)
+  // flushes once after all regions, and only when something was emitted.
+}
+
+void TextScreen::repaint_pass_begin() {
+  this->emitted_any = false;
+}
+
+void TextScreen::repaint_pass_end() {
+  end_flush();
 }
 
 TextColor TextScreen::to_terminal(Color const &c) {
   return detail::TrueColor { c.red(), c.green(), c.blue() };
 }
 
-void TextScreen::print() {
-  print_rows(0, int(this->view.size()));
+bool TextScreen::same_cell(CharView const &a, CharView const &b) {
+  return a.ch.get_code() == b.ch.get_code() and a.attributes == b.attributes and a.foreground_color == b.foreground_color and a.background_color == b.background_color;
 }
 
-void TextScreen::print_rows(int first_row, int last_row) {
-  const auto *prev_cv = &EMPTY_CHAR_VIEW;
+void TextScreen::escape_to(CharView const &cv) {
+  auto reset = this->last_state.attributes & ~cv.attributes;
+  auto set = ~this->last_state.attributes & cv.attributes;
 
-  auto escape_attrs_and_colors = [&](const CharView &cv) {
-    auto reset = prev_cv->attributes & ~cv.attributes;
-    auto set = ~prev_cv->attributes & cv.attributes;
+  escape_attrs(reset, set);
 
-    escape_attrs(reset, set);
-
-    if (prev_cv->background_color != cv.background_color) {
-      escape_background_color(cv.background_color);
-    }
-
-    if (prev_cv->foreground_color != cv.foreground_color) {
-      escape_foreground_color(cv.foreground_color);
-    }
-
-    prev_cv = &cv;
-  };
-
-  for (auto y = first_row; y < last_row; ++y) {
-    // Position each row absolutely: a line feed after the last row would
-    // scroll the screen when the cursor sits on the bottom row, shifting
-    // everything the next screen draws off by a row.
-    move_cursor_to(int(y) + 1, 1);
-
-    auto skip = false;
-    for (auto &&cv : this->view[y]) {
-      if (not skip) {
-        escape_attrs_and_colors(cv);
-        terminal << cv.ch;
-      }
-      skip = this->text_metrics->get_char_width(cv.ch.get_code()) == 2;
-    }
+  if (this->last_state.background_color != cv.background_color) {
+    escape_background_color(cv.background_color);
   }
 
-  escape_attrs_and_colors(EMPTY_CHAR_VIEW);
+  if (this->last_state.foreground_color != cv.foreground_color) {
+    escape_foreground_color(cv.foreground_color);
+  }
+
+  this->last_state = cv;
 }
 
-void TextScreen::print_rows_region(Rectangle const &region) {
-  const auto *prev_cv = &EMPTY_CHAR_VIEW;
-
-  // Same delta emission as print_rows: only the attributes/colors that change
-  // between two neighbouring cells are emitted, so an unchanged run inside a
-  // damaged row costs plain characters, not control sequences.
-  auto escape_attrs_and_colors = [&](const CharView &cv) {
-    auto reset = prev_cv->attributes & ~cv.attributes;
-    auto set = ~prev_cv->attributes & cv.attributes;
-
-    escape_attrs(reset, set);
-
-    if (prev_cv->background_color != cv.background_color) {
-      escape_background_color(cv.background_color);
-    }
-
-    if (prev_cv->foreground_color != cv.foreground_color) {
-      escape_foreground_color(cv.foreground_color);
-    }
-
-    prev_cv = &cv;
-  };
-
+void TextScreen::flush_rows(Rectangle const &region) {
   auto height = int(this->view.size());
   auto first_row = region.y < 0 ? 0 : region.y;
   auto last_row = region.y + region.height > height ? height : region.y + region.height;
@@ -365,57 +343,101 @@ void TextScreen::print_rows_region(Rectangle const &region) {
       continue;
     }
 
-    // Whole row vs damaged-span emission: a damaged region that covers most
-    // of a row is cheapest as one absolute cursor move plus a contiguous
-    // write of the whole row (the back buffer already holds every cell). A
-    // narrow slice is cheaper as one cursor move to its head plus only the
-    // slice's cells, with the full state emitted up front. Every run is
-    // self-describing: it is positioned absolutely and starts from the empty
-    // state, so neighbouring content (rows outside the region, cells beside
-    // the slice) is left untouched on the terminal.
-    auto whole_row = region.width * 2 >= width;
-    auto first = whole_row ? 0 : std::max(0, region.x);
-    auto last = whole_row ? width : std::min(width, region.x + region.width);
+    // Compare (and if needed emit) the damaged span; a row never sent before
+    // is compared in full, whatever the region says.
+    auto sent = this->row_sent[y];
+    auto first = sent ? std::max(0, region.x) : 0;
+    auto last = sent ? std::min(width, region.x + region.width) : width;
     if (last <= first) {
       continue;
     }
+    auto full_row_scan = first == 0 and last == width;
 
-    // A damaged slice can start on the continuation cell of a double-width
-    // glyph whose leading cell sits just outside the slice. That cell holds
-    // no glyph of its own (the row emitter skips it), so back the slice up by
-    // one and let the leading cell print its full-width glyph; otherwise the
-    // terminal would show the placeholder as a character of its own.
-    if (first > 0 and this->text_metrics->get_char_width(row[first - 1].ch.get_code()) == 2) {
-      --first;
+    auto &shadow_row = this->shadow[y];
+    auto x = first;
+    while (x < last) {
+      if (same_cell(row[x], shadow_row[x])) {
+        ++x;
+        continue;
+      }
+
+      // A changed run starts at x. If it starts on the continuation cell of
+      // a double-width glyph whose leading cell sits just outside the run,
+      // back the run up by one: that cell holds no glyph of its own (the
+      // emitter skips it after its wide neighbour), so printing the run as
+      // is would show the placeholder as a character of its own.
+      auto run_first = x;
+      if (run_first > 0 and this->text_metrics->get_char_width(row[run_first - 1].ch.get_code()) == 2) {
+        --run_first;
+      }
+
+      // Extend while cells differ; the cells after the run equal the shadow
+      // and are already on the terminal.
+      auto run_last = run_first + 1;
+      while (run_last < width and not same_cell(row[run_last], shadow_row[run_last])) {
+        ++run_last;
+      }
+      // Do not end the run on the continuation cell of a wide glyph: extend
+      // past it so its (skipped) cell stays inside the run's bookkeeping.
+      while (run_last < width and run_last > run_first and this->text_metrics->get_char_width(row[run_last - 1].ch.get_code()) == 2) {
+        ++run_last;
+      }
+
+      // The run is positioned absolutely and starts from the SGR state the
+      // terminal is in (the previous emission, possibly in an earlier row or
+      // pass), so neighbouring content is left untouched.
+      move_cursor_to(int(y) + 1, run_first + 1);
+      auto skip = false;
+      for (auto i = run_first; i < run_last; ++i) {
+        auto const &cv = row[i];
+        if (not skip) {
+          escape_to(cv);
+          terminal << cv.ch;
+        }
+        skip = this->text_metrics->get_char_width(cv.ch.get_code()) == 2;
+      }
+
+      // The terminal now shows the run's cells; record them as sent.
+      std::copy(row.begin() + run_first, row.begin() + run_last, shadow_row.begin() + run_first);
+      this->emitted_any = true;
+      x = run_last;
     }
 
-    move_cursor_to(int(y) + 1, first + 1);
-    prev_cv = &EMPTY_CHAR_VIEW;
-    auto skip = false;
-    for (auto x = first; x < last; ++x) {
-      auto const &cv = row[x];
-      if (not skip) {
-        escape_attrs_and_colors(cv);
-        terminal << cv.ch;
-      }
-      skip = this->text_metrics->get_char_width(cv.ch.get_code()) == 2;
+    if (full_row_scan) {
+      this->row_sent[y] = true;
     }
   }
+}
 
-  escape_attrs_and_colors(EMPTY_CHAR_VIEW);
+void TextScreen::end_flush() {
+  if (this->emitted_any) {
+    // Leave the terminal with default attributes, so whatever is printed
+    // after the app (or the next flush, which starts from the empty state)
+    // is not styled by our last cell.
+    escape_to(EMPTY_CHAR_VIEW);
+    terminal.flush();
+    this->emitted_any = false;
+  }
 }
 
 void TextScreen::clear() {
-  for (auto &line : this->view) {
-    for (auto &cell : line) {
-      cell = EMPTY_CHAR_VIEW;
-    }
+  // The terminal still shows whatever was there, so nothing counts as sent:
+  // the next flush re-emits every row.
+  this->emitted_any = false;
+  for (auto y = 0; y < int(this->view.size()); ++y) {
+    std::fill(this->view[y].begin(), this->view[y].end(), EMPTY_CHAR_VIEW);
+    std::fill(this->shadow[y].begin(), this->shadow[y].end(), EMPTY_CHAR_VIEW);
+    this->row_sent[y] = false;
   }
 }
 
 void TextScreen::flush() {
-  print();
-  terminal.flush();
+  // Full-screen flush of the view's current content (the direct-paint path,
+  // e.g. TextGraphics::flush). Idempotent with the shadow: only the rows
+  // that actually changed since the last flush reach the terminal.
+  this->emitted_any = false;
+  flush_rows(Rectangle { 0, 0, get_width(), get_height() });
+  end_flush();
 }
 
 }

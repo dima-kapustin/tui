@@ -222,6 +222,9 @@ void Screen::repaint_damaged() {
   auto regions = std::exchange(this->damaged_regions, { });
   log_repaint_ln(regions.size() << " region(s)");
 
+  // The pass brackets every region flush, so a screen can flush once for all
+  // of them instead of once per region (and not at all when nothing changed).
+  repaint_pass_begin();
   for (auto const &region : regions) {
     if (region.rect.empty()) {
       continue;
@@ -231,6 +234,7 @@ void Screen::repaint_damaged() {
     auto ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     log_repaint_ln((region.source ? region.source->to_string() : std::string { "screen" }) << ": region (" << region.rect.x << ", " << region.rect.y << " " << region.rect.width << "x" << region.rect.height << ") took " << ms << " ms");
   }
+  repaint_pass_end();
 }
 
 void Screen::add_listener(const EventTypeMask &event_mask, const std::shared_ptr<EventListener<Event>> &listener) {

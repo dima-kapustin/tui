@@ -29,20 +29,47 @@ class TextScreen: public Screen {
 
   std::vector</* rows */std::vector</* columns */CharView>> view;
 
+  // The content of every cell as the terminal last saw it. A flush of a
+  // region first compares the view against this shadow: rows whose damaged
+  // span is unchanged emit nothing, and changed rows emit only their
+  // differing runs, so repaints cost the actual difference and no-op
+  // repaints cost nothing at all.
+  std::vector</* rows */std::vector</* columns */CharView>> shadow;
+
+  // True once a row has been emitted in full (its shadow cells are then
+  // authoritative). Before that the whole row is compared and emitted, e.g.
+  // after a resize that left the terminal content unknown.
+  std::vector<bool> row_sent;
+
+  // The SGR state the terminal is currently in (the last emitted cell, or
+  // the empty state after a flush). Emitting switches from it to the target
+  // state by deltas, so unchanged attributes emit no escapes even across
+  // rows and repaint passes.
+  CharView last_state;
+
+  // Whether the current flush emitted any cell; the flush of the pass runs
+  // only then (a repaint that changed nothing must not touch the terminal).
+  bool emitted_any = false;
+
   std::shared_ptr<laf::LookAndFeel> look_and_feel;
   std::shared_ptr<TextMetrics> text_metrics;
 
 private:
   TextScreen() noexcept;
 
-  void print();
-  void print_rows(int first_row, int last_row);
+  // Emits the damaged span of every row `region` touches, comparing the view
+  // against the shadow first: identical rows are skipped, and a row with
+  // changes emits only its differing runs (each positioned absolutely,
+  // carrying the SGR state from the previous emission). Does not flush.
+  void flush_rows(Rectangle const &region);
 
-  // Emits only the rows a damaged region touches, and within each row either
-  // the whole row or just the damaged column span (see the heuristic in
-  // print_rows_region): rows outside the region keep their last emitted
-  // content and are skipped entirely.
-  void print_rows_region(Rectangle const &region);
+  // Ends the current flush: leaves the terminal with default attributes and
+  // flushes it, but only when something was actually emitted.
+  void end_flush();
+
+  void escape_to(CharView const &cv);
+
+  static bool same_cell(CharView const &a, CharView const &b);
 
   friend class Terminal;
 
@@ -86,9 +113,14 @@ public:
   virtual void refresh();
 
   // Repaints only `rect` (screen coordinates): paints the component tree
-  // with a graphics clipped to the region and flushes the view, so edits
-  // touch just the damaged cells.
+  // with a graphics clipped to the region, then emits only what changed in
+  // those rows (see flush_rows). The terminal flush is deferred to the end
+  // of the repaint pass (Screen::repaint_damaged) and skipped when no cell
+  // changed.
   virtual void repaint_region(Rectangle const &rect) override;
+
+  virtual void repaint_pass_begin() override;
+  virtual void repaint_pass_end() override;
 
   virtual void resized() override;
 
