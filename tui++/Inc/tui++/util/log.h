@@ -1,7 +1,9 @@
 #pragma once
 
 #include <chrono>
+#include <cstdio>
 #include <iostream>
+#include <string>
 
 namespace tui::util {
 
@@ -17,6 +19,23 @@ inline double log_now_ms() {
   return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
 }
 
+// The "[<ms> ms] " prefix carried by every log line: fixed width (so lines
+// line up) and always exactly one decimal, whatever the magnitude. The number
+// is formatted by hand so the decimal point stays '.' even when the process
+// locale would make %f print a comma.
+inline std::string log_now_prefix() {
+  auto ms = log_now_ms();
+  auto whole = static_cast<long long>(ms);
+  auto tenths = static_cast<int>((ms - static_cast<double>(whole)) * 10.0 + 0.5);
+  if (tenths >= 10) {
+    tenths = 0;
+    ++whole;
+  }
+  char buffer[48];
+  std::snprintf(buffer, sizeof buffer, "[%7lld.%d ms] ", whole, tenths);
+  return buffer;
+}
+
 }
 
 // Each log macro expands to the timestamp and the message, guarded by a null
@@ -26,7 +45,7 @@ inline double log_now_ms() {
 // entirely.
 
 #ifndef log_timestamp
-#define log_timestamp() '[' << tui::util::log_now_ms() << " ms] "
+#define log_timestamp() tui::util::log_now_prefix()
 #endif
 
 #ifndef log_event_ln
