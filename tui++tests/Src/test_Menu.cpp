@@ -1,8 +1,11 @@
 // Exercises the popup menu machinery on the text screen: a top-level menu
 // shows and hides its popup window, hit-testing prefers the popup over the
-// frame beneath it, and a menu item fires its action. Guards the popup
-// show/hide plumbing (Popup::show/hide, PopupMenu::set_visible) and the
-// topmost-window hit test.
+// frame beneath it, a menu item fires its action, and hovering/clicking a
+// menu arms it and opens its popup through the window's normal mouse dispatch.
+//
+// The whole project (and therefore this test) is usually built with NDEBUG
+// (Release), which would compile the assert()s out and make the test pass
+// vacuously; CHECK below aborts regardless, so the test always verifies.
 #include <tui++/Frame.h>
 #include <tui++/Menu.h>
 #include <tui++/MenuBar.h>
@@ -12,10 +15,62 @@
 
 #include <tui++/terminal/Terminal.h>
 
-#include <cassert>
 #include <cstdio>
+#include <cstdlib>
 
 using namespace tui;
+
+#define CHECK(cond)                                                                                                    \
+  do {                                                                                                                 \
+    if (not(cond)) {                                                                                                   \
+      std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);                                            \
+      std::abort();                                                                                                    \
+    }                                                                                                                  \
+  } while (0)
+
+// Drains the event queue. Repainting is not a side effect of the loop: a
+// repaint() request accumulates damaged regions and posts a single repaint
+// invocation onto the queue (Screen::add_damage). These tests drive dispatch
+// manually, so pending invocations queued before the event under test (e.g.
+// by set_visible) must be drained first -- otherwise pop() would return the
+// stale invocation and the mouse event under test would be dropped with the
+// drain, silently un-exercising the code path. Trailing invocations posted
+// by the event under test are drained the same way to keep the queue aligned
+// for the next event.
+static void drain() {
+  while (screen.get_event_queue().pop(std::chrono::milliseconds::zero())) {
+  }
+}
+
+// Dispatches one mouse event through the window's normal dispatch path, the
+// same way Screen::dispatch_event does after the event loop pops it.
+static void dispatch_mouse(std::shared_ptr<Component> const &target, std::shared_ptr<Event> const &event) {
+  target->dispatch_event(*event);
+  drain();
+}
+
+// Counts MOUSE_MOVED events, standing in for the demo's hover tracker.
+class MoveCounter: public EventListener<Event> {
+public:
+  int moved = 0;
+  void event_dispatched(Event &e) override {
+    if (e.id == MouseMoveEvent::MOUSE_MOVED) {
+      this->moved += 1;
+    }
+  }
+};
+
+// Posts and dispatches a MOUSE_MOVED event at `local` (target-local), then
+// returns whether the File menu (the menu bar's first child) is armed.
+static bool hover(std::shared_ptr<Frame> const &frame, Point const &local) {
+  drain();
+  screen.post<MouseMoveEvent>(frame, InputEvent::NO_MODIFIERS, local.x, local.y);
+  auto event = screen.get_event_queue().pop();
+  dispatch_mouse(frame, event);
+  auto menu_bar = frame->get_menu_bar();
+  return menu_bar and menu_bar->get_component_count() > 0 and //
+      std::dynamic_pointer_cast<MenuItem>(menu_bar->get_component(0))->is_armed();
+}
 
 void test_Menu() {
   terminal.set_type("text");
@@ -33,44 +88,113 @@ void test_Menu() {
   file_menu->add(item);
   menu_bar->add(file_menu);
   frame->set_menu_bar(menu_bar);
-  frame->set_visible(true);
 
-  assert(file_menu->is_top_level_menu());
-  assert(not file_menu->is_popup_menu_visible());
+  // Demo-style click-to-toggle on the top-level menu.
+  file_menu->add_listener([file_menu](MousePressEvent &e) {
+    if (e.id == MousePressEvent::MOUSE_RELEASED) {
+      file_menu->set_popup_menu_visible(not file_menu->is_popup_menu_visible());
+      e.consume();
+    }
+  });
+
+  frame->set_visible(true);
+  drain();
+
+  CHECK(file_menu->is_top_level_menu());
+  CHECK(not file_menu->is_popup_menu_visible());
+
+  // Hovering the File menu arms it (the Swing rollover/hover highlight).
+  auto loc = file_menu->get_location_on_screen();
+  auto sz = file_menu->get_size();
+  auto center = Point { loc.x + sz.width / 2, loc.y + sz.height / 2 };
+  auto local = convert_point_from_screen(center, frame);
+  CHECK(hover(frame, local));
+  CHECK(file_menu->is_armed());
+
+  // A click (press + release) opens the popup.
+  drain();
+  screen.post<MousePressEvent>(frame, MousePressEvent::MOUSE_PRESSED, MousePressEvent::LEFT_BUTTON, InputEvent::NO_MODIFIERS, local.x, local.y, false);
+  dispatch_mouse(frame, screen.get_event_queue().pop());
+  screen.post<MousePressEvent>(frame, MousePressEvent::MOUSE_RELEASED, MousePressEvent::LEFT_BUTTON, InputEvent::NO_MODIFIERS, local.x, local.y, false);
+  dispatch_mouse(frame, screen.get_event_queue().pop());
+  CHECK(file_menu->is_popup_menu_visible());
 
   // Opening the menu shows a popup window on the screen.
   file_menu->set_popup_menu_visible(true);
-  assert(file_menu->is_popup_menu_visible());
+  drain();
+  CHECK(file_menu->is_popup_menu_visible());
 
   // The popup window covers the area below the menu; hit-testing must prefer
   // it over the frame underneath.
   auto popup_menu = file_menu->get_popup_menu();
-  auto pm_preferred = popup_menu->get_preferred_size();
   auto rp = get_root_pane(popup_menu);
   auto cp = rp->get_content_pane();
-  std::fprintf(stderr, "popup menu preferred: %dx%d; content pane preferred: %dx%d layout=%p; root pane preferred: %dx%d\n", //
-      pm_preferred.width, pm_preferred.height, cp->get_preferred_size().width, cp->get_preferred_size().height, cp->get_layout().get(), rp->get_preferred_size().width, rp->get_preferred_size().height);
   auto popup_origin = file_menu->get_location_on_screen();
   auto popup_point = Point { popup_origin.x, popup_origin.y + 1 };
   auto popup_window = screen.get_window_at(popup_point);
-  if (auto w = file_menu->get_popup_menu()->get_containing_window()) {
-    std::fprintf(stderr, "popup menu location on screen: %d,%d; window bounds: %d,%d %dx%d; probe: %d,%d\n", //
-        popup_origin.x, popup_origin.y, w->get_x(), w->get_y(), w->get_width(), w->get_height(), popup_point.x, popup_point.y);
+  CHECK(popup_window);
+  CHECK(popup_window.get() != frame.get());
+
+  // Hovering a popup item arms it (the rollover highlight inside the popup).
+  {
+    auto item_loc = item->get_location_on_screen();
+    auto item_sz = item->get_size();
+    auto item_center = Point { item_loc.x + item_sz.width / 2, item_loc.y + item_sz.height / 2 };
+    auto item_window = file_menu->get_popup_menu()->get_containing_window();
+    auto item_local = convert_point_from_screen(item_center, item_window);
+    drain();
+    screen.post<MouseMoveEvent>(item_window, InputEvent::NO_MODIFIERS, item_local.x, item_local.y);
+    dispatch_mouse(item_window, screen.get_event_queue().pop());
+    CHECK(item->is_armed());
   }
-  assert(popup_window);
-  assert(popup_window.get() != frame.get());
 
   // The item's action fires; the click handler also closes the popup.
-  std::fprintf(stderr, "item enabled=%d model=%p\n", int(item->is_enabled()), item->get_model().get());
   item->do_click();
-  std::fprintf(stderr, "after do_click: fired=%d\n", fired);
-  assert(fired == 1);
+  CHECK(fired == 1);
   file_menu->set_popup_menu_visible(false);
-  assert(not file_menu->is_popup_menu_visible());
+  drain();
+  CHECK(not file_menu->is_popup_menu_visible());
 
   // With the popup gone, the frame is the topmost window again.
   auto again = screen.get_window_at(popup_point);
-  assert(again.get() == frame.get());
+  CHECK(again.get() == frame.get());
 
-  std::printf("PASS menu popup show/hide and hit-test\n");
+  // Regression: hiding a popup while its mouse dispatcher is registered as a
+  // screen listener (the pointer was inside the popup) must not leave a
+  // listener pointing at the destroyed popup window. Re-hovering the menu bar
+  // afterwards used to crash inside event_dispatched() on the dead window.
+  {
+    file_menu->set_popup_menu_visible(true);
+    drain();
+    auto pwin = file_menu->get_popup_menu()->get_containing_window();
+    auto ploc = item->get_location_on_screen();
+    auto psz = item->get_size();
+    auto pcenter = Point { ploc.x + psz.width / 2, ploc.y + psz.height / 2 };
+    auto plocal = convert_point_from_screen(pcenter, pwin);
+    drain();
+    screen.post<MouseMoveEvent>(pwin, InputEvent::NO_MODIFIERS, plocal.x, plocal.y);
+    dispatch_mouse(pwin, screen.get_event_queue().pop());
+    CHECK(item->is_armed());
+
+    file_menu->set_popup_menu_visible(false); // hides and destroys the popup window
+    drain();
+    CHECK(hover(frame, local));
+  }
+
+  // Regression: moving over a dead zone of the window (no component accepts
+  // mouse events there, e.g. an empty panel area) must still reach screen
+  // listeners -- the hover panel shows every movement, not just the moves
+  // over interactive widgets.
+  {
+    auto counter = std::make_shared<MoveCounter>();
+    screen.add_listener(EventType::MOUSE_MOVE, counter);
+    auto dead = Point { 40, 12 }; // below the menu bar, empty content area
+    drain();
+    screen.post<MouseMoveEvent>(frame, InputEvent::NO_MODIFIERS, dead.x, dead.y);
+    dispatch_mouse(frame, screen.get_event_queue().pop());
+    CHECK(counter->moved == 1);
+    screen.remove_listener(counter);
+  }
+
+  std::printf("PASS menu popup show/hide, hover and hit-test\n");
 }
