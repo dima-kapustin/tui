@@ -30,6 +30,13 @@ public:
 private:
   std::vector<uint8_t> pixels; // RGB, 3 bytes per pixel, row-major
 
+  // Mirror of the pixels the terminal currently displays, with one valid bit
+  // per pixel: a dirty rect whose pixels still equal the mirror was already
+  // sent and can be skipped without re-encoding (no-op repaints -- same state
+  // repainted by an event -- currently stream the whole region for nothing).
+  std::vector<uint8_t> sent;
+  std::vector<uint8_t> sent_valid; // 1 bit per pixel: 1 = the terminal shows it
+
   // Union of the pixels drawn outside a repaint pass (direct graphics
   // flushes, refresh); encoded by flush().
   Rectangle dirty;
@@ -72,6 +79,14 @@ private:
 private:
   void resize_buffer();
   void mark_dirty(Rectangle const &rect);
+
+  // True when the terminal already displays exactly the pixels of `rect`
+  // (every pixel marked sent, and the buffer equal to the mirror).
+  bool sent_matches(Rectangle const &rect) const;
+
+  // Records `rect` as displayed: copies the pixels into the sent mirror and
+  // marks them valid.
+  void store_sent(Rectangle const &rect);
 
   // Records one damaged rect of the open repaint pass, merging it into the
   // existing rects when the union stays cheap (see Screen::add_damage) and

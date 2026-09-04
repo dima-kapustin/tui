@@ -12,6 +12,7 @@
 #include <tui++/Font.h>
 
 #include <chrono>
+#include <cstring>
 #include <limits>
 #include <memory>
 #include <algorithm>
@@ -66,6 +67,8 @@ SixelScreen::SixelScreen() {
 
 void SixelScreen::resize_buffer() {
   this->pixels.assign(get_pixel_width() * get_pixel_height() * 3, 0);
+  this->sent.assign(get_pixel_width() * get_pixel_height() * 3, 0);
+  this->sent_valid.assign((std::size_t(get_pixel_width()) * get_pixel_height() + 7) / 8, 0);
   // The caller repaints (and therefore re-dirties) whatever needs to be
   // emitted, so the cleared buffer must not itself mark the screen dirty:
   // an initial full-screen dirty rect would make the first flush encode the
@@ -87,6 +90,82 @@ void SixelScreen::mark_dirty(Rectangle const &rect) {
 
 void SixelScreen::move_cursor_to(int line, int column) {
   terminal << "\x1b["sv << line << ';' << column << 'H';
+}
+
+// Returns the byte mask of the sent_valid bits covering pixels [first, last)
+// of one pixel row, or 0 when the span is empty. Bits beyond the row are not
+// included, so a full span can be checked with a single masked load.
+static uint8_t row_bit_mask(int first, int last) {
+  if (first >= last) {
+    return 0;
+  }
+  auto b0 = size_t(first) >> 3;
+  auto b1 = (size_t(last) - 1) >> 3;
+  if (b0 == b1) {
+    auto lo = uint8_t(0xFFu << (size_t(first) & 7));
+    auto hi = uint8_t(0xFFu >> (7 - ((size_t(last) - 1) & 7)));
+    return uint8_t(lo & hi);
+  }
+  return 0xFF;
+}
+
+bool SixelScreen::sent_matches(Rectangle const &rect) const {
+  if (rect.empty()) {
+    return false;
+  }
+  auto pw = get_pixel_width();
+  auto const *px = this->pixels.data() + (std::size_t(rect.y) * pw + rect.x) * 3;
+  auto const *sn = this->sent.data() + (std::size_t(rect.y) * pw + rect.x) * 3;
+  auto const *vl = this->sent_valid.data();
+  for (auto y = rect.y; y < rect.bottom(); ++y, px += pw * 3, sn += pw * 3) {
+    // The row's span may cut through its first and last validity bytes.
+    auto bit0 = std::size_t(y) * pw + rect.x;
+    auto bit1 = std::size_t(y) * pw + rect.right();
+    auto b0 = bit0 >> 3;
+    auto b1 = (bit1 - 1) >> 3;
+    auto mask = row_bit_mask(rect.x, rect.right());
+    if (b0 == b1) {
+      if ((vl[b0] & mask) != mask) {
+        return false;
+      }
+    } else {
+      if ((vl[b0] & uint8_t(0xFFu << (rect.x & 7))) != uint8_t(0xFFu << (rect.x & 7)) or (vl[b1] & uint8_t(0xFFu >> (7 - ((rect.right() - 1) & 7)))) != uint8_t(0xFFu >> (7 - ((rect.right() - 1) & 7)))) {
+        return false;
+      }
+      for (auto b = b0 + 1; b < b1; ++b) {
+        if (vl[b] != 0xFF) {
+          return false;
+        }
+      }
+    }
+    if (std::memcmp(px, sn, std::size_t(rect.width) * 3) != 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void SixelScreen::store_sent(Rectangle const &rect) {
+  auto pw = get_pixel_width();
+  auto *px = this->pixels.data() + (std::size_t(rect.y) * pw + rect.x) * 3;
+  auto *sn = this->sent.data() + (std::size_t(rect.y) * pw + rect.x) * 3;
+  auto *vl = this->sent_valid.data();
+  for (auto y = rect.y; y < rect.bottom(); ++y, px += pw * 3, sn += pw * 3) {
+    std::memcpy(sn, px, std::size_t(rect.width) * 3);
+    auto bit0 = std::size_t(y) * pw + rect.x;
+    auto bit1 = std::size_t(y) * pw + rect.right();
+    auto b0 = bit0 >> 3;
+    auto b1 = (bit1 - 1) >> 3;
+    if (b0 == b1) {
+      vl[b0] |= row_bit_mask(rect.x, rect.right());
+    } else {
+      vl[b0] |= uint8_t(0xFFu << (rect.x & 7));
+      for (auto b = b0 + 1; b < b1; ++b) {
+        vl[b] = 0xFF;
+      }
+      vl[b1] |= uint8_t(0xFFu >> (7 - ((rect.right() - 1) & 7)));
+    }
+  }
 }
 
 void SixelScreen::fill_pixels(Rectangle const &rect, Color const &color) {
@@ -348,6 +427,16 @@ void SixelScreen::write_images(std::vector<Rectangle> const &rects) {
       auto th = std::min(tile_h, rect.bottom() - ty);
       for (auto tx = rect.x; tx < rect.right(); tx += tile_w) {
         auto tw = std::min(tile_w, rect.right() - tx);
+        auto tile = Rectangle { tx, ty, tw, th };
+
+        // No-op repaint: the terminal already displays these exact pixels, so
+        // encoding and writing them again is pure cost (a no-op tick used to
+        // stream the region every time). The mirror is only trusted where
+        // pixels were actually sent.
+        if (sent_matches(tile)) {
+          continue;
+        }
+
         auto data = SixelEncoder::encode(this->pixels.data() + (ty * get_pixel_width() + tx) * 3, tw, th, get_pixel_width());
         total_bytes += data.size();
 
@@ -361,6 +450,7 @@ void SixelScreen::write_images(std::vector<Rectangle> const &rects) {
         out += std::to_string(tx / this->cell_width + 1);
         out += 'H';
         out += data;
+        store_sent(tile);
       }
     }
   }
