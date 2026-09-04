@@ -6,6 +6,7 @@
 
 #include <list>
 #include <mutex>
+#include <vector>
 
 namespace tui {
 
@@ -35,6 +36,17 @@ protected:
   std::list<SelectiveListener> selective_listeners;
 
   bool quit = false;
+
+  // Outstanding repaint requests, in screen coordinates (Swing's
+  // RepaintManager keeps the same kind of dirty-region list). Regions are
+  // kept separate when they cover very different parts of the screen and
+  // merged when doing so is cheap, so a repaint pass does not flush one huge
+  // bounding box that mostly contains unchanged content.
+  std::vector<Rectangle> damaged_regions;
+
+  // True while a repaint invocation is queued: damage that accumulates until
+  // that invocation runs is painted together, at most once per queue pass.
+  bool repaint_event_pending = false;
 
   mutable std::recursive_mutex windows_mutex;
   std::list<std::shared_ptr<Window>> windows;
@@ -144,6 +156,22 @@ public:
   virtual void repaint_region(Rectangle const &rect) {
     refresh();
   }
+
+  // Records a repaint request for `rect` (screen coordinates) and schedules a
+  // single repaint invocation on the event queue (Swing's
+  // RepaintManager.addDirtyRegion + scheduled paint). Repainting then happens
+  // on the dispatch thread, ordered with the mouse/key events that caused the
+  // damage, and all damage that accumulates until the invocation runs is
+  // painted together.
+  void add_damage(Rectangle const &rect);
+
+  void add_damage(int x, int y, int width, int height) {
+    add_damage(Rectangle { x, y, width, height });
+  }
+
+  // Repaints the accumulated damaged regions now and clears them. Called by
+  // the queued repaint invocation; a no-op when nothing is damaged.
+  void repaint_damaged();
 
   // Notifies the screen that the terminal was resized. Screens that poll the
   // size themselves (e.g. the pixel-level screens) may leave this empty.

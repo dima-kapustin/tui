@@ -36,6 +36,13 @@ private:
   TextScreen() noexcept;
 
   void print();
+  void print_rows(int first_row, int last_row);
+
+  // Emits only the rows a damaged region touches, and within each row either
+  // the whole row or just the damaged column span (see the heuristic in
+  // print_rows_region): rows outside the region keep their last emitted
+  // content and are skipped entirely.
+  void print_rows_region(Rectangle const &region);
 
   friend class Terminal;
 
@@ -77,6 +84,12 @@ public:
   }
 
   virtual void refresh();
+
+  // Repaints only `rect` (screen coordinates): paints the component tree
+  // with a graphics clipped to the region and flushes the view, so edits
+  // touch just the damaged cells.
+  virtual void repaint_region(Rectangle const &rect) override;
+
   virtual void resized() override;
 
   void clear();

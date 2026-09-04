@@ -125,6 +125,45 @@ void Component::paint(Graphics &g) {
   }
 }
 
+void Component::repaint(int x, int y, int width, int height) {
+  // The request needs to be translated to parent coordinates since
+  // a parent native container provides the actual repaint services.
+  // Additionally, the request is restricted to the bounds of the component.
+  if (auto parent = this->parent.lock()) {
+    if (x < 0) {
+      width += x;
+      x = 0;
+    }
+    if (y < 0) {
+      height += y;
+      y = 0;
+    }
+
+    int pwidth = (width > this->size.width) ? this->size.width : width;
+    int pheight = (height > this->size.height) ? this->size.height : height;
+
+    if (pwidth <= 0 or pheight <= 0) {
+      return;
+    }
+
+    int px = this->location.x + x;
+    int py = this->location.y + y;
+    parent->repaint(px, py, pwidth, pheight);
+  } else if (is_visible() and width > 0 and height > 0) {
+    // A top-level window: it has no parent whose "peer" repaints for it,
+    // so the screen takes that role. Swing posts a PaintEvent for the
+    // heavyweight; here the request is recorded as a damaged screen region
+    // (in screen coordinates), and the event loop repaints the union of the
+    // requests after the current event, as RepaintManager does.
+    auto pwidth = (width > this->size.width) ? this->size.width : width;
+    auto pheight = (height > this->size.height) ? this->size.height : height;
+    if (pwidth <= 0 or pheight <= 0) {
+      return;
+    }
+    screen.add_damage(this->location.x + x, this->location.y + y, pwidth, pheight);
+  }
+}
+
 void Component::enable_events(EventTypeMask event_mask) {
   this->event_mask |= event_mask;
 

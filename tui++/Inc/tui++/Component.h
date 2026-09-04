@@ -644,7 +644,10 @@ public:
    * Causes this component to be repainted as soon as possible (this is done by posting a RepaintEvent onto the system queue).
    */
   void repaint() {
-    repaint(get_x(), get_y(), get_width(), get_height());
+    // The rectangle is given in this component's own coordinate space, so the
+    // whole component is (0, 0, width, height). Passing the parent-relative
+    // location here would double-translate the request up the chain.
+    repaint(0, 0, get_width(), get_height());
   }
 
   /**
@@ -666,39 +669,7 @@ public:
    *            the height
    * @see #update(Graphics)
    */
-  void repaint(int x, int y, int width, int height) {
-    // Needs to be translated to parent coordinates since
-    // a parent native container provides the actual repaint
-    // services. Additionally, the request is restricted to
-    // the bounds of the component.
-    if (auto parent = this->parent.lock()) {
-      if (x < 0) {
-        width += x;
-        x = 0;
-      }
-      if (y < 0) {
-        height += y;
-        y = 0;
-      }
-
-      int pwidth = (width > this->size.width) ? this->size.width : width;
-      int pheight = (height > this->size.height) ? this->size.height : height;
-
-      if (pwidth <= 0 or pheight <= 0) {
-        return;
-      }
-
-      int px = this->location.x + x;
-      int py = this->location.y + y;
-      parent->repaint(px, py, pwidth, pheight);
-    } else {
-      if (is_visible() and width > 0 and height > 0) {
-        // TODO
-//        PaintEvent e = new PaintEvent(this, new Rectangle(x, y, width, height));
-//        Toolkit.getDefaultToolkit().getSystemEventQueue().postEvent(e);
-      }
-    }
-  }
+  void repaint(int x, int y, int width, int height);
 
   void repaint(const Rectangle &rect) {
     repaint(rect.x, rect.y, rect.width, rect.height);

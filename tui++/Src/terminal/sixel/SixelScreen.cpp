@@ -21,6 +21,11 @@ namespace tui {
 
 constexpr std::chrono::milliseconds WAIT_EVENT_TIMEOUT { 30 };
 
+// The most events dispatched per event-loop iteration (see TextScreen's loop
+// for why the batch is capped): a burst is dispatched together and the loop
+// then repaints once, covering the whole batch.
+constexpr int MAX_EVENTS_PER_TICK = 64;
+
 SixelScreen::SixelScreen() {
   this->look_and_feel = std::make_shared<laf::SixelLookAndFeel>();
 
@@ -134,6 +139,11 @@ void SixelScreen::clear() {
 }
 
 void SixelScreen::refresh() {
+  // A full repaint covers every pending damaged region, so drop them; any
+  // queued repaint invocation then becomes a no-op instead of repainting the
+  // whole screen a second time.
+  this->damaged_regions.clear();
+
   auto g = SixelGraphics { *this };
   paint(g);
   flush();
@@ -186,8 +196,16 @@ void SixelScreen::run_event_loop() {
       refresh();
     }
 
-    if (auto event = this->event_queue.pop(WAIT_EVENT_TIMEOUT)) {
+    // Dispatch a bounded batch of events. Repainting is not a side effect of
+    // the loop: repaint() requests accumulate damaged regions and schedule a
+    // single repaint invocation on the same queue (see Screen::add_damage),
+    // so the paint is dispatched here in order with the mouse/key events that
+    // caused it -- Swing's RepaintManager behaves the same way. The batch cap
+    // keeps a burst (or a self-reposting timer) from starving the loop.
+    auto event = this->event_queue.pop(WAIT_EVENT_TIMEOUT);
+    for (auto n = 0; event and n < MAX_EVENTS_PER_TICK; ++n) {
       dispatch_event(*event);
+      event = this->event_queue.pop(std::chrono::milliseconds::zero());
     }
   }
 }
