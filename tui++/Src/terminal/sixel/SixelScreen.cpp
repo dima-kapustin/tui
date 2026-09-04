@@ -11,6 +11,8 @@
 
 #include <tui++/Font.h>
 
+#include <tui++/util/log.h>
+
 #include <chrono>
 #include <cstring>
 #include <limits>
@@ -434,8 +436,10 @@ void SixelScreen::write_images(std::vector<Rectangle> const &rects) {
         // stream the region every time). The mirror is only trusted where
         // pixels were actually sent.
         if (sent_matches(tile)) {
+          ++this->skipped_tiles;
           continue;
         }
+        ++this->emitted_tiles;
 
         auto data = SixelEncoder::encode(this->pixels.data() + (ty * get_pixel_width() + tx) * 3, tw, th, get_pixel_width());
         total_bytes += data.size();
@@ -456,6 +460,10 @@ void SixelScreen::write_images(std::vector<Rectangle> const &rects) {
   }
   auto encode_t1 = std::chrono::steady_clock::now();
   this->last_encode_ms = std::chrono::duration<double, std::milli>(encode_t1 - encode_t0).count();
+
+  log_repaint_ln(this->emitted_tiles << " tile(s) emitted, " << this->skipped_tiles << " skipped (" << total_bytes << " B)");
+  this->skipped_tiles = 0;
+  this->emitted_tiles = 0;
 
   if (out.empty()) {
     return;

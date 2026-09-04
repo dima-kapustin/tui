@@ -76,6 +76,11 @@ private:
   // How many images have been flushed since the screen was created.
   size_t flush_count = 0;
 
+  // Per-flush diagnostics: how many of the dirty tiles were skipped as
+  // unchanged (sent-buffer match) and how many were encoded and written.
+  size_t skipped_tiles = 0;
+  size_t emitted_tiles = 0;
+
 private:
   void resize_buffer();
   void mark_dirty(Rectangle const &rect);
@@ -169,6 +174,11 @@ public:
 
   size_t get_flush_count() const {
     return this->flush_count;
+  }
+
+  // TEMPORARY probe accessor: raw RGB framebuffer for pixel-level debugging.
+  const uint8_t* debug_pixels() const {
+    return this->pixels.data();
   }
 
   void fill_pixels(Rectangle const &rect, Color const &color);
