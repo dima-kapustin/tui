@@ -169,6 +169,13 @@ private:
 
   void enable_events_for_dispatching(EventTypeMask event_mask) {
     if (this->mouse_event_dispatcher) {
+      // The dispatcher tracks the pointer to synthesize MOUSE_ENTERED /
+      // MOUSE_EXITED events for the components that listen for them. No
+      // component enables plain MOUSE_MOVED, so without this the over events
+      // would never fire and hover (rollover) would be dead.
+      if (event_mask & EventType::MOUSE_OVER) {
+        event_mask |= EventType::MOUSE_MOVE;
+      }
       this->mouse_event_dispatcher->enable_events(event_mask);
     }
   }

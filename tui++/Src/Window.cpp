@@ -12,7 +12,9 @@ void Window::add_notify() {
     parent->add_notify();
   }
 
-  this->mouse_event_dispatcher = std::make_shared<WindowMouseEventDispatcher>(this);
+  // add_notify runs once the window is owned by a shared_ptr (Window::show /
+  // pack), so the dispatcher can hold the window weakly and tell when it dies.
+  this->mouse_event_dispatcher = std::make_shared<WindowMouseEventDispatcher>(std::static_pointer_cast<Window>(shared_from_this()));
   base::add_notify();
 }
 
@@ -133,6 +135,14 @@ void Window::show() {
 
 void Window::hide() {
   screen.hide_window(std::dynamic_pointer_cast<Window>(shared_from_this()));
+
+  // The screen keeps a registered mouse dispatcher alive; once the window is
+  // hidden it must not keep observing (or be kept alive by) the screen, and a
+  // dispatcher must never outlive the window it points at.
+  if (this->mouse_event_dispatcher) {
+    this->mouse_event_dispatcher->unregister();
+  }
+
   base::hide();
 }
 

@@ -232,7 +232,20 @@ void Screen::remove_listener(const std::shared_ptr<EventListener<Event>> &listen
 }
 
 void Screen::notify_listeners(Event &e) {
-  for (auto&& [event_mask, listener] : selective_listeners) {
+  // Dispatching an event can unregister a listener: a window's mouse
+  // dispatcher removes itself from the screen the moment the pointer leaves
+  // that window (e.g. when it crosses from the menu bar into a popup, which
+  // happens right here, inside this loop). Erasing the entry being visited
+  // invalidates the traversal, so iterate over a snapshot instead. Holding
+  // the shared pointers also keeps a listener that removed itself alive for
+  // the remainder of this dispatch.
+  auto listeners = std::vector<std::pair<EventTypeMask, std::shared_ptr<EventListener<Event>>>> { };
+  listeners.reserve(this->selective_listeners.size());
+  for (auto &&entry : this->selective_listeners) {
+    listeners.emplace_back(entry.event_mask, entry.listener);
+  }
+
+  for (auto &&[event_mask, listener] : listeners) {
     if (event_mask & e.id) {
       listener->event_dispatched(e);
     }

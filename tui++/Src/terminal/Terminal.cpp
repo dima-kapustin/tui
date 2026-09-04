@@ -66,6 +66,23 @@ void Terminal::InputParser::new_mouse_event(bool pressed) {
   auto y = this->csi_params[2] - 1;
   if (this->csi_params[0] & 64) {
     this->terminal.new_mouse_wheel_event(button == 0 ? -1 : 1, key_modifiers, x, y);
+//  } else if (this->csi_params[0] & 32) {
+//    // Motion (SGR button codes 32..35): the low two bits identify the held
+//    // button (0 = none, 1 = left, 2 = middle, 3 = right).
+//    switch (button) {
+//    case 0:
+//      this->terminal.new_mouse_move_event(key_modifiers, x, y);
+//      break;
+//    case 1:
+//      this->terminal.new_mouse_drag_event(MousePressEvent::LEFT_BUTTON, key_modifiers, x, y);
+//      break;
+//    case 2:
+//      this->terminal.new_mouse_drag_event(MousePressEvent::MIDDLE_BUTTON, key_modifiers, x, y);
+//      break;
+//    case 3:
+//      this->terminal.new_mouse_drag_event(MousePressEvent::RIGHT_BUTTON, key_modifiers, x, y);
+//      break;
+//    }
   } else {
     auto type = pressed ? MousePressEvent::MOUSE_PRESSED : MousePressEvent::MOUSE_RELEASED;
     this->terminal.new_mouse_event(type, MousePressEvent::Button(button), key_modifiers, x, y);
@@ -254,6 +271,30 @@ void Terminal::new_mouse_wheel_event(int wheel_rotation, InputEvent::Modifiers k
   }
 
   screen.post_system<MouseWheelEvent>(window, key_modifiers, p.x, p.y, wheel_rotation);
+}
+
+void Terminal::new_mouse_move_event(InputEvent::Modifiers key_modifiers, int x, int y) {
+  modifiers = (modifiers & ~(InputEvent::SHIFT_DOWN | InputEvent::CTRL_DOWN | InputEvent::ALT_DOWN | InputEvent::META_DOWN)) | key_modifiers;
+
+  auto p = screen.convert_mouse_point(x, y);
+  auto window = screen.get_window_at(p);
+  if (window) {
+    p = convert_point_from_screen(p, window);
+  }
+
+  screen.post_system<MouseMoveEvent>(window, modifiers, p.x, p.y);
+}
+
+void Terminal::new_mouse_drag_event(MousePressEvent::Button button, InputEvent::Modifiers key_modifiers, int x, int y) {
+  modifiers = (modifiers & ~(InputEvent::SHIFT_DOWN | InputEvent::CTRL_DOWN | InputEvent::ALT_DOWN | InputEvent::META_DOWN)) | key_modifiers | to_modifiers(button);
+
+  auto p = screen.convert_mouse_point(x, y);
+  auto window = screen.get_window_at(p);
+  if (window) {
+    p = convert_point_from_screen(p, window);
+  }
+
+  screen.post_system<MouseDragEvent>(window, button, modifiers, p.x, p.y);
 }
 
 Screen& Terminal::get_screen() {

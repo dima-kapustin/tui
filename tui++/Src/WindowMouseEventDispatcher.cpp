@@ -18,16 +18,28 @@ WindowMouseEventDispatcher::~WindowMouseEventDispatcher() {
 }
 
 void WindowMouseEventDispatcher::retarget_mouse_event(const std::shared_ptr<Component> &target, MouseEvent &e) {
+  auto window = this->window.lock();
+  if (not window) {
+    // The owning window is gone (e.g. a closed popup); nothing to retarget to.
+    return;
+  }
+
   auto c = target;
-  for (; c and c.get() != this->window; c = c->get_parent()) {
+  for (; c and c.get() != window.get(); c = c->get_parent()) {
     e.x -= c->get_x();
     e.y -= c->get_y();
   }
 
   if (c) {
-    if (target.get() == this->window) {
+    // Swing retargets the event to `target` in source-local coordinates: the
+    // coordinates above were translated into `target`'s space, so update the
+    // event's source to match. Listeners (including this dispatcher, when it
+    // observes another window's events via the screen) can then convert to
+    // screen space with convert_point_to_screen(e.x, e.y, source).
+    e.source = target;
+    if (target.get() == window.get()) {
       // avoid recursive calls
-      this->window->dispatch_event_to_self(e);
+      window->dispatch_event_to_self(e);
     } else {
       // TODO
 //        if (nativeContainer.modalComp != null) {
@@ -70,19 +82,17 @@ std::shared_ptr<Component> WindowMouseEventDispatcher::retarget_mouse_enter_exit
   return target_enter;
 }
 
-void WindowMouseEventDispatcher::track_mouse_enter_exit(const std::shared_ptr<Component> &target_over, MouseEvent &e) {
-  if (e.id != MouseOverEvent::MOUSE_EXITED and //
-      e.id != MouseDragEvent::MOUSE_DRAGGED and //
-      not this->mouse_over_window) {
-    // any event but an exit or drag means we're in the window
-    this->mouse_over_window = true;
-    start_listening_for_other_drags();
-  } else if (e.id == MouseOverEvent::MOUSE_EXITED) {
-    this->mouse_over_window = false;
-    stop_listening_for_other_drags();
+void WindowMouseEventDispatcher::track_mouse_enter_exit(const std::shared_ptr<Component> &target_over, MouseEvent &e, bool inside_window) {
+  if (inside_window != this->mouse_over_window) {
+    this->mouse_over_window = inside_window;
+    if (inside_window) {
+      start_listening_for_other_drags();
+    } else {
+      stop_listening_for_other_drags();
+    }
   }
 
-  this->target_last_entered = retarget_mouse_enter_exit(target_over, e, target_last_entered.lock(), this->mouse_over_window);
+  this->target_last_entered = retarget_mouse_enter_exit(target_over, e, target_last_entered.lock(), inside_window);
 }
 
 bool WindowMouseEventDispatcher::dispatch_event(Event &e) {
@@ -93,15 +103,21 @@ bool WindowMouseEventDispatcher::dispatch_event(Event &e) {
 }
 
 bool WindowMouseEventDispatcher::dispatch_event(MouseEvent &e) {
-  auto mouse_over = this->window->get_mouse_event_target(e.x, e.y, true);
-  track_mouse_enter_exit(mouse_over, e);
+  auto window = this->window.lock();
+  if (not window) {
+    // The owning window is gone; nothing left to hit-test or dispatch to.
+    return false;
+  }
+
+  auto mouse_over = window->get_mouse_event_target(e.x, e.y, true);
+  track_mouse_enter_exit(mouse_over, e, true);
 
   auto mouse_event_target = this->mouse_event_target.lock();
   // 4508327 : MOUSE_CLICKED should only go to the recipient of
   // the accompanying MOUSE_PRESSED, so don't reset mouse_event_target on a
   // MOUSE_CLICKED.
   if (not e.was_button_down_before() and e.id != MouseClickEvent::MOUSE_CLICKED) {
-    mouse_event_target = mouse_over; // (mouse_over.get() != this->window) ? mouse_over : nullptr;
+    mouse_event_target = mouse_over;
     this->mouse_event_target = mouse_event_target;
   }
 
@@ -146,6 +162,32 @@ bool WindowMouseEventDispatcher::dispatch_event(MouseEvent &e) {
     if (e.id != MouseWheelEvent::MOUSE_WHEEL) {
       e.consumed = true;
     }
+  } else {
+    // No component under the pointer accepts mouse events: the window's
+    // chrome/background, gaps between widgets, panels that only paint (like
+    // the demo's hover panel), ... Still dispatch the event to the window
+    // itself so screen listeners (e.g. the hover tracker) observe every
+    // press/release/move/drag inside the window instead of the event
+    // vanishing the moment the pointer leaves an interactive component.
+    switch (e.id) {
+    case MouseOverEvent::MOUSE_ENTERED:
+    case MouseOverEvent::MOUSE_EXITED:
+    case MouseClickEvent::MOUSE_CLICKED:
+      // Enter/exit are synthesized for real components only; a click needs a
+      // MOUSE_PRESSED recipient.
+      break;
+    case MousePressEvent::MOUSE_PRESSED:
+    case MousePressEvent::MOUSE_RELEASED:
+    case MouseMoveEvent::MOUSE_MOVED:
+    case MouseDragEvent::MOUSE_DRAGGED:
+      retarget_mouse_event(window, e);
+      break;
+    case MouseWheelEvent::MOUSE_WHEEL:
+      break;
+    }
+    if (e.id != MouseWheelEvent::MOUSE_WHEEL) {
+      e.consumed = true;
+    }
   }
 
   return e.consumed;
@@ -161,7 +203,60 @@ void WindowMouseEventDispatcher::stop_listening_for_other_drags() {
 }
 
 void WindowMouseEventDispatcher::event_dispatched(Event &e) {
+  // This dispatcher is registered as a screen listener while the pointer is
+  // over this window, to notice when it moves into another window (e.g. from
+  // the menu bar into a popup). Synthesized enter/exit events are handled by
+  // the window that generated them, so re-tracking them here would recurse;
+  // ignore them.
+  if (e.id == MouseOverEvent::MOUSE_ENTERED or e.id == MouseOverEvent::MOUSE_EXITED) {
+    return;
+  }
 
+  // Only movement changes which component the pointer is over.
+  if (e.id != MouseMoveEvent::MOUSE_MOVED and e.id != MouseDragEvent::MOUSE_DRAGGED) {
+    return;
+  }
+
+  auto &mouse = static_cast<MouseEvent&>(e);
+
+  auto window = this->window.lock();
+  if (not window) {
+    // The window this dispatcher serves is gone (it was hidden/destroyed
+    // while the pointer was over it, e.g. a closed popup). The screen still
+    // holds this dispatcher in its listener list, so drop it and stop
+    // observing before touching the dangling window.
+    stop_listening_for_other_drags();
+    return;
+  }
+
+  // Swing keeps events in source-local coordinates: retarget_mouse_event has
+  // already translated (x, y) into the hovered component's space and set the
+  // event source to that component. Convert to this window's space here so
+  // the enter/exit hit-test runs against this window's own components.
+  auto source = std::dynamic_pointer_cast<Component>(e.source);
+  if (not source) {
+    return;
+  }
+
+  auto screen_point = convert_point_to_screen(mouse.x, mouse.y, source);
+
+  // The pointer is over this window only if this window is topmost at the
+  // point. A popup (heavyweight window) overlaps the frame beneath it, so a
+  // bounds check alone would keep the frame tracking the pointer while it is
+  // actually over the popup.
+  auto inside_window = screen.get_window_at(screen_point).get() == window.get();
+  auto local = convert_point_from_screen(screen_point, window->shared_from_this());
+
+  auto saved_x = mouse.x;
+  auto saved_y = mouse.y;
+  mouse.x = local.x;
+  mouse.y = local.y;
+
+  auto target_over = inside_window ? window->get_mouse_event_target(local.x, local.y, true) : nullptr;
+  track_mouse_enter_exit(target_over, mouse, inside_window);
+
+  mouse.x = saved_x;
+  mouse.y = saved_y;
 }
 
 }

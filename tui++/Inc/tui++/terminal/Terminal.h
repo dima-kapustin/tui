@@ -271,8 +271,8 @@ private:
   void new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers key_modifiers);
   void new_mouse_event(MousePressEvent::Type type, MousePressEvent::Button button, InputEvent::Modifiers key_modifiers, int x, int y);
   void new_mouse_wheel_event(int wheel_rotation, InputEvent::Modifiers key_modifiers, int x, int y);
-//  void new_mouse_move_event(InputEvent::Modifiers modifiers, int x, int y);
-//  void new_mouse_drag_event(MousePressEvent::Button button, InputEvent::Modifiers modifiers, int x, int y);
+  void new_mouse_move_event(InputEvent::Modifiers modifiers, int x, int y);
+  void new_mouse_drag_event(MousePressEvent::Button button, InputEvent::Modifiers modifiers, int x, int y);
 //  void new_mouse_click_event(MousePressEvent::Button button, InputEvent::Modifiers modifiers, int x, int y);
 
   friend class TerminalImpl;
