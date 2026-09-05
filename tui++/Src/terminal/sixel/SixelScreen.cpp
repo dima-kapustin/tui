@@ -53,7 +53,13 @@ SixelScreen::SixelScreen() {
   this->text_metrics = std::make_shared<PixelTextMetrics>(laf::LookAndFeel::get<Font>("defaultFont", Font { }));
 
   auto size = terminal.get_size();
-  this->size = { size.width * this->cell_width, size.height * this->cell_height };
+  // The last text row of the terminal is unusable for sixel: an image whose
+  // bottom band lands on it advances the text cursor one row past the screen
+  // and Windows Terminal scrolls the buffer (every resize then jumps and
+  // every following image is drawn one row off). Keep the screen one row
+  // short of the bottom; the frame laid out over it gets its border on all
+  // four sides and nothing ever triggers the scroll.
+  this->size = { size.width * this->cell_width, std::max(1, size.height - 1) * this->cell_height };
   resize_buffer();
 
   // Text printed before this screen took over (the unit tests) may have
@@ -323,8 +329,9 @@ void SixelScreen::run_event_loop() {
 
     // The terminal screen owns the physical display and clears it when the
     // terminal is resized; detect the resize here and repaint the windows.
+    // The last terminal row is excluded (see the constructor comment).
     auto ts = terminal.get_size();
-    auto pixel_size = Dimension { ts.width * this->cell_width, ts.height * this->cell_height };
+    auto pixel_size = Dimension { ts.width * this->cell_width, std::max(1, ts.height - 1) * this->cell_height };
     if (pixel_size != size) {
       size = pixel_size;
       this->size = pixel_size;
@@ -396,20 +403,10 @@ void SixelScreen::write_images(std::vector<Rectangle> const &rects) {
     // After an image the terminal moves its text cursor to the lower-left
     // corner of the graphic: one row below the image's bottom band, at the
     // image's left column. There is no horizontal advance, so the right edge
-    // needs no protection and is only clipped to the screen. The vertical
-    // advance, however, lands one row past the screen when the image covers
-    // the last row: xterm-like terminals scroll the buffer (and the image
-    // with it -- the first full draw scrolled up a line), while Windows
-    // Terminal clips sixel graphics instead of scrolling and does not move
-    // them with text scrolls. Terminals that answer the graphics geometry
-    // query (xterm and its kin) therefore keep every image one cell short of
-    // the last row; terminals without it (Windows Terminal) get the full
-    // height, so the last row actually renders (the frame border and the
-    // hover panel used to lose it).
-    auto cells = terminal.get_size();
-    if (this->max_graphic_size and cells.height > 1) {
-      bottom = std::min(bottom, (cells.height - 1) * this->cell_height);
-    }
+    // needs no protection. The screen itself already excludes the terminal's
+    // last row (see the constructor), so the bottom band of any image sits
+    // above it and the vertical advance never leaves the screen: no buffer
+    // scroll, and the frame border renders on all four sides.
 
     if (bottom <= top or right <= left) {
       continue;
