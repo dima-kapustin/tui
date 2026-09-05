@@ -182,26 +182,37 @@ void SixelGraphics::draw_vline(int x, int y, int length, std::optional<Attribute
 }
 
 void SixelGraphics::draw_rect(int x, int y, int width, int height) {
-  auto rect = clipped(x, y, width, height);
-  if (rect.empty()) {
+  if (width <= 0 or height <= 0) {
     return;
   }
   if (auto color = get_line_color()) {
-    auto line_w = std::min(stroke_width(), std::min(rect.width, rect.height));
+    // The stroke follows the edges of the rect that was asked for (offset by
+    // the graphics translation), with every edge band clipped to the current
+    // clip. Stroking the border of the *clipped* rect instead -- as drawing
+    // bands around the intersection would -- traces the clip's own perimeter
+    // whenever a rect only partially covers the damaged region: a repaint of
+    // a menu item would repaint the frame border that crosses it as a cyan
+    // frame around the item.
+    auto left = x + this->dx;
+    auto top = y + this->dy;
+    auto right = left + width;
+    auto bottom = top + height;
+    auto line_w = std::min(stroke_width(), std::min(width, height));
 
-    log_graphics_ln("SixelGraphics::draw_rect (" << rect.x << ", " << rect.y << " " << rect.width << 'x' << rect.height << ") color=" << color_hex(*color));
-    this->screen.fill_pixels({ rect.x, rect.y, rect.width, line_w }, *color); // top
-    this->screen.fill_pixels({ rect.x, rect.bottom() - line_w, rect.width, line_w }, *color); // bottom
-    this->screen.fill_pixels({ rect.x, rect.y, line_w, rect.height }, *color); // left
-    this->screen.fill_pixels({ rect.right() - line_w, rect.y, line_w, rect.height }, *color); // right
+    log_graphics_ln("SixelGraphics::draw_rect (" << left << ", " << top << " " << width << 'x' << height << ") color=" << color_hex(*color));
+
+    this->screen.fill_pixels(Rectangle { left, top, width, line_w } & this->clip, *color); // top
+    this->screen.fill_pixels(Rectangle { left, bottom - line_w, width, line_w } & this->clip, *color); // bottom
+    this->screen.fill_pixels(Rectangle { left, top, line_w, height } & this->clip, *color); // left
+    this->screen.fill_pixels(Rectangle { right - line_w, top, line_w, height } & this->clip, *color); // right
 
     if (this->stroke == Stroke::DOUBLE) {
       auto inset = 2;
-      if (rect.width > 2 * inset + 2 and rect.height > 2 * inset + 2) {
-        this->screen.fill_pixels({ rect.x + inset, rect.y + inset, rect.width - 2 * inset, 1 }, *color);
-        this->screen.fill_pixels({ rect.x + inset, rect.bottom() - inset - 1, rect.width - 2 * inset, 1 }, *color);
-        this->screen.fill_pixels({ rect.x + inset, rect.y + inset, 1, rect.height - 2 * inset }, *color);
-        this->screen.fill_pixels({ rect.right() - inset - 1, rect.y + inset, 1, rect.height - 2 * inset }, *color);
+      if (width > 2 * inset + 2 and height > 2 * inset + 2) {
+        this->screen.fill_pixels(Rectangle { left + inset, top + inset, width - 2 * inset, 1 } & this->clip, *color);
+        this->screen.fill_pixels(Rectangle { left + inset, bottom - inset - 1, width - 2 * inset, 1 } & this->clip, *color);
+        this->screen.fill_pixels(Rectangle { left + inset, top + inset, 1, height - 2 * inset } & this->clip, *color);
+        this->screen.fill_pixels(Rectangle { right - inset - 1, top + inset, 1, height - 2 * inset } & this->clip, *color);
       }
     }
   }

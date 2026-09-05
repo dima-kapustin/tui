@@ -169,7 +169,11 @@ void dump(SixelScreen &gs, Probe &probe, char const *step) {
     auto rect = item_rect(item);
 #ifndef PROBE_NO_FB
     auto remaining = probe.has_highlight ? count_color(gs, rect, probe.highlight) : -1;
-    std::printf("  %-5s rect=(%d, %d %dx%d) highlight-pixels=%d\n", item->get_text().c_str(), rect.x, rect.y, rect.width, rect.height, remaining);
+    // The demo frame's cyan double border must never repaint into an item:
+    // a region repaint used to re-stroke the border around the damaged
+    // region's own perimeter, leaving cyan frames on items the mouse left.
+    auto frame_lines = count_color(gs, rect, RGB { 0, 255, 255 });
+    std::printf("  %-5s rect=(%d, %d %dx%d) highlight-pixels=%d frame-pixels=%d\n", item->get_text().c_str(), rect.x, rect.y, rect.width, rect.height, remaining, frame_lines);
 
     // Sample the highlight fill color from the first armed item we see.
     if (not probe.has_highlight and item->is_armed()) {
