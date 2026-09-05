@@ -441,7 +441,8 @@ int usage(const char *program) {
                "  text          cell-based escape-sequence terminal (the default)\n"
                "  sixel         pixel-based sixel terminal\n"
                "  --log-events  write an ordered history of dispatched events and\n"
-               "                repaints, with timings, to stderr\n",
+               "                repaints, with timings, to stderr (resize and\n"
+               "                graphics-draw traces are logged as well)\n",
                program);
   return 1;
 }

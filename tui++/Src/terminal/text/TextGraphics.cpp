@@ -145,10 +145,16 @@ void TextGraphics::clip_rect(int x, int y, int width, int height) {
   int right = left + width;
   int bottom = top + height;
 
+  // The intersection with the current clip. Each edge is clipped against
+  // the CURRENT clip's edge: taking the clip's size from the already-
+  // maxed-out opposite edge (e.g. bottom = clip_top + clip.height) would
+  // extend the clip past its real bottom when the new rect starts inside
+  // it, letting paint escape the screen for components that straddle the
+  // edge (a popup whose bottom row is below the screen).
   int clip_left = std::max(this->clip.x, left);
-  int clip_right = std::min(clip_left + this->clip.width, right);
+  int clip_right = std::min(this->clip.x + this->clip.width, right);
   int clip_top = std::max(this->clip.y, top);
-  int clip_bottom = std::min(clip_top + this->clip.height, bottom);
+  int clip_bottom = std::min(this->clip.y + this->clip.height, bottom);
 
   int clip_width = clip_right - clip_left;
   int clip_height = clip_bottom - clip_top;

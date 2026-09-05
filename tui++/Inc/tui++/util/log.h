@@ -60,6 +60,14 @@ inline std::string log_now_prefix() {
 #define log_dispatch_ln(x) if (tui::util::event_log) *tui::util::event_log << log_timestamp() << "dispatch: " << x << std::endl
 #endif
 
+#ifndef log_resize_ln
+#define log_resize_ln(x) if (tui::util::event_log) *tui::util::event_log << log_timestamp() << "resize: " << x << std::endl
+#endif
+
+#ifndef log_graphics_ln
+#define log_graphics_ln(x) if (tui::util::event_log) *tui::util::event_log << log_timestamp() << "graphics: " << x << std::endl
+#endif
+
 #ifndef log_focus_if_ln
 #define log_focus_if_ln(condition, x) if (tui::util::focus_log and condition) *tui::util::focus_log << log_timestamp() << "focus: " << x << std::endl
 #endif

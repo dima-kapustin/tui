@@ -6,9 +6,11 @@
 
 #include <tui++/util/utf-8.h>
 #include <tui++/util/unicode.h>
+#include <tui++/util/log.h>
 
 #include <algorithm>
 #include <array>
+#include <cstdio>
 #include <vector>
 
 namespace tui {
@@ -28,6 +30,13 @@ constexpr uint8_t MISSING_GLYPH[detail::FONT_HEIGHT * 2] = {
     0xC0, 0x03, 0xC0, 0x03, 0xC0, 0x03, 0xC0, 0x03,
     0xFF, 0xFF, 0xFF, 0xFF  // bottom edge (2 px)
 };
+
+// "#RRGGBB", the format the log lines use for colors.
+std::string color_hex(Color const &color) {
+  char buffer[8];
+  std::snprintf(buffer, sizeof buffer, "#%02X%02X%02X", int(color.red()), int(color.green()), int(color.blue()));
+  return buffer;
+}
 
 }
 
@@ -56,6 +65,7 @@ Rectangle SixelGraphics::clipped(int x, int y, int width, int height) const {
 void SixelGraphics::draw_pixel_rect(int x, int y, int width, int height) {
   if (auto rect = clipped(x, y, width, height); not rect.empty()) {
     if (auto color = get_line_color()) {
+      log_graphics_ln("SixelGraphics::draw_pixel_rect (" << rect.x << ", " << rect.y << " " << rect.width << 'x' << rect.height << ") color=" << color_hex(*color));
       this->screen.fill_pixels(rect, *color);
     }
   }
@@ -90,6 +100,7 @@ std::unique_ptr<Graphics> SixelGraphics::create(int x, int y, int width, int hei
 }
 
 void SixelGraphics::draw_char(const Char &c, int x, int y, std::optional<Attributes> const &attributes) {
+  log_graphics_ln("SixelGraphics::draw_char U+" << std::hex << std::uppercase << uint32_t(c.get_code()) << std::nouppercase << std::dec << " at (" << x << ", " << y << ")");
   blit_glyph(c.get_code(), x, y);
 }
 
@@ -144,10 +155,12 @@ void SixelGraphics::blit_glyph(char32_t code, int x, int y) {
   // An unset foreground means "the terminal's default text color", which the
   // text screen renders as the terminal default (white); mirror that here. A
   // null background leaves the pixels under the glyph untouched.
+  log_graphics_ln("SixelGraphics::blit_glyph U+" << std::hex << std::uppercase << uint32_t(code) << std::nouppercase << std::dec << " at (" << px << ", " << py << " " << width << 'x' << height << ") fg=" << color_hex(this->foreground_color.value_or(WHITE_COLOR)));
   this->screen.blit_glyph(px, py, scaled.data(), width, height, this->foreground_color.value_or(WHITE_COLOR), this->background_color);
 }
 
 void SixelGraphics::draw_hline(int x, int y, int length, std::optional<Attributes> const &attributes) {
+  log_graphics_ln("SixelGraphics::draw_hline at (" << x << ", " << y << ") length " << length);
   if (this->stroke == Stroke::DOUBLE) {
     draw_pixel_rect(x, y - 1, length, 1);
     draw_pixel_rect(x, y + 1, length, 1);
@@ -158,6 +171,7 @@ void SixelGraphics::draw_hline(int x, int y, int length, std::optional<Attribute
 }
 
 void SixelGraphics::draw_vline(int x, int y, int length, std::optional<Attributes> const &attributes) {
+  log_graphics_ln("SixelGraphics::draw_vline at (" << x << ", " << y << ") length " << length);
   if (this->stroke == Stroke::DOUBLE) {
     draw_pixel_rect(x - 1, y, 1, length);
     draw_pixel_rect(x + 1, y, 1, length);
@@ -175,6 +189,7 @@ void SixelGraphics::draw_rect(int x, int y, int width, int height) {
   if (auto color = get_line_color()) {
     auto line_w = std::min(stroke_width(), std::min(rect.width, rect.height));
 
+    log_graphics_ln("SixelGraphics::draw_rect (" << rect.x << ", " << rect.y << " " << rect.width << 'x' << rect.height << ") color=" << color_hex(*color));
     this->screen.fill_pixels({ rect.x, rect.y, rect.width, line_w }, *color); // top
     this->screen.fill_pixels({ rect.x, rect.bottom() - line_w, rect.width, line_w }, *color); // bottom
     this->screen.fill_pixels({ rect.x, rect.y, line_w, rect.height }, *color); // left
@@ -194,10 +209,12 @@ void SixelGraphics::draw_rect(int x, int y, int width, int height) {
 
 void SixelGraphics::draw_rounded_rect(int x, int y, int width, int height) {
   // Rounding the corners is not implemented yet; fall back to a rectangle.
+  log_graphics_ln("SixelGraphics::draw_rounded_rect (" << x << ", " << y << " " << width << 'x' << height << ")");
   draw_rect(x, y, width, height);
 }
 
 void SixelGraphics::draw_string(const std::string &str, int x, int y, std::optional<Attributes> const &attributes) {
+  log_graphics_ln("SixelGraphics::draw_string \"" << str << "\" at (" << x << ", " << y << ")");
   auto cx = x;
   auto index = std::size_t { 0 };
   while (index < str.size()) {
@@ -216,6 +233,7 @@ void SixelGraphics::draw_string(const std::string &str, int x, int y, std::optio
 void SixelGraphics::fill_rect(int x, int y, int width, int height) {
   if (auto rect = clipped(x, y, width, height); not rect.empty()) {
     if (auto color = get_fill_color()) {
+      log_graphics_ln("SixelGraphics::fill_rect (" << rect.x << ", " << rect.y << " " << rect.width << 'x' << rect.height << ") color=" << color_hex(*color));
       this->screen.fill_pixels(rect, *color);
     }
   }

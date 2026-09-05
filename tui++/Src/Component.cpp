@@ -1506,6 +1506,7 @@ void Component::set_bounds(int x, int y, int width, int height) {
 
   if (resized) {
     invalidate();
+    log_resize_ln(to_string() << ": " << old_width << 'x' << old_height << " -> " << width << 'x' << height << " at (" << x << ", " << y << ")");
   }
 
   if (auto parent = this->parent.lock()) {

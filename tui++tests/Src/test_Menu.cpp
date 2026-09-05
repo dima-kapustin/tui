@@ -7,6 +7,7 @@
 // (Release), which would compile the assert()s out and make the test pass
 // vacuously; CHECK below aborts regardless, so the test always verifies.
 #include <tui++/Frame.h>
+#include <tui++/Graphics.h>
 #include <tui++/Menu.h>
 #include <tui++/MenuBar.h>
 #include <tui++/MenuItem.h>
@@ -210,6 +211,46 @@ void test_Menu() {
     dispatch_mouse(frame, screen.get_event_queue().pop());
     CHECK(counter->moved == 1);
     screen.remove_listener(counter);
+  }
+
+  // Regression: a terminal resize must not stretch a popup window to the
+  // screen size. The top-level frame tracks the screen, but the popup keeps
+  // its own size and position; stretching it paints the open menu (and its
+  // selection highlight) across the whole window, covering the frame.
+  {
+    file_menu->set_popup_menu_visible(true);
+    drain();
+    auto pwin = file_menu->get_popup_menu()->get_containing_window();
+    CHECK(pwin);
+    auto popup_size = pwin->get_size();
+    auto popup_loc = pwin->get_location();
+    CHECK(popup_size.width > 0 and popup_size.width < frame->get_width());
+
+    screen.resized();
+    drain();
+
+    CHECK(frame->get_size() == screen.get_size());
+    CHECK(pwin->get_size() == popup_size);
+    CHECK(pwin->get_location() == popup_loc);
+
+    file_menu->set_popup_menu_visible(false);
+    drain();
+    CHECK(not file_menu->is_popup_menu_visible());
+  }
+
+  // Regression: clip_rect must intersect with the CURRENT clip. The old code
+  // measured the clip's size from the already-clipped edge (bottom =
+  // clip_top + clip.height), extending the clip past the screen bottom for a
+  // rect that starts inside the clip: the row of a popup that straddles the
+  // screen's bottom edge then painted out of bounds (an abort in debug
+  // builds, memory corruption in release ones).
+  {
+    auto g = screen.get_graphics(); // clip = the whole screen
+    g->clip_rect(0, 1, 10, 23);     // rows 1..23
+    g->clip_rect(0, 20, 10, 8);     // starts inside, extends past the bottom
+    auto clip = g->get_clip_rect();
+    CHECK(clip.y == 20);
+    CHECK(clip.height == 4);        // rows 20..23; the old code kept 8
   }
 
   std::printf("PASS menu popup show/hide, hover and hit-test\n");

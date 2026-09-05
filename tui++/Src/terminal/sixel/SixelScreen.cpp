@@ -333,16 +333,21 @@ void SixelScreen::run_event_loop() {
     auto ts = terminal.get_size();
     auto pixel_size = Dimension { ts.width * this->cell_width, std::max(1, ts.height - 1) * this->cell_height };
     if (pixel_size != size) {
+      log_resize_ln("sixel screen " << size.width << 'x' << size.height << " px -> " << pixel_size.width << 'x' << pixel_size.height << " px");
       size = pixel_size;
       this->size = pixel_size;
       resize_buffer();
 
       // Top-level windows track the screen size so the layout fills the new
-      // terminal instead of leaving stale, mis-sized frames behind.
+      // terminal instead of leaving stale, mis-sized frames behind. Popup
+      // windows keep their own size and position (see TextScreen::resized).
       {
         std::unique_lock lock(this->windows_mutex);
+        log_resize_ln("screen resize: " << this->windows.size() << " top-level window(s) to " << pixel_size.width << 'x' << pixel_size.height);
         for (auto &&window : this->windows) {
-          window->set_size(pixel_size);
+          if (window->get_type() != WindowType::POPUP) {
+            window->set_size(pixel_size);
+          }
         }
       }
 

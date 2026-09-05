@@ -9,6 +9,7 @@
 #include <tui++/Font.h>
 
 #include <tui++/util/utf-8.h>
+#include <tui++/util/log.h>
 
 #include <string_view>
 
@@ -233,6 +234,7 @@ void TextScreen::resize_view() {
   auto size = this->size;
   this->size = terminal.get_size();
   if (size != this->size) {
+    log_resize_ln("text screen " << size.width << 'x' << size.height << " -> " << this->size.width << 'x' << this->size.height);
     this->view.resize(this->size.height);
     this->shadow.resize(this->size.height);
     this->row_sent.resize(this->size.height);
@@ -251,11 +253,17 @@ void TextScreen::resize_view() {
 void TextScreen::resized() {
   resize_view();
   // Top-level windows track the terminal size so the layout fills the new
-  // screen instead of leaving stale, mis-sized frames behind.
+  // screen instead of leaving stale, mis-sized frames behind. Popup windows
+  // keep their own size and position: stretching one to the screen size would
+  // paint the open menu (and its selection highlight) across the whole
+  // window, covering the frame beneath it.
   {
     std::unique_lock lock(this->windows_mutex);
+    log_resize_ln("screen resize: " << this->windows.size() << " top-level window(s) to " << this->size.width << 'x' << this->size.height);
     for (auto &&window : this->windows) {
-      window->set_size(this->size);
+      if (window->get_type() != WindowType::POPUP) {
+        window->set_size(this->size);
+      }
     }
   }
   refresh();
