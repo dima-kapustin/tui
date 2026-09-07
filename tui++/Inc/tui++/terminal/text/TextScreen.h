@@ -61,7 +61,28 @@ private:
   // against the shadow first: identical rows are skipped, and a row with
   // changes emits only its differing runs (each positioned absolutely,
   // carrying the SGR state from the previous emission). Does not flush.
+  // A damaged band that is the terminal content shifted by a whole number of
+  // rows is handled by flush_rows_by_terminal_scroll instead of the per-run
+  // loop, so a wheel notch costs the rows that entered the band, not the
+  // whole band.
   void flush_rows(Rectangle const &region);
+
+  // Emits the differing runs of view row `y` over [first_column, last_column),
+  // comparing against the shadow (which must hold the terminal's current
+  // content for that row). Unchanged cells emit nothing; each changed run is
+  // positioned absolutely and recorded in the shadow (see flush_rows).
+  void emit_row(int y, int first_column, int last_column);
+
+  // Handles a damaged band of whole rows [first_row, last_row) by scrolling
+  // the terminal's own buffer: when the band's view content is the shadow
+  // shifted vertically by a whole number of rows (the typical scroll), a
+  // scroll-region delete/insert moves the terminal's content, and only the
+  // rows that entered the band (and the few rows that disagree with a pure
+  // shift) are emitted. Returns true when the whole band was handled by the
+  // scroll; false leaves the band to the per-run emission of flush_rows.
+  bool flush_rows_by_terminal_scroll(int first_row, int last_row);
+
+  static bool row_equals(std::vector<CharView> const &a, std::vector<CharView> const &b, int width);
 
   // Ends the current flush: leaves the terminal with default attributes and
   // flushes it, but only when something was actually emitted.

@@ -319,6 +319,15 @@ bool TextScreen::same_cell(CharView const &a, CharView const &b) {
   return a.ch.get_code() == b.ch.get_code() and a.attributes == b.attributes and a.foreground_color == b.foreground_color and a.background_color == b.background_color;
 }
 
+bool TextScreen::row_equals(std::vector<CharView> const &a, std::vector<CharView> const &b, int width) {
+  for (auto x = 0; x < width; ++x) {
+    if (not same_cell(a[x], b[x])) {
+      return false;
+    }
+  }
+  return true;
+}
+
 void TextScreen::escape_to(CharView const &cv) {
   auto reset = this->last_state.attributes & ~cv.attributes;
   auto set = ~this->last_state.attributes & cv.attributes;
@@ -336,11 +345,268 @@ void TextScreen::escape_to(CharView const &cv) {
   this->last_state = cv;
 }
 
+void TextScreen::emit_row(int y, int first_column, int last_column) {
+  auto &row = this->view[y];
+  auto width = int(row.size());
+  if (width <= 0 or last_column <= first_column) {
+    return;
+  }
+
+  auto &shadow_row = this->shadow[y];
+  auto x = first_column;
+  while (x < last_column) {
+    if (same_cell(row[x], shadow_row[x])) {
+      ++x;
+      continue;
+    }
+
+    // A changed run starts at x. If it starts on the continuation cell of
+    // a double-width glyph whose leading cell sits just outside the run,
+    // back the run up by one: that cell holds no glyph of its own (the
+    // emitter skips it after its wide neighbour), so printing the run as
+    // is would show the placeholder as a character of its own.
+    auto run_first = x;
+    if (run_first > 0 and this->text_metrics->get_char_width(row[run_first - 1].ch.get_code()) == 2) {
+      --run_first;
+    }
+
+    // Extend while cells differ; the cells after the run equal the shadow
+    // and are already on the terminal.
+    auto run_last = run_first + 1;
+    while (run_last < width and not same_cell(row[run_last], shadow_row[run_last])) {
+      ++run_last;
+    }
+    // Do not end the run on the continuation cell of a wide glyph: extend
+    // past it so its (skipped) cell stays inside the run's bookkeeping.
+    while (run_last < width and run_last > run_first and this->text_metrics->get_char_width(row[run_last - 1].ch.get_code()) == 2) {
+      ++run_last;
+    }
+
+    // The run is positioned absolutely and starts from the SGR state the
+    // terminal is in (the previous emission, possibly in an earlier row or
+    // pass), so neighbouring content is left untouched.
+    move_cursor_to(int(y) + 1, run_first + 1);
+    auto skip = false;
+    for (auto i = run_first; i < run_last; ++i) {
+      auto const &cv = row[i];
+      if (not skip) {
+        escape_to(cv);
+        terminal << cv.ch;
+      }
+      skip = this->text_metrics->get_char_width(cv.ch.get_code()) == 2;
+    }
+
+    // The terminal now shows the run's cells; record them as sent.
+    std::copy(row.begin() + run_first, row.begin() + run_last, shadow_row.begin() + run_first);
+    this->emitted_any = true;
+    x = run_last;
+  }
+}
+
+bool TextScreen::flush_rows_by_terminal_scroll(int first_row, int last_row) {
+  auto height = int(this->view.size());
+  auto band = last_row - first_row;
+  if (band < 2) {
+    // A scroll moves at least one row, and needs one more to move it into.
+    return false;
+  }
+  auto width = int(this->view[first_row].size());
+  if (width <= 0) {
+    return false;
+  }
+
+  // The terminal content of every row of the band must be authoritative
+  // (fully emitted), and the rows uniform; otherwise the shadow cannot say
+  // what a terminal-side scroll would move.
+  for (auto y = first_row; y < last_row; ++y) {
+    if (not this->row_sent[y]) {
+      return false;
+    }
+    if (int(this->view[y].size()) != width or int(this->shadow[y].size()) != width) {
+      return false;
+    }
+  }
+
+  // A band the view did not change at all emits nothing in the per-run loop;
+  // scrolling it would churn the terminal for nothing (and blank rows would
+  // match any shift), so leave it to that loop.
+  auto changed = false;
+  for (auto y = first_row; y < last_row and not changed; ++y) {
+    if (not row_equals(this->view[y], this->shadow[y], width)) {
+      changed = true;
+    }
+  }
+  if (not changed) {
+    return false;
+  }
+
+  // The shift of a scroll: the band's content moved up by k (what the
+  // terminal showed at row y + k is wanted at row y; the band's bottom k
+  // rows hold content that entered it) or down by k (new rows at the top).
+  // The smallest k that explains the band is the scroll that produced it,
+  // so the shifts are scanned from 1 up. Up to MAX_SCROLL_EXCEPTIONS rows
+  // may disagree with a pure shift -- the caret crossing a band edge, the
+  // scrollbar thumb edges inside a merged region, a static status row --
+  // and are re-emitted afterwards against the scrolled shadow, so the bound
+  // only decides how often the optimization applies, never its correctness.
+  constexpr int MAX_SCROLL_EXCEPTIONS = 10;
+
+  // Rows of the shift range that are not the shifted shadow; filled by the
+  // probe that matched, then copied from the shadow before it is overwritten
+  // and re-emitted against it.
+  auto exceptions = std::vector<int> { };
+  exceptions.reserve(std::size_t(MAX_SCROLL_EXCEPTIONS + 1));
+
+  // Content moved up: view[y] == shadow[y + k] for y in [first_row, last_row - k).
+  // A candidate is accepted only when most of its range rows really match
+  // (mismatches are a minority): without that floor, a k whose whole range is
+  // shorter than the exception budget would be "accepted" with every row
+  // mismatching -- e.g. k near the band size -- and scroll the terminal by a
+  // shift the content never made.
+  auto shift_up = [&] {
+    for (auto k = 1; k < band; ++k) {
+      exceptions.clear();
+      auto range = last_row - k - first_row;
+      for (auto y = first_row; y < last_row - k; ++y) {
+        if (not row_equals(this->view[y], this->shadow[y + k], width)) {
+          exceptions.push_back(y);
+          if (int(exceptions.size()) > MAX_SCROLL_EXCEPTIONS) {
+            break;
+          }
+        }
+      }
+      if (int(exceptions.size()) <= MAX_SCROLL_EXCEPTIONS and int(exceptions.size()) * 2 < range) {
+        return k;
+      }
+    }
+    return 0;
+  };
+
+  // Content moved down: view[y] == shadow[y - k] for y in [first_row + k, last_row).
+  auto shift_down = [&] {
+    for (auto k = 1; k < band; ++k) {
+      exceptions.clear();
+      auto range = last_row - k - first_row;
+      for (auto y = first_row + k; y < last_row; ++y) {
+        if (not row_equals(this->view[y], this->shadow[y - k], width)) {
+          exceptions.push_back(y);
+          if (int(exceptions.size()) > MAX_SCROLL_EXCEPTIONS) {
+            break;
+          }
+        }
+      }
+      if (int(exceptions.size()) <= MAX_SCROLL_EXCEPTIONS and int(exceptions.size()) * 2 < range) {
+        return k;
+      }
+    }
+    return 0;
+  };
+
+  auto k = shift_up();
+  auto content_moved_up = k > 0; // what entered the band: its bottom k rows
+  if (k == 0) {
+    k = shift_down();
+    if (k == 0) {
+      return false; // not a scroll: leave the band to the per-run loop
+    }
+  }
+
+  // The terminal operation moves the band's content the other way:
+  //
+  //  content moved up by k (a wheel scroll): delete k lines at the band top,
+  //    the terminal shifts the band's content up and blanks its bottom k rows;
+  //  content moved down by k: insert k lines at the band top, the terminal
+  //    shifts the band's content down and blanks its top k rows.
+  // The blanked edge is where the content that entered the band is painted.
+  // When the band is the whole screen no scroll region is needed (and none is
+  // left behind); otherwise the band is bracketed by a scroll region that is
+  // reset to the full screen right after the operation.
+  log_graphics_ln("terminal scroll: band " << first_row << ".." << last_row - 1 << (content_moved_up ? " up " : " down ") << k << " row(s), " << exceptions.size() << " row(s) deviate");
+
+  auto full_screen_band = first_row == 0 and last_row == height;
+  if (not full_screen_band) {
+    terminal << "\x1b["sv << first_row + 1 << ';' << last_row << 'r';
+  }
+  // The delete/insert applies at the band's top row (the API is 1-based).
+  move_cursor_to(first_row + 1, 1);
+  terminal << "\x1b["sv << k << (content_moved_up ? 'M' : 'L');
+  if (not full_screen_band) {
+    terminal << "\x1b[r"sv;
+  }
+
+  // The shadow of every shifted row must become the content the terminal now
+  // shows there: the exception rows keep the *shifted* shadow (their screen
+  // content moved with the scroll, so they are re-emitted against it below),
+  // and the rows a pure shift reproduced equal the view by the match above.
+  // The exceptions are copied from the shadow in an order that never reads a
+  // row a pass already overwrote: up-shifts read the row above the exception
+  // (scan upward), down-shifts read the row below it (scan downward).
+  auto new_row_first = first_row;
+  auto new_row_last = first_row + k; // top edge: the rows the insert blanked
+  if (content_moved_up) {
+    for (auto y = first_row; y < last_row - k; ++y) {
+      if (std::find(exceptions.begin(), exceptions.end(), y) != exceptions.end()) {
+        std::copy(this->shadow[y + k].begin(), this->shadow[y + k].end(), this->shadow[y].begin());
+      } else {
+        std::copy(this->view[y].begin(), this->view[y].end(), this->shadow[y].begin());
+      }
+    }
+    new_row_first = last_row - k;
+    new_row_last = last_row; // bottom edge: the rows the delete blanked
+  } else {
+    for (auto y = last_row - 1; y >= first_row + k; --y) {
+      if (std::find(exceptions.begin(), exceptions.end(), y) != exceptions.end()) {
+        std::copy(this->shadow[y - k].begin(), this->shadow[y - k].end(), this->shadow[y].begin());
+      } else {
+        std::copy(this->view[y].begin(), this->view[y].end(), this->shadow[y].begin());
+      }
+    }
+  }
+
+  // The exception rows disagree with the shift: emit their difference against
+  // the scrolled shadow (the terminal's real content), a few cells each for a
+  // caret or a scrollbar thumb edge.
+  for (auto y : exceptions) {
+    emit_row(y, 0, width);
+  }
+
+  // The rows the terminal blanked hold content that entered the band; their
+  // whole width must be emitted (the blank fill is not the shadow), wide
+  // glyphs handled like the run emitter handles them.
+  for (auto y = new_row_first; y < new_row_last; ++y) {
+    auto &row = this->view[y];
+    auto &shadow_row = this->shadow[y];
+    move_cursor_to(int(y) + 1, 1);
+    auto skip = false;
+    for (auto x = 0; x < width; ++x) {
+      auto const &cv = row[x];
+      if (not skip) {
+        escape_to(cv);
+        terminal << cv.ch;
+      }
+      skip = this->text_metrics->get_char_width(cv.ch.get_code()) == 2;
+    }
+    std::copy(row.begin(), row.end(), shadow_row.begin());
+    this->emitted_any = true;
+  }
+
+  return true;
+}
+
 void TextScreen::flush_rows(Rectangle const &region) {
   auto height = int(this->view.size());
   auto first_row = region.y < 0 ? 0 : region.y;
   auto last_row = region.y + region.height > height ? height : region.y + region.height;
   if (first_row >= last_row) {
+    return;
+  }
+
+  // When the damaged band is the terminal content shifted by a whole number
+  // of rows (a scroll), the terminal scrolls its own buffer and only the rows
+  // that entered the band are emitted (see flush_rows_by_terminal_scroll); a
+  // wheel notch then costs a few rows instead of the whole band. Any other
+  // damage falls through to the per-row emission below.
+  if (flush_rows_by_terminal_scroll(first_row, last_row)) {
     return;
   }
 
@@ -361,55 +627,7 @@ void TextScreen::flush_rows(Rectangle const &region) {
     }
     auto full_row_scan = first == 0 and last == width;
 
-    auto &shadow_row = this->shadow[y];
-    auto x = first;
-    while (x < last) {
-      if (same_cell(row[x], shadow_row[x])) {
-        ++x;
-        continue;
-      }
-
-      // A changed run starts at x. If it starts on the continuation cell of
-      // a double-width glyph whose leading cell sits just outside the run,
-      // back the run up by one: that cell holds no glyph of its own (the
-      // emitter skips it after its wide neighbour), so printing the run as
-      // is would show the placeholder as a character of its own.
-      auto run_first = x;
-      if (run_first > 0 and this->text_metrics->get_char_width(row[run_first - 1].ch.get_code()) == 2) {
-        --run_first;
-      }
-
-      // Extend while cells differ; the cells after the run equal the shadow
-      // and are already on the terminal.
-      auto run_last = run_first + 1;
-      while (run_last < width and not same_cell(row[run_last], shadow_row[run_last])) {
-        ++run_last;
-      }
-      // Do not end the run on the continuation cell of a wide glyph: extend
-      // past it so its (skipped) cell stays inside the run's bookkeeping.
-      while (run_last < width and run_last > run_first and this->text_metrics->get_char_width(row[run_last - 1].ch.get_code()) == 2) {
-        ++run_last;
-      }
-
-      // The run is positioned absolutely and starts from the SGR state the
-      // terminal is in (the previous emission, possibly in an earlier row or
-      // pass), so neighbouring content is left untouched.
-      move_cursor_to(int(y) + 1, run_first + 1);
-      auto skip = false;
-      for (auto i = run_first; i < run_last; ++i) {
-        auto const &cv = row[i];
-        if (not skip) {
-          escape_to(cv);
-          terminal << cv.ch;
-        }
-        skip = this->text_metrics->get_char_width(cv.ch.get_code()) == 2;
-      }
-
-      // The terminal now shows the run's cells; record them as sent.
-      std::copy(row.begin() + run_first, row.begin() + run_last, shadow_row.begin() + run_first);
-      this->emitted_any = true;
-      x = run_last;
-    }
+    emit_row(y, first, last);
 
     if (full_row_scan) {
       this->row_sent[y] = true;
