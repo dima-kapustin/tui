@@ -204,7 +204,7 @@ struct PaletteMap {
         prev = raw;
         auto key = quantize(px, 8);
         if (exact_seen.insert(key)) {
-          exact.push_back({ px[0], px[1], px[2] });
+          exact.emplace_back(px[0], px[1], px[2]);
           exact_keys.push_back(key);
         }
       }
