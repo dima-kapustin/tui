@@ -253,5 +253,11 @@ void test_Menu() {
     CHECK(clip.height == 4);        // rows 20..23; the old code kept 8
   }
 
+  // Take the frame off the screen: the windows of shown frames stay alive in
+  // the screen's window list, and the screen tests that follow (byte-exact
+  // emission measurements) must run on an empty screen.
+  frame->set_visible(false);
+  drain();
+
   std::printf("PASS menu popup show/hide, hover and hit-test\n");
 }

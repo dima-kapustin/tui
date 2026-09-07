@@ -24,6 +24,11 @@ void test_Color();
 void test_Font();
 void test_SixelEncoder();
 void test_Menu();
+void test_TextBuffer();
+void test_ScrollPane();
+void test_TextArea_editing();
+void test_TextScreen_scroll();
+void test_TextArea_caret();
 
 void run_font_visual_test();
 void run_font_editor(bool bench = false, bool scrollbench = false, bool sigtest = false);
@@ -40,6 +45,11 @@ int main(int argc, char *argv[]) {
   test_Font();
   test_SixelEncoder();
   test_Menu();
+  test_TextBuffer();
+  test_ScrollPane();
+  test_TextArea_editing();
+  test_TextScreen_scroll();
+  test_TextArea_caret();
 
   if (argc > 1) {
     auto arg = std::string_view(argv[1]);
