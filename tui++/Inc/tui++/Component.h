@@ -740,10 +740,12 @@ public:
   void invalidate() {
     this->flags.is_valid = false;
 
-    if (not is_validate_root()) {
-      if (auto parent = this->parent.lock()) {
-        parent->invalidate_if_valid();
-      }
+    // Invalidate every ancestor up to the top of the tree. The window is
+    // included on purpose: Window::paint re-validates the tree only when the
+    // window itself is invalid, so a relayout requested after the window was
+    // already shown would otherwise be dropped until the next resize.
+    if (auto parent = this->parent.lock()) {
+      parent->invalidate_if_valid();
     }
   }
 

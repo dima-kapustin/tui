@@ -1094,13 +1094,27 @@ std::shared_ptr<Component> Component::find_traversal_root() const {
 }
 
 void Component::revalidate() {
-  if (not this->parent.expired()) {
-    if (screen.is_event_dispatching_thread()) {
-      invalidate();
-      // TODO RepaintManager::add_invalid_component(shared_from_this());
-    } else {
-
+  if (this->parent.expired()) {
+    // Swing's JComponent.revalidate(): without a parent there is no tree to
+    // keep valid, so nothing to defer. The component validates when it is
+    // added to a displayed hierarchy.
+    return;
+  }
+  if (screen.is_event_dispatching_thread()) {
+    invalidate();
+    // Swing hands the invalid component to the RepaintManager, which runs a
+    // validation pass after the pending events. Here the window re-validates
+    // its tree at its next paint, so make sure a validation pass is actually
+    // scheduled (it is a cheap no-op when the layout does not change
+    // anything; layout changes repaint by themselves).
+    if (auto window = get_containing_window()) {
+      screen.post([window] {
+        window->validate();
+      });
     }
+  } else {
+    // Not on the event dispatch thread: the caller must marshal to it (as
+    // Swing does); validation only ever runs on the dispatch thread.
   }
 }
 
