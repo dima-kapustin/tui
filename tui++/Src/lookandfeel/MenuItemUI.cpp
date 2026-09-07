@@ -5,6 +5,7 @@
 
 #include <tui++/Icon.h>
 #include <tui++/Insets.h>
+#include <tui++/KeyStroke.h>
 #include <tui++/lookandfeel/LookAndFeel.h>
 #include <tui++/Menu.h>
 #include <tui++/MenuItem.h>
@@ -19,6 +20,18 @@
 namespace tui::laf {
 constexpr std::string PROPERTY_PREFIX = "MenuItem";
 constexpr std::string CLICK = "do_click";
+
+namespace {
+
+// The accelerator text of a menu item ("Ctrl+Z"), empty when it has none.
+std::string accelerator_text(MenuItem const *item) {
+  if (auto const &accelerator = item->get_accelerator()) {
+    return to_string(accelerator.value());
+  }
+  return {};
+}
+
+}
 
 std::string const& MenuItemUI::get_property_prefix() const {
   return PROPERTY_PREFIX;
@@ -223,7 +236,13 @@ void MenuItemUI::menu_drag_mouse_dragged(MenuDragMouseEvent<MouseDragEvent> &e) 
 }
 
 void MenuItemUI::property_changed(PropertyChangeEvent &e) {
-
+  // An accelerator set after the UI was installed (MenuItem::set_accelerator
+  // repaints and revalidates; the binding follows the model, as in Swing's
+  // BasicMenuItemUI where the accelerator is read whenever the item's state
+  // changes) must be reflected in the window input map.
+  if (e.property_name == "accelerator") {
+    update_accelerator_binding();
+  }
 }
 
 bool MenuItemUI::do_not_close_on_mouse_click() const {
@@ -255,6 +274,13 @@ std::optional<Dimension> MenuItemUI::get_preferred_size(std::shared_ptr<const Co
   auto &&text = this->menu_item->get_text();
   auto metrics = screen.get_text_metrics();
   auto width = text.empty() ? 0 : metrics->get_width(text);
+  // The accelerator of an item of a popup shares the row: its width widens
+  // the item's preferred size, so the popup (whose width is the widest
+  // row's) leaves room for the right-aligned column.
+  auto gap = LookAndFeel::get<int>("MenuItem.IconTextGap", 4);
+  if (auto const &accelerator = this->menu_item->get_accelerator()) {
+    width += gap + metrics->get_width(to_string(accelerator.value()));
+  }
   auto margin = LookAndFeel::get<Insets>("MenuItem.margin", Insets { 0, 1, 0, 1 });
   return Dimension { width + margin.left + margin.right, metrics->get_line_height() };
 }
@@ -271,6 +297,21 @@ void MenuItemUI::paint(Graphics &g, std::shared_ptr<const Component> const &c) c
 
   auto margin = LookAndFeel::get<Insets>("MenuItem.margin", Insets { 0, 1, 0, 1 });
   g.draw_string(this->menu_item->get_text(), margin.left, margin.top);
+
+  // The accelerator ("Ctrl+Z") is right-aligned in the row. The rows of a
+  // popup share its width, so the right edges line up into one column.
+  auto const &accelerator = this->menu_item->get_accelerator();
+  if (accelerator and this->menu_item->get_width() > 0) {
+    auto metrics = screen.get_text_metrics();
+    auto text = to_string(accelerator.value());
+    auto x = this->menu_item->get_width() - margin.right - metrics->get_width(text);
+    // Never draw the accelerator over the title (a row that narrow would
+    // only happen with a manual size; the layout reserves the room).
+    auto title_width = this->menu_item->get_text().empty() ? 0 : metrics->get_width(this->menu_item->get_text());
+    if (x >= margin.left + title_width) {
+      g.draw_string(text, x, margin.top);
+    }
+  }
 }
 
 Color MenuItemUI::get_selection_background(MenuItem const *item) {

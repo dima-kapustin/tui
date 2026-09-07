@@ -3,8 +3,11 @@
 #include <tui++/Event.h>
 #include <tui++/util/utf-8.h>
 
+#include <string>
+
 namespace tui {
 
+// The key (and its modifiers) of a keyboard shortcut.
 class KeyStroke {
   Char key_char = '\0';
   KeyEvent::KeyCode key_code;
@@ -64,6 +67,12 @@ public:
 
   constexpr bool operator==(const KeyStroke &other) const = default;
 };
+
+// The accelerator text shown in menus: "Ctrl+Z", "Ctrl+Insert",
+// "Shift+F3", "Alt+X". Letters are shown uppercase (Windows menu style),
+// so the column a menu aligns them in is independent of the shift state the
+// stroke was registered with.
+std::string to_string(KeyStroke const &key_stroke);
 
 }
 

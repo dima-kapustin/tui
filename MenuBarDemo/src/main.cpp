@@ -27,6 +27,7 @@
 #include <tui++/Component.h>
 #include <tui++/Frame.h>
 #include <tui++/Graphics.h>
+#include <tui++/KeyStroke.h>
 #include <tui++/Menu.h>
 #include <tui++/MenuBar.h>
 #include <tui++/MenuItem.h>
@@ -47,6 +48,7 @@
 #include <iostream>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <typeinfo>
@@ -100,9 +102,14 @@ void advance_palette(const std::shared_ptr<DemoState> &state, std::string_view i
 // Creates an item of `menu` that closes the menu's popup before running
 // `action`. The popup is opened directly (not through the MenuSelectionManager),
 // so a pick has to dismiss it explicitly; the weak reference keeps the item
-// from owning its menu.
-std::shared_ptr<MenuItem> add_item(const std::shared_ptr<Menu> &menu, std::string text, char mnemonic, std::function<void()> action) {
+// from owning its menu. An optional `accelerator` (Swing's
+// JMenuItem.setAccelerator) is shown right-aligned in the popup's accelerator
+// column.
+std::shared_ptr<MenuItem> add_item(const std::shared_ptr<Menu> &menu, std::string text, char mnemonic, std::optional<KeyStroke> const &accelerator, std::function<void()> action) {
   auto item = mnemonic ? make_component<MenuItem>(std::move(text), Char { mnemonic }) : make_component<MenuItem>(std::move(text));
+  if (accelerator) {
+    item->set_accelerator(accelerator.value());
+  }
   auto weak_menu = std::weak_ptr<Menu> { menu };
   item->add_listener([weak_menu, action = std::move(action)](ActionEvent &) {
     if (auto menu = weak_menu.lock()) {
@@ -364,33 +371,36 @@ std::shared_ptr<Frame> build_menu_bar_demo() {
 
   auto file_menu = make_component<Menu>("File");
   file_menu->set_mnemonic('F');
-  add_item(file_menu, "New", 'N', [state] {
+  add_item(file_menu, "New", 'N', KeyStroke { KeyEvent::VK_N, InputEvent::CTRL_DOWN }, [state] {
     advance_palette(state, "File: New");
   });
-  add_item(file_menu, "Open", 'O', [state] {
+  add_item(file_menu, "Open", 'O', KeyStroke { KeyEvent::VK_O, InputEvent::CTRL_DOWN }, [state] {
     advance_palette(state, "File: Open");
   });
-  add_item(file_menu, "Save", 'S', [state] {
+  add_item(file_menu, "Save", 'S', KeyStroke { KeyEvent::VK_S, InputEvent::CTRL_DOWN }, [state] {
     advance_palette(state, "File: Save");
   });
   file_menu->add_separator();
-  add_item(file_menu, "Exit", 'x', [] {
+  add_item(file_menu, "Exit", 'x', std::nullopt, [] {
     terminal.shutdown();
   });
 
   auto edit_menu = make_component<Menu>("Edit");
   edit_menu->set_mnemonic('E');
-  add_item(edit_menu, "Cut", 't', [state] {
+  add_item(edit_menu, "Cut", 't', KeyStroke { KeyEvent::VK_X, InputEvent::CTRL_DOWN }, [state] {
     advance_palette(state, "Edit: Cut");
   });
-  add_item(edit_menu, "Copy", 'C', [state] {
+  add_item(edit_menu, "Copy", 'C', KeyStroke { KeyEvent::VK_INSERT, InputEvent::CTRL_DOWN }, [state] {
     advance_palette(state, "Edit: Copy", 2);
   });
-  add_item(edit_menu, "Paste", 'P', [state] {
+  add_item(edit_menu, "Paste", 'P', KeyStroke { KeyEvent::VK_V, InputEvent::CTRL_DOWN }, [state] {
     advance_palette(state, "Edit: Paste", 3);
   });
   edit_menu->add_separator();
-  add_item(edit_menu, "Delete", 'D', [state] {
+  add_item(edit_menu, "Select All", 'A', KeyStroke { KeyEvent::VK_A, InputEvent::CTRL_DOWN }, [state] {
+    advance_palette(state, "Edit: Select All");
+  });
+  add_item(edit_menu, "Delete", 'D', std::nullopt, [state] {
     advance_palette(state, "Edit: Delete");
   });
 
