@@ -219,6 +219,10 @@ void TextScreen::run_event_loop() {
       dispatch_event(*event);
       event = this->event_queue.pop(std::chrono::milliseconds::zero());
     }
+
+    // Fire due timers (caret blink, ...) on the dispatch thread, ordered
+    // after the events they were scheduled between.
+    run_pending_timers();
   }
 }
 

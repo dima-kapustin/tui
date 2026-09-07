@@ -18,6 +18,7 @@ class Dialog;
 class Window;
 class Component;
 class Graphics;
+class Timer;
 
 namespace laf {
 class LookAndFeel;
@@ -33,6 +34,21 @@ class Screen {
 protected:
   std::thread::id event_dispatching_thread_id;
   EventQueue event_queue;
+
+  // The pending Timer firings, in no particular order. Timers register and
+  // cancel themselves here (Timer::start/stop); run_pending_timers fires the
+  // due entries and re-queues the repeating ones. Only touched on the event
+  // dispatch thread.
+  struct PendingTimer {
+    std::chrono::steady_clock::time_point due;
+    Timer *timer;
+  };
+  std::vector<PendingTimer> timers;
+
+  friend class Timer;
+
+  void add_timer(Timer *timer);
+  void remove_timer(Timer *timer);
 
   std::list<SelectiveListener> selective_listeners;
 
@@ -113,6 +129,12 @@ public:
   EventQueue& get_event_queue() {
     return event_queue;
   }
+
+  // Fires the timers whose time has come; the event loops call this on every
+  // iteration, so timers keep firing while the loop idles. Callbacks run on
+  // the calling (event dispatch) thread. Public so tests can drive timers
+  // without running a full event loop.
+  void run_pending_timers();
 
   /**
    * @return true iff the calling thread is the event dispatching thread

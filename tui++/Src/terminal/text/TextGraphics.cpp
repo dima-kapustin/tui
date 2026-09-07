@@ -64,7 +64,15 @@ TextGraphics::TextGraphics(TextScreen &screen) :
 }
 
 TextGraphics::TextGraphics(TextScreen &screen, const Rectangle &clip_rect, int dx, int dy) :
-    screen(screen), dx(dx), dy(dy), clip(clip_rect) {
+    screen(screen) {
+  // The colors, the font (and with it the attribute bits) and the clip are
+  // all default-constructed empty/optional; reset() gives them their neutral
+  // state, so a draw that does not set them behaves like a plain one (an
+  // empty attribute set must never swallow the attributes a draw passes
+  // explicitly, e.g. the caret's INVERSE or UNDERLINE).
+  reset(clip_rect);
+  this->dx = dx;
+  this->dy = dy;
 }
 
 const TextGraphics::BoxCharacters& TextGraphics::get_box_chars(Stroke stroke) {

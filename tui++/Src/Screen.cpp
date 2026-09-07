@@ -1,4 +1,5 @@
 #include <tui++/Screen.h>
+#include <tui++/Timer.h>
 #include <tui++/Window.h>
 #include <tui++/KeyboardFocusManager.h>
 
@@ -210,6 +211,47 @@ void Screen::add_damage(Rectangle const &rect, std::shared_ptr<Component> const 
     post([this] {
       this->repaint_damaged();
     });
+  }
+}
+
+void Screen::add_timer(Timer *timer) {
+  this->timers.emplace_back(Timer::Clock::now() + timer->period, timer);
+}
+
+void Screen::remove_timer(Timer *timer) {
+  std::erase_if(this->timers, [timer](PendingTimer const &entry) {
+    return entry.timer == timer;
+  });
+}
+
+void Screen::run_pending_timers() {
+  if (this->timers.empty()) {
+    return;
+  }
+
+  // Fire the due entries in order. The entry is removed and the callback
+  // copied before it runs: a tick may stop or destroy its own timer (and may
+  // start or stop any other), and the vector must stay consistent while the
+  // loop below keeps iterating it.
+  auto now = Timer::Clock::now();
+  for (auto i = std::size_t { 0 }; i < this->timers.size();) {
+    auto &entry = this->timers[i];
+    if (entry.due > now) {
+      ++i;
+      continue;
+    }
+
+    auto timer = entry.timer;
+    auto tick = timer->tick;
+    this->timers.erase(this->timers.begin() + std::ptrdiff_t(i));
+
+    // Repeating timers re-queue themselves before the callback runs, so a
+    // tick that stops the timer cancels the new entry again.
+    if (timer->running) {
+      this->timers.emplace_back(now + timer->period, timer);
+    }
+
+    tick();
   }
 }
 
