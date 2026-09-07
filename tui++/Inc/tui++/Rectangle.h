@@ -17,53 +17,19 @@ struct Rectangle: Point, Dimension {
       return false;
     }
 
-    if (x < this->x or y < this->y) {
-      return false;
-    }
-
-    auto right = this->width + x;
-    auto bottom = this->height + y;
-
-    return ((right < this->x or right > x) and (bottom < this->y or bottom > y));
+    // AWT/Swing semantics: the origin is inside, the far edges are not.
+    return x >= this->x and y >= this->y and x - this->x < this->width and y - this->y < this->height;
   }
 
   constexpr bool contains(int x, int y, int width, int height) const {
     if ((this->width | this->height | width | height) < 0) {
-      // At least one of the dimensions is negative...
+      // At least one of the dimensions is negative: nothing can be inside.
       return false;
     }
 
-    // Note: if any dimension is zero, tests below must return false...
-    if (x < this->x or y < this->y) {
-      return false;
-    }
-
-    auto right = this->width + this->x;
-
-    width += x;
-    if (width <= x) {
-      if (right >= this->x or width > right) {
-        return false;
-      }
-    } else {
-      if (right >= this->x and width > right) {
-        return false;
-      }
-    }
-
-    auto bottom = this->height + this->y;
-    height += y;
-    if (height <= y) {
-      if (bottom >= this->y or height > bottom) {
-        return false;
-      }
-    } else {
-      if (bottom >= this->y and height > bottom) {
-        return false;
-      }
-    }
-
-    return true;
+    // The other rectangle is fully inside when its near edge is at or past
+    // this one's origin and its far edge stays short of this one's.
+    return x >= this->x and y >= this->y and width <= this->width - (x - this->x) and height <= this->height - (y - this->y);
   }
 
   constexpr bool intersects(int x, int y, int width, int height) const {
