@@ -37,6 +37,11 @@ void run_font_visual_test();
 void run_font_editor(bool bench = false, bool scrollbench = false, bool sigtest = false);
 
 int main(int argc, char *argv[]) {
+  // stderr/stdout are file-buffered when redirected; abort() would lose the
+  // buffer, hiding which test failed. Unbuffered output keeps the diagnostics.
+  setvbuf(stderr, nullptr, _IONBF, 0);
+  setvbuf(stdout, nullptr, _IONBF, 0);
+
   test_utf8();
   test_Char();
   test_EnumMask();
