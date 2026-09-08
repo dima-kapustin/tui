@@ -49,6 +49,8 @@ public:
     this->sel_anchor = 0;
     this->undo_stack.clear();
     this->redo_stack.clear();
+    this->max_line_width = 0;
+    this->max_line_width_stale = true;
     invalidate_match();
     refresh_caret_geometry();
     refresh_view_size();
@@ -81,6 +83,23 @@ public:
 
   bool is_show_whitespace() const {
     return this->show_whitespace;
+  }
+
+  // Whether the text wraps (Swing's JTextArea.setLineWrap). When off (the
+  // Swing default) a long line keeps its natural width and the enclosing
+  // ScrollPane shows a horizontal scroll bar; when on, the content width is
+  // forced to the viewport width (long lines are cut at the right edge).
+  void set_line_wrap(bool value) {
+    if (this->line_wrap != value) {
+      this->line_wrap = value;
+      this->max_line_width_stale = true;
+      refresh_view_size();
+      repaint();
+    }
+  }
+
+  bool is_line_wrap() const {
+    return this->line_wrap;
   }
 
   // Caret as a byte offset into the buffer.
@@ -242,7 +261,7 @@ public:
   }
 
   bool get_scrollable_tracks_viewport_width() const override {
-    return true;
+    return this->line_wrap;
   }
 
   bool get_scrollable_tracks_viewport_height() const override {
@@ -281,6 +300,25 @@ private:
   void refresh_caret_geometry();
 
   void insert_text(std::string const &text);
+
+  // --- content width (horizontal scrolling) ---------------------------------
+
+  // The content width in cells: the viewport width when the text wraps, or
+  // the longest line's width when it does not. Recomputes (and caches) the
+  // longest-line width on its first call after the cache goes stale.
+  int content_width();
+
+  // The cell width of one line range (decoded like paint does, without the
+  // viewport clip), used to size the horizontal scroll bar.
+  std::uint64_t measure_line_cells(TextBuffer::LineRange const &range) const;
+
+  // The widest line across the whole content, in cells.
+  std::uint64_t measure_max_line_width() const;
+
+  // Grows the cached content width if `line` is now wider than every line seen
+  // so far (an edit made it longer). It never shrinks, so deleting the widest
+  // line keeps a harmless extra horizontal range until the buffer is reset.
+  void grow_max_line_width(std::uint64_t line);
 
   void invalidate_match() {
     this->match_start = this->match_end = UINT64_MAX;
@@ -397,6 +435,15 @@ private:
   std::string search_pattern;
   bool search_mode = false;
   bool search_regexp = false;
+
+  bool line_wrap = false; // Swing's JTextArea default: no line wrap, natural width
+
+  // The content width in cells when line_wrap is off: the longest line seen so
+  // far. Recomputed lazily (once, when it goes stale) and grown by edits; it
+  // is never shrunk, so deleting the longest line leaves a harmless extra
+  // horizontal range until the buffer is reset.
+  std::uint64_t max_line_width = 0;
+  bool max_line_width_stale = true;
 
   int64_t last_notified_lines = -1;
 };

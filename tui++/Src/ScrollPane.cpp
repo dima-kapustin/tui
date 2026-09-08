@@ -159,7 +159,11 @@ void ScrollPane::layout_pane() {
     this->vertical_bar->set_bounds(insets.left + vp_width, insets.top, VERTICAL_BAR_WIDTH, height);
   }
   if (this->horizontal_visible) {
-    this->horizontal_bar->set_bounds(insets.left, insets.top + vp_height, width, HORIZONTAL_BAR_HEIGHT);
+    // The horizontal bar spans the pane's width minus the vertical bar's
+    // column: the corner cell belongs to the vertical bar (it is painted
+    // after the horizontal bar), so the horizontal bar must not draw its
+    // right arrow into it.
+    this->horizontal_bar->set_bounds(insets.left, insets.top + vp_height, vp_width, HORIZONTAL_BAR_HEIGHT);
   }
 
   // Re-resolve the content size now that the bar set is final, then size the

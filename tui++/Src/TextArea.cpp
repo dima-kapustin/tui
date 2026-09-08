@@ -625,6 +625,7 @@ void TextArea::insert_text(std::string const &text) {
   this->sel_anchor = this->caret;
   invalidate_match();
   refresh_caret_geometry();
+  grow_max_line_width(this->caret_line);
   refresh_view_size();
   scroll_caret_to_visible();
   if (inserted_newlines == removed_newlines) {
@@ -663,6 +664,7 @@ void TextArea::delete_backward() {
   this->sel_anchor = this->caret;
   invalidate_match();
   refresh_caret_geometry();
+  grow_max_line_width(this->caret_line);
   refresh_view_size();
   if (removed_newlines > 0) {
     repaint_from_line(first_line);
@@ -696,6 +698,7 @@ void TextArea::delete_forward() {
   this->sel_anchor = this->caret;
   invalidate_match();
   refresh_caret_geometry();
+  grow_max_line_width(this->caret_line);
   refresh_view_size();
   if (removed_newlines > 0) {
     repaint_from_line(first_line);
@@ -761,6 +764,7 @@ void TextArea::undo() {
   this->redo_stack.emplace_back(std::move(edit));
   invalidate_match();
   refresh_caret_geometry();
+  grow_max_line_width(this->caret_line);
   refresh_view_size();
   scroll_caret_to_visible();
   if (inserted_newlines == removed_newlines) {
@@ -788,6 +792,7 @@ void TextArea::redo() {
   this->undo_stack.emplace_back(std::move(edit));
   invalidate_match();
   refresh_caret_geometry();
+  grow_max_line_width(this->caret_line);
   refresh_view_size();
   scroll_caret_to_visible();
   if (inserted_newlines == removed_newlines) {
@@ -1094,17 +1099,99 @@ void TextArea::refresh_view_size() {
   }
   auto lines = this->buffer->known_line_count();
   auto height = int(std::min<std::uint64_t>(lines, 1ull << 30));
-  if (height != get_preferred_size().height or this->last_notified_lines != int64_t(lines)) {
-    set_preferred_size(Dimension { 80, std::max(1, height) });
+  auto width = content_width();
+  if (height != get_preferred_size().height or width != get_preferred_size().width or this->last_notified_lines != int64_t(lines)) {
+    set_preferred_size(Dimension { width, std::max(1, height) });
     this->last_notified_lines = int64_t(lines);
     // Grow the viewport's content size immediately so scroll range and
     // clamps are right without waiting for the next layout pass, then ask
     // the pane (when there is one) to re-run its bar-visibility decision.
     if (auto viewport = get_viewport()) {
-      auto width = viewport->get_width() > 0 ? viewport->get_width() : 80;
-      viewport->set_view_size(width, std::max(1, height));
+      viewport->set_view_size(std::max(1, width), std::max(1, height));
     }
     notify_window();
+  }
+}
+
+int TextArea::content_width() {
+  if (this->line_wrap) {
+    return get_viewport() ? std::max(1, get_viewport()->get_width()) : 80;
+  }
+  if (this->max_line_width_stale) {
+    this->max_line_width = measure_max_line_width();
+    this->max_line_width_stale = false;
+  }
+  return std::max(1, int(std::min<std::uint64_t>(this->max_line_width, 1ull << 30)));
+}
+
+std::uint64_t TextArea::measure_line_cells(TextBuffer::LineRange const &range) const {
+  auto offset = range.start;
+  auto cell = std::uint64_t { 0 };
+  while (offset < range.end) {
+    auto window = this->buffer->read(offset, std::min<std::uint64_t>(4096, range.end - offset));
+    auto base = offset;
+    auto pos = std::size_t { 0 };
+    while (pos < window.size()) {
+      auto first = std::uint8_t(window[pos]);
+      auto expected = first < 0x80 ? 1 : first < 0xE0 ? 2 : first < 0xF0 ? 3 : 4;
+      if (window.size() - pos < std::size_t(expected)) {
+        break; // partial tail: leave it for the next window
+      }
+      auto len = utf8_len(window.data() + pos, window.size() - pos);
+      auto code = decode_char(window.data() + pos, window.size() - pos);
+
+      // Skipped (no cell consumed): carriage returns and combining marks.
+      if (code == '\r' or util::unicode::glyph_width(code) == 0) {
+        pos += std::size_t(len);
+        continue;
+      }
+
+      auto glyph = code;
+      if (util::unicode::glyph_width(code) < 0) {
+        glyph = '?';
+      } else if (code == '\t') {
+        glyph = ' '; // a tab is one cell in a plain viewer
+      }
+      auto glyph_width = util::unicode::glyph_width(glyph);
+      if (glyph_width <= 0) {
+        glyph = '?';
+        glyph_width = 1;
+      }
+      cell += std::uint64_t(glyph_width);
+      pos += std::size_t(len);
+    }
+    offset = base + pos;
+    if (offset >= range.end or pos == 0) {
+      break;
+    }
+  }
+  return cell;
+}
+
+std::uint64_t TextArea::measure_max_line_width() const {
+  auto total = this->buffer->scan_to_end();
+  auto max = std::uint64_t { 0 };
+  constexpr std::uint64_t CHUNK = 4096;
+  for (std::uint64_t first = 0; first < total; first += CHUNK) {
+    auto ranges = this->buffer->read_line_ranges(first, std::min(CHUNK, total - first));
+    for (auto const &range : ranges) {
+      max = std::max(max, measure_line_cells(range));
+    }
+  }
+  return max;
+}
+
+void TextArea::grow_max_line_width(std::uint64_t line) {
+  if (this->line_wrap or this->max_line_width_stale) {
+    return; // the width is the viewport (wrap) or will be recomputed (stale)
+  }
+  auto ranges = this->buffer->read_line_ranges(line, 1);
+  if (ranges.empty()) {
+    return;
+  }
+  auto width = measure_line_cells(ranges[0]);
+  if (width > this->max_line_width) {
+    this->max_line_width = width;
   }
 }
 
@@ -1125,6 +1212,17 @@ void TextArea::paint(Graphics &g) {
     g.fill_rect(0, 0, width, height);
   }
   g.set_foreground_color(fg);
+
+  // The viewport clips horizontally when the view is scrolled: only the cells
+  // [left, right) of each row are visible. Decoding and drawing the rest is
+  // wasted work (a long line is otherwise read and decoded cell-by-cell up to
+  // its whole natural width every frame).
+  auto left = 0;
+  auto right = width;
+  if (auto viewport = get_viewport()) {
+    left = std::max(0, viewport->get_view_position().x);
+    right = std::min(width, left + viewport->get_width());
+  }
 
   // Only the rows inside the viewport are visible (this view is sized to the
   // whole content); painting them is all a frame needs.
@@ -1164,12 +1262,12 @@ void TextArea::paint(Graphics &g) {
     // advance the cursor), so UTF-8 boundaries are never cut.
     auto offset = range.start;
     auto cell = 0;
-    while (offset < range.end and cell < width) {
-      auto want = bytes_for_cells(std::uint64_t(width) - std::uint64_t(cell));
+    while (offset < range.end and cell < right) {
+      auto want = bytes_for_cells(std::uint64_t(right) - std::uint64_t(cell));
       auto window = this->buffer->read(offset, std::min(want, range.end - offset));
       auto base = offset;
       auto pos = std::size_t(0);
-      while (pos < window.size() and cell < width) {
+      while (pos < window.size() and cell < right) {
         auto first = std::uint8_t(window[pos]);
         auto expected = first < 0x80 ? 1 : first < 0xE0 ? 2 : first < 0xF0 ? 3 : 4;
         if (window.size() - pos < std::size_t(expected)) {
@@ -1207,15 +1305,24 @@ void TextArea::paint(Graphics &g) {
           glyph_width = 1;
         }
 
-        if (cell + glyph_width > width) {
+        if (cell + glyph_width > right) {
           // A wide character would straddle the right edge; leave the last
           // cell blank instead of splitting the glyph, and stop the row.
-          if (glyph_width == 2 and cell == width - 1) {
+          if (glyph_width == 2 and cell == right - 1) {
             g.draw_char(Char(' '), cell, row_y);
           }
-          cell = width;
+          cell = right;
           pos += std::size_t(len);
           break;
+        }
+
+        if (cell < left) {
+          // Before the visible window: decode (to keep the byte offset in
+          // step) but do not draw, so a horizontally scrolled long line does
+          // not pay for drawing cells the viewport clips away.
+          cell += glyph_width;
+          pos += std::size_t(len);
+          continue;
         }
 
         auto in_selection = is_selected(base + pos);
@@ -1246,13 +1353,13 @@ void TextArea::paint(Graphics &g) {
     }
 
     // The caret resting at the end of its line: show the cursor right after
-    // the text (only when the row belongs to the caret's line and the caret
-    // is not on a character of this row).
-    if (cell < width and int(this->caret_line) == int(line)) {
+    // the text (only when the line's end is inside the visible horizontal
+    // window and the caret is not on a character of this row).
+    if (int(this->caret_line) == int(line) and this->caret_cell >= left and this->caret_cell < right) {
       if (is_caret_showing() and (this->caret >= range.end or (this->caret <= range.start and range.start == range.end))) {
         g.set_background_color(bg);
         auto caret_attribute = this->caret_form == CaretForm::UNDERLINE ? Attribute::UNDERLINE : Attribute::INVERSE;
-        g.draw_char(Char(' '), cell, row_y, caret_attribute);
+        g.draw_char(Char(' '), this->caret_cell, row_y, caret_attribute);
       }
     }
   }
