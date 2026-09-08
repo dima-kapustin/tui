@@ -206,15 +206,20 @@ void Screen::add_damage(Rectangle const &rect, std::shared_ptr<Component> const 
     }
   }
 
-  // Schedule the repaint as an event on the same queue that carries the mouse
-  // and key events, with at most one such invocation pending. The paint then
-  // runs on the dispatch thread, ordered with the events around it, and every
-  // repaint request that arrives before it runs extends the damage it paints.
+  // Schedule the repaint: as an event on the same queue that carries the
+  // mouse and key events (the default), or on the frame clock when the event
+  // loop enabled it (see repaint_interval). At most one paint is pending at a
+  // time, and every repaint request that arrives before it runs extends the
+  // damage it paints.
   if (not this->repaint_event_pending) {
     this->repaint_event_pending = true;
-    post([this] {
-      this->repaint_damaged();
-    });
+    if (this->repaint_interval.count() > 0) {
+      this->repaint_due = std::chrono::steady_clock::now() + this->repaint_interval;
+    } else {
+      post([this] {
+        this->repaint_damaged();
+      });
+    }
   }
 }
 
@@ -281,6 +286,12 @@ void Screen::repaint_damaged() {
     log_repaint_ln((region.source ? region.source->to_string() : std::string { "screen" }) << ": region (" << region.rect.x << ", " << region.rect.y << " " << region.rect.width << "x" << region.rect.height << ") took " << ms << " ms");
   }
   repaint_pass_end();
+}
+
+void Screen::repaint_if_due() {
+  if (this->repaint_event_pending and std::chrono::steady_clock::now() >= this->repaint_due) {
+    this->repaint_damaged();
+  }
 }
 
 void Screen::add_listener(const EventTypeMask &event_mask, const std::shared_ptr<EventListener<Event>> &listener) {

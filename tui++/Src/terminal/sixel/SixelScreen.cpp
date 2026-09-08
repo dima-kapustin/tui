@@ -323,6 +323,9 @@ void SixelScreen::add_pass_rect(Rectangle const &rect) {
 void SixelScreen::run_event_loop() {
   event_dispatching_thread_id = std::this_thread::get_id();
 
+  // Coalesce repaint requests onto a frame clock (see TextScreen::run_event_loop).
+  this->repaint_interval = std::chrono::milliseconds { 16 };
+
   auto size = this->size;
   while (not this->quit) {
     terminal.read_events();
@@ -361,15 +364,25 @@ void SixelScreen::run_event_loop() {
 
     // Dispatch a bounded batch of events. Repainting is not a side effect of
     // the loop: repaint() requests accumulate damaged regions and schedule a
-    // single repaint invocation on the same queue (see Screen::add_damage),
-    // so the paint is dispatched here in order with the mouse/key events that
-    // caused it -- Swing's RepaintManager behaves the same way. The batch cap
-    // keeps a burst (or a self-reposting timer) from starving the loop.
-    auto event = this->event_queue.pop(WAIT_EVENT_TIMEOUT);
+    // single repaint (on the queue, or on the frame clock -- see
+    // Screen::add_damage). The batch cap keeps a burst (or a self-reposting
+    // timer) from starving the loop. The wait is shortened to the pending
+    // repaint's due time, so an idle screen still paints at its frame
+    // boundary.
+    auto wait = WAIT_EVENT_TIMEOUT;
+    auto now = std::chrono::steady_clock::now();
+    if (this->repaint_event_pending and this->repaint_due <= now + wait) {
+      wait = std::chrono::duration_cast<std::chrono::milliseconds>(this->repaint_due - now);
+      wait = std::max(wait, std::chrono::milliseconds::zero());
+    }
+    auto event = this->event_queue.pop(wait);
     for (auto n = 0; event and n < MAX_EVENTS_PER_TICK; ++n) {
       dispatch_event(*event);
       event = this->event_queue.pop(std::chrono::milliseconds::zero());
     }
+
+    // Paint the frame once its boundary is due.
+    repaint_if_due();
   }
 }
 

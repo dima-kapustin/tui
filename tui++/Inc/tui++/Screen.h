@@ -74,6 +74,15 @@ protected:
   // that invocation runs is painted together, at most once per queue pass.
   bool repaint_event_pending = false;
 
+  // When non-zero, repaint requests ride a frame clock instead of an
+  // immediate queue invocation: the repaint runs at the next interval
+  // boundary after the first damage, so a burst of input (fast mouse motion)
+  // paints once -- the latest state -- instead of once per input batch. The
+  // event loops set this; tests drive repaints directly and keep the
+  // immediate (zero) behavior.
+  std::chrono::milliseconds repaint_interval { };
+  std::chrono::steady_clock::time_point repaint_due { };
+
   mutable std::recursive_mutex windows_mutex;
   std::list<std::shared_ptr<Window>> windows;
 
@@ -223,6 +232,10 @@ public:
   // Repaints the accumulated damaged regions now and clears them. Called by
   // the queued repaint invocation; a no-op when nothing is damaged.
   void repaint_damaged();
+
+  // Runs the pending repaint once its frame boundary is due. The event loops
+  // call this after every input batch (see repaint_interval).
+  void repaint_if_due();
 
   // Notifies the screen that the terminal was resized. Screens that poll the
   // size themselves (e.g. the pixel-level screens) may leave this empty.
