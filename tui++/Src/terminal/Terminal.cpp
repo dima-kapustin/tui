@@ -529,11 +529,23 @@ void Terminal::set_type(std::string_view type) {
 }
 
 Terminal& Terminal::write(const char *data, size_t size) {
-  std::cout.write(data, size);
+  // Buffer the fragment: a repaint emits many tiny sequences (cursor moves,
+  // SGR and single glyphs), and writing each one to the tty as it is produced
+  // lets the terminal redraw after every fragment. flush() writes the whole
+  // frame in one burst, so the terminal repaints once.
+  this->output_buffer.append(data, size);
   return *this;
 }
 
 void Terminal::flush() {
+  // Write everything buffered since the previous flush in a single write,
+  // then flush the stream. Any direct std::cout output (mode sets, title,
+  // cursor shape, queries) still reaches the terminal through the stream
+  // flush here, so it stays ordered with the buffered paint output.
+  if (not this->output_buffer.empty()) {
+    std::cout.write(this->output_buffer.data(), this->output_buffer.size());
+    this->output_buffer.clear();
+  }
   std::cout << std::flush;
 }
 

@@ -255,6 +255,13 @@ private:
   bool quit;
   std::string_view type = "text";
 
+  // Escape-sequence output is accumulated here and written to the terminal in
+  // one burst per flush() (once per frame). Writing each cell/sequence straight
+  // to the tty makes the terminal redraw after every fragment, which is what
+  // the user sees as a left-to-right "snake" on an edit, or a flickering blank
+  // edge under a fast scroll.
+  std::string output_buffer;
+
   std::vector<Option> set_options;
 
   struct {
