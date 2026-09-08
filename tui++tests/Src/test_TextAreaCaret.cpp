@@ -48,13 +48,17 @@ struct VtModel {
   int rows;
   int cols;
   std::vector<std::vector<std::string>> cell;
+  // Whether each cell carries the inverse (standout) attribute -- the block
+  // caret paints itself that way.
+  std::vector<std::vector<bool>> inverse;
   int cursor_row = 0;
   int cursor_col = 0;
   int region_top = 0;
   int region_bottom = 0;
+  bool inv = false;
 
   explicit VtModel(int rows, int cols) :
-      rows(rows), cols(cols), region_bottom(rows - 1), cell(std::size_t(rows), std::vector<std::string>(std::size_t(cols), " ")) {
+      rows(rows), cols(cols), region_bottom(rows - 1), cell(std::size_t(rows), std::vector<std::string>(std::size_t(cols), " ")), inverse(std::size_t(rows), std::vector<bool>(std::size_t(cols), false)) {
   }
 
   std::string row_text(int y) const {
@@ -69,10 +73,12 @@ struct VtModel {
     for (auto &glyph : this->cell[std::size_t(y)]) {
       glyph = " ";
     }
+    std::fill(this->inverse[std::size_t(y)].begin(), this->inverse[std::size_t(y)].end(), false);
   }
 
   void print(std::string const &glyph) {
     this->cell[std::size_t(this->cursor_row)][std::size_t(this->cursor_col)] = glyph;
+    this->inverse[std::size_t(this->cursor_row)][std::size_t(this->cursor_col)] = this->inv;
     if (++this->cursor_col >= this->cols) {
       this->cursor_col = 0;
       if (this->cursor_row < this->region_bottom) {
@@ -171,7 +177,21 @@ struct VtModel {
             params.push_back(param);
           }
           switch (c) {
-          case 'm':
+          case 'm': {
+            // SGR: 0 resets, 7 sets inverse (the block caret), 27 resets it.
+            if (params.empty()) {
+              this->inv = false;
+            } else {
+              for (auto p : params) {
+                if (p == 0 or p == 27) {
+                  this->inv = false;
+                } else if (p == 7) {
+                  this->inv = true;
+                }
+              }
+            }
+            break;
+          }
           case 'h':
           case 'l':
           case '?':
@@ -359,6 +379,9 @@ void test_TextArea_caret() {
   assert(model.apply(start_type_paint));
   {
     auto moves = std::count(start_type_paint.begin(), start_type_paint.end(), 'H');
+    if (moves > 1) {
+      std::fprintf(stderr, "snake paint (%d H): %s\n", int(moves), start_type_paint.c_str());
+    }
     assert(moves <= 1 && "a line-start edit must emit one run, not a snake");
   }
   verify_phase("line-start");
@@ -435,6 +458,42 @@ void test_TextArea_caret() {
   assert(oracle.apply(full_reemit));
   for (auto row = 0; row < dim.height; ++row) {
     assert(oracle.cell[std::size_t(row)] == model.cell[std::size_t(row)] && "the incremental paints must reproduce the full-repaint image");
+  }
+
+  // Typing at the end of a line must keep the caret at that line's end: the
+  // edit rewinds the buffer's lazy line index to the anchor before it, and
+  // the caret geometry must not measure the caret's column through the
+  // rewound index (line_start clamps beyond it to the content end, which
+  // used to land the caret on column 0 of its row).
+  {
+    auto eol_buffer = TextBuffer::create_empty();
+    auto eol_text = std::string { "aaa\nbbbbbbbb\nccc\n" };
+    eol_buffer->replace(0, 0, eol_text);
+    eol_buffer->scan_to_end();
+    area->set_buffer(eol_buffer);
+    drain_events();
+    (void)take();
+
+    // The end of line 1 (the widest line): its newline byte.
+    area->set_caret(offset_of_line(eol_text, 2) - 1);
+    drain_events();
+    (void)take();
+    type_char(frame, Char { 'z' });
+    dynamic_cast<TextScreen&>(screen).clear();
+    screen.refresh();
+    auto eol_paint = take();
+    auto eol_model = VtModel { dim.height, dim.width };
+    assert(eol_model.apply(eol_paint));
+
+    // File line 1 is screen row 2 (row 0 is the frame's top border, row 1 is
+    // file line 0). The caret block must cover the cell right after
+    // "bbbbbbbbz" (screen column 10), not the row's first content cell.
+    auto caret_row = 2;
+    auto caret_col = 10;
+    assert(eol_model.cell[std::size_t(caret_row)][std::size_t(caret_col)] == " " && "the end-of-line caret is a blank cell");
+    assert(eol_model.inverse[std::size_t(caret_row)][std::size_t(caret_col)] && "the caret must sit at the end of the typed line");
+    assert(not eol_model.inverse[std::size_t(caret_row)][1] && "the caret must not be drawn at the start of its row");
+    assert(eol_model.row_text(caret_row).rfind("bbbbbbbbz", 1) == 1 && "the typed character belongs at the end of the line");
   }
 
   std::cout.rdbuf(old_cout);

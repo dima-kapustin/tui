@@ -205,8 +205,12 @@ void TextArea::refresh_caret_geometry() {
   auto [line, byte_col] = this->buffer->offset_to_line(this->caret);
   this->caret_line = line;
 
-  // Terminal-cell column of the caret within its line.
-  auto start = this->buffer->line_start(line);
+  // Terminal-cell column of the caret within its line. The line start is the
+  // caret offset minus its byte column (offset_to_line reports the column),
+  // not buffer->line_start(line): an edit just rewound the lazy line index
+  // to the anchor before it, so line_start would clamp to the content end
+  // and the caret would measure from there (landing on column 0).
+  auto start = this->caret - std::min(byte_col, this->caret);
   auto text = this->buffer->read(start, byte_col);
   auto cell = 0;
   auto pos = std::size_t(0);
@@ -1116,7 +1120,10 @@ int TextArea::content_width() {
     this->max_line_width = measure_max_line_width();
     this->max_line_width_stale = false;
   }
-  return std::max(1, int(std::min<std::uint64_t>(this->max_line_width, 1ull << 30)));
+  // One cell past the widest line: the caret at the end of that line sits in
+  // a cell of its own, and the view is exactly as wide as its content --
+  // without the extra cell the caret would be clipped away at the edge.
+  return std::max(1, int(std::min<std::uint64_t>(this->max_line_width + 1, 1ull << 30)));
 }
 
 std::uint64_t TextArea::measure_line_cells(TextBuffer::LineRange const &range) const {
