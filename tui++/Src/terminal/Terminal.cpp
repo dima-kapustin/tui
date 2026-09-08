@@ -158,6 +158,11 @@ void Terminal::reset_option(Option option) {
 void Terminal::init() {
   std::ios_base::sync_with_stdio(false);
 
+  // Snapshot the stream before anything can replace std::cout.rdbuf(), so
+  // flush() can tell a capture (tests, PerfProbe) apart from the real
+  // terminal and bypass stdio only for the latter.
+  this->default_stdout_streambuf = std::cout.rdbuf();
+
   set_option(DECModeOption::USE_ALTERNATE_SCREEN_BUFFER);
   reset_option(DECModeOption::LINE_WRAP);
   set_option(DECModeOption::MOUSE_VT200);
@@ -538,12 +543,22 @@ Terminal& Terminal::write(const char *data, size_t size) {
 }
 
 void Terminal::flush() {
-  // Write everything buffered since the previous flush in a single write,
-  // then flush the stream. Any direct std::cout output (mode sets, title,
-  // cursor shape, queries) still reaches the terminal through the stream
-  // flush here, so it stays ordered with the buffered paint output.
+  // Write everything buffered since the previous flush in a single burst.
+  // When the stream still has the streambuf it was created with, no capture
+  // is installed: the burst goes straight to the OS handle. The stdio flush
+  // that std::cout would otherwise need is a synchronous round trip into the
+  // console driver, and a scroll repaint re-emits a few KB every frame -- the
+  // round trip, not the bytes, is what made repainting slow. When a test or
+  // probe replaced std::cout.rdbuf(), the stream path keeps their capture
+  // working. Any direct std::cout output (mode sets, title, cursor shape,
+  // queries) flushes immediately after being written, so the stream is empty
+  // here and the tail flush stays ordered with the burst.
   if (not this->output_buffer.empty()) {
-    std::cout.write(this->output_buffer.data(), this->output_buffer.size());
+    if (std::cout.rdbuf() == this->default_stdout_streambuf) {
+      this->write_direct(this->output_buffer.data(), this->output_buffer.size());
+    } else {
+      std::cout.write(this->output_buffer.data(), this->output_buffer.size());
+    }
     this->output_buffer.clear();
   }
   std::cout << std::flush;

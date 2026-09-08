@@ -262,6 +262,14 @@ private:
   // edge under a fast scroll.
   std::string output_buffer;
 
+  // std::cout's streambuf as found at init(), before anything can replace it
+  // (tests and PerfProbe install their own capture). flush() compares the
+  // stream's current streambuf against this: while it still matches, no
+  // capture is in place and the frame burst is written straight to the OS
+  // output handle, skipping the stdio flush whose synchronous round trip into
+  // the console driver dominates the cost of a repaint frame.
+  std::streambuf *default_stdout_streambuf = nullptr;
+
   std::vector<Option> set_options;
 
   struct {
@@ -339,6 +347,12 @@ private:
   }
 
   Terminal& write(const char *data, size_t size);
+
+  // Writes a burst straight to the OS output handle, bypassing the stdio
+  // stream (used when no capture is installed on std::cout). Defined in the
+  // platform files: WriteFile to the console handle on Windows, write(2) on
+  // POSIX.
+  void write_direct(const char *data, size_t size);
 
   friend Terminal& operator<<(Terminal &term, std::string_view const &value);
   friend Terminal& operator<<(Terminal &term, std::string const &value);

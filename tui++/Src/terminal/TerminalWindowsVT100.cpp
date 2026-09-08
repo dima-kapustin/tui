@@ -252,6 +252,24 @@ std::optional<Dimension> Terminal::query_cell_size() {
   return this->impl->query_cell_size();
 }
 
+void Terminal::write_direct(const char *data, size_t size) {
+  // WriteFile on a console handle is the fastest path to the VT stream: no
+  // CRT buffering or newline translation, and no FlushFileBuffers round trip
+  // (what std::cout's flush pays for on every frame). The console caps a
+  // single write at 64 KB, so larger bursts are chunked.
+  auto handle = ::GetStdHandle(STD_OUTPUT_HANDLE);
+  constexpr DWORD MAX_CHUNK = 32 * 1024;
+  for (auto off = size_t { 0 }; off < size; ) {
+    auto chunk = DWORD(size - off > MAX_CHUNK ? MAX_CHUNK : size - off);
+    auto written = DWORD { };
+    ::WriteFile(handle, data + off, chunk, &written, nullptr);
+    off += written;
+    if (written < chunk) {
+      break;
+    }
+  }
+}
+
 }
 
 #endif

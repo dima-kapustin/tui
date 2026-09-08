@@ -1,5 +1,6 @@
 #ifndef _WIN32
 
+#include <cerrno>
 #include <csignal>
 
 #include <sys/ioctl.h>
@@ -178,6 +179,23 @@ Dimension Terminal::get_size() {
 
 std::optional<Dimension> Terminal::query_cell_size() {
   return query_cell_size_from_terminal();
+}
+
+void Terminal::write_direct(const char *data, size_t size) {
+  // write(2) straight to stdout: the same syscall the stdio flush ends in,
+  // without the stream layer. Mirror of the Windows path in
+  // TerminalWindowsVT100.cpp so flush() needs no platform check.
+  auto off = size_t { 0 };
+  while (off < size) {
+    auto n = ::write(STDOUT_FILENO, data + off, size - off);
+    if (n < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
+      break;
+    }
+    off += size_t(n);
+  }
 }
 
 }
