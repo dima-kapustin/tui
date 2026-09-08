@@ -28,6 +28,9 @@ void test_TextBuffer();
 void test_ScrollPane();
 void test_TextArea_editing();
 void test_TextScreen_scroll();
+void test_TextScreen_horizontal_scroll();
+void test_TextScreen_popup_over_scroll();
+void test_TextScreen_scroll_keeps_fixed_ui_out_of_band();
 void test_TextArea_caret();
 
 void run_font_visual_test();
@@ -49,6 +52,9 @@ int main(int argc, char *argv[]) {
   test_ScrollPane();
   test_TextArea_editing();
   test_TextScreen_scroll();
+  test_TextScreen_horizontal_scroll();
+  test_TextScreen_popup_over_scroll();
+  test_TextScreen_scroll_keeps_fixed_ui_out_of_band();
   test_TextArea_caret();
 
   if (argc > 1) {

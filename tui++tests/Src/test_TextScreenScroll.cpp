@@ -10,8 +10,13 @@
 // frame (TextScreen::clear + refresh) -- the incremental terminal-side
 // scrolls must reproduce exactly what a dumb full repaint would print.
 
+#include <tui++/BorderLayout.h>
 #include <tui++/Component.h>
 #include <tui++/Frame.h>
+#include <tui++/Menu.h>
+#include <tui++/MenuBar.h>
+#include <tui++/MenuItem.h>
+#include <tui++/Panel.h>
 #include <tui++/ScrollPane.h>
 #include <tui++/Screen.h>
 #include <tui++/TextArea.h>
@@ -381,6 +386,18 @@ void test_TextScreen_scroll() {
   verify_phase("up2");
   assert(viewport->get_view_position().y == y + 25 && "the viewport is back where the jump put it");
 
+  // A one-row scroll must not use the terminal-side scroll: moving the band
+  // would also move the scroll bar's fixed column (its thumb and arrows) and
+  // then re-emit it, a visible flicker. The per-run fallback repaints the band
+  // in place and still reproduces the full-repaint image.
+  viewport->set_view_position(0, viewport->get_view_position().y + 1);
+  drain_events();
+  auto one_row_paint = take();
+  assert(one_row_paint.find("\x1b[1M") == std::string::npos and one_row_paint.find("\x1b[1L") == std::string::npos &&
+      "a one-row scroll must not scroll the terminal");
+  assert(model.apply(one_row_paint));
+  verify_phase("one-row");
+
   // A repaint of unchanged content must emit nothing at all (the shadow and
   // the terminal agree after the scrolls).
   pane->repaint();
@@ -414,4 +431,314 @@ void test_TextScreen_scroll() {
   std::cout.rdbuf(old_cout);
   std::fprintf(stderr, "test_TextScreen_scroll: full paint %zu bytes, full-band jump %zu bytes, 3-row scrolls down %zu / up %zu bytes, images identical\n",
       full_paint.size(), full_ref, scrolled_down_bytes, scrolled_up_bytes);
+}
+
+// A horizontal scroll repaints only the visible window of a long line, not the
+// whole natural width: the emission must stay proportional to the viewport,
+// and the model must match a full re-emission.
+void test_TextScreen_horizontal_scroll() {
+  std::fprintf(stderr, "test_TextScreen_horizontal_scroll: horizontal scroll of a long line\n");
+
+  auto capture = std::ostringstream { };
+  auto *old_cout = std::cout.rdbuf(capture.rdbuf());
+  screen.repaint_damaged();
+  capture.str({ });
+  auto take = [&] { auto b = capture.str(); capture.str({ }); return b; };
+
+  auto dim = screen.get_size();
+  assert(dim.width > 8 and dim.height > 6);
+
+  // Lines much longer than the viewport, with content that differs per column
+  // so a horizontal shift actually changes every visible cell.
+  auto buffer = TextBuffer::create_empty();
+  std::string text;
+  for (auto i = 0; i < 8; ++i) {
+    for (auto j = 0; j < 120; ++j) {
+      text += char('a' + ((i * 13 + j * 7) % 26));
+    }
+    text += "\n";
+  }
+  buffer->replace(0, 0, text);
+  buffer->scan_to_end();
+
+  auto frame = make_component<Frame>();
+  frame->set_size(dim);
+  auto pane = make_component<ScrollPane>();
+  frame->add(pane);
+  auto area = make_component<TextArea>();
+  area->set_buffer(buffer);
+  pane->set_viewport_view(area);
+  frame->set_visible(true);
+  drain_events();
+  (void)take();
+
+  dynamic_cast<TextScreen&>(screen).clear();
+  screen.refresh();
+  auto full_paint = take();
+  auto model = VtModel { dim.height, dim.width };
+  assert(model.apply(full_paint));
+
+  assert(pane->horizontal_bar_needed());
+
+  auto viewport = pane->get_viewport();
+  viewport->set_view_position(40, 0);
+  drain_events();
+  auto scroll_paint = take();
+  std::fprintf(stderr, "test_TextScreen_horizontal_scroll: horizontal scroll emits %zu bytes (full paint %zu)\n", scroll_paint.size(), full_paint.size());
+  assert(model.apply(scroll_paint));
+
+  // The horizontal scroll must not repaint the whole pane: it stays well below
+  // a full re-emission of the screen.
+  assert(scroll_paint.size() * 2 < full_paint.size() && "a horizontal scroll must not repaint the whole screen");
+
+  // Oracle: the incremental scroll must reproduce the full-repaint image.
+  dynamic_cast<TextScreen&>(screen).clear();
+  screen.refresh();
+  auto reemit = take();
+  auto oracle = VtModel { dim.height, dim.width };
+  assert(oracle.apply(reemit));
+  for (auto row = 0; row < dim.height; ++row) {
+    assert(oracle.cell[std::size_t(row)] == model.cell[std::size_t(row)] && "horizontal scroll must reproduce the full-repaint image");
+  }
+
+  frame->set_visible(false);
+  drain_events();
+  std::cout.rdbuf(old_cout);
+  std::fprintf(stderr, "test_TextScreen_horizontal_scroll: ok\n");
+}
+
+// A terminal-side scroll must never scroll a band that an open popup window
+// overlaps: the popup's cells are not part of the scrolling surface, so a
+// terminal scroll would drag the popup with the content and re-emit it back
+// (a flicker). While a popup overlaps the scrolled viewport, a wheel scroll
+// must fall back to the per-run repaint and still reproduce the full-repaint
+// image.
+void test_TextScreen_popup_over_scroll() {
+  std::fprintf(stderr, "test_TextScreen_popup_over_scroll: popup overlapping a scroll\n");
+
+  auto capture = std::ostringstream { };
+  auto *old_cout = std::cout.rdbuf(capture.rdbuf());
+  screen.repaint_damaged();
+  capture.str({ });
+  auto take = [&] { auto b = capture.str(); capture.str({ }); return b; };
+
+  auto dim = screen.get_size();
+  assert(dim.width > 8 and dim.height > 6);
+
+  auto buffer = TextBuffer::create_empty();
+  auto text = std::string { };
+  for (auto i = 0; i < 120; ++i) {
+    char line[128];
+    auto n = std::snprintf(line, sizeof line, "line %03d: ", i);
+    for (auto j = 0; j < 50; ++j) {
+      line[std::size_t(n) + std::size_t(j)] = char('a' + ((i * 13 + j * 7) % 26));
+    }
+    line[std::size_t(n) + 50] = '\n';
+    text += std::string_view { line, std::size_t(n) + 51 };
+  }
+  buffer->replace(0, 0, text);
+  buffer->scan_to_end();
+
+  auto frame = make_component<Frame>();
+  frame->set_size(dim);
+  frame->set_name("popup scroll frame");
+
+  auto file_menu = make_component<Menu>("File");
+  file_menu->add(make_component<MenuItem>("New"));
+  file_menu->add(make_component<MenuItem>("Open"));
+  file_menu->add(make_component<MenuItem>("Save"));
+  file_menu->add(make_component<MenuItem>("Exit"));
+  auto menu_bar = make_component<MenuBar>();
+  menu_bar->add(file_menu);
+  frame->set_menu_bar(menu_bar);
+
+  auto pane = make_component<ScrollPane>();
+  pane->set_name("popup scroll pane");
+  frame->add(pane);
+  auto area = make_component<TextArea>();
+  area->set_buffer(buffer);
+  pane->set_viewport_view(area);
+
+  frame->set_visible(true);
+  area->request_input_focus();
+  drain_events();
+  (void)take();
+
+  dynamic_cast<TextScreen&>(screen).clear();
+  screen.refresh();
+  auto full_paint = take();
+  auto model = VtModel { dim.height, dim.width };
+  assert(model.apply(full_paint));
+
+  // Open the popup over the scroll area and confirm it overlaps the viewport's
+  // vertical band (the guard only matters while a popup actually overlaps).
+  file_menu->set_popup_menu_visible(true);
+  drain_events();
+  (void)take();
+  auto popup_window = file_menu->get_popup_menu()->get_containing_window();
+  assert(popup_window != nullptr);
+  assert(popup_window->is_visible());
+
+  auto viewport = pane->get_viewport();
+  assert(viewport != nullptr);
+  auto vp_rect = Rectangle { viewport->get_location_on_screen(), viewport->get_size() };
+  auto pop_rect = Rectangle { popup_window->get_location(), popup_window->get_size() };
+  assert(not (vp_rect & pop_rect).empty() && "the popup must overlap the scroll viewport");
+
+  // Re-baseline with the popup visible, so the scroll phase below starts from
+  // a shadow (and model) that already contains the popup's cells.
+  dynamic_cast<TextScreen&>(screen).clear();
+  screen.refresh();
+  auto with_popup_paint = take();
+  model = VtModel { dim.height, dim.width };
+  assert(model.apply(with_popup_paint));
+
+  // A 3-row scroll with the popup overlapping must not use a terminal scroll
+  // (CSI Ps M / CSI Ps L): scrolling the band would move the popup too.
+  viewport->set_view_position(0, viewport->get_view_position().y + 3);
+  drain_events();
+  auto scroll_paint = take();
+  assert(scroll_paint.find("\x1b[3M") == std::string::npos && "a popup-overlapping scroll must not delete lines");
+  assert(scroll_paint.find("\x1b[3L") == std::string::npos && "a popup-overlapping scroll must not insert lines");
+  assert(model.apply(scroll_paint));
+
+  // The per-run repaint must still reproduce the full-repaint image.
+  dynamic_cast<TextScreen&>(screen).clear();
+  screen.refresh();
+  auto reemit = take();
+  auto oracle = VtModel { dim.height, dim.width };
+  assert(oracle.apply(reemit));
+  for (auto row = 0; row < dim.height; ++row) {
+    if (oracle.cell[std::size_t(row)] != model.cell[std::size_t(row)]) {
+      std::fprintf(stderr, "row %d differs:\n  incremental: %s\n  full repaint: %s\n", row, model.row_text(row).c_str(), oracle.row_text(row).c_str());
+      break;
+    }
+  }
+  for (auto row = 0; row < dim.height; ++row) {
+    assert(oracle.cell[std::size_t(row)] == model.cell[std::size_t(row)] && "popup-overlapping scroll must reproduce the full-repaint image");
+  }
+
+  file_menu->set_popup_menu_visible(false);
+  frame->set_visible(false);
+  drain_events();
+  std::cout.rdbuf(old_cout);
+  std::fprintf(stderr, "test_TextScreen_popup_over_scroll: ok\n");
+}
+
+// A status line below the pane repaints when the scroll model moves (the
+// TextAreaDemo does this to show "row=N"). That damage is a separate region
+// from the viewport, so a wheel scroll must keep the terminal-side scroll on
+// the viewport band only -- scrolling a band gap-filled across the horizontal
+// scroll bar and the status line would drag those fixed rows with the content
+// and re-emit them (a flicker). The scroll region the stream sets must end at
+// the viewport's bottom, not at the status line.
+void test_TextScreen_scroll_keeps_fixed_ui_out_of_band() {
+  std::fprintf(stderr, "test_TextScreen_scroll_keeps_fixed_ui_out_of_band: status line below a scrolling pane\n");
+
+  auto capture = std::ostringstream { };
+  auto *old_cout = std::cout.rdbuf(capture.rdbuf());
+  screen.repaint_damaged();
+  capture.str({ });
+  auto take = [&] { auto b = capture.str(); capture.str({ }); return b; };
+
+  auto dim = screen.get_size();
+  assert(dim.width > 8 and dim.height > 6);
+
+  // Lines wider than the viewport so the pane shows a horizontal scroll bar;
+  // that bar sits between the viewport and the status line, so a scroll must
+  // keep the status line out of the terminal-scroll band.
+  auto buffer = TextBuffer::create_empty();
+  auto text = std::string { };
+  for (auto i = 0; i < 120; ++i) {
+    char line[160];
+    auto n = std::snprintf(line, sizeof line, "line %03d: ", i);
+    for (auto j = 0; j < 120; ++j) {
+      line[std::size_t(n) + std::size_t(j)] = char('a' + ((i * 13 + j * 7) % 26));
+    }
+    line[std::size_t(n) + 120] = '\n';
+    text += std::string_view { line, std::size_t(n) + 121 };
+  }
+  buffer->replace(0, 0, text);
+  buffer->scan_to_end();
+
+  auto frame = make_component<Frame>();
+  frame->set_size(dim);
+  frame->set_name("fixed-ui scroll frame");
+
+  auto pane = make_component<ScrollPane>();
+  pane->set_name("fixed-ui scroll pane");
+  frame->add(pane);
+  auto area = make_component<TextArea>();
+  area->set_buffer(buffer);
+  pane->set_viewport_view(area);
+
+  // A one-row status line below the pane, repainted when the scroll bar model
+  // moves (exactly the TextAreaDemo's status line).
+  auto status = make_component<Panel>();
+  status->set_preferred_size(Dimension { 0, 1 });
+  status->set_background_color(Color { 8, 10, 15 });
+  frame->add(status, BorderLayout::SOUTH);
+  pane->get_vertical_scroll_bar()->get_model()->add_change_listener([status] {
+    status->repaint();
+  });
+
+  frame->set_visible(true);
+  area->request_input_focus();
+  drain_events();
+  (void)take();
+
+  dynamic_cast<TextScreen&>(screen).clear();
+  screen.refresh();
+  auto full_paint = take();
+  auto model = VtModel { dim.height, dim.width };
+  assert(model.apply(full_paint));
+
+  auto viewport = pane->get_viewport();
+  assert(viewport != nullptr);
+  assert(pane->horizontal_bar_needed());
+  auto vp_rect = Rectangle { viewport->get_location_on_screen(), viewport->get_size() };
+  auto viewport_bottom_1based = vp_rect.y + vp_rect.height; // band [y, y+height) -> DECSTBM bottom
+
+  viewport->set_view_position(0, viewport->get_view_position().y + 3);
+  drain_events();
+  auto scroll_paint = take();
+  assert(scroll_paint.find("\x1b[3M") != std::string::npos && "a clean viewport scroll must still use the terminal scroll");
+
+  // The first DECSTBM (scroll region) before the scroll must span the viewport
+  // only; a gap-filled band would reach down to the status line's row.
+  auto scroll_region_bottom = [](std::string const &s) {
+    auto pos = std::string::size_type { 0 };
+    while ((pos = s.find("\x1b[", pos)) != std::string::npos) {
+      pos += 2;
+      auto semi = s.find(';', pos);
+      if (semi == std::string::npos) { continue; }
+      auto r = s.find('r', semi);
+      if (r == std::string::npos) { continue; }
+      auto digits_only = r > semi + 1;
+      for (auto i = semi + 1; i < r and digits_only; ++i) {
+        digits_only = s[i] >= '0' and s[i] <= '9';
+      }
+      if (digits_only) {
+        return std::stoi(s.substr(semi + 1, r - semi - 1));
+      }
+    }
+    return -1;
+  };
+  auto region_bottom = scroll_region_bottom(scroll_paint);
+  assert(region_bottom == viewport_bottom_1based && "the scroll region must end at the viewport bottom, not the status line");
+
+  assert(model.apply(scroll_paint));
+  dynamic_cast<TextScreen&>(screen).clear();
+  screen.refresh();
+  auto reemit = take();
+  auto oracle = VtModel { dim.height, dim.width };
+  assert(oracle.apply(reemit));
+  for (auto row = 0; row < dim.height; ++row) {
+    assert(oracle.cell[std::size_t(row)] == model.cell[std::size_t(row)] && "scroll with a status line must reproduce the full-repaint image");
+  }
+
+  frame->set_visible(false);
+  drain_events();
+  std::cout.rdbuf(old_cout);
+  std::fprintf(stderr, "test_TextScreen_scroll_keeps_fixed_ui_out_of_band: ok\n");
 }

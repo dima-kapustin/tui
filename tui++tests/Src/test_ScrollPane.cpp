@@ -7,10 +7,18 @@
 #include <tui++/Viewport.h>
 #include <tui++/Component.h>
 #include <tui++/Dimension.h>
+#include <tui++/Frame.h>
+#include <tui++/Screen.h>
+#include <tui++/TextArea.h>
+#include <tui++/TextBuffer.h>
+#include <tui++/event/MouseEvent.h>
+#include <tui++/terminal/Terminal.h>
 
 #include <cassert>
+#include <chrono>
 #include <cstdio>
 #include <memory>
+#include <string>
 
 using namespace tui;
 
@@ -222,6 +230,88 @@ void test_model_invariants() {
   assert(model.get_value() == 10); // the extent is gone, the value stays
 }
 
+// Drains the event queue (repaint invocations posted by set_visible etc.).
+static void drain() {
+  while (screen.get_event_queue().pop(std::chrono::milliseconds::zero())) {
+  }
+}
+
+void test_scrollbar_mouse_drag() {
+  terminal.set_type("text");
+
+  auto frame = make_component<Frame>();
+  frame->set_size({ 40, 10 });
+  auto pane = make_component<ScrollPane>();
+  frame->add(pane);
+  auto view = std::make_shared<BigFixedView>();
+  pane->set_viewport_view(view);
+  frame->set_visible(true);
+  drain();
+
+  auto vertical = pane->get_vertical_scroll_bar();
+  auto viewport = pane->get_viewport();
+  assert(vertical->is_visible());
+
+  // The thumb in frame-local coordinates.
+  auto bar_loc = vertical->get_location_on_screen();
+  auto thumb = vertical->get_thumb_rect();
+  assert(thumb.width > 0 and thumb.height > 0);
+  auto thumb_center = convert_point_from_screen(
+      Point { bar_loc.x + thumb.x + thumb.width / 2, bar_loc.y + thumb.y + thumb.height / 2 }, frame);
+
+  auto initial = viewport->get_view_position().y;
+
+  // Press the thumb (the terminal reports a press with the button already
+  // down, so was_button_down_before() sees it as just-released).
+  screen.post<MousePressEvent>(frame, MousePressEvent::MOUSE_PRESSED, MousePressEvent::LEFT_BUTTON, InputEvent::LEFT_BUTTON_DOWN, thumb_center.x, thumb_center.y, false);
+  frame->dispatch_event(*screen.get_event_queue().pop());
+  drain();
+
+  // Drag the thumb down by a few rows, then release.
+  auto drag = Point { thumb_center.x, thumb_center.y + 3 };
+  screen.post<MouseDragEvent>(frame, MouseEvent::LEFT_BUTTON, InputEvent::LEFT_BUTTON_DOWN, drag.x, drag.y);
+  frame->dispatch_event(*screen.get_event_queue().pop());
+  drain();
+  screen.post<MousePressEvent>(frame, MousePressEvent::MOUSE_RELEASED, MousePressEvent::LEFT_BUTTON, InputEvent::NO_MODIFIERS, drag.x, drag.y, false);
+  frame->dispatch_event(*screen.get_event_queue().pop());
+  drain();
+
+  assert(viewport->get_view_position().y > initial && "dragging the thumb must scroll the viewport");
+
+  frame->set_visible(false);
+  drain();
+}
+
+// A TextArea with line_wrap off (the Swing default) has a natural width: the
+// longest line. When that exceeds the viewport, the pane shows a horizontal
+// scroll bar; turning line wrapping on forces the width back to the viewport.
+void test_text_area_horizontal_scroll() {
+  auto pane = make_pane();
+  auto area = make_component<TextArea>();
+  auto buffer = TextBuffer::create_empty();
+  buffer->replace(0, 0, "short\n" + std::string(120, 'x') + "\ntail\n");
+  buffer->scan_to_end();
+  area->set_buffer(buffer);
+  pane->set_viewport_view(area);
+  layout_pane(pane, 40, 10);
+
+  assert(not area->is_line_wrap());
+  assert(pane->horizontal_bar_needed());
+  assert(pane->get_horizontal_scroll_bar()->is_visible());
+  // The content width is the longest line, not the viewport width.
+  assert(pane->get_viewport()->get_view_size().width >= 120);
+
+  // Enabling wrap tracks the viewport width: no horizontal overflow.
+  area->set_line_wrap(true);
+  pane->validate();
+  assert(not pane->horizontal_bar_needed());
+  assert(not pane->get_horizontal_scroll_bar()->is_visible());
+
+  area->set_line_wrap(false);
+  pane->validate();
+  assert(pane->horizontal_bar_needed());
+}
+
 } // namespace
 
 void test_ScrollPane() {
@@ -233,5 +323,7 @@ void test_ScrollPane() {
   test_scroll_sync();
   test_view_size_growth();
   test_model_invariants();
+  test_scrollbar_mouse_drag();
+  test_text_area_horizontal_scroll();
   std::fprintf(stderr, "test_ScrollPane: ok\n");
 }

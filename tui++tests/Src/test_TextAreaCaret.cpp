@@ -347,6 +347,22 @@ void test_TextArea_caret() {
   assert(type2_paint.size() * 4 < full_paint.size() && "a second character still repaints one row");
   assert(model.apply(type2_paint));
 
+  // Typing at the very start of a line shifts its whole tail: the edited row
+  // must be emitted as one contiguous run (one cursor move), not a fragmented
+  // "snake" of many small runs.
+  area->set_caret(offset_of_line(text, 8));
+  drain_events();
+  auto caret_at_start = take();
+  assert(model.apply(caret_at_start));
+  type_char(frame, Char { 'Z' });
+  auto start_type_paint = take();
+  assert(model.apply(start_type_paint));
+  {
+    auto moves = std::count(start_type_paint.begin(), start_type_paint.end(), 'H');
+    assert(moves <= 1 && "a line-start edit must emit one run, not a snake");
+  }
+  verify_phase("line-start");
+
   // Enter inserts a line: rows below the caret shift down, so the damage
   // runs from the edited row to the bottom; the image must stay correct.
   type_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER, InputEvent::NO_MODIFIERS);

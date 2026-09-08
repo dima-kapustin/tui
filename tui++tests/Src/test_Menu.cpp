@@ -121,12 +121,20 @@ void test_Menu() {
   }
 
   // Hovering the File menu arms it (the Swing rollover/hover highlight).
+  // Arming/hovering a top-level menu must not change the frame's layout: a
+  // hover repaint used to destabilize the menu bar's reported size and
+  // briefly shrink the frame. Lock the frame (and content pane) size here.
+  auto frame_size = frame->get_size();
+  auto content_size = frame->get_content_pane()->get_size();
+
   auto loc = file_menu->get_location_on_screen();
   auto sz = file_menu->get_size();
   auto center = Point { loc.x + sz.width / 2, loc.y + sz.height / 2 };
   auto local = convert_point_from_screen(center, frame);
   CHECK(hover(frame, local));
   CHECK(file_menu->is_armed());
+  CHECK(frame->get_size() == frame_size);
+  CHECK(frame->get_content_pane()->get_size() == content_size);
 
   // A click (press + release) opens the popup.
   drain();
@@ -144,6 +152,13 @@ void test_Menu() {
   // The popup window covers the area below the menu; hit-testing must prefer
   // it over the frame underneath.
   auto popup_menu = file_menu->get_popup_menu();
+
+  // The popup menu paints the theme's menu background/foreground (Swing's
+  // "PopupMenu.background/foreground"), so its items are readable on a solid
+  // menu surface instead of floating over the frame beneath it.
+  CHECK(popup_menu->get_background_color().has_value());
+  CHECK(popup_menu->get_foreground_color().has_value());
+
   auto rp = get_root_pane(popup_menu);
   auto cp = rp->get_content_pane();
   auto popup_origin = file_menu->get_location_on_screen();
