@@ -3,6 +3,7 @@
 #include <tui++/Attributes.h>
 #include <tui++/Screen.h>
 #include <tui++/Component.h>
+#include <tui++/Symbols.h>
 #include <tui++/event/MouseEvent.h>
 
 namespace tui {
@@ -71,6 +72,12 @@ void ScrollBar::init() {
     on_wheel(e.wheel_rotation);
     e.consume();
   });
+  // The thumb drag is observed on the screen (see ScrollBarDragObserver), but
+  // the window dispatcher retargets a drag to the press target only when the
+  // window enables MOUSE_DRAG events. Enabling it here (there is no local
+  // listener, so the drag is dispatched to the screen observer only) makes
+  // the window forward drags to this bar.
+  enable_events(EventType::MOUSE_DRAG);
 }
 
 void ScrollBar::register_drag_observer() {
@@ -110,6 +117,7 @@ BarGeometry bar_geometry(ScrollBar const &bar, Rectangle const &bounds) {
   auto extent = model->get_extent();
 
   BarGeometry g { };
+  g.range = range;
   g.span = std::max(0, length - 2);
   if (range <= 0 or g.span <= 0) {
     g.span = std::max(0, length - 2);
@@ -147,13 +155,15 @@ void ScrollBar::paint(Graphics &g) {
   auto fg = get_foreground_color();
   g.set_foreground_color(fg);
 
-  // Arrow cells.
+  // Arrow cells. A terminal has no "up"/"down" arrows in ASCII; the caret
+  // (^) and the letter (v) it fell back to before have very different visual
+  // heights, so use the dedicated arrow glyphs (single-cell) for all four.
   if (is_vertical(this->orientation)) {
     if (h >= 1) {
-      g.draw_string("^", 0, 0);
+      g.draw_char(Symbols::ARROW_UP, 0, 0);
     }
     if (h >= 2) {
-      g.draw_string("v", 0, h - 1);
+      g.draw_char(Symbols::ARROW_DOWN, 0, h - 1);
     }
     auto thumb = get_thumb_rect();
     for (auto y = thumb.y; y < thumb.bottom() and y < h - 1; ++y) {
@@ -163,10 +173,10 @@ void ScrollBar::paint(Graphics &g) {
     }
   } else {
     if (w >= 1) {
-      g.draw_string("<", 0, 0);
+      g.draw_char(Symbols::ARROW_LEFT, 0, 0);
     }
     if (w >= 2) {
-      g.draw_string(">", w - 1, 0);
+      g.draw_char(Symbols::ARROW_RIGHT, w - 1, 0);
     }
     auto thumb = get_thumb_rect();
     for (auto y = 0; y < h; ++y) {
