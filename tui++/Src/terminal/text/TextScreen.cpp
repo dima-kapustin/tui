@@ -764,13 +764,19 @@ void TextScreen::flush_rows(Rectangle const &region) {
   }
 
   // When the damaged band is the terminal content shifted by a whole number
-  // of rows (a scroll), the terminal scrolls its own buffer and only the rows
-  // that entered the band are emitted (see flush_rows_by_terminal_scroll); a
-  // wheel notch then costs a few rows instead of the whole band. Any other
-  // damage falls through to the per-row emission below.
+  // of rows (a scroll), flush_rows_by_terminal_scroll can move the terminal's
+  // own buffer and emit only the rows that entered the band. That path is
+  // disabled: the terminal scroll blanks the revealed edge first and fills it
+  // afterwards, and the blank shows for one frame no matter how well it is
+  // masked -- a flicker at the top or bottom of the band on every scroll.
+  // The per-row emission below repaints every changed cell in place (the path
+  // the popup-overlap case has always used): no blank, no intermediate state,
+  // no flicker, at the cost of re-emitting the changed band. Flip the switch
+  // when the byte cost matters more than the edge transient.
+  constexpr bool USE_TERMINAL_SCROLL = false;
   auto first_column = std::max(0, region.x);
   auto last_column = std::min(int(this->view[first_row].size()), region.x + region.width);
-  if (flush_rows_by_terminal_scroll(first_row, last_row, first_column, last_column)) {
+  if (USE_TERMINAL_SCROLL and flush_rows_by_terminal_scroll(first_row, last_row, first_column, last_column)) {
     return;
   }
 

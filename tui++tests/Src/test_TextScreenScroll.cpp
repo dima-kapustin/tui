@@ -360,18 +360,18 @@ void test_TextScreen_scroll() {
   auto const full_ref = jump_paint.size();
   verify_phase("jump");
 
-  // Then scroll three rows at a time, down and back up. Each notch must be a
-  // terminal-side scroll of 3 rows (CSI 3 M deletes lines for content that
-  // moved up, CSI 3 L inserts them for content that moved down) plus only the
-  // rows that entered the band -- far fewer bytes than the band itself.
+  // Then scroll three rows at a time, down and back up. The terminal-side
+  // scroll is disabled (its blanked edge flashes for a frame), so every notch
+  // is repainted in place: no CSI Ps M / CSI Ps L may reach the terminal, and
+  // the band is re-emitted (comparable to a full-band repaint).
   auto scrolled_down_bytes = std::size_t { 0 };
   auto scrolled_up_bytes = std::size_t { 0 };
   auto scroll_by = [&](int delta, std::string const &expect, std::size_t &sink) {
     viewport->set_view_position(0, viewport->get_view_position().y + delta);
     drain_events();
     auto paint = take();
-    assert(paint.find("\x1b[" + expect) != std::string::npos && "a 3-row scroll must scroll the terminal by 3 rows");
-    assert(paint.size() * 2 < full_ref && "a 3-row scroll must cost far less than a full-band repaint");
+    assert(paint.find("\x1b[" + expect) == std::string::npos && "a scroll must not scroll the terminal");
+    assert(paint.size() * 2 < full_ref * 3 && "an in-place scroll must stay within the band's cost");
     assert(model.apply(paint));
     sink += paint.size();
   };
@@ -386,10 +386,8 @@ void test_TextScreen_scroll() {
   verify_phase("up2");
   assert(viewport->get_view_position().y == y + 25 && "the viewport is back where the jump put it");
 
-  // A one-row scroll must not use the terminal-side scroll: moving the band
-  // would also move the scroll bar's fixed column (its thumb and arrows) and
-  // then re-emit it, a visible flicker. The per-run fallback repaints the band
-  // in place and still reproduces the full-repaint image.
+  // A one-row scroll repaints the band in place the same way (the fixed
+  // scroll bar column must not be scrolled with the content).
   viewport->set_view_position(0, viewport->get_view_position().y + 1);
   drain_events();
   auto one_row_paint = take();
@@ -419,7 +417,7 @@ void test_TextScreen_scroll() {
     if (oracle.cell[std::size_t(row)] != model.cell[std::size_t(row)]) {
       std::fprintf(stderr, "row %d differs after the incremental scrolls:\n  incremental: %s\n  full repaint: %s\n", row, model.row_text(row).c_str(), oracle.row_text(row).c_str());
     }
-    assert(oracle.cell[std::size_t(row)] == model.cell[std::size_t(row)] && "the terminal-side scrolls must reproduce the full-repaint image");
+    assert(oracle.cell[std::size_t(row)] == model.cell[std::size_t(row)] && "the in-place scrolls must reproduce the full-repaint image");
   }
 
   // Remove this test's window from the screen: the windows of the shown
@@ -429,7 +427,7 @@ void test_TextScreen_scroll() {
   drain_events();
 
   std::cout.rdbuf(old_cout);
-  std::fprintf(stderr, "test_TextScreen_scroll: full paint %zu bytes, full-band jump %zu bytes, 3-row scrolls down %zu / up %zu bytes, images identical\n",
+  std::fprintf(stderr, "test_TextScreen_scroll: full paint %zu bytes, full-band jump %zu bytes, 3-row in-place scrolls down %zu / up %zu bytes, images identical\n",
       full_paint.size(), full_ref, scrolled_down_bytes, scrolled_up_bytes);
 }
 
@@ -627,11 +625,10 @@ void test_TextScreen_popup_over_scroll() {
 
 // A status line below the pane repaints when the scroll model moves (the
 // TextAreaDemo does this to show "row=N"). That damage is a separate region
-// from the viewport, so a wheel scroll must keep the terminal-side scroll on
-// the viewport band only -- scrolling a band gap-filled across the horizontal
-// scroll bar and the status line would drag those fixed rows with the content
-// and re-emit them (a flicker). The scroll region the stream sets must end at
-// the viewport's bottom, not at the status line.
+// from the viewport, so a scroll repaints the viewport band and the status
+// line as separate regions in place -- the terminal-side scroll (whose
+// full-width band would drag the fixed rows with the content) is disabled
+// entirely, so the fixed UI can never move with a scroll.
 void test_TextScreen_scroll_keeps_fixed_ui_out_of_band() {
   std::fprintf(stderr, "test_TextScreen_scroll_keeps_fixed_ui_out_of_band: status line below a scrolling pane\n");
 
@@ -696,36 +693,12 @@ void test_TextScreen_scroll_keeps_fixed_ui_out_of_band() {
   auto viewport = pane->get_viewport();
   assert(viewport != nullptr);
   assert(pane->horizontal_bar_needed());
-  auto vp_rect = Rectangle { viewport->get_location_on_screen(), viewport->get_size() };
-  auto viewport_bottom_1based = vp_rect.y + vp_rect.height; // band [y, y+height) -> DECSTBM bottom
 
   viewport->set_view_position(0, viewport->get_view_position().y + 3);
   drain_events();
   auto scroll_paint = take();
-  assert(scroll_paint.find("\x1b[3M") != std::string::npos && "a clean viewport scroll must still use the terminal scroll");
-
-  // The first DECSTBM (scroll region) before the scroll must span the viewport
-  // only; a gap-filled band would reach down to the status line's row.
-  auto scroll_region_bottom = [](std::string const &s) {
-    auto pos = std::string::size_type { 0 };
-    while ((pos = s.find("\x1b[", pos)) != std::string::npos) {
-      pos += 2;
-      auto semi = s.find(';', pos);
-      if (semi == std::string::npos) { continue; }
-      auto r = s.find('r', semi);
-      if (r == std::string::npos) { continue; }
-      auto digits_only = r > semi + 1;
-      for (auto i = semi + 1; i < r and digits_only; ++i) {
-        digits_only = s[i] >= '0' and s[i] <= '9';
-      }
-      if (digits_only) {
-        return std::stoi(s.substr(semi + 1, r - semi - 1));
-      }
-    }
-    return -1;
-  };
-  auto region_bottom = scroll_region_bottom(scroll_paint);
-  assert(region_bottom == viewport_bottom_1based && "the scroll region must end at the viewport bottom, not the status line");
+  assert(scroll_paint.find("\x1b[3M") == std::string::npos and scroll_paint.find("\x1b[3L") == std::string::npos &&
+      "a scroll must not use the terminal scroll");
 
   assert(model.apply(scroll_paint));
   dynamic_cast<TextScreen&>(screen).clear();
