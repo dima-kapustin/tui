@@ -14,7 +14,8 @@ cmake_minimum_required(VERSION 3.20)
 #   - typing edits; the buffer is memory-mapped, only edited pages are copied
 #   - F3 opens the search line, typing + Enter jumps to the next match
 #     (F3 again repeats the last search), F4 toggles regexp search
-#   - F5 toggles visible whitespace (space dots, tab arrows)
+#   - Edit > Show Invisibles (F5) toggles visible whitespace (space dots,
+#     tab arrows, line-feed arrows at line ends)
 #   - the wheel and the scroll bar move through the file
 #
 # Self-contained CMake project (see MenuBarDemo). Quit with Ctrl+C.

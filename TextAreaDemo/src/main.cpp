@@ -13,14 +13,15 @@
 // can be viewed, edited and searched with bounded memory.
 //
 // A Swing-style menu bar sits on top: File (Exit) and Edit (Undo/Redo,
-// Cut/Copy/Paste, Delete, Select All). The Edit shortcuts live in the item's
-// accelerator column, right-aligned as in Swing's menu layout. Selection:
+// Cut/Copy/Paste, Delete, Select All, Show Invisibles). The Edit shortcuts
+// live in the item's accelerator column, right-aligned as in Swing's menu
+// layout. Selection:
 // Shift+arrows / Shift+click; chords: Ctrl+X cut, Ctrl+Insert copy, Ctrl+V
 // paste, Ctrl+A select all, Ctrl+Z / Ctrl+Y undo/redo (the console keeps
 // Ctrl+C, so Copy uses Swing's secondary Ctrl+Insert binding). F3 search, F4
-// regexp search, F5 visible whitespace, F6 caret form (block/underline),
-// F7 caret blink (blink/steady/hidden). The status line mirrors the buffer
-// and caret state.
+// regexp search, F5 Show Invisibles (whitespace dots/arrows), F6 caret form
+// (block/underline), F7 caret blink (blink/steady/hidden). The status line
+// mirrors the buffer and caret state.
 //
 // Quit with Ctrl+C or the File menu.
 
@@ -211,6 +212,14 @@ std::string status_text(DemoState const &state) {
 std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &buffer) {
   auto state = std::make_shared<DemoState>();
 
+  // The whitespace rendering toggle, shared by the F5 key and the Edit menu's
+  // "Show Invisibles" item (Swing leaves such view options to the
+  // application; TextArea itself binds no key for it).
+  auto toggle_invisibles = [](std::shared_ptr<TextArea> const &area) {
+    area->set_show_whitespace(not area->is_show_whitespace());
+    area->show_message(std::string("whitespace ") + (area->is_show_whitespace() ? "visible" : "hidden"));
+  };
+
   auto frame = make_component<Frame>();
   frame->set_background_color(Color { 14, 16, 24 });
   frame->set_size(screen.get_size());
@@ -294,6 +303,12 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
   auto select_all_item = add_item(edit_menu, "Select All", 'A', KeyStroke { KeyEvent::VK_A, InputEvent::CTRL_DOWN }, edit_action([](auto const &area) {
     area->select_all();
   }));
+  edit_menu->add_separator();
+  // The view toggle (Swing leaves this to the application, so the shortcut
+  // is the item's accelerator rather than a key handler inside TextArea).
+  auto invisibles_item = add_item(edit_menu, "Show Invisibles", 'I', KeyStroke { KeyEvent::VK_F5, InputEvent::NO_MODIFIERS }, edit_action([toggle_invisibles](auto const &area) {
+    toggle_invisibles(area);
+  }));
   (void)undo_item;
   (void)redo_item;
   (void)cut_item;
@@ -301,6 +316,7 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
   (void)paste_item;
   (void)delete_item;
   (void)select_all_item;
+  (void)invisibles_item;
 
   auto menu_bar = make_component<MenuBar>();
   menu_bar->add(file_menu);
@@ -332,14 +348,21 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
   frame->set_visible(true);
   frame->add_listener(std::make_shared<KeyRefresher>(refresh));
   // The caret's look is configurable, as a Swing text component's caret is:
-  // F6 cycles the form (block/underline), F7 the blink mode
+  // F5 toggles the whitespace rendering (Edit > Show Invisibles), F6 cycles
+  // the form (block/underline), F7 the blink mode
   // (blinking/steady/hidden); the message row reports the current choice.
-  frame->add_listener([area, refresh](KeyEvent &e) {
+  frame->add_listener([area, refresh, toggle_invisibles](KeyEvent &e) {
     if (e.id != KeyEvent::KEY_PRESSED) {
       return;
     }
     auto changed = false;
     switch (e.get_key_code()) {
+    case KeyEvent::VK_F5:
+      // The menu item's accelerator column shows the same shortcut.
+      toggle_invisibles(area);
+      refresh();
+      e.consume();
+      break;
     case KeyEvent::VK_F6:
       area->set_caret_form(area->get_caret_form() == TextArea::CaretForm::BLOCK ? TextArea::CaretForm::UNDERLINE : TextArea::CaretForm::BLOCK);
       changed = true;
@@ -397,10 +420,10 @@ int usage(const char *program) {
                "Ctrl+X cut, Ctrl+Insert copy, Ctrl+V paste, Ctrl+A select all,\n"
                "Ctrl+Z / Ctrl+Y undo/redo (the shortcuts are the menu items'\n"
                "accelerators, right-aligned in the Edit popup), F3 search (Enter\n"
-               "jumps, F3 repeats), F4 regexp search, F5 visible whitespace,\n"
-               "F6 caret form (block/underline), F7 caret blink\n"
-               "(blinking/steady/hidden). --log-events writes the event/resize/\n"
-               "graphics history to stderr.\n",
+               "jumps, F3 repeats), F4 regexp search, F5 Show Invisibles (the\n"
+               "Edit menu's whitespace toggle), F6 caret form (block/underline),\n"
+               "F7 caret blink (blinking/steady/hidden). --log-events writes the\n"
+               "event/resize/graphics history to stderr.\n",
                program);
   return 1;
 }

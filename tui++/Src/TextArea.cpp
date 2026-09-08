@@ -964,11 +964,6 @@ void TextArea::on_key_pressed(KeyEvent &e) {
     show_message(std::string("regexp search ") + (this->search_regexp ? "on" : "off") + " (F3 to search)");
     e.consume();
     break;
-  case KeyEvent::VK_F5:
-    set_show_whitespace(not this->show_whitespace);
-    show_message(std::string("whitespace ") + (this->show_whitespace ? "visible" : "hidden"));
-    e.consume();
-    break;
   default:
     break;
   }
@@ -1357,6 +1352,16 @@ void TextArea::paint(Graphics &g) {
       if (offset >= range.end or pos == 0) {
         break;
       }
+    }
+
+    // In Show Invisibles mode the line's terminating newline is drawn as a
+    // visible symbol right after the text. `offset >= range.end` means the
+    // whole line was decoded, so `cell` is its true width; the view reserves
+    // one cell past the widest line for exactly this and the end-of-line
+    // caret.
+    if (this->show_whitespace and range.has_newline and offset >= range.end and cell >= left) {
+      g.set_background_color(bg);
+      g.draw_char(Char(char32_t(0x21B5)), cell, row_y); // the line-feed arrow
     }
 
     // The caret resting at the end of its line: show the cursor right after
