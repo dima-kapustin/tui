@@ -51,9 +51,19 @@ ScrollBar::ScrollBar(Orientation orientation) :
   // The model listener only touches the model's own listener list, so it is
   // safe in the constructor; the component listeners below need shared
   // ownership (add_listener reaches the containing window) and are therefore
-  // registered in init().
+  // registered in init(). Only the thumb depends on the model, so a value/
+  // range change damages the cells the thumb left and the cells it now
+  // occupies; repainting the whole bar would drag the fixed track and arrow
+  // column into the damage band of a scroll (the viewport's region merges
+  // with a full-height bar region, see Screen::add_damage).
   this->model->add_change_listener([this] {
-    repaint();
+    auto old_thumb = this->last_thumb_rect;
+    auto new_thumb = get_thumb_rect();
+    this->last_thumb_rect = new_thumb;
+    if (old_thumb != new_thumb) {
+      repaint(old_thumb);
+    }
+    repaint(new_thumb);
   });
 }
 
@@ -155,6 +165,8 @@ void ScrollBar::paint(Graphics &g) {
   auto fg = get_foreground_color();
   g.set_foreground_color(fg);
 
+  auto thumb = get_thumb_rect();
+
   // Arrow cells. A terminal has no "up"/"down" arrows in ASCII; the caret
   // (^) and the letter (v) it fell back to before have very different visual
   // heights, so use the dedicated arrow glyphs (single-cell) for all four.
@@ -165,7 +177,6 @@ void ScrollBar::paint(Graphics &g) {
     if (h >= 2) {
       g.draw_char(Symbols::ARROW_DOWN, 0, h - 1);
     }
-    auto thumb = get_thumb_rect();
     for (auto y = thumb.y; y < thumb.bottom() and y < h - 1; ++y) {
       for (auto x = 0; x < w; ++x) {
         g.draw_char(Char(' '), x, y, Attribute::INVERSE);
@@ -178,13 +189,17 @@ void ScrollBar::paint(Graphics &g) {
     if (w >= 2) {
       g.draw_char(Symbols::ARROW_RIGHT, w - 1, 0);
     }
-    auto thumb = get_thumb_rect();
     for (auto y = 0; y < h; ++y) {
       for (auto x = thumb.x; x < thumb.right() and x < w - 1; ++x) {
         g.draw_char(Char(' '), x, y, Attribute::INVERSE);
       }
     }
   }
+
+  // Remember where the thumb was painted: the model listener damages this
+  // rect plus the new thumb rect, so a resize (whose full repaint skips the
+  // listener) still leaves an accurate previous thumb for the next change.
+  this->last_thumb_rect = thumb;
 }
 
 ScrollBar::DragMode ScrollBar::hit_test(int x, int y, int &grab_offset) const {

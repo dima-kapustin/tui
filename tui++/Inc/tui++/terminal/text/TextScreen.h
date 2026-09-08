@@ -89,7 +89,10 @@ private:
   // rows that entered the band (and the few rows that disagree with a pure
   // shift) are emitted. Returns true when the whole band was handled by the
   // scroll; false leaves the band to the per-run emission of flush_rows.
-  bool flush_rows_by_terminal_scroll(int first_row, int last_row);
+  // [first_column, last_column) is the damaged column span: the blank the
+  // terminal paints on the revealed edge must match it cell for cell, or the
+  // scroll is refused (see the uniformity check inside).
+  bool flush_rows_by_terminal_scroll(int first_row, int last_row, int first_column, int last_column);
 
   static bool row_equals(std::vector<CharView> const &a, std::vector<CharView> const &b, int width);
 

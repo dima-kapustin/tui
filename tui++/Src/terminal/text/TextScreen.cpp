@@ -17,6 +17,33 @@ using namespace std::string_view_literals;
 
 namespace tui {
 
+namespace {
+
+// The squared RGB distance between two cell colors, with the empty
+// (terminal-default) color treated as black. Used to judge how visible the
+// terminal's blanked-edge background is against the content that will
+// replace it (see flush_rows_by_terminal_scroll).
+long long bg_distance_sq(TextColor const &a, TextColor const &b) {
+  auto rgb = [](TextColor const &c) {
+    return std::visit([](auto const &v) {
+      using T = std::decay_t<decltype(v)>;
+      if constexpr (std::is_same_v<T, std::monostate>) {
+        return detail::TrueColor { 0, 0, 0 };
+      } else {
+        return detail::TrueColor { v };
+      }
+    }, c);
+  };
+  auto ca = rgb(a);
+  auto cb = rgb(b);
+  auto dr = int(ca.red) - int(cb.red);
+  auto dg = int(ca.green) - int(cb.green);
+  auto db = int(ca.blue) - int(cb.blue);
+  return 1LL * dr * dr + 1LL * dg * dg + 1LL * db * db;
+}
+
+}
+
 constexpr std::chrono::milliseconds WAIT_EVENT_TIMEOUT { 30 };
 
 // The most events dispatched per event-loop iteration. Mouse motion is read
@@ -430,7 +457,7 @@ void TextScreen::emit_whole_row(int y, int first, int last) {
   this->emitted_any = true;
 }
 
-bool TextScreen::flush_rows_by_terminal_scroll(int first_row, int last_row) {
+bool TextScreen::flush_rows_by_terminal_scroll(int first_row, int last_row, int first_column, int last_column) {
   auto height = int(this->view.size());
   auto band = last_row - first_row;
   if (band < 2) {
@@ -605,12 +632,43 @@ bool TextScreen::flush_rows_by_terminal_scroll(int first_row, int last_row) {
   auto new_row_first = content_moved_up ? last_row - k : first_row;
   auto new_row_last = content_moved_up ? last_row : first_row + k;
 
+  // The terminal paints the revealed edge with ONE solid background (the mask
+  // set below). Wherever the final content of the entering rows differs from
+  // that background, the terminal shows the mask color for the frame between
+  // the scroll and the fill. Judge the difference by its visual weight -- the
+  // sum of the squared color distances over the damaged columns -- and refuse
+  // the scroll when it would be seen: a highlighted row entering the edge is
+  // an obvious flash, while a couple of fixed columns of a slightly different
+  // background at the band's edges (the pane showing through next to the
+  // content) are imperceptible and stay allowed.
+  //
+  // The budget is the weight of one fully saturated cell (256^2): smaller than
+  // the weight of one highlighted row (~77 cells of a selection or cursor
+  // background) or of the two border columns of a full-screen band, and far
+  // above the weight of the few near-identical fixed columns next to the
+  // content.
+  constexpr long long FLASH_BUDGET = 65536;
+  auto const &mask = this->view[new_row_first][width > 1 ? 1 : 0];
+  auto flash = 0LL;
+  for (auto y = new_row_first; y < new_row_last and flash <= FLASH_BUDGET; ++y) {
+    for (auto x = first_column; x < last_column; ++x) {
+      flash += bg_distance_sq(this->view[y][x].background_color, mask.background_color);
+    }
+  }
+  if (flash > FLASH_BUDGET) {
+    log_graphics_ln("edge flash check refused the scroll (weight " << flash << ")");
+    return false;
+  }
+
   // The terminal blanks the revealed edge with its current background color.
   // Set it to the entering content's background before scrolling so the blank
   // is invisible and the fill that follows is seamless; otherwise a fast
   // scroll flashes the blanked edge with the default background for the frame
-  // between the scroll and the fill.
-  escape_to(this->view[new_row_first][0]);
+  // between the scroll and the fill. Sample the first CONTENT cell of the
+  // entering row (column 1, inside the band): column 0 is the frame border,
+  // whose colors (the theme's blue/cyan double line) would paint the whole
+  // blanked edge blue.
+  escape_to(this->view[new_row_first][width > 1 ? 1 : 0]);
 
   auto full_screen_band = first_row == 0 and last_row == height;
   if (not full_screen_band) {
@@ -691,7 +749,9 @@ void TextScreen::flush_rows(Rectangle const &region) {
   // that entered the band are emitted (see flush_rows_by_terminal_scroll); a
   // wheel notch then costs a few rows instead of the whole band. Any other
   // damage falls through to the per-row emission below.
-  if (flush_rows_by_terminal_scroll(first_row, last_row)) {
+  auto first_column = std::max(0, region.x);
+  auto last_column = std::min(int(this->view[first_row].size()), region.x + region.width);
+  if (flush_rows_by_terminal_scroll(first_row, last_row, first_column, last_column)) {
     return;
   }
 

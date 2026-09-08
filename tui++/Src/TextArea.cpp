@@ -931,6 +931,20 @@ void TextArea::on_key_pressed(KeyEvent &e) {
     }
     e.consume();
     break;
+  case KeyEvent::VK_SPACE:
+    // The terminal reports the space bar (like Enter and Tab) as a pressed
+    // key, not a typed character, so it never reaches on_key_typed; insert it
+    // here the way Enter is handled. In search mode the space goes into the
+    // search entry (insert_text routes it there).
+    insert_text(" ");
+    e.consume();
+    break;
+  case KeyEvent::VK_TAB:
+    // Same delivery as space: the parser reports Tab as a pressed key, so the
+    // typed-character handler below never sees '\t'.
+    insert_text("\t");
+    e.consume();
+    break;
   case KeyEvent::VK_ESCAPE:
     this->search_mode = false;
     repaint_message_row();
@@ -1185,6 +1199,13 @@ void TextArea::grow_max_line_width(std::uint64_t line) {
   if (this->line_wrap or this->max_line_width_stale) {
     return; // the width is the viewport (wrap) or will be recomputed (stale)
   }
+  // An edit rewinds the buffer's lazy line index to the anchor before the
+  // edit (TextBuffer::replace drops the anchors there), so the edited line
+  // may not be resolvable yet. ensure_line rescans from that anchor up to
+  // the line -- cheap, since the anchor is just before the edit -- and makes
+  // the range readable. Without it a mid-file edit never grows the content
+  // width: the new cells are clipped outside the view and unreachable.
+  this->buffer->ensure_line(line);
   auto ranges = this->buffer->read_line_ranges(line, 1);
   if (ranges.empty()) {
     return;

@@ -291,8 +291,14 @@ void MenuItemUI::paint(Graphics &g, std::shared_ptr<const Component> const &c) c
   // The hovered/selected menu text is painted on the selection colors.
   if (this->menu_item->is_armed()) {
     g.set_background_color(get_selection_background(this->menu_item));
-    g.fill_rect(0, 0, this->menu_item->get_width(), this->menu_item->get_height());
+    // Set the foreground before the fill: the cells the fill writes (the
+    // margins and the icon-text gap) carry the current foreground, so without
+    // this they keep the item's default foreground and the row's stored
+    // foreground alternates white/black/white across the highlight. The delta
+    // emitter then pays for an SGR sequence at every boundary even though the
+    // space cells look identical either way.
     g.set_foreground_color(get_selection_foreground(this->menu_item));
+    g.fill_rect(0, 0, this->menu_item->get_width(), this->menu_item->get_height());
   }
 
   auto margin = LookAndFeel::get<Insets>("MenuItem.margin", Insets { 0, 1, 0, 1 });

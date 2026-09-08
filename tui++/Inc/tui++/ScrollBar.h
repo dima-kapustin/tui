@@ -104,6 +104,11 @@ private:
   int unit_increment = 1;
   int block_increment = 10;
 
+  // The thumb rect as it was last painted (local coordinates): the model
+  // listener damages this and the new thumb rect, so a value/range change
+  // repaints only the thumb instead of the whole bar.
+  Rectangle last_thumb_rect { };
+
   DragMode drag_mode = DragMode::NONE;
   int grab_offset = 0; // drag anchor: pointer offset inside the thumb
   std::shared_ptr<EventListener<Event>> drag_observer;

@@ -238,10 +238,12 @@ protected:
       return;
     }
     auto bg = get_background_color();
+    auto fg = get_foreground_color();
     if (bg) {
       g.set_background_color(bg);
       g.fill_rect(0, 0, width, height);
     }
+    g.set_foreground_color(fg);
 
     auto viewport = get_viewport();
     auto top = 0;
@@ -270,8 +272,13 @@ protected:
         g.set_foreground_color(Color { 230, 235, 245 });
       } else if ((line % 10) == 0) {
         g.set_background_color(Color { 24, 27, 38 });
+        // The cursor row changed the foreground; restore it or every row
+        // below the cursor row is drawn in the cursor's color (and the view
+        // cells alternate foregrounds for no visual reason).
+        g.set_foreground_color(fg);
       } else {
         g.set_background_color(bg);
+        g.set_foreground_color(fg);
       }
       if (visible.empty()) {
         continue;
