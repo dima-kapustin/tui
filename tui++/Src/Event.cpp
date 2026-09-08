@@ -227,6 +227,18 @@ std::ostream& operator<<(std::ostream &os, const MouseClickEvent &event) {
 }
 
 std::ostream& operator<<(std::ostream &os, const MouseWheelEvent &event) {
+  if (event.modifiers & InputEvent::ALT_DOWN) {
+    os << "Alt+";
+  }
+  if (event.modifiers & InputEvent::SHIFT_DOWN) {
+    os << "Shift+";
+  }
+  if (event.modifiers & InputEvent::CTRL_DOWN) {
+    os << "Ctrl+";
+  }
+  if (event.modifiers & InputEvent::META_DOWN) {
+    os << "Meta+";
+  }
   os << "Mouse WHEEL scrolled by " << event.wheel_rotation;
   os << " at " << event.x << "," << event.y;
   return os;

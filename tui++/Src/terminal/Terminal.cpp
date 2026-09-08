@@ -71,6 +71,12 @@ void Terminal::InputParser::new_mouse_event(bool pressed) {
   auto x = this->csi_params[1] - 1;
   auto y = this->csi_params[2] - 1;
   if (this->csi_params[0] & 64) {
+    // Some terminals (the Windows console among them) do not encode the held
+    // modifiers in a wheel report (SGR bit 4 = Shift, 8 = Meta, 16 = Ctrl);
+    // recover them from the platform so Shift+wheel can scroll horizontally.
+    if (key_modifiers == InputEvent::NO_MODIFIERS) {
+      key_modifiers = this->terminal.current_key_modifiers();
+    }
     this->terminal.new_mouse_wheel_event(button == 0 ? -1 : 1, key_modifiers, x, y);
 //  } else if (this->csi_params[0] & 32) {
 //    // Motion (SGR button codes 32..35): the low two bits identify the held

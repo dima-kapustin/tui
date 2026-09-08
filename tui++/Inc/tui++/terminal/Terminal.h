@@ -328,6 +328,11 @@ private:
 private:
   bool read_input(const std::chrono::milliseconds &timeout, InputBuffer &into);
 
+  // The modifiers the platform reports as currently held, best-effort. Used
+  // to recover Shift (Ctrl/Meta) state that a mouse wheel report did not
+  // encode, so Shift+wheel can scroll horizontally.
+  InputEvent::Modifiers current_key_modifiers() const;
+
   void read_events() {
     // Parses every complete input sequence the terminal delivered since the
     // last tick, not just one. Mouse motion arrives as a burst of reports;

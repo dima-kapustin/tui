@@ -78,6 +78,12 @@ public:
     return { }; // no platform-specific cell-size source on POSIX
   }
 
+  InputEvent::Modifiers current_key_modifiers() const {
+    // No platform source for held modifiers; POSIX terminals encode them in
+    // the SGR mouse reports themselves (xterm sends bit 4 for Shift+wheel).
+    return InputEvent::NO_MODIFIERS;
+  }
+
   ~TerminalImpl() {
     // Remove the handlers first so a signal arriving during teardown does
     // not race the restore below; deinit() has already sent the escape
@@ -167,6 +173,10 @@ Terminal::~Terminal() {
 
 bool Terminal::read_input(const std::chrono::milliseconds &timeout, InputBuffer &into) {
   return this->impl->read_input(timeout, into);
+}
+
+InputEvent::Modifiers Terminal::current_key_modifiers() const {
+  return this->impl->current_key_modifiers();
 }
 
 Dimension Terminal::get_size() {

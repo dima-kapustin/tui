@@ -180,6 +180,60 @@ public:
         }
         break;
       }
+      case MOUSE_EVENT: {
+        // With VT input the console normally translates mouse input into SGR
+        // sequences delivered as key events; but while Shift is held it skips
+        // that translation on purpose (PuTTY/vim compatibility: Shift+mouse
+        // bypasses the app's mouse reporting) and writes a raw mouse record
+        // instead. Without this case those events would be lost -- Shift+wheel
+        // among them (the record still carries SHIFT_PRESSED in its control
+        // state, so the modifier survives).
+        const auto &mouse = record.Event.MouseEvent;
+        auto modifiers = InputEvent::NO_MODIFIERS;
+        if (mouse.dwControlKeyState & SHIFT_PRESSED) {
+          modifiers |= InputEvent::SHIFT_DOWN;
+        }
+        if (mouse.dwControlKeyState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) {
+          modifiers |= InputEvent::CTRL_DOWN;
+        }
+        if (mouse.dwControlKeyState & (LEFT_ALT_PRESSED | RIGHT_ALT_PRESSED)) {
+          modifiers |= InputEvent::META_DOWN;
+        }
+        auto x = int(mouse.dwMousePosition.X);
+        auto y = int(mouse.dwMousePosition.Y);
+        if (mouse.dwEventFlags & (MOUSE_WHEELED | MOUSE_HWHEELED)) {
+          // The wheel delta is the signed high word of the button state.
+          auto delta = SHORT(mouse.dwButtonState >> 16);
+          auto rotation = int { };
+          if (mouse.dwEventFlags & MOUSE_HWHEELED) {
+            // Tilt wheel: a positive delta is "tilted right", and the pane
+            // scrolls right for a positive rotation (the opposite sign
+            // convention of the vertical wheel).
+            rotation = delta > 0 ? 1 : -1;
+            // A tilt wheel scrolls horizontally: deliver it as a Shift+wheel
+            // so the scroll pane's Shift+wheel handling applies.
+            modifiers |= InputEvent::SHIFT_DOWN;
+          } else {
+            rotation = delta > 0 ? -1 : 1; // +delta = wheel forward (up)
+          }
+          if (modifiers == InputEvent::NO_MODIFIERS) {
+            modifiers = this->terminal.current_key_modifiers();
+          }
+          this->terminal.new_mouse_wheel_event(rotation, modifiers, x, y);
+        } else if (mouse.dwEventFlags & MOUSE_MOVED) {
+          this->terminal.new_mouse_move_event(modifiers, x, y);
+        } else {
+          // A press sets the button's bit; a release clears them all.
+          auto state = mouse.dwButtonState & (FROM_LEFT_1ST_BUTTON_PRESSED | RIGHTMOST_BUTTON_PRESSED | FROM_LEFT_2ND_BUTTON_PRESSED);
+          auto type = state ? MousePressEvent::MOUSE_PRESSED : MousePressEvent::MOUSE_RELEASED;
+          auto button = state & FROM_LEFT_1ST_BUTTON_PRESSED ? MousePressEvent::LEFT_BUTTON
+              : state & RIGHTMOST_BUTTON_PRESSED ? MousePressEvent::RIGHT_BUTTON
+              : state & FROM_LEFT_2ND_BUTTON_PRESSED ? MousePressEvent::MIDDLE_BUTTON
+              : MousePressEvent::NO_BUTTON;
+          this->terminal.new_mouse_event(type, button, modifiers, x, y);
+        }
+        break;
+      }
       case WINDOW_BUFFER_SIZE_EVENT:
         this->terminal.new_resize_event();
         break;
@@ -201,6 +255,24 @@ public:
       }
     }
     return { };
+  }
+
+  InputEvent::Modifiers current_key_modifiers() const {
+    // The console's SGR wheel reports do not always carry the held modifier
+    // bits; read the key state directly as the fallback the wheel handler
+    // uses. VK_MENU maps to META_DOWN, matching the SGR bit layout the input
+    // parser decodes.
+    auto modifiers = InputEvent::NO_MODIFIERS;
+    if (::GetAsyncKeyState(VK_SHIFT) & 0x8000) {
+      modifiers |= InputEvent::SHIFT_DOWN;
+    }
+    if (::GetAsyncKeyState(VK_CONTROL) & 0x8000) {
+      modifiers |= InputEvent::CTRL_DOWN;
+    }
+    if (::GetAsyncKeyState(VK_MENU) & 0x8000) {
+      modifiers |= InputEvent::META_DOWN;
+    }
+    return modifiers;
   }
 
   ~TerminalImpl() {
@@ -227,6 +299,10 @@ Terminal::~Terminal() {
 
 bool Terminal::read_input(const std::chrono::milliseconds &timeout, InputBuffer &into) {
   return this->impl->read_input(timeout, into);
+}
+
+InputEvent::Modifiers Terminal::current_key_modifiers() const {
+  return this->impl->current_key_modifiers();
 }
 
 static Dimension get_default_size() {
