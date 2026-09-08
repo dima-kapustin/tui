@@ -268,6 +268,20 @@ public:
     return false;
   }
 
+  // Called by the enclosing scroll pane before it applies a wheel scroll
+  // (see ScrollPane::process_wheel): the rows the scroll is about to reveal
+  // may not be indexed yet, so scan them and refresh the content height
+  // before the viewport clamps the new position. Without this the wheel
+  // would stop at the lazy scan frontier of a large file.
+  void scrollable_prepare_wheel_scroll(Rectangle const &visible_rect, Orientation orientation, int amount) override {
+    if (orientation != Orientation::VERTICAL or amount <= 0) {
+      return;
+    }
+    auto target = visible_rect.y + amount;
+    this->buffer->ensure_line(std::uint64_t(std::max(0, target)) + std::uint64_t(std::max(0, visible_rect.height)) + 2);
+    refresh_view_size();
+  }
+
 protected:
   virtual void paint(Graphics &g) override;
   virtual void add_notify() override;

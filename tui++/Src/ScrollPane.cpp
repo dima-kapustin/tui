@@ -49,6 +49,16 @@ void ScrollPane::init() {
   hook_vertical_bar();
   hook_horizontal_bar();
 
+  // Swing's BasicScrollPaneUI installs its wheel handler on the pane itself,
+  // so the wheel scrolls wherever it lands on the pane -- the viewport
+  // background (the view may not cover it) included -- and, thanks to the
+  // ancestor-first wheel dispatch, even over the scroll bars: the bars' own
+  // wheel handlers then apply only to standalone bars, exactly as in Swing.
+  add_listener([this](MouseWheelEvent &e) {
+    this->process_wheel(e);
+    e.consume();
+  });
+
   // When the content size changes outside a layout pass (the view reports a
   // new preferred size after its lazy line index grew), the bar ranges must
   // follow immediately -- waiting for the next validate would let the user
@@ -78,6 +88,72 @@ void ScrollPane::hook_horizontal_bar() {
       this->viewport->set_view_position(value, position.y);
     }
   });
+}
+
+void ScrollPane::process_wheel(MouseWheelEvent &e) {
+  auto rotation = e.wheel_rotation;
+  if (rotation == 0) {
+    return;
+  }
+
+  // Shift+wheel scrolls horizontally (Swing); without a shift the wheel
+  // scrolls vertically, falling back to horizontal when the vertical bar is
+  // not visible.
+  auto orientation = Orientation::VERTICAL;
+  auto bar = this->vertical_bar;
+  if (bool(e.modifiers & InputEvent::SHIFT_DOWN) or not bar->is_visible()) {
+    orientation = Orientation::HORIZONTAL;
+    bar = this->horizontal_bar;
+  }
+  if (not bar->is_visible()) {
+    return; // nothing to scroll in that direction
+  }
+
+  auto position = this->viewport->get_view_position();
+  auto visible = Rectangle {
+    position.x, position.y,
+    std::max(1, this->viewport->get_width()), std::max(1, this->viewport->get_height())
+  };
+
+  // How far one unit scrolls: the view's Scrollable contract when it has one
+  // (a text view scrolls by lines), the bar's unit increment otherwise.
+  auto unit = bar->get_unit_increment();
+  if (auto view = this->viewport->get_view()) {
+    if (auto scrollable = std::dynamic_pointer_cast<Scrollable>(view)) {
+      unit = std::max(1, scrollable->get_scrollable_unit_increment(visible, orientation));
+    }
+  }
+
+  // Swing's MouseWheelEvent.getUnitsToScroll() is 3 on the usual platforms:
+  // one notch scrolls three units.
+  constexpr auto UNITS_PER_NOTCH = 3;
+  auto amount = unit;
+  if (rotation == 1 or rotation == -1) {
+    // Swing's limitScroll: a single notch never scrolls past the visible
+    // extent (the bar's block increment).
+    amount = std::min(amount, std::max(1, bar->get_block_increment()));
+  }
+  auto delta = UNITS_PER_NOTCH * amount * (rotation < 0 ? -1 : 1);
+
+  // A lazy view extends its index (and content size) to the target position
+  // before the position change is clamped against it.
+  if (auto view = this->viewport->get_view()) {
+    if (auto scrollable = std::dynamic_pointer_cast<Scrollable>(view)) {
+      scrollable->scrollable_prepare_wheel_scroll(visible, orientation, delta);
+    }
+  }
+
+  if (orientation == Orientation::VERTICAL) {
+    auto target = position.y + delta;
+    if (target != position.y) {
+      this->viewport->set_view_position(position.x, target);
+    }
+  } else {
+    auto target = position.x + delta;
+    if (target != position.x) {
+      this->viewport->set_view_position(target, position.y);
+    }
+  }
 }
 
 void ScrollPane::sync_scroll_bar_values() {

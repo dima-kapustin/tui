@@ -314,6 +314,83 @@ void test_text_area_horizontal_scroll() {
 
 } // namespace
 
+// The wheel scrolls wherever it lands on the pane (Swing's BasicScrollPaneUI
+// installs its wheel handler on the pane): over the view's own background
+// (when the content does not fill the viewport), over the view (the event
+// bubbles from the view to the pane), and even over the scroll bars (the
+// pane's handler shadows the bars' own, as in Swing). One notch scrolls by
+// three units (Swing's MouseWheelEvent.getUnitsToScroll()), Shift+wheel
+// scrolls horizontally, and the wheel falls back to the horizontal bar when
+// the vertical one is hidden.
+void test_pane_wheel_scroll() {
+  terminal.set_type("text");
+
+  auto frame = make_component<Frame>();
+  frame->set_size({ 40, 10 });
+  auto pane = make_component<ScrollPane>();
+  frame->add(pane);
+  auto area = make_component<TextArea>();
+  auto buffer = TextBuffer::create_empty();
+  std::string text;
+  for (auto i = 0; i < 100; ++i) {
+    text += "short line\n";
+  }
+  buffer->replace(0, 0, text);
+  buffer->scan_to_end();
+  area->set_buffer(buffer);
+  pane->set_viewport_view(area);
+  frame->set_visible(true);
+  drain();
+
+  auto viewport = pane->get_viewport();
+  auto vertical = pane->get_vertical_scroll_bar();
+  assert(vertical->is_visible());
+  assert(viewport->get_view_position().y == 0);
+  // The content is narrow: the area right of the text is viewport background.
+  assert(area->get_width() < viewport->get_width());
+
+  // Wheel over the background (the black area right of the text): three
+  // units per notch.
+  viewport->dispatch_event<MouseWheelEvent>(InputEvent::NO_MODIFIERS, 30, 5, 1);
+  drain();
+  assert(viewport->get_view_position().y == 3);
+
+  // Wheel over the text bubbles from the view to the pane.
+  area->dispatch_event<MouseWheelEvent>(InputEvent::NO_MODIFIERS, 3, 5, 1);
+  drain();
+  assert(viewport->get_view_position().y == 6);
+
+  // Wheel over the scroll bar scrolls by the pane's unit handling too (the
+  // bar's own block-increment handler applies only to standalone bars).
+  vertical->dispatch_event<MouseWheelEvent>(InputEvent::NO_MODIFIERS, 0, 2, 1);
+  drain();
+  assert(viewport->get_view_position().y == 9);
+
+  // Shift+wheel would scroll horizontally, but the narrow content needs no
+  // horizontal bar: nothing moves.
+  area->dispatch_event<MouseWheelEvent>(InputEvent::SHIFT_DOWN, 3, 5, 1);
+  drain();
+  assert(viewport->get_view_position().y == 9);
+  assert(viewport->get_view_position().x == 0);
+
+  // A wide document: the horizontal bar appears, and Shift+wheel scrolls
+  // sideways by three units per notch.
+  auto wide = TextBuffer::create_empty();
+  wide->replace(0, 0, std::string(120, 'x') + "\n" + std::string(120, 'y') + "\n" + std::string(120, 'z') + "\n");
+  wide->scan_to_end();
+  area->set_buffer(wide);
+  frame->validate();
+  drain();
+  assert(pane->get_horizontal_scroll_bar()->is_visible());
+  assert(viewport->get_view_position().x == 0);
+  area->dispatch_event<MouseWheelEvent>(InputEvent::SHIFT_DOWN, 3, 3, 1);
+  drain();
+  assert(viewport->get_view_position().x == 3);
+
+  frame->set_visible(false);
+  drain();
+}
+
 void test_ScrollPane() {
   test_bar_geometry();
   test_vertical_only();
@@ -325,5 +402,6 @@ void test_ScrollPane() {
   test_model_invariants();
   test_scrollbar_mouse_drag();
   test_text_area_horizontal_scroll();
+  test_pane_wheel_scroll();
   std::fprintf(stderr, "test_ScrollPane: ok\n");
 }

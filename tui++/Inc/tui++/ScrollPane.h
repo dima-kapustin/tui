@@ -109,6 +109,13 @@ private:
   void hook_vertical_bar();
   void hook_horizontal_bar();
 
+  // Wheel scrolling (Swing's BasicScrollPaneUI installs the same handler on
+  // the pane): one notch scrolls by Swing's MouseWheelEvent.getUnitsToScroll()
+  // (3) times the view's unit increment. Shift+wheel scrolls horizontally,
+  // and the wheel falls back to the horizontal bar when the vertical one is
+  // not visible.
+  void process_wheel(MouseWheelEvent &e);
+
   std::shared_ptr<Viewport> viewport;
   std::shared_ptr<ScrollBar> vertical_bar;
   std::shared_ptr<ScrollBar> horizontal_bar;

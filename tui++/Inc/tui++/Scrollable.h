@@ -30,6 +30,18 @@ public:
   // (no horizontal/vertical scrolling in that direction).
   virtual bool get_scrollable_tracks_viewport_width() const = 0;
   virtual bool get_scrollable_tracks_viewport_height() const = 0;
+
+  // Called by the scroll pane's wheel handler before it applies a wheel
+  // scroll, so a view with a lazily indexed content (TextArea) can extend
+  // its index and content size to cover the target position before the
+  // viewport clamps the move. The visible rectangle is in the view's own
+  // coordinates and `amount` is the signed scroll distance in cells. The
+  // default does nothing.
+  virtual void scrollable_prepare_wheel_scroll(Rectangle const &visible_rect, Orientation orientation, int amount) {
+    (void)visible_rect;
+    (void)orientation;
+    (void)amount;
+  }
 };
 
 }

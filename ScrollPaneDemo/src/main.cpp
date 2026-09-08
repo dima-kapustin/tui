@@ -119,14 +119,9 @@ public:
       e.consume();
     });
 
-    add_listener([this](MouseWheelEvent &e) {
-      if (auto viewport = get_viewport()) {
-        auto position = viewport->get_view_position();
-        // One wheel notch scrolls one line (1:1), Swing's unit scrolling.
-        viewport->set_view_position(position.x, position.y + e.wheel_rotation);
-        e.consume();
-      }
-    });
+    // The wheel is handled by the enclosing scroll pane (ScrollPane::process_wheel
+    // scrolls by this view's Scrollable unit increment), so no listener is
+    // needed here.
   }
 
   // Key handling (delivered by KeyToLogView below while focus is on this view).

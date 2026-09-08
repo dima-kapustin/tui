@@ -120,25 +120,11 @@ void TextArea::init() {
     e.consume();
   });
 
-  add_listener([this](MouseWheelEvent &e) {
-    if (auto viewport = get_viewport()) {
-      auto position = viewport->get_view_position();
-      // One wheel notch scrolls one line (1:1), Swing's unit scrolling.
-      auto target = position.y + e.wheel_rotation;
-      if (target != position.y) {
-        // The rows the wheel scrolls to may not be indexed yet; scan them so
-        // the content height (and with it the scroll range) is up to date
-        // before the viewport clamps the new position.
-        this->buffer->ensure_line(std::uint64_t(std::max(0, target)) + std::uint64_t(viewport->get_height()) + 2);
-        refresh_view_size();
-        viewport->set_view_position(position.x, target);
-      }
-      e.consume();
-      return;
-    }
-    // Without a viewport there is nothing to scroll; leave the event
-    // unconsumed so an ancestor can handle it.
-  });
+  // The wheel is handled by the enclosing ScrollPane (see
+  // ScrollPane::process_wheel): the pane scrolls by this area's unit
+  // increment wherever the pointer is over it, the view's background
+  // included, and gives the area a chance to extend its lazy line index
+  // first (scrollable_prepare_wheel_scroll below).
 
   // The caret follows the keyboard focus: it is only painted while the area
   // is the focus owner, and regaining the focus restarts its blink. The id
