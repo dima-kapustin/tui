@@ -73,6 +73,15 @@ private:
   // positioned absolutely and recorded in the shadow (see flush_rows).
   void emit_row(int y, int first_column, int last_column);
 
+  // Emits the damaged span [first, last) of view row `y` as one contiguous
+  // run, without the per-run shadow diff. Used when the whole span changed:
+  // an edit that shifts a line's tail (typing at the start of a line) can
+  // make many cells equal their shadow by chance (e.g. a repeated digit),
+  // which the per-run diff would split into several cursor moves -- a visual
+  // "snake". A single run redraws the row cleanly; the caller guarantees at
+  // least one cell of the span changed.
+  void emit_whole_row(int y, int first, int last);
+
   // Handles a damaged band of whole rows [first_row, last_row) by scrolling
   // the terminal's own buffer: when the band's view content is the shadow
   // shifted vertically by a whole number of rows (the typical scroll), a

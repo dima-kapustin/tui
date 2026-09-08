@@ -407,6 +407,29 @@ void TextScreen::emit_row(int y, int first_column, int last_column) {
   }
 }
 
+void TextScreen::emit_whole_row(int y, int first, int last) {
+  auto &row = this->view[y];
+  auto &shadow_row = this->shadow[y];
+
+  // The whole span was damaged, so there is nothing to gain by skipping the
+  // cells that happen to equal the shadow; emit it as one contiguous run.
+  move_cursor_to(int(y) + 1, first + 1);
+  // A span may start on the continuation cell of a wide glyph whose leading
+  // cell sits just before it; that cell holds no glyph of its own, so it must
+  // be skipped the way the run emitter skips it.
+  auto skip = first > 0 and this->text_metrics->get_char_width(row[first - 1].ch.get_code()) == 2;
+  for (auto x = first; x < last; ++x) {
+    auto const &cv = row[x];
+    if (not skip) {
+      escape_to(cv);
+      terminal << cv.ch;
+    }
+    skip = this->text_metrics->get_char_width(cv.ch.get_code()) == 2;
+  }
+  std::copy(row.begin() + first, row.begin() + last, shadow_row.begin() + first);
+  this->emitted_any = true;
+}
+
 bool TextScreen::flush_rows_by_terminal_scroll(int first_row, int last_row) {
   auto height = int(this->view.size());
   auto band = last_row - first_row;
@@ -417,6 +440,25 @@ bool TextScreen::flush_rows_by_terminal_scroll(int first_row, int last_row) {
   auto width = int(this->view[first_row].size());
   if (width <= 0) {
     return false;
+  }
+
+  // A terminal-side scroll moves the whole band, including any overlapping
+  // top-level window (an open popup menu over the scrolled area). Those cells
+  // are not part of the scrolling surface: scrolling them would drag the
+  // popup with the content and then re-emit it back -- a visible flicker.
+  // Refuse the optimization while a popup overlaps the band; the per-run
+  // fallback redraws the scrolled rows in place and leaves the popup alone.
+  {
+    std::unique_lock lock(this->windows_mutex);
+    for (auto const &window : this->windows) {
+      if (window->get_type() == WindowType::POPUP and window->is_visible()) {
+        auto top = window->get_y();
+        auto bottom = top + window->get_height();
+        if (bottom > first_row and top < last_row) {
+          return false;
+        }
+      }
+    }
   }
 
   // The terminal content of every row of the band must be authoritative
@@ -515,6 +557,36 @@ bool TextScreen::flush_rows_by_terminal_scroll(int first_row, int last_row) {
     }
   }
 
+  // A one-row shift is where a terminal-side scroll does the least good and
+  // the most visible harm: moving the band also moves a fixed column next to
+  // it (a scroll bar's thumb and arrows), which the exception re-emission then
+  // draws back -- a "damage then fix" flicker. The per-run loop repaints such
+  // a column in place for a one-row scroll at nearly the same cost, so leave
+  // k == 1 to it; a two-or-more-row shift is where the terminal scroll wins.
+  if (k < 2) {
+    return false;
+  }
+
+  // The shift must be a real scroll, not a band that happened to absorb a
+  // fixed row (a horizontal scroll bar, a status line, a border). A fixed row
+  // does not move with the content, so it shows up as an exception whose whole
+  // width differs from the shifted shadow; a scroll bar's thumb edge differs
+  // in only a few cells. Refuse the scroll when such a full-width fixed row is
+  // present: the terminal scroll would drag it with the content and re-emit it
+  // back -- the same flicker the damage merge above avoids.
+  for (auto y : exceptions) {
+    auto const &shifted = content_moved_up ? this->shadow[y + k] : this->shadow[y - k];
+    auto differing = 0;
+    for (auto x = 0; x < width; ++x) {
+      if (not same_cell(this->view[y][x], shifted[x])) {
+        ++differing;
+      }
+    }
+    if (differing * 2 > width) {
+      return false;
+    }
+  }
+
   // The terminal operation moves the band's content the other way:
   //
   //  content moved up by k (a wheel scroll): delete k lines at the band top,
@@ -526,6 +598,19 @@ bool TextScreen::flush_rows_by_terminal_scroll(int first_row, int last_row) {
   // left behind); otherwise the band is bracketed by a scroll region that is
   // reset to the full screen right after the operation.
   log_graphics_ln("terminal scroll: band " << first_row << ".." << last_row - 1 << (content_moved_up ? " up " : " down ") << k << " row(s), " << exceptions.size() << " row(s) deviate");
+
+  // The blanked edge: the rows the terminal blanks that the content entering
+  // the band is painted into. Computed up front so its background can be
+  // applied before the scroll (below).
+  auto new_row_first = content_moved_up ? last_row - k : first_row;
+  auto new_row_last = content_moved_up ? last_row : first_row + k;
+
+  // The terminal blanks the revealed edge with its current background color.
+  // Set it to the entering content's background before scrolling so the blank
+  // is invisible and the fill that follows is seamless; otherwise a fast
+  // scroll flashes the blanked edge with the default background for the frame
+  // between the scroll and the fill.
+  escape_to(this->view[new_row_first][0]);
 
   auto full_screen_band = first_row == 0 and last_row == height;
   if (not full_screen_band) {
@@ -545,8 +630,6 @@ bool TextScreen::flush_rows_by_terminal_scroll(int first_row, int last_row) {
   // The exceptions are copied from the shadow in an order that never reads a
   // row a pass already overwrote: up-shifts read the row above the exception
   // (scan upward), down-shifts read the row below it (scan downward).
-  auto new_row_first = first_row;
-  auto new_row_last = first_row + k; // top edge: the rows the insert blanked
   if (content_moved_up) {
     for (auto y = first_row; y < last_row - k; ++y) {
       if (std::find(exceptions.begin(), exceptions.end(), y) != exceptions.end()) {
@@ -555,8 +638,6 @@ bool TextScreen::flush_rows_by_terminal_scroll(int first_row, int last_row) {
         std::copy(this->view[y].begin(), this->view[y].end(), this->shadow[y].begin());
       }
     }
-    new_row_first = last_row - k;
-    new_row_last = last_row; // bottom edge: the rows the delete blanked
   } else {
     for (auto y = last_row - 1; y >= first_row + k; --y) {
       if (std::find(exceptions.begin(), exceptions.end(), y) != exceptions.end()) {
@@ -629,12 +710,38 @@ void TextScreen::flush_rows(Rectangle const &region) {
     if (last <= first) {
       continue;
     }
-    auto full_row_scan = first == 0 and last == width;
 
-    emit_row(y, first, last);
-
-    if (full_row_scan) {
-      this->row_sent[y] = true;
+    // A dense, wide change (an edit that shifts a line's tail) fragments the
+    // per-run shadow diff into many cursor moves -- a visual "snake" -- so
+    // emit the changed span as one run. Measure density over the span between
+    // the first and last changed cell, not the full damaged row: a short line
+    // leaves most of the row empty, which would look sparse if measured
+    // against the whole row. A sparse or narrow change (a caret move, a thumb
+    // edge) still wins by emitting only its differing runs.
+    auto &shadow_row = this->shadow[y];
+    auto first_changed = -1;
+    auto last_changed = -1;
+    auto changed = 0;
+    for (auto x = first; x < last; ++x) {
+      if (not same_cell(row[x], shadow_row[x])) {
+        if (first_changed < 0) {
+          first_changed = x;
+        }
+        last_changed = x;
+        ++changed;
+      }
+    }
+    if (first_changed < 0) {
+      continue; // nothing changed in this row
+    }
+    auto changed_span = last_changed - first_changed + 1;
+    if (changed_span >= 4 and changed * 2 >= changed_span) {
+      emit_whole_row(y, first_changed, last_changed + 1);
+      if (first == 0 and last == width) {
+        this->row_sent[y] = true; // the whole row was emitted (never-sent row)
+      }
+    } else {
+      emit_row(y, first, last);
     }
   }
 }

@@ -24,12 +24,16 @@ namespace {
 // pathological burst cannot build an unbounded list.
 constexpr size_t MAX_DAMAGE_REGIONS = 8;
 
-// Regions are merged when the union's area stays within this factor of the
-// sum of the two areas. Overlapping/adjacent regions have ratio ~= 1 and are
-// merged; two small regions at opposite corners of the screen have a large
-// ratio and stay separate, so one pass does not flush one huge bounding box
-// full of unchanged content.
-constexpr long long MERGE_ALLOWANCE = 2;
+// Regions are merged only when they overlap or touch (their union adds no
+// undamaged area). Two regions that merely sit close together stay separate:
+// gap-filling a damaged band across a fixed row (a horizontal scroll bar, a
+// status line, a border) would feed that fixed row to the terminal-scroll
+// optimization, which scrolls it with the content and then re-emits it back --
+// a visible flicker. Keeping the scrolling surface as its own region lets a
+// wheel scroll use the terminal scroll on the clean viewport band while the
+// adjacent fixed UI is repainted in place. The MAX_DAMAGE_REGIONS cap below
+// still bounds the list when a burst would exceed it.
+constexpr long long MERGE_ALLOWANCE = 1;
 
 long long area(Rectangle const &r) {
   return 1LL * r.width * r.height;
