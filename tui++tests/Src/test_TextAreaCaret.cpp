@@ -493,7 +493,15 @@ void test_TextArea_caret() {
     assert(eol_model.cell[std::size_t(caret_row)][std::size_t(caret_col)] == " " && "the end-of-line caret is a blank cell");
     assert(eol_model.inverse[std::size_t(caret_row)][std::size_t(caret_col)] && "the caret must sit at the end of the typed line");
     assert(not eol_model.inverse[std::size_t(caret_row)][1] && "the caret must not be drawn at the start of its row");
-    assert(eol_model.row_text(caret_row).rfind("bbbbbbbbz", 1) == 1 && "the typed character belongs at the end of the line");
+    // The typed character belongs at the end of the line: cells 1..8 are the
+    // original b's and cell 9 holds the inserted z. (Compared cell by cell:
+    // row_text joins UTF-8 glyphs, so a byte offset would land inside the
+    // multi-byte frame-border glyph at column 0.)
+    auto eol_content = std::string { };
+    for (auto x = 1; x <= 9; ++x) {
+      eol_content += eol_model.cell[std::size_t(caret_row)][std::size_t(x)];
+    }
+    assert(eol_content == "bbbbbbbbz" && "the typed character belongs at the end of the line");
   }
 
   std::cout.rdbuf(old_cout);

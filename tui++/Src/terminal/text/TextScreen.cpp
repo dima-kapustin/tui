@@ -366,7 +366,22 @@ TextColor TextScreen::to_terminal(Color const &c) {
 }
 
 bool TextScreen::same_cell(CharView const &a, CharView const &b) {
-  return a.ch.get_code() == b.ch.get_code() and a.attributes == b.attributes and a.foreground_color == b.foreground_color and a.background_color == b.background_color;
+  if (a.ch.get_code() != b.ch.get_code() or a.attributes != b.attributes or a.background_color != b.background_color) {
+    return false;
+  }
+  // A plain blank cell (space, no attributes) shows only its background: the
+  // terminal renders nothing of its foreground. Ignoring the foreground there
+  // keeps a width growth from repainting the newly exposed column cell-by-cell
+  // (the view paints its own fill colors, the viewport's blank fill left the
+  // default ones -- on a blank cell that difference is invisible). With an
+  // attribute the foreground can show (inverse turns a space into a block,
+  // underline draws a line), so it is compared then.
+  if (a.ch.get_code() != ' ' or a.attributes != Attributes::NONE) {
+    if (a.foreground_color != b.foreground_color) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool TextScreen::row_equals(std::vector<CharView> const &a, std::vector<CharView> const &b, int width) {

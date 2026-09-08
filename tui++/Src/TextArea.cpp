@@ -95,7 +95,11 @@ public:
 };
 
 TextArea::TextArea() {
-  set_background_color(Color { 12, 12, 17 });
+  // The same near-black as the viewport's default: the area only covers part
+  // of the viewport, and the cells to its right show the viewport's color. A
+  // one-unit difference here made every width growth repaint the exposed
+  // column cell-by-cell (the "snake" the caret test guards against).
+  set_background_color(Color { 12, 12, 16 });
   set_foreground_color(Color { 190, 196, 205 });
   set_name("text area");
 }
@@ -1366,9 +1370,16 @@ void TextArea::paint(Graphics &g) {
     // whole line was decoded, so `cell` is its true width; the view reserves
     // one cell past the widest line for exactly this and the end-of-line
     // caret.
+    //
+    // The pilcrow (U+00B6), not the line-feed arrow (U+21B5): the arrow is
+    // outside the Latin-1 block the other invisibles use (space = U+00B7,
+    // tab = U+00BB), and Consolas -- the common Windows console font -- has
+    // no glyph for it, so the console paints a box. The pilcrow is the
+    // classic line-end mark (as in Notepad++'s show-all-characters) and is
+    // present in every console font.
     if (this->show_whitespace and range.has_newline and offset >= range.end and cell >= left) {
       g.set_background_color(bg);
-      g.draw_char(Char(char32_t(0x21B5)), cell, row_y); // the line-feed arrow
+      g.draw_char(Char(char32_t(0x00B6)), cell, row_y); // the pilcrow: line end
     }
 
     // The caret resting at the end of its line: show the cursor right after

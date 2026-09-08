@@ -19,7 +19,7 @@
 // Shift+arrows / Shift+click; chords: Ctrl+X cut, Ctrl+Insert copy, Ctrl+V
 // paste, Ctrl+A select all, Ctrl+Z / Ctrl+Y undo/redo (the console keeps
 // Ctrl+C, so Copy uses Swing's secondary Ctrl+Insert binding). F3 search, F4
-// regexp search, F5 Show Invisibles (whitespace dots/arrows), F6 caret form
+// regexp search, F5 Show Invisibles (whitespace dots/pilcrows), F6 caret form
 // (block/underline), F7 caret blink (blink/steady/hidden). The status line
 // mirrors the buffer and caret state.
 //
