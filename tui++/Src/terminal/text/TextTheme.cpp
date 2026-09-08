@@ -76,6 +76,22 @@ void TextTheme::init_component_defaults() {
   put("MenuItem.SelectionBackground", textHighlight.value_or(Color { 0, 0, 128 }));
   put("MenuItem.SelectionForeground", textHighlightText.value_or(WHITE_COLOR));
 
+  // Swing's menu chrome: the menu bar and popup menu are painted on the
+  // system menu background and their items on the system menu text color
+  // (BasicMenuBarUI / BasicPopupMenuUI / BasicMenuItemUI install these as
+  // "MenuBar.background/foreground", "PopupMenu.background/foreground" and
+  // "MenuItem.background/foreground"). Without them an opaque menu bar or
+  // popup paints no background, so its items float over the frame beneath it
+  // and black text would be unreadable on a dark frame. Every key is a theme
+  // property, so a program can override any of them (the UIManager.put
+  // equivalent) or call set_background_color / set_foreground_color directly.
+  put("MenuBar.BackgroundColor", menu.value_or(Color { 0xC0, 0xC0, 0xC0 }));
+  put("MenuBar.ForegroundColor", menuText.value_or(BLACK_COLOR));
+  put("PopupMenu.BackgroundColor", menu.value_or(Color { 0xC0, 0xC0, 0xC0 }));
+  put("PopupMenu.ForegroundColor", menuText.value_or(BLACK_COLOR));
+  put("MenuItem.BackgroundColor", menu.value_or(Color { 0xC0, 0xC0, 0xC0 }));
+  put("MenuItem.ForegroundColor", menuText.value_or(BLACK_COLOR));
+
   auto zero_insets = make_resource<Insets>(0, 0, 0, 0);
   auto two_insets = make_resource<Insets>(2, 2, 2, 2);
   auto three_insets = make_resource<Insets>(3, 3, 3, 3);

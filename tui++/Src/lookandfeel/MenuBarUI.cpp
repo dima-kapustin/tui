@@ -15,7 +15,12 @@ void MenuBarUI::install_defaults() {
     this->menu_bar->set_layout(std::make_shared<MenuLayout>(this->menu_bar, MenuLayout::LINE));
   }
 
+  // As in Swing's BasicMenuBarUI: the bar is opaque and paints the theme's
+  // menu background, so its menu items are readable on it (they use the theme's
+  // menu text color). The colors are the "MenuBar.BackgroundColor" /
+  // "MenuBar.ForegroundColor" theme keys, overridable per component.
   this->menu_bar->set_opaque(true);
+  LookAndFeel::install_colors(this->menu_bar, "MenuBar.BackgroundColor", "MenuBar.ForegroundColor");
 }
 
 void MenuBarUI::install_listeners() {
