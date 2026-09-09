@@ -60,7 +60,13 @@ protected:
   AbstractButton(std::shared_ptr<ButtonModel> const &model, std::string const &text, Char const &mnemonic) {
     // Route through set_model so the button listens to the model's action
     // and state events (a raw property assignment would leave the model's
-    // ActionEvent with no path to the button's listeners).
+    // ActionEvent with no path to the button's listeners). The mnemonic
+    // reaches the model before set_model attaches the state listener: the
+    // model is the single source of truth for it (every state change copies
+    // it into this->mnemonic, see state_changed), and a mnemonic-only
+    // constructor argument would otherwise be wiped by the first state
+    // change of the model.
+    model->set_mnemonic(mnemonic);
     set_model(model);
     this->text = text;
     this->mnemonic = mnemonic;

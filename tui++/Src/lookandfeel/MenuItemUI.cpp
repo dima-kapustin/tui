@@ -2,6 +2,7 @@
 #include <tui++/lookandfeel/LazyActionMap.h>
 #include <tui++/lookandfeel/MenuLayout.h>
 #include <tui++/TextMetrics.h>
+#include <tui++/CharIterator.h>
 
 #include <tui++/Icon.h>
 #include <tui++/Insets.h>
@@ -29,6 +30,38 @@ std::string accelerator_text(MenuItem const *item) {
     return to_string(accelerator.value());
   }
   return {};
+}
+
+// ASCII case folding for mnemonic matching: the mnemonic letter is the one
+// the keyboard selects the item with, and the label is searched for it
+// without regard to case ("Select All" with the mnemonic 'a' underlines the
+// 'A' of "All").
+constexpr char32_t fold_case(char32_t code) {
+  return code >= 'A' and code <= 'Z' ? code - 'A' + 'a' : code;
+}
+
+// The cell of the mnemonic letter of `item`'s label (the letter the
+// Alt+mnemonic / menu navigation keys select the item with), or nullopt when
+// the item has no mnemonic or the label does not contain one. The cell
+// carries the label's glyph, so the underline is drawn with the letter the
+// label actually shows ("New" with mnemonic 'n' underlines 'N').
+std::optional<std::pair<int, Char>> mnemonic_cell(MenuItem const *item, TextMetrics const *metrics, int margin_left) {
+  auto mnemonic = item->get_mnemonic();
+  if (mnemonic.get_code() == 0) {
+    return std::nullopt;
+  }
+
+  auto const &text = item->get_text();
+  auto const wanted = fold_case(mnemonic.get_code());
+  auto prefix = std::string { };
+  for (auto it = to_chars(text), last = end(it); it != last; ++it) {
+    auto glyph = *it;
+    if (fold_case(glyph.get_code()) == wanted) {
+      return std::pair { margin_left + metrics->get_width(prefix), glyph };
+    }
+    prefix.append(std::string_view(glyph));
+  }
+  return std::nullopt;
 }
 
 }
@@ -303,6 +336,15 @@ void MenuItemUI::paint(Graphics &g, std::shared_ptr<const Component> const &c) c
 
   auto margin = LookAndFeel::get<Insets>("MenuItem.margin", Insets { 0, 1, 0, 1 });
   g.draw_string(this->menu_item->get_text(), margin.left, margin.top);
+
+  // The mnemonic letter is underlined ("File" with mnemonic 'F' shows the
+  // F underlined), marking the key that selects the item once the menu bar
+  // is on the keyboard: Alt+mnemonic opens a top-level menu, a plain letter
+  // picks the item of an open popup.
+  if (auto cell = mnemonic_cell(this->menu_item, screen.get_text_metrics().get(), margin.left);
+      cell and cell->first >= margin.left and cell->first < this->menu_item->get_width() - margin.right) {
+    g.draw_char(cell->second, cell->first, margin.top, Attribute::UNDERLINE);
+  }
 
   // The accelerator ("Ctrl+Z") is right-aligned in the row. The rows of a
   // popup share its width, so the right edges line up into one column.
