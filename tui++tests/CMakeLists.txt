@@ -17,24 +17,37 @@ target_link_libraries(${PROJECT_NAME}
 )
 
 # Run the regression pack (the unit tests of this executable; the interactive
-# font tools need explicit arguments and are not exercised) after EVERY build
-# by default, so a regression fails the build right where it was introduced
-# instead of waiting for a manual test run. The run is a separate ALL target:
-# a plain `cmake --build` of the whole project executes it even when nothing
-# relinked, while building an individual target (`--target TextAreaDemo`) or
-# this executable alone stays untouched. Iterating with a slow test suite in
-# the loop? Disable it with -DTUI_RUN_REGRESSION_ON_BUILD=OFF.
-option(TUI_RUN_REGRESSION_ON_BUILD "Run the regression tests after every build" ON)
+# font tools need explicit arguments and are not exercised) after the tests
+# executable is (re)built, so a regression fails the build right where it was
+# introduced instead of waiting for a manual test run.
+#
+# The run is a POST_BUILD step of the executable, NOT an ALL custom target: a
+# phony ALL target executes its command on every `cmake --build` even when
+# nothing changed, while a POST_BUILD step lives in the executable's own build
+# rule and runs only when the link actually happened -- i.e. only when the
+# tui++ library or the test sources were rebuilt. A no-op build (nothing to
+# build) and a build that touched only other targets (e.g. a demo) skip the
+# suite, because the binary it would exercise did not change. To run the suite
+# by hand: `cmake --build build --target tui++tests_regression`, or invoke the
+# executable directly. Iterating with a slow test suite in the loop? Disable
+# it with -DTUI_RUN_REGRESSION_ON_BUILD=OFF.
+option(TUI_RUN_REGRESSION_ON_BUILD "Run the regression tests when the tests executable is rebuilt" ON)
 
 if(TUI_RUN_REGRESSION_ON_BUILD)
-  add_custom_target(${PROJECT_NAME}_regression
-      ALL
+  add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
       COMMAND $<TARGET_FILE:${PROJECT_NAME}>
       WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
       COMMENT "Running the ${PROJECT_NAME} regression tests"
       VERBATIM)
-  # Ordering only: the run happens after the tests executable (and, through
-  # its link, the tui++ library) is up to date.
+
+  # A manual handle for the suite (never part of the plain build):
+  # `cmake --build build --target ${PROJECT_NAME}_regression` runs the tests
+  # executable and its dependencies.
+  add_custom_target(${PROJECT_NAME}_regression
+      COMMAND $<TARGET_FILE:${PROJECT_NAME}>
+      WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+      COMMENT "Running the ${PROJECT_NAME} regression tests"
+      VERBATIM)
   add_dependencies(${PROJECT_NAME}_regression ${PROJECT_NAME})
 endif()
 
