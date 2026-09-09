@@ -194,7 +194,12 @@ std::vector<std::shared_ptr<MenuElement>> MenuItemUI::get_path() const {
     new_path.reserve(j + 2);
     std::copy_n(old_path.begin(), j + 1, std::back_inserter(new_path));
   }
-  new_path.emplace_back(std::shared_ptr<MenuItem> { const_cast<MenuItemUI*>(this)->menu_item });
+  // Share the existing ownership of the item -- never wrap its raw pointer
+  // in a NEW shared_ptr: that would give the item a second, independent
+  // owner and hijack its enable_shared_from_this (the next shared_from_this
+  // on the item would then throw bad_weak_ptr once the transient owner is
+  // gone, and the transient could delete the item out from under the popup).
+  new_path.emplace_back(std::static_pointer_cast<MenuItem>(this->menu_item->shared_from_this()));
   return new_path;
 }
 

@@ -548,6 +548,41 @@ void test_MenuKeyboard() {
   screen.post<MousePressEvent>(frame, MousePressEvent::MOUSE_PRESSED, MousePressEvent::LEFT_BUTTON, InputEvent::NO_MODIFIERS, bar_local.x, bar_local.y, false);
   dispatch_mouse(frame, screen.get_event_queue().pop());
 
+  // Regression: a mouse hover over an open popup must leave the hovered
+  // item fully shareable. A hover rebuilds the selection path from the
+  // item's raw component pointer (MenuItemUI::get_path); wrapping that raw
+  // pointer in a fresh shared_ptr used to hijack the item's
+  // enable_shared_from_this, so activating the item afterwards -- here with
+  // the Enter shortcut, in the demos with a second hover + mouse pick --
+  // threw bad_weak_ptr from the item's shared_from_this().
+  CHECK(dispatch_char(frame, Char { 'e' }, InputEvent::ALT_DOWN)->consumed); // Edit popup open
+  CHECK(edit_menu->is_popup_menu_visible());
+  // An arrow arms Cut, so the selection path now ends at a popup item
+  // (hovering rebuilds that path through get_path).
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN)->consumed);
+  CHECK(cut_item->is_armed());
+  {
+    // Hover Paste with the mouse: the hover arms it (and un-arms Cut).
+    auto popup_window = edit_menu->get_popup_menu()->get_containing_window();
+    auto paste_loc = paste_item->get_location_on_screen();
+    auto paste_size = paste_item->get_size();
+    auto paste_center = Point { paste_loc.x + paste_size.width / 2, paste_loc.y + paste_size.height / 2 };
+    auto paste_local = convert_point_from_screen(paste_center, popup_window);
+    drain();
+    screen.post<MouseMoveEvent>(popup_window, InputEvent::NO_MODIFIERS, paste_local.x, paste_local.y);
+    dispatch_mouse(popup_window, screen.get_event_queue().pop());
+    CHECK(paste_item->is_armed());
+    CHECK(not cut_item->is_armed());
+  }
+  // The Enter shortcut activates the hovered Paste: its action fires and the
+  // popup closes. This used to throw bad_weak_ptr while the action fired on
+  // the hovered item.
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER)->consumed);
+  CHECK(counters->paste == 2);
+  CHECK(not edit_menu->is_popup_menu_visible());
+  CHECK(not armed(file_menu));
+  CHECK(not armed(edit_menu));
+
   // Take the frame off the screen and make sure the keyboard session is
   // fully over, so later tests start clean.
   file_menu->set_popup_menu_visible(false);
