@@ -4,6 +4,10 @@
 #include <tui++/Graphics.h>
 #include <tui++/BorderLayout.h>
 #include <tui++/KeyboardFocusManager.h>
+#include <tui++/MenuKeyboardManager.h>
+
+#include <tui++/event/KeyEvent.h>
+#include <tui++/event/MouseEvent.h>
 
 namespace tui {
 
@@ -31,8 +35,25 @@ void Window::add_notify() {
 
 void Window::dispatch_event(Event &e) {
   if (this->mouse_event_dispatcher and (MOUSE_EVENT_MASK & e.id)) {
+    // A mouse press ends the keyboard menu session (F10 mode, keyboard
+    // navigation of an open popup) before the dispatcher runs: from the
+    // press on the pointer owns the menus again (see
+    // MenuKeyboardManager::handle_mouse_pressed).
+    if (auto press = dynamic_cast<MousePressEvent*>(&e); press and press->id == MousePressEvent::MOUSE_PRESSED) {
+      MenuKeyboardManager::single->handle_mouse_pressed(std::static_pointer_cast<Window>(shared_from_this()), *press);
+    }
     this->mouse_event_dispatcher->dispatch_event(e);
     return;
+  }
+
+  // The menu system gets the first crack at every key that reaches this
+  // window (key events are posted to the focused window only): an open
+  // popup or an armed menu bar captures its navigation keys before the
+  // window's listeners and the focused component could use them.
+  if (auto key_event = dynamic_cast<KeyEvent*>(&e)) {
+    if (MenuKeyboardManager::single->handle_key_event(std::static_pointer_cast<Window>(shared_from_this()), *key_event)) {
+      return;
+    }
   }
   base::dispatch_event(e);
 }
