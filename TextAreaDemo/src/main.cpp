@@ -13,15 +13,23 @@
 // can be viewed, edited and searched with bounded memory.
 //
 // A Swing-style menu bar sits on top: File (Exit) and Edit (Undo/Redo,
-// Cut/Copy/Paste, Delete, Select All, Show Invisibles). The Edit shortcuts
-// live in the item's accelerator column, right-aligned as in Swing's menu
-// layout. Selection:
-// Shift+arrows / Shift+click; chords: Ctrl+X cut, Ctrl+Insert copy, Ctrl+V
+// Cut/Copy/Paste, Delete, Select All, Column Select Mode, Show Invisibles).
+// The Edit shortcuts live in the item's accelerator column, right-aligned as
+// in Swing's menu layout. Selection:
+// Shift+arrows / Shift+click / mouse drags select arbitrary text; Alt+drag
+// and Alt+Shift+arrows select a column block, and F8 (Edit > Column Select
+// Mode) makes every selection gesture select columns -- Alt+Shift is taken
+// by the Windows input-language switch on some hosts, so the mode brings
+// column selection to them. Chords: Ctrl+X cut, Ctrl+Insert copy, Ctrl+V
 // paste, Ctrl+A select all, Ctrl+Z / Ctrl+Y undo/redo (the console keeps
-// Ctrl+C, so Copy uses Swing's secondary Ctrl+Insert binding). F3 search, F4
-// regexp search, F5 Show Invisibles (whitespace dots/pilcrows), F6 caret form
-// (block/underline), F7 caret blink (blink/steady/hidden). The status line
-// mirrors the buffer and caret state.
+// Ctrl+C, so Copy uses Swing's secondary Ctrl+Insert binding). Typing,
+// paste and delete replace the selection, a column selection included.
+// Caret navigation: arrows move by character/row, Ctrl+Left/Right jump to
+// the start/end of the line, Ctrl+Up/Down page up/down (PageUp/PageDown do
+// the same), Home/End to the line's edges, Ctrl+Home/End to the document's.
+// F3 search, F4 regexp search, F5 Show Invisibles (whitespace dots/pilcrows),
+// F6 caret form (block/underline), F7 caret blink (blink/steady/hidden),
+// F8 column select mode. The status line mirrors the buffer and caret state.
 //
 // Quit with Ctrl+C or the File menu.
 
@@ -196,7 +204,7 @@ std::string status_text(DemoState const &state) {
   auto [line, column] = buffer->offset_to_line(caret);
   char buffer_text[320];
   std::snprintf(buffer_text, sizeof buffer_text,
-                "row=%d  lines=%llu%s  caret=%llu (%llu:%llu)  bytes=%llu  ws=%s  regexp=%s",
+                "row=%d  lines=%llu%s  caret=%llu (%llu:%llu)  bytes=%llu  ws=%s  regexp=%s%s%s",
                 position.y,
                 static_cast<unsigned long long>(buffer->known_line_count()),
                 buffer->is_fully_scanned() ? " (scanned)" : "",
@@ -205,7 +213,9 @@ std::string status_text(DemoState const &state) {
                 static_cast<unsigned long long>(column),
                 static_cast<unsigned long long>(length),
                 area->is_show_whitespace() ? "on" : "off",
-                area->is_search_regexp() ? "on" : "off");
+                area->is_search_regexp() ? "on" : "off",
+                area->is_column_select_mode() ? "  colmode=on" : "",
+                area->is_block_selection() ? "  block" : "");
   return buffer_text;
 }
 
@@ -218,6 +228,19 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
   auto toggle_invisibles = [](std::shared_ptr<TextArea> const &area) {
     area->set_show_whitespace(not area->is_show_whitespace());
     area->show_message(std::string("whitespace ") + (area->is_show_whitespace() ? "visible" : "hidden"));
+  };
+
+  // The column-select mode toggle, shared by the F8 key and the Edit menu's
+  // "Column Select Mode" item. While on, every selection gesture (drag,
+  // Shift+click, Shift+arrows) selects a column block; Alt+drag and
+  // Alt+Shift+arrows select a block either way (they are the mode's escape
+  // hatch on hosts where Alt+Shift is taken, e.g. the Windows input-language
+  // switch).
+  auto toggle_column_mode = [](std::shared_ptr<TextArea> const &area) {
+    area->set_column_select_mode(not area->is_column_select_mode());
+    area->show_message(area->is_column_select_mode()
+        ? "column select mode on: drags and Shift select columns (F8 off)"
+        : "column select mode off (Alt+drag still selects a column)");
   };
 
   auto frame = make_component<Frame>();
@@ -304,6 +327,13 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
     area->select_all();
   }));
   edit_menu->add_separator();
+  // The column-select mode (see the F8 case of the key handler below). The
+  // item is a plain toggle like Show Invisibles: the mode shows up in the
+  // status line and the message row reports the current state.
+  auto column_mode_item = add_item(edit_menu, "Column Select Mode", 'M', KeyStroke { KeyEvent::VK_F8, InputEvent::NO_MODIFIERS }, edit_action([toggle_column_mode](auto const &area) {
+    toggle_column_mode(area);
+  }));
+  edit_menu->add_separator();
   // The view toggle (Swing leaves this to the application, so the shortcut
   // is the item's accelerator rather than a key handler inside TextArea).
   auto invisibles_item = add_item(edit_menu, "Show Invisibles", 'I', KeyStroke { KeyEvent::VK_F5, InputEvent::NO_MODIFIERS }, edit_action([toggle_invisibles](auto const &area) {
@@ -316,6 +346,7 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
   (void)paste_item;
   (void)delete_item;
   (void)select_all_item;
+  (void)column_mode_item;
   (void)invisibles_item;
 
   auto menu_bar = make_component<MenuBar>();
@@ -338,9 +369,10 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
     }
   });
 
-  // The caret/scroll changes caused by mouse presses in the area.
+  // The caret/scroll changes caused by mouse presses and releases in the
+  // area (a release ends a drag selection, whose caret the status mirrors).
   area->add_listener([refresh](MousePressEvent &e) {
-    if (e.id == MousePressEvent::MOUSE_PRESSED) {
+    if (e.id == MousePressEvent::MOUSE_PRESSED or e.id == MousePressEvent::MOUSE_RELEASED) {
       refresh();
     }
   });
@@ -351,7 +383,7 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
   // F5 toggles the whitespace rendering (Edit > Show Invisibles), F6 cycles
   // the form (block/underline), F7 the blink mode
   // (blinking/steady/hidden); the message row reports the current choice.
-  frame->add_listener([area, refresh, toggle_invisibles](KeyEvent &e) {
+  frame->add_listener([area, refresh, toggle_invisibles, toggle_column_mode](KeyEvent &e) {
     if (e.id != KeyEvent::KEY_PRESSED) {
       return;
     }
@@ -360,6 +392,11 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
     case KeyEvent::VK_F5:
       // The menu item's accelerator column shows the same shortcut.
       toggle_invisibles(area);
+      refresh();
+      e.consume();
+      break;
+    case KeyEvent::VK_F8:
+      toggle_column_mode(area);
       refresh();
       e.consume();
       break;
@@ -416,14 +453,22 @@ int usage(const char *program) {
                "\n"
                "TextArea demo for tui++ (text screen). With no file argument an\n"
                "in-memory demo document is opened. A File/Edit menu bar and the\n"
-               "text area implement Swing-style editing: Shift+arrows select,\n"
-               "Ctrl+X cut, Ctrl+Insert copy, Ctrl+V paste, Ctrl+A select all,\n"
-               "Ctrl+Z / Ctrl+Y undo/redo (the shortcuts are the menu items'\n"
-               "accelerators, right-aligned in the Edit popup), F3 search (Enter\n"
-               "jumps, F3 repeats), F4 regexp search, F5 Show Invisibles (the\n"
-               "Edit menu's whitespace toggle), F6 caret form (block/underline),\n"
-               "F7 caret blink (blinking/steady/hidden). --log-events writes the\n"
-               "event/resize/graphics history to stderr.\n",
+               "text area implement Swing-style editing: drags select arbitrary\n"
+               "text, Shift+arrows / Shift+click extend, Alt+drag and\n"
+               "Alt+Shift+arrows select a column block (F8 column select mode\n"
+               "makes every selection gesture select columns), Ctrl+X cut,\n"
+               "Ctrl+Insert copy, Ctrl+V paste, Ctrl+A select all, Ctrl+Z /\n"
+               "Ctrl+Y undo/redo (the shortcuts are the menu items'\n"
+               "accelerators, right-aligned in the Edit popup); typing, paste\n"
+               "and delete replace the selection, a column selection included.\n"
+               "Caret navigation: arrows move by character/row, Ctrl+Left/Right\n"
+               "jump to the line's start/end, Ctrl+Up/Down page up/down,\n"
+               "Home/End to the line's edges, Ctrl+Home/End to the document's.\n"
+               "F3 search (Enter jumps, F3 repeats), F4 regexp search, F5 Show\n"
+               "Invisibles (the Edit menu's whitespace toggle), F6 caret form\n"
+               "(block/underline), F7 caret blink (blinking/steady/hidden), F8\n"
+               "column select mode. --log-events writes the event/resize/\n"
+               "graphics history to stderr.\n",
                program);
   return 1;
 }

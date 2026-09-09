@@ -6,11 +6,19 @@
 // the visible rows from the buffer.
 //
 // Features:
-//   * caret movement / typing / backspace / delete / enter (byte-accurate)
-//   * selection with Shift+arrows / Shift+click; Cut (Ctrl+X), Copy
-//     (Ctrl+Insert, and Ctrl+C where the terminal delivers it), Paste (Ctrl+V)
-//     and Select All (Ctrl+A) through an in-process Clipboard; Ctrl+Z / Ctrl+Y
-//     undo and redo typing and backspace runs as single steps
+//   * caret movement / typing / backspace / delete / enter (byte-accurate);
+//     Ctrl+Left/Right jump to the start/end of the current line, Ctrl+Up/
+//     Down page up/down, Home/End move to line start/end, Ctrl+Home/End to
+//     the document edges
+//   * text selection: Shift+arrows / Shift+click, and drags with the mouse;
+//     column (rectangular) selection with Alt+drag and Alt+Shift+arrows, or
+//     in the column-select mode (F8 in the demo) with every selection gesture
+//   * Cut (Ctrl+X), Copy (Ctrl+Insert, and Ctrl+C where the terminal delivers
+//     it), Paste (Ctrl+V) and Select All (Ctrl+A) through an in-process
+//     Clipboard; a column selection copies each row's covered cells joined
+//     with newlines, and typing/backspace/delete/paste replace it
+//   * Ctrl+Z / Ctrl+Y undo and redo typing and backspace runs as single
+//     steps; a column-block edit undoes/redoes as one step as well
 //   * optional visible whitespace (space -> middle dot, tab -> arrow)
 //   * incremental string and regexp search (F3), F4 toggles regexp,
 //     F5 toggles whitespace
@@ -24,6 +32,7 @@
 #include <tui++/Timer.h>
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -36,6 +45,11 @@ namespace tui {
 // access to the key handlers.
 class TextAreaKeyForwarder;
 
+// Receives the drags that follow a press on the area (see TextArea.cpp): a
+// Component does not process MOUSE_DRAG events itself, the window dispatcher
+// retargets them to the press target for screen listeners only.
+class TextAreaDragObserver;
+
 class TextArea: public Component, public Scrollable {
   using base = Component;
 
@@ -47,6 +61,8 @@ public:
     this->buffer = buffer;
     this->caret = 0;
     this->sel_anchor = 0;
+    this->sel_block = false;
+    this->mouse_dragging = false;
     this->undo_stack.clear();
     this->redo_stack.clear();
     this->max_line_width = 0;
@@ -175,10 +191,49 @@ public:
     return this->sel_anchor != this->caret;
   }
 
-  // The selected byte range, (start, end); start == end when none.
+  // The selected byte range, (start, end); start == end when none. A column
+  // selection spans from its top-left corner to the caret's bottom-right
+  // corner, so its byte range covers every row of the block.
   std::pair<std::uint64_t, std::uint64_t> get_selection() const {
     auto [start, end] = selection_bounds();
     return { start, end };
+  }
+
+  // True when the current selection is a column (rectangular) block instead
+  // of a contiguous byte range.
+  bool is_block_selection() const {
+    return this->sel_block and this->sel_anchor != this->caret;
+  }
+
+  // Column-select mode: while on, every selection gesture -- Shift+arrows,
+  // Shift+click and mouse drags -- selects a column block rather than a byte
+  // range. The mode exists because Alt+Shift chords are unreliable on some
+  // terminals and hosts (Windows switches input languages on Alt+Shift); an
+  // explicit column gesture (Alt+drag, Alt+Shift+arrows) selects a block
+  // whether the mode is on or off. Swing has no analog; VS Code's column
+  // selection mode is the model.
+  void set_column_select_mode(bool value) {
+    this->column_select_mode = value;
+  }
+
+  bool is_column_select_mode() const {
+    return this->column_select_mode;
+  }
+
+  // The corner rows and cells of a column (block) selection. The block spans
+  // the whole rows [top, bottom] and, on each of them, the terminal cells
+  // [left, right). Cells beyond a row's text end select nothing there (a
+  // column selection never invents virtual space).
+  struct BlockRect {
+    std::uint64_t top;
+    std::uint64_t bottom;
+    int left;
+    int right;
+  };
+
+  // The selection's block rectangle, when it is a column selection.
+  std::optional<BlockRect> get_block() const {
+    return block_rect();
   }
 
   // Copies the selection into the Clipboard. Safe without a selection.
@@ -293,6 +348,7 @@ protected:
 
 private:
   friend class TextAreaKeyForwarder;
+  friend class TextAreaDragObserver;
 
   template<typename T, typename ... Args>
   requires (is_component_v<T> )
@@ -303,12 +359,22 @@ private:
 
   void move_caret_left(std::uint64_t &offset) const;
   void move_caret_right(std::uint64_t &offset) const;
-  void move_caret_line(int delta, int desired_cell, bool extend);
-  void page(int delta, bool extend);
+
+  // Moves the caret `delta` rows towards `desired_cell` (or a page); `extend`
+  // keeps the selection anchor put (Shift), `block` gives a fresh or
+  // converted selection the column shape (Alt+Shift, or Alt+drag).
+  void move_caret_line(int delta, int desired_cell, bool extend, bool block = false);
+  void page(int delta, bool extend, bool block = false);
 
   // Byte offset of the char at `cell` cells from the start of line `line`
   // (clamped to the line end).
   std::uint64_t cell_to_offset(std::uint64_t line, int cell) const;
+
+  // (line, terminal-cell column) of byte offset `offset` (clamped to the
+  // content end). Like refresh_caret_geometry it derives the line start from
+  // the byte column the line index reports, so it stays right when an edit
+  // just rewound the index.
+  std::pair<std::uint64_t, int> offset_cell(std::uint64_t offset) const;
 
   // Recomputed caret line/cell caches; call after every caret move.
   void refresh_caret_geometry();
@@ -354,8 +420,12 @@ private:
   }
 
   // Moves the caret to `offset`; with `extend` the selection anchor stays put
-  // (shift-arrow selection), otherwise the selection collapses.
-  void place_caret(std::uint64_t offset, bool extend);
+  // (shift-arrow selection), otherwise the selection collapses. `block` gives
+  // a selection that starts or extends here the column shape: a fresh
+  // selection takes it, an existing range is converted to a block (an
+  // Alt+Shift gesture from the middle of a selection). The column-select
+  // mode has the same effect on every extend gesture.
+  void place_caret(std::uint64_t offset, bool extend, bool block = false);
 
   // Damages only the caret's cell, wherever it is (clipped when off-screen).
   void repaint_caret_cell();
@@ -406,12 +476,59 @@ private:
   // manager switches its owner, so is_focus_owner() cannot answer then.
   void focus_changed(bool focus_gained);
 
+  // One undoable chunk edit: [offset, offset + removed.size()) was replaced
+  // by `inserted` (removed or inserted is empty for a pure delete/insert).
+  struct Edit {
+    std::uint64_t offset;
+    std::string removed;
+    std::string inserted;
+  };
+
+  // One undo step: the chunk edits that belong together (a typing run is a
+  // single chunk; a column-block operation records one chunk per edited row).
+  // A step's chunks replay in descending-offset order -- the order in which
+  // every recorded offset stays valid while the buffer's length changes --
+  // with distinct offsets (a block's chunks never collide; the top row's
+  // delete and the replacement text insert merge into one chunk).
+  struct EditStep {
+    std::vector<Edit> chunks;
+  };
+  std::vector<EditStep> undo_stack;
+  std::vector<EditStep> redo_stack;
+
+  // --- column (block) selection ------------------------------------------
+
+  // The rectangle between the anchor and the caret corners, when the
+  // selection is a column block. The anchor corner is measured on demand
+  // (the caret corner is the caret's own geometry); rows [top, bottom],
+  // cells [left, right) on each of them.
+  std::optional<BlockRect> block_rect() const;
+
+  // The bytes of `line` covered by the block cells [cell0, cell1), clamped to
+  // the line's text end; start == end when the line has no text in the band.
+  // `line` must already be indexed (read_line_ranges needs it known).
+  std::pair<std::uint64_t, std::uint64_t> block_line_span(std::uint64_t line, int cell0, int cell1) const;
+
+  // Deletes the column block (per-row deletions, one undo step) and leaves
+  // the caret at the block's top-left corner.
+  void delete_block();
+
+  // Replaces the column block with `text`: the block's rows are deleted and
+  // the text is inserted at the block's top-left corner, all as one undo
+  // step (the edit ops call it when typing/pasting over a column selection).
+  void replace_block(std::string const &text);
+
   // One undoable edit: [offset, offset + delete_len) replaced by `replacement`.
   void apply_edit(std::uint64_t offset, std::uint64_t delete_len, std::string_view replacement);
 
   // Pushes an edit onto the undo stack (merging contiguous typing/backspace
   // runs, dropping the redo stack).
   void record_edit(std::uint64_t offset, std::string removed, std::string inserted);
+
+  // Pushes a whole undo step at once: the chunk edits of a column-block
+  // operation (merged typing runs must never merge into it). Sorts the
+  // chunks into replay order and drops the redo stack.
+  void record_block_edit(std::vector<Edit> chunks);
 
   void notify_window();
 
@@ -435,13 +552,38 @@ private:
   // One edge of the selection (the other is the caret). Equal when collapsed.
   std::uint64_t sel_anchor = 0;
 
-  struct Edit {
-    std::uint64_t offset;
-    std::string removed;
-    std::string inserted;
-  };
-  std::vector<Edit> undo_stack;
-  std::vector<Edit> redo_stack;
+  // True while the selection has the column shape (see the public selection
+  // section). A collapsed selection carries no shape: extending it with a
+  // plain gesture makes a byte range, extending it with a column gesture
+  // makes a block.
+  bool sel_block = false;
+  bool column_select_mode = false;
+
+  // --- mouse drag selection ------------------------------------------------
+
+  // A drag extends the selection from the press point (the anchor the press
+  // left behind) to wherever the pointer went. The target row is clamped to
+  // the content: a drag past the scanned frontier extends the lazy line
+  // index, and one past the content end selects to the last line. The caret
+  // is scrolled into view after every drag step, so dragging past the
+  // viewport edge scrolls the pane behind the pointer.
+  void on_mouse_drag(int x, int y);
+
+  // Ends the drag: the button went up (the observer unregisters itself).
+  void on_mouse_release();
+
+  // The screen-level drag observer (see TextArea.cpp), registered while the
+  // left button is down on this area; drags and the release that ends them
+  // are retargeted to the area that received the press.
+  void register_drag_observer();
+  void unregister_drag_observer();
+
+  // The left button is down on this area (a press was seen) and a drag is in
+  // progress. `mouse_drag_block` is the press's column gesture: drags extend
+  // the selection from wherever the press left it, in that shape.
+  bool mouse_dragging = false;
+  bool mouse_drag_block = false;
+  std::shared_ptr<TextAreaDragObserver> drag_observer;
 
   std::uint64_t match_start = UINT64_MAX;
   std::uint64_t match_end = UINT64_MAX;

@@ -63,6 +63,13 @@ std::uint64_t bytes_for_cells(std::uint64_t cells) {
   return cells * 4 + 128;
 }
 
+// The library reports the Alt key as META_DOWN in mouse reports (the SGR
+// modifier bit 8 is "meta") and as ALT_DOWN in CSI key sequences (xterm's
+// modifier parameter); either one marks a column gesture here.
+bool is_column_modifier(InputEvent::Modifiers modifiers) {
+  return bool(modifiers & (InputEvent::ALT_DOWN | InputEvent::META_DOWN));
+}
+
 }
 
 // The framework dispatches key events to windows, not to the focus owner, so
@@ -94,6 +101,43 @@ public:
   }
 };
 
+// Drags (and the release that ends them) are retargeted to the component that
+// received the press, but a Component dispatches them only to screen
+// listeners; see WindowMouseEventDispatcher and ScrollBarDragObserver. This
+// observer is registered on the screen while the left button is down on the
+// area and translates nothing: the dispatcher already delivers drag
+// coordinates in the press target's (the area's) local space. Defined outside
+// the anonymous namespace so the friend declaration in the header
+// (tui::TextAreaDragObserver) names the same class.
+class TextAreaDragObserver final: public EventListener<Event>, public std::enable_shared_from_this<TextAreaDragObserver> {
+  std::weak_ptr<TextArea> area;
+
+public:
+  explicit TextAreaDragObserver(std::weak_ptr<TextArea> const &area) :
+      area(area) {
+  }
+
+  virtual void event_dispatched(Event &e) override {
+    if (auto area = this->area.lock()) {
+      auto from_area = std::dynamic_pointer_cast<Component>(e.source) == area;
+      if (e.id == MouseDragEvent::MOUSE_DRAGGED) {
+        if (from_area) {
+          auto &mouse = static_cast<MouseDragEvent&>(e);
+          area->on_mouse_drag(mouse.x, mouse.y);
+        }
+      } else if (e.id == MousePressEvent::MOUSE_RELEASED and from_area) {
+        // The release ends the drag; drop the observer (the next press
+        // registers it again).
+        area->on_mouse_release();
+        area->unregister_drag_observer();
+      }
+      return;
+    }
+    // The area died while being dragged (window closed): stop observing.
+    screen.remove_listener(shared_from_this());
+  }
+};
+
 TextArea::TextArea() {
   // The same near-black as the viewport's default: the area only covers part
   // of the viewport, and the cells to its right show the viewport's color. A
@@ -110,15 +154,32 @@ void TextArea::init() {
   // The event coordinates are translated into this component's own space,
   // which is the *file* space (the viewport places the view at
   // -view_position), so a click row is already a file line. A Shift+click
-  // extends the selection to the clicked spot instead of moving the caret.
+  // extends the selection to the clicked spot instead of moving the caret; a
+  // click with Alt (or Meta: the mouse reports encode Alt that way) parks a
+  // column-block corner there. A left press also registers the drag observer
+  // (drags are retargeted to this area but delivered to screen listeners, so
+  // the area cannot listen for them directly) and the drags that follow
+  // extend the selection from the press point in the press's shape: a plain
+  // drag selects a byte range, an Alt+drag selects a column block.
   add_listener([this](MousePressEvent &e) {
+    if (e.id == MousePressEvent::MOUSE_RELEASED) {
+      // The release that the drag observer missed (e.g. the pointer left the
+      // window, or the observer already ended on a routed release).
+      on_mouse_release();
+      return;
+    }
     if (e.id != MousePressEvent::MOUSE_PRESSED) {
       return;
     }
     auto line = std::uint64_t(std::max(0, e.y));
     if (this->buffer->known_line_count() > line) {
-      auto extend = bool(e.modifiers & InputEvent::SHIFT_DOWN);
-      place_caret(cell_to_offset(line, std::max(0, e.x)), extend);
+      auto shift = bool(e.modifiers & InputEvent::SHIFT_DOWN);
+      place_caret(cell_to_offset(line, std::max(0, e.x)), shift, is_column_modifier(e.modifiers));
+      // The press starts a drag selection: the press left a fresh selection
+      // anchor (or a block corner) at the click, and the drags extend it.
+      this->mouse_dragging = true;
+      this->mouse_drag_block = is_column_modifier(e.modifiers);
+      register_drag_observer();
     }
     request_input_focus();
     e.consume();
@@ -140,6 +201,43 @@ void TextArea::init() {
 }
 
 TextArea::~TextArea() = default;
+
+void TextArea::register_drag_observer() {
+  if (not this->drag_observer) {
+    this->drag_observer = std::make_shared<TextAreaDragObserver>(std::static_pointer_cast<TextArea>(shared_from_this()));
+    screen.add_listener(EventType::MOUSE_DRAG | EventType::MOUSE_PRESS, this->drag_observer);
+  }
+}
+
+void TextArea::unregister_drag_observer() {
+  if (this->drag_observer) {
+    screen.remove_listener(this->drag_observer);
+    this->drag_observer.reset();
+  }
+}
+
+void TextArea::on_mouse_release() {
+  this->mouse_dragging = false;
+}
+
+void TextArea::on_mouse_drag(int x, int y) {
+  if (not this->mouse_dragging) {
+    return;
+  }
+  // The target row is clamped to the content: a drag past the scanned
+  // frontier extends the lazy line index, one past the content end selects
+  // to the last line. The caret is scrolled into view after every step (see
+  // place_caret), so dragging past the viewport edge scrolls the pane
+  // behind the pointer.
+  auto line = std::uint64_t(std::max(0, y));
+  if (this->buffer->known_line_count() <= line) {
+    this->buffer->ensure_line(line + 1);
+  }
+  if (this->buffer->known_line_count() <= line) {
+    line = this->buffer->known_line_count() - 1;
+  }
+  place_caret(cell_to_offset(line, std::max(0, x)), true, this->mouse_drag_block or this->column_select_mode);
+}
 
 std::shared_ptr<Viewport> TextArea::get_viewport() const {
   for (auto parent = get_parent(); parent; parent = parent->get_parent()) {
@@ -204,17 +302,16 @@ void TextArea::move_caret_right(std::uint64_t &offset) const {
   offset += std::uint64_t(utf8_len(probe.data(), probe.size()));
 }
 
-void TextArea::refresh_caret_geometry() {
-  this->caret = std::min(this->caret, this->buffer->length());
-  auto [line, byte_col] = this->buffer->offset_to_line(this->caret);
-  this->caret_line = line;
+std::pair<std::uint64_t, int> TextArea::offset_cell(std::uint64_t offset) const {
+  auto clamped = std::min(offset, this->buffer->length());
+  auto [line, byte_col] = this->buffer->offset_to_line(clamped);
 
-  // Terminal-cell column of the caret within its line. The line start is the
-  // caret offset minus its byte column (offset_to_line reports the column),
-  // not buffer->line_start(line): an edit just rewound the lazy line index
-  // to the anchor before it, so line_start would clamp to the content end
-  // and the caret would measure from there (landing on column 0).
-  auto start = this->caret - std::min(byte_col, this->caret);
+  // Terminal-cell column of the offset within its line. The line start is the
+  // offset minus its byte column (offset_to_line reports the column), not
+  // buffer->line_start(line): an edit just rewound the lazy line index to the
+  // anchor before it, so line_start would clamp to the content end and the
+  // caret would measure from there (landing on column 0).
+  auto start = clamped - std::min(byte_col, clamped);
   auto text = this->buffer->read(start, byte_col);
   auto cell = 0;
   auto pos = std::size_t(0);
@@ -226,6 +323,13 @@ void TextArea::refresh_caret_geometry() {
     }
     pos += std::size_t(utf8_len(text.data() + pos, text.size() - pos));
   }
+  return { line, cell };
+}
+
+void TextArea::refresh_caret_geometry() {
+  this->caret = std::min(this->caret, this->buffer->length());
+  auto [line, cell] = offset_cell(this->caret);
+  this->caret_line = line;
   this->caret_cell = cell;
 }
 
@@ -261,7 +365,7 @@ std::uint64_t TextArea::cell_to_offset(std::uint64_t line, int cell) const {
   return std::min(offset, end);
 }
 
-void TextArea::place_caret(std::uint64_t offset, bool extend) {
+void TextArea::place_caret(std::uint64_t offset, bool extend, bool block) {
   auto old_caret_line = this->caret_line;
   auto first = old_caret_line;
   auto last = old_caret_line;
@@ -274,8 +378,24 @@ void TextArea::place_caret(std::uint64_t offset, bool extend) {
   }
   this->caret = std::min(offset, this->buffer->length());
   if (not extend) {
-    // A plain caret move collapses the selection (the anchor follows).
+    // A plain caret move collapses the selection (the anchor follows). An
+    // Alt+press parks a zero-size column corner here instead, so the drag
+    // that follows it grows a block from this spot.
     this->sel_anchor = this->caret;
+    this->sel_block = block;
+  } else if (this->sel_anchor == this->caret) {
+    // Extending from a collapsed caret starts a fresh selection. Its shape
+    // is the gesture's: a plain extend makes a byte range, a column gesture
+    // (or the column-select mode) a block.
+    this->sel_block = block or this->column_select_mode;
+  } else if (block or this->column_select_mode) {
+    // A column gesture over an existing range turns it into a block between
+    // the range's corners. The shape change can alter the highlight of
+    // every row between them (a byte range and a column block paint
+    // differently), so the whole band is damaged.
+    this->sel_block = true;
+    auto anchor_line = this->buffer->offset_to_line(this->sel_anchor).first;
+    first = std::min(first, anchor_line);
   }
   refresh_caret_geometry();
   scroll_caret_to_visible();
@@ -300,6 +420,7 @@ void TextArea::set_caret(std::uint64_t offset) {
   repaint_match_rows();
   this->caret = std::min(offset, this->buffer->length());
   this->sel_anchor = this->caret;
+  this->sel_block = false;
   invalidate_match();
   // A deep jump (search hit, Ctrl+End) may land beyond the scanned region;
   // index it first so the caret geometry does not rescan the whole gap.
@@ -469,7 +590,7 @@ static std::uint64_t count_buffer_newlines(TextBuffer const &buffer, std::uint64
   return count;
 }
 
-void TextArea::move_caret_line(int delta, int desired_cell, bool extend) {
+void TextArea::move_caret_line(int delta, int desired_cell, bool extend, bool block) {
   auto old_caret_line = this->caret_line;
   auto first = old_caret_line;
   auto last = old_caret_line;
@@ -488,6 +609,13 @@ void TextArea::move_caret_line(int delta, int desired_cell, bool extend) {
   this->caret = offset;
   if (not extend) {
     this->sel_anchor = this->caret;
+    this->sel_block = block;
+  } else if (this->sel_anchor == this->caret) {
+    this->sel_block = block or this->column_select_mode;
+  } else if (block or this->column_select_mode) {
+    this->sel_block = true;
+    auto anchor_line = this->buffer->offset_to_line(this->sel_anchor).first;
+    first = std::min(first, anchor_line);
   }
   refresh_caret_geometry();
   scroll_caret_to_visible();
@@ -495,7 +623,7 @@ void TextArea::move_caret_line(int delta, int desired_cell, bool extend) {
   restart_caret_blink();
 }
 
-void TextArea::page(int delta, bool extend) {
+void TextArea::page(int delta, bool extend, bool block) {
   auto viewport = get_viewport();
   auto step = std::max(1, (viewport ? viewport->get_height() : get_height()) - 1);
   auto top = std::int64_t(get_top_line());
@@ -531,6 +659,13 @@ void TextArea::page(int delta, bool extend) {
   this->caret = cell_to_offset(std::uint64_t(std::max<std::int64_t>(0, caret_target)), desired);
   if (not extend) {
     this->sel_anchor = this->caret;
+    this->sel_block = block;
+  } else if (this->sel_anchor == this->caret) {
+    this->sel_block = block or this->column_select_mode;
+  } else if (block or this->column_select_mode) {
+    this->sel_block = true;
+    auto anchor_line = this->buffer->offset_to_line(this->sel_anchor).first;
+    first = std::min(first, anchor_line);
   }
   refresh_caret_geometry();
   // A page that actually scrolled repainted the whole viewport already
@@ -555,28 +690,67 @@ void TextArea::record_edit(std::uint64_t offset, std::string removed, std::strin
   }
 
   // Merge a typing run into the previous pure insert, and a backspace run
-  // into the previous pure delete (contiguous, same direction).
+  // into the previous pure delete (contiguous, same direction). A
+  // multi-chunk step (a column-block operation) is never merged into.
   auto merged = false;
   if (not this->undo_stack.empty()) {
-    auto &last = this->undo_stack.back();
-    if (removed.empty() and last.removed.empty() and last.inserted.size() + inserted.size() <= MAX_RECORDED_BYTES) {
-      if (last.offset + last.inserted.size() == offset) {
-        last.inserted += inserted;
-        merged = true;
-      }
-    } else if (inserted.empty() and last.inserted.empty() and last.removed.size() + removed.size() <= MAX_RECORDED_BYTES) {
-      if (offset + removed.size() == last.offset) {
-        last.removed = removed + last.removed;
-        last.offset = offset;
-        merged = true;
+    auto &step = this->undo_stack.back();
+    if (step.chunks.size() == 1) {
+      auto &last = step.chunks.back();
+      if (removed.empty() and last.removed.empty() and last.inserted.size() + inserted.size() <= MAX_RECORDED_BYTES) {
+        if (last.offset + last.inserted.size() == offset) {
+          last.inserted += inserted;
+          merged = true;
+        }
+      } else if (inserted.empty() and last.inserted.empty() and last.removed.size() + removed.size() <= MAX_RECORDED_BYTES) {
+        if (offset + removed.size() == last.offset) {
+          last.removed = removed + last.removed;
+          last.offset = offset;
+          merged = true;
+        }
       }
     }
   }
   if (not merged) {
-    this->undo_stack.emplace_back(offset, std::move(removed), std::move(inserted));
+    this->undo_stack.emplace_back(EditStep { { Edit { offset, std::move(removed), std::move(inserted) } } });
   }
   // A fresh edit invalidates the redo history (Swing's UndoManager does the
   // same when an edit is added after an undo).
+  this->redo_stack.clear();
+
+  constexpr std::size_t MAX_UNDO_STEPS = 200;
+  if (this->undo_stack.size() > MAX_UNDO_STEPS) {
+    this->undo_stack.erase(this->undo_stack.begin());
+  }
+}
+
+void TextArea::record_block_edit(std::vector<Edit> chunks) {
+  // The same memory guard as record_edit, applied to the whole step (a block
+  // operation can touch many rows at once).
+  constexpr std::size_t MAX_RECORDED_BYTES = 512 << 10;
+  auto total = std::size_t { 0 };
+  for (auto const &chunk : chunks) {
+    total += chunk.removed.size() + chunk.inserted.size();
+    if (total > MAX_RECORDED_BYTES) {
+      this->undo_stack.clear();
+      this->redo_stack.clear();
+      return;
+    }
+  }
+  if (chunks.empty()) {
+    return;
+  }
+
+  // Replay order: descending offsets, so every recorded offset stays valid
+  // while the buffer's length changes around the earlier chunks (undo and
+  // redo both replay the step this way). The block ops record one chunk per
+  // edited row with strictly decreasing offsets -- the top row's delete and
+  // the replacement-text insert merge into a single chunk, so no two chunks
+  // ever share an offset.
+  std::sort(chunks.begin(), chunks.end(), [](Edit const &a, Edit const &b) {
+    return a.offset > b.offset;
+  });
+  this->undo_stack.emplace_back(EditStep { std::move(chunks) });
   this->redo_stack.clear();
 
   constexpr std::size_t MAX_UNDO_STEPS = 200;
@@ -606,7 +780,18 @@ void TextArea::insert_text(std::string const &text) {
     return;
   }
 
-  // Typing replaces the selection; without one it inserts at the caret.
+  // Typing replaces the selection; without one it inserts at the caret. A
+  // column selection is replaced as a block (one undo step); a zero-width
+  // column "selection" is just a caret and falls through to the plain
+  // insert below.
+  if (is_block_selection()) {
+    if (auto rect = block_rect(); rect and rect->right > rect->left) {
+      replace_block(text);
+      return;
+    }
+    place_caret(this->caret, false); // drop the phantom zero-width block
+  }
+
   auto [start, end] = selection_bounds();
   auto offset = has_selection() ? start : this->caret;
   auto delete_len = end - start;
@@ -617,6 +802,7 @@ void TextArea::insert_text(std::string const &text) {
   apply_edit(offset, delete_len, text);
   this->caret = offset + text.size();
   this->sel_anchor = this->caret;
+  this->sel_block = false;
   invalidate_match();
   refresh_caret_geometry();
   grow_max_line_width(this->caret_line);
@@ -639,6 +825,10 @@ void TextArea::delete_backward() {
   if (this->readonly) {
     return;
   }
+  if (is_block_selection()) {
+    delete_block();
+    return;
+  }
   auto [start, end] = selection_bounds();
   auto offset = start;
   auto delete_len = end - start;
@@ -656,6 +846,7 @@ void TextArea::delete_backward() {
   apply_edit(offset, delete_len, "");
   this->caret = offset;
   this->sel_anchor = this->caret;
+  this->sel_block = false;
   invalidate_match();
   refresh_caret_geometry();
   grow_max_line_width(this->caret_line);
@@ -670,6 +861,10 @@ void TextArea::delete_backward() {
 
 void TextArea::delete_forward() {
   if (this->readonly) {
+    return;
+  }
+  if (is_block_selection()) {
+    delete_block();
     return;
   }
   auto [start, end] = selection_bounds();
@@ -690,6 +885,7 @@ void TextArea::delete_forward() {
   apply_edit(offset, delete_len, "");
   this->caret = offset;
   this->sel_anchor = this->caret;
+  this->sel_block = false;
   invalidate_match();
   refresh_caret_geometry();
   grow_max_line_width(this->caret_line);
@@ -703,9 +899,238 @@ void TextArea::delete_forward() {
 }
 
 // ---------------------------------------------------------------------------
+// column (block) selection
+//
+// A column selection is a rectangle between the anchor and the caret corners
+// measured in (row, terminal cell). It never invents virtual space: every
+// operation clamps the rectangle's cells to each row's text, so a block that
+// hangs past a short row selects nothing there. The selection's bytes are
+// handled one row at a time -- a block delete removes the covered bytes of
+// every row it spans and the rows' tails close up, which no single
+// contiguous buffer edit can express.
+
+std::optional<TextArea::BlockRect> TextArea::block_rect() const {
+  if (not this->sel_block or this->sel_anchor == this->caret) {
+    return std::nullopt;
+  }
+  auto [anchor_line, anchor_cell] = offset_cell(this->sel_anchor);
+  // The caret corner is the caret's own geometry (it is refreshed after
+  // every caret move); measuring it again here would double the cost of
+  // every frame that paints a block.
+  return BlockRect {
+    std::min(anchor_line, this->caret_line),
+    std::max(anchor_line, this->caret_line),
+    std::min(anchor_cell, this->caret_cell),
+    std::max(anchor_cell, this->caret_cell),
+  };
+}
+
+std::pair<std::uint64_t, std::uint64_t> TextArea::block_line_span(std::uint64_t line, int cell0, int cell1) const {
+  // `line` must be resolvable (read_line_ranges returns nothing past the
+  // scan frontier). The decode mirrors paint()'s cell accounting: combining
+  // marks and carriage returns take no cell, a control character and a tab
+  // take one (the '?' / space glyph), wide glyphs two.
+  auto ranges = this->buffer->read_line_ranges(line, 1);
+  if (ranges.empty()) {
+    return { 0, 0 };
+  }
+  auto const &range = ranges[0];
+  auto start = range.end; // the band start; the line end when it has no text in the band
+  auto end = range.end;
+  auto offset = range.start;
+  auto cell = 0;
+  auto found = false;
+  while (offset < range.end) {
+    auto window = this->buffer->read(offset, std::min<std::uint64_t>(4096, range.end - offset));
+    auto base = offset;
+    auto pos = std::size_t { 0 };
+    while (pos < window.size()) {
+      auto first = std::uint8_t(window[pos]);
+      auto expected = first < 0x80 ? 1 : first < 0xE0 ? 2 : first < 0xF0 ? 3 : 4;
+      if (window.size() - pos < std::size_t(expected)) {
+        break; // partial tail: leave it for the next window
+      }
+      auto len = utf8_len(window.data() + pos, window.size() - pos);
+      auto code = decode_char(window.data() + pos, window.size() - pos);
+
+      // Skipped (no cell consumed): carriage returns and combining marks.
+      if (code == '\r' or util::unicode::glyph_width(code) == 0) {
+        pos += std::size_t(len);
+        continue;
+      }
+
+      auto glyph = code;
+      if (util::unicode::glyph_width(code) < 0) {
+        glyph = '?';
+      } else if (code == '\t') {
+        glyph = ' '; // a tab is one cell in a plain viewer
+      }
+      auto glyph_width = util::unicode::glyph_width(glyph);
+      if (glyph_width <= 0) {
+        glyph = '?';
+        glyph_width = 1;
+      }
+      auto head = base + pos;
+      if (cell >= cell0 and cell < cell1) {
+        if (not found) {
+          start = head;
+          found = true;
+        }
+      } else if (cell >= cell1 and found) {
+        end = head; // the first glyph at/after the band's right edge
+        break;
+      }
+      cell += glyph_width;
+      pos += std::size_t(len);
+    }
+    offset = base + pos;
+    if (end < range.end or offset >= range.end or pos == 0) {
+      break;
+    }
+  }
+  return { start, end };
+}
+
+void TextArea::delete_block() {
+  auto rect = block_rect();
+  if (not rect or rect->right <= rect->left) {
+    // A zero-width block selects nothing: collapse it and delete nothing
+    // (Delete/Backspace over a phantom column is a no-op, as in editors
+    // with column selection).
+    place_caret(this->caret, false);
+    return;
+  }
+  this->buffer->ensure_line(rect->bottom + 1);
+
+  // Resolve every row's band before touching the buffer: a buffer edit
+  // rewinds the lazy line index to the last anchor before it, so a span
+  // resolved after an edit of a lower row could find the row unindexed (and
+  // report an empty band). The bands are independent -- deleting one row's
+  // band never shifts another row's bytes -- so they can all be resolved
+  // up front and applied bottom-up, which keeps every recorded offset valid.
+  auto top_band = block_line_span(rect->top, rect->left, rect->right);
+  auto caret_offset = top_band.first;
+  struct RowBand {
+    std::uint64_t start;
+    std::string removed;
+  };
+  auto bands = std::vector<RowBand> { };
+  bands.reserve(std::size_t(rect->bottom - rect->top + 1));
+  for (auto line = rect->top; line <= rect->bottom; ++line) {
+    auto [start, end] = block_line_span(line, rect->left, rect->right);
+    if (end > start) {
+      bands.emplace_back(RowBand { start, this->buffer->read(start, end - start) });
+    }
+  }
+
+  auto chunks = std::vector<Edit> { };
+  chunks.reserve(bands.size());
+  for (auto band = bands.rbegin(); band != bands.rend(); ++band) {
+    this->buffer->replace(band->start, band->removed.size(), "");
+    chunks.emplace_back(Edit { band->start, std::move(band->removed), "" });
+  }
+  if (not chunks.empty()) {
+    record_block_edit(std::move(chunks));
+  }
+  this->caret = caret_offset;
+  this->sel_anchor = this->caret;
+  this->sel_block = false;
+  invalidate_match();
+  refresh_caret_geometry();
+  refresh_view_size();
+  scroll_caret_to_visible();
+  // The rows of the block lose their highlight and their text closes up;
+  // nothing below them moved (no newline was touched).
+  repaint_caret_rows(rect->top, rect->bottom);
+  restart_caret_blink();
+}
+
+void TextArea::replace_block(std::string const &text) {
+  auto rect = block_rect();
+  if (not rect or rect->right <= rect->left) {
+    return;
+  }
+  this->buffer->ensure_line(rect->bottom + 1);
+
+  // Resolve every row's band before touching the buffer (a buffer edit
+  // rewinds the lazy line index; see delete_block). The top row's band and
+  // the replacement text merge into one chunk at the same offset -- the
+  // caret lands right after the typed text -- and every lower row is a pure
+  // deletion below it.
+  auto [top_start, top_end] = block_line_span(rect->top, rect->left, rect->right);
+  auto top_removed = this->buffer->read(top_start, top_end - top_start);
+  auto chunks = std::vector<Edit> { };
+  chunks.reserve(std::size_t(rect->bottom - rect->top + 1));
+  for (auto line = rect->bottom + 1; line-- > rect->top + 1;) {
+    auto [start, end] = block_line_span(line, rect->left, rect->right);
+    if (end > start) {
+      auto removed = this->buffer->read(start, end - start);
+      chunks.emplace_back(Edit { start, std::move(removed), "" });
+    }
+  }
+
+  // Apply the lower rows' deletions bottom-up (their offsets stay valid),
+  // then replace the top row's band with the typed text at the same offset.
+  for (auto &chunk : chunks) {
+    this->buffer->replace(chunk.offset, chunk.removed.size(), "");
+  }
+  this->buffer->replace(top_start, top_end - top_start, text);
+  chunks.emplace_back(Edit { top_start, std::move(top_removed), text });
+  record_block_edit(std::move(chunks));
+
+  auto caret_offset = top_start + text.size();
+  this->caret = std::min(caret_offset, this->buffer->length());
+  this->sel_anchor = this->caret;
+  this->sel_block = false;
+  invalidate_match();
+  refresh_caret_geometry();
+  grow_max_line_width(this->caret_line);
+  refresh_view_size();
+  scroll_caret_to_visible();
+  auto inserted_newlines = std::uint64_t(std::count(text.begin(), text.end(), '\n'));
+  if (inserted_newlines > 0) {
+    // The text opened new rows: everything from the block's top row down
+    // shifted (or was removed from view) -- repaint to the viewport bottom.
+    repaint_from_line(rect->top);
+  } else {
+    repaint_caret_rows(rect->top, std::max(rect->bottom, this->caret_line));
+  }
+  restart_caret_blink();
+}
+
+
+// ---------------------------------------------------------------------------
 // selection / clipboard / undo
 
 void TextArea::copy() {
+  if (is_block_selection()) {
+    // A column selection copies each row's covered cells; the rows join with
+    // newlines, trailing empty rows (rows without text in the band) drop
+    // off so a pasted block keeps its shape.
+    auto rect = block_rect();
+    if (not rect or rect->right <= rect->left) {
+      return; // a zero-width column selects nothing
+    }
+    this->buffer->ensure_line(rect->bottom + 1);
+    auto rows = std::vector<std::string> { };
+    rows.reserve(std::size_t(rect->bottom - rect->top + 1));
+    for (auto line = rect->top; line <= rect->bottom; ++line) {
+      auto [start, end] = block_line_span(line, rect->left, rect->right);
+      rows.emplace_back(start < end ? this->buffer->read(start, end - start) : std::string { });
+    }
+    while (not rows.empty() and rows.back().empty()) {
+      rows.pop_back();
+    }
+    auto text = std::string { };
+    for (auto const &row : rows) {
+      if (not text.empty()) {
+        text += '\n';
+      }
+      text += row;
+    }
+    Clipboard::set_text(text);
+    return;
+  }
   if (not has_selection()) {
     return;
   }
@@ -732,6 +1157,7 @@ void TextArea::select_all() {
   repaint_match_rows();
   this->sel_anchor = 0;
   this->caret = this->buffer->length();
+  this->sel_block = false;
   invalidate_match();
   refresh_caret_geometry();
   refresh_view_size();
@@ -745,24 +1171,48 @@ void TextArea::undo() {
   if (this->undo_stack.empty() or this->readonly) {
     return;
   }
-  auto edit = this->undo_stack.back();
+  auto step = std::move(this->undo_stack.back());
   this->undo_stack.pop_back();
-  // Undo the edit: remove what it inserted and restore what it removed.
-  auto first_line = this->buffer->offset_to_line(edit.offset).first;
-  auto inserted_newlines = std::uint64_t(std::count(edit.removed.begin(), edit.removed.end(), '\n'));
-  auto removed_newlines = std::uint64_t(std::count(edit.inserted.begin(), edit.inserted.end(), '\n'));
+
+  // The rows the step touched and the net newline change across its chunks
+  // (a step usually edits one row; a column-block step touches every row it
+  // spans).
+  auto first_line = UINT64_MAX;
+  auto last_line = std::uint64_t { 0 };
+  auto inserted_newlines = std::uint64_t { 0 };
+  auto removed_newlines = std::uint64_t { 0 };
+  for (auto const &edit : step.chunks) {
+    auto line = this->buffer->offset_to_line(std::min(edit.offset, this->buffer->length())).first;
+    first_line = std::min(first_line, line);
+    last_line = std::max(last_line, line);
+    inserted_newlines += std::uint64_t(std::count(edit.removed.begin(), edit.removed.end(), '\n'));
+    removed_newlines += std::uint64_t(std::count(edit.inserted.begin(), edit.inserted.end(), '\n'));
+  }
   repaint_match_rows();
-  this->buffer->replace(edit.offset, edit.inserted.size(), edit.removed);
-  this->caret = std::min(edit.offset + edit.removed.size(), this->buffer->length());
+
+  // Undo the step chunk by chunk in ascending offset order: an inverse chunk
+  // restores its bytes at its recorded offset, and restoring lower offsets
+  // first pushes the still-missing higher content back into place (redo, the
+  // mirror image, deletes descending so the earlier offsets stay valid).
+  for (auto it = step.chunks.rbegin(); it != step.chunks.rend(); ++it) {
+    auto const &edit = *it;
+    this->buffer->replace(edit.offset, edit.inserted.size(), edit.removed);
+  }
+  // The caret lands where the chunk at the step's lowest offset ended (the
+  // end of the restored text: after the first typed character, after the
+  // deleted selection's first row band, ...).
+  auto tail = step.chunks.back();
+  this->caret = std::min(tail.offset + tail.removed.size(), this->buffer->length());
   this->sel_anchor = this->caret;
-  this->redo_stack.emplace_back(std::move(edit));
+  this->sel_block = false;
+  this->redo_stack.emplace_back(std::move(step));
   invalidate_match();
   refresh_caret_geometry();
   grow_max_line_width(this->caret_line);
   refresh_view_size();
   scroll_caret_to_visible();
   if (inserted_newlines == removed_newlines) {
-    repaint_caret_rows(first_line, this->caret_line);
+    repaint_caret_rows(first_line, std::max(last_line, this->caret_line));
   } else {
     repaint_from_line(first_line);
   }
@@ -773,24 +1223,42 @@ void TextArea::redo() {
   if (this->redo_stack.empty() or this->readonly) {
     return;
   }
-  auto edit = this->redo_stack.back();
+  auto step = std::move(this->redo_stack.back());
   this->redo_stack.pop_back();
-  // Redo the edit: remove what it removed and restore what it inserted.
-  auto first_line = this->buffer->offset_to_line(edit.offset).first;
-  auto inserted_newlines = std::uint64_t(std::count(edit.inserted.begin(), edit.inserted.end(), '\n'));
-  auto removed_newlines = std::uint64_t(std::count(edit.removed.begin(), edit.removed.end(), '\n'));
+
+  auto first_line = UINT64_MAX;
+  auto last_line = std::uint64_t { 0 };
+  auto inserted_newlines = std::uint64_t { 0 };
+  auto removed_newlines = std::uint64_t { 0 };
+  for (auto const &edit : step.chunks) {
+    auto line = this->buffer->offset_to_line(std::min(edit.offset, this->buffer->length())).first;
+    first_line = std::min(first_line, line);
+    last_line = std::max(last_line, line);
+    inserted_newlines += std::uint64_t(std::count(edit.inserted.begin(), edit.inserted.end(), '\n'));
+    removed_newlines += std::uint64_t(std::count(edit.removed.begin(), edit.removed.end(), '\n'));
+  }
   repaint_match_rows();
-  this->buffer->replace(edit.offset, edit.removed.size(), edit.inserted);
-  this->caret = std::min(edit.offset + edit.inserted.size(), this->buffer->length());
+
+  // Re-apply the step's chunks in replay order (see undo): remove what each
+  // chunk removed and re-insert what it inserted.
+  for (auto const &edit : step.chunks) {
+    this->buffer->replace(edit.offset, edit.removed.size(), edit.inserted);
+  }
+  // The caret lands where the step left it: after the lowest chunk's
+  // inserted text (the typing run, the replacement text of a block, or the
+  // top-left corner of a deleted block).
+  auto tail = step.chunks.back();
+  this->caret = std::min(tail.offset + tail.inserted.size(), this->buffer->length());
   this->sel_anchor = this->caret;
-  this->undo_stack.emplace_back(std::move(edit));
+  this->sel_block = false;
+  this->undo_stack.emplace_back(std::move(step));
   invalidate_match();
   refresh_caret_geometry();
   grow_max_line_width(this->caret_line);
   refresh_view_size();
   scroll_caret_to_visible();
   if (inserted_newlines == removed_newlines) {
-    repaint_caret_rows(first_line, this->caret_line);
+    repaint_caret_rows(first_line, std::max(last_line, this->caret_line));
   } else {
     repaint_from_line(first_line);
   }
@@ -803,53 +1271,81 @@ void TextArea::redo() {
 void TextArea::on_key_pressed(KeyEvent &e) {
   auto ctrl = bool(e.modifiers & InputEvent::CTRL_DOWN);
   auto shift = bool(e.modifiers & InputEvent::SHIFT_DOWN);
+  // A column gesture: Alt (the terminal reports Alt on arrow chords as
+  // ALT_DOWN in CSI sequences) or Meta (mouse reports and some hosts encode
+  // Alt as meta). Alt+Shift+arrow selects a column block; Alt+arrow alone
+  // moves the caret and parks a block corner where it lands.
+  auto column = is_column_modifier(e.modifiers);
   switch (e.get_key_code()) {
   case KeyEvent::VK_LEFT:
-    if (not this->search_mode and not ctrl) {
-      auto offset = this->caret;
-      move_caret_left(offset);
-      place_caret(offset, shift); // Shift+Left extends the selection
+    if (not this->search_mode) {
+      if (ctrl) {
+        // Ctrl+Left: the start of the caret's line (like Home).
+        place_caret(this->buffer->line_start(this->caret_line), shift, column);
+      } else {
+        auto offset = this->caret;
+        move_caret_left(offset);
+        place_caret(offset, shift, column); // Shift+Left extends the selection
+      }
     }
     e.consume();
     break;
   case KeyEvent::VK_RIGHT:
-    if (not this->search_mode and not ctrl) {
-      auto offset = this->caret;
-      move_caret_right(offset);
-      place_caret(offset, shift);
+    if (not this->search_mode) {
+      if (ctrl) {
+        // Ctrl+Right: the end of the caret's line (like End): the byte
+        // before its newline, or the content end when the line is the last
+        // one.
+        this->buffer->ensure_line(this->caret_line + 2);
+        auto known = this->buffer->known_line_count();
+        auto end = this->caret_line + 1 < known ? this->buffer->line_start(this->caret_line + 1) - 1 : this->buffer->length();
+        place_caret(end, shift, column);
+      } else {
+        auto offset = this->caret;
+        move_caret_right(offset);
+        place_caret(offset, shift, column);
+      }
     }
     e.consume();
     break;
   case KeyEvent::VK_UP:
     if (not this->search_mode) {
-      move_caret_line(-1, this->caret_cell, shift);
+      if (ctrl) {
+        page(-1, shift, column); // Ctrl+Up pages up (like Page Up)
+      } else {
+        move_caret_line(-1, this->caret_cell, shift, column);
+      }
     }
     e.consume();
     break;
   case KeyEvent::VK_DOWN:
     if (not this->search_mode) {
-      move_caret_line(1, this->caret_cell, shift);
+      if (ctrl) {
+        page(1, shift, column); // Ctrl+Down pages down (like Page Down)
+      } else {
+        move_caret_line(1, this->caret_cell, shift, column);
+      }
     }
     e.consume();
     break;
   case KeyEvent::VK_PAGE_UP:
     if (not this->search_mode) {
-      page(-1, shift);
+      page(-1, shift, column);
     }
     e.consume();
     break;
   case KeyEvent::VK_PAGE_DOWN:
     if (not this->search_mode) {
-      page(1, shift);
+      page(1, shift, column);
     }
     e.consume();
     break;
   case KeyEvent::VK_HOME:
     if (not this->search_mode) {
       if (ctrl) {
-        place_caret(0, shift);
+        place_caret(0, shift, column);
       } else {
-        place_caret(this->buffer->line_start(this->caret_line), shift);
+        place_caret(this->buffer->line_start(this->caret_line), shift, column);
       }
     }
     e.consume();
@@ -861,7 +1357,7 @@ void TextArea::on_key_pressed(KeyEvent &e) {
         // line index is the price of knowing where that is).
         this->buffer->scan_to_end();
         refresh_view_size();
-        place_caret(this->buffer->length(), shift);
+        place_caret(this->buffer->length(), shift, column);
       } else {
         // End of the text of the caret's line: the byte before its newline,
         // or the content end when the line is the last one. An empty final
@@ -869,7 +1365,7 @@ void TextArea::on_key_pressed(KeyEvent &e) {
         this->buffer->ensure_line(this->caret_line + 2);
         auto known = this->buffer->known_line_count();
         auto end = this->caret_line + 1 < known ? this->buffer->line_start(this->caret_line + 1) - 1 : this->buffer->length();
-        place_caret(end, shift);
+        place_caret(end, shift, column);
       }
     }
     e.consume();
@@ -1041,6 +1537,7 @@ bool TextArea::find_next(std::string const &pattern, bool regexp, bool forward) 
       this->match_end = match->second;
       this->caret = this->match_end;
       this->sel_anchor = this->caret;
+      this->sel_block = false;
       this->message.clear();
       // Index the hit so caret operations and painting near it stay cheap.
       this->buffer->ensure_scanned_to(this->match_end);
@@ -1064,6 +1561,7 @@ bool TextArea::find_next(std::string const &pattern, bool regexp, bool forward) 
       this->match_end = *offset + pattern.size();
       this->caret = this->match_end;
       this->sel_anchor = this->caret;
+      this->sel_block = false;
       this->message.clear();
       this->buffer->ensure_scanned_to(this->match_end);
       refresh_caret_geometry();
@@ -1256,12 +1754,18 @@ void TextArea::paint(Graphics &g) {
   // Resolve the visible rows in one pass over the content.
   auto ranges = this->buffer->read_line_ranges(top, std::uint64_t(std::max(0, data_rows)));
 
+  // A column selection highlights whole cells [left, right) of every row it
+  // spans (a zero-width block highlights nothing); a byte-range selection
+  // highlights by byte offset instead.
+  auto block = this->sel_block and this->sel_anchor != this->caret ? block_rect() : std::optional<BlockRect> { };
+
   for (auto row = 0; row < data_rows; ++row) {
     if (std::size_t(row) >= ranges.size()) {
       break;
     }
     auto &range = ranges[std::size_t(row)];
     auto line = top + std::uint64_t(row);
+    auto row_in_block = block and line >= block->top and line <= block->bottom;
 
     // The view child of the viewport sits at (-view_position) and spans the
     // whole content (see Viewport::place_view), so file line `line` lives at
@@ -1338,7 +1842,7 @@ void TextArea::paint(Graphics &g) {
           continue;
         }
 
-        auto in_selection = is_selected(base + pos);
+        auto in_selection = row_in_block ? (cell >= block->left and cell < block->right) : is_selected(base + pos);
         auto in_match = is_match(base + pos);
         auto caret_here = this->caret >= base + pos and this->caret < base + pos + std::size_t(len);
         if (in_selection) {
@@ -1362,6 +1866,23 @@ void TextArea::paint(Graphics &g) {
       offset = base + pos; // skip only the fully decoded bytes
       if (offset >= range.end or pos == 0) {
         break;
+      }
+    }
+
+    // A column block keeps its highlight over the cells past a short row's
+    // text: paint the rest of the block's band as selected blanks. (The
+    // glyphs inside the band were colored above; a row that was not fully
+    // decoded was clipped at the right edge, where there is nothing left to
+    // paint.) The pilcrow and the end-of-line caret below paint over these
+    // blanks, as they paint over the glyphs.
+    if (row_in_block and offset >= range.end) {
+      auto from = std::max({ block->left, int(cell), left });
+      auto to = std::min(block->right, right);
+      if (from < to) {
+        g.set_background_color(Color { 44, 62, 102 });
+        for (auto blank = from; blank < to; ++blank) {
+          g.draw_char(Char(' '), blank, row_y);
+        }
       }
     }
 
