@@ -482,7 +482,10 @@ std::size_t swar_find(std::string_view hay, std::string_view needle, std::size_t
     auto const xored = chunk ^ repeated;
     auto mask = (xored - ones) & ~xored & high;
     while (mask) {
-      auto const at = i + std::size_t(std::countr_zero(mask));
+      // The mask's set bits sit on each lane's high bit (position 8*lane+7);
+      // countr_zero returns the BIT index, so shift it down to the lane (==
+      // the byte within the chunk) before adding it to the chunk offset.
+      auto const at = i + (std::size_t(std::countr_zero(mask)) >> 3);
       if (at + n <= hay.size() and std::memcmp(hay.data() + at, needle.data(), n) == 0) {
         return at;
       }
