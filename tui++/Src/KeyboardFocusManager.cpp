@@ -430,7 +430,7 @@ void KeyboardFocusManager::process_key_event(const std::shared_ptr<Component> &f
     auto stroke = KeyStroke { e };
 
     auto to_test = focused_component->get_focus_traversal_keys(KeyboardFocusManager::FORWARD_TRAVERSAL_KEYS);
-    if (to_test->contains(stroke)) {
+    if (to_test and to_test->contains(stroke)) {
       consume_traversal_key(e);
       focus_next_component(focused_component);
       return;
@@ -439,14 +439,14 @@ void KeyboardFocusManager::process_key_event(const std::shared_ptr<Component> &f
     }
 
     to_test = focused_component->get_focus_traversal_keys(KeyboardFocusManager::BACKWARD_TRAVERSAL_KEYS);
-    if (to_test->contains(stroke)) {
+    if (to_test and to_test->contains(stroke)) {
       consume_traversal_key(e);
       focus_previous_component(focused_component);
       return;
     }
 
     to_test = focused_component->get_focus_traversal_keys(KeyboardFocusManager::UP_CYCLE_TRAVERSAL_KEYS);
-    if (to_test->contains(stroke)) {
+    if (to_test and to_test->contains(stroke)) {
       consume_traversal_key(e);
       up_focus_cycle(focused_component);
       return;
@@ -457,7 +457,7 @@ void KeyboardFocusManager::process_key_event(const std::shared_ptr<Component> &f
     }
 
     to_test = focused_component->get_focus_traversal_keys(KeyboardFocusManager::DOWN_CYCLE_TRAVERSAL_KEYS);
-    if (to_test->contains(stroke)) {
+    if (to_test and to_test->contains(stroke)) {
       consume_traversal_key(e);
       down_focus_cycle(focused_component);
     }

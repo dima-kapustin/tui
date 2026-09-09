@@ -116,7 +116,10 @@ protected:
   Property<bool> focus_cycle_root { this, "FocusCycleRoot", false };
   Property<bool> opaque { this, "Opaque" };
 
-  Property<bool> focus_traversal_keys_enabled { this, "FocusTraversalKeysEnabled" };
+  // Swing enables focus traversal keys (Tab/Shift+Tab) on every component by
+  // default; components that use the keys for themselves -- the text area
+  // inserts a tab character -- switch them off.
+  Property<bool> focus_traversal_keys_enabled { this, "FocusTraversalKeysEnabled", true };
   std::vector<std::shared_ptr<const std::unordered_set<KeyStroke>>> focus_traversal_keys;
 
   /**

@@ -151,6 +151,14 @@ TextArea::TextArea() {
 void TextArea::init() {
   base::init();
 
+  // Tab belongs to the document, not to focus traversal: the key handler
+  // inserts a tab character (as the parser reports it), so the area turns
+  // its focus traversal keys off -- the way a Swing text component keeps
+  // Tab for the editor. Focus still enters the area through traversal (it
+  // is the cycle's first accepted component), it just never leaves it with
+  // Tab.
+  set_focus_traversal_keys_enabled(false);
+
   // The event coordinates are translated into this component's own space,
   // which is the *file* space (the viewport places the view at
   // -view_position), so a click row is already a file line. A Shift+click

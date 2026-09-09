@@ -345,19 +345,15 @@ bool Component::transfer_focus(bool clear_on_failure) {
   auto to_focus = get_next_focus_candidate();
   auto result = false;
   if (to_focus and not to_focus->is_focus_owner() and to_focus != shared_from_this()) {
-//      res = toFocus.request_focus_in_window(FocusEvent::Cause::TRAVERSAL_FORWARD);
+    result = to_focus->request_focus_in_window(FocusEvent::Cause::TRAVERSAL_FORWARD);
   }
-  if (clear_on_failure and not result) {
+  if (not result and clear_on_failure) {
     // TODO
 //      if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
 //          focusLog.finer("clear global focus owner");
 //      }
     KeyboardFocusManager::single->clear_focus_owner();
   }
-  // TODO
-//  if (focusLog.isLoggable(PlatformLogger.Level.FINER)) {
-//      focusLog.finer("returning result: " + res);
-//  }
   return result;
 }
 
@@ -648,7 +644,17 @@ void Component::dispatch_event(Event &e) {
 
   if (auto key_event = dynamic_cast<KeyEvent*>(&e)) {
     if (not key_event->consumed) {
-      KeyboardFocusManager::single->process_key_event(shared_from_this(), *key_event);
+      // Focus traversal keys are decided by the component that holds the
+      // focus, as in Swing's DefaultKeyboardFocusManager -- not by the
+      // window the event was posted to. The owner's focus traversal keys
+      // decide whether Tab moves the focus or belongs to the component
+      // itself (the text area disables them, so Tab inserts a tab char in
+      // the document instead of leaving the editor).
+      auto anchor = shared_from_this();
+      if (auto owner = KeyboardFocusManager::single->get_focus_owner(); owner and owner->get_containing_window() == get_containing_window()) {
+        anchor = owner;
+      }
+      KeyboardFocusManager::single->process_key_event(anchor, *key_event);
       if (key_event->consumed) {
         return;
       }
@@ -690,11 +696,13 @@ bool Component::dispatch_mouse_wheel_to_ancestor(MouseWheelEvent &e) {
 }
 
 std::shared_ptr<const std::unordered_set<KeyStroke>> Component::get_focus_traversal_keys(KeyboardFocusManager::FocusTraversalKeys id) const {
-  if (this->focus_traversal_keys.empty()) {
-    return {};
+  // A component with no explicit traversal keys inherits the keys of its
+  // ancestors and ultimately the KeyboardFocusManager's defaults, as in
+  // Swing (AWT's Component.getFocusTraversalKeys).
+  std::shared_ptr<const std::unordered_set<KeyStroke>> keyStrokes;
+  if (size_t(id) < this->focus_traversal_keys.size()) {
+    keyStrokes = this->focus_traversal_keys[size_t(id)];
   }
-
-  auto keyStrokes = this->focus_traversal_keys[id];
 
   if (keyStrokes) {
     return keyStrokes;
