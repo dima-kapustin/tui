@@ -31,6 +31,17 @@
 // F6 caret form (block/underline), F7 caret blink (blink/steady/hidden),
 // F8 column select mode. The status line mirrors the buffer and caret state.
 //
+// Find All (F9, or Edit > Find All) lists every non-overlapping occurrence
+// of the area's current search pattern (the one its F3 search entry holds)
+// in a results pane between the file view and the status line. Each hit is
+// one row, "line:column  <text of the source line>"; clicking a row or
+// moving the caret in the list (arrows, PageUp/Down, Home/End) previews the
+// hit in the file view, Enter previews and closes the panel, Esc closes it,
+// F9 re-runs the search. The scan is byte-accurate and safe for UTF-8 (it
+// never decodes), windowed (bounded memory on huge files) and capped at
+// FIND_ALL_LIMIT hits; regexp find-all is not built yet, so the list is
+// always plain-substring.
+//
 // Quit with Ctrl+C or the File menu.
 
 #include <tui++/BorderLayout.h>
@@ -52,7 +63,12 @@
 #include <tui++/terminal/Terminal.h>
 #include <tui++/util/log.h>
 
+#include <tui++/Panel.h>
+#include <tui++/util/utf-8.h>
+
 #include <cstdio>
+#include <cstdint>
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -63,6 +79,14 @@
 using namespace tui;
 
 namespace {
+
+// Find All (F9 / Edit > Find All): the largest hit list kept in the results
+// pane, and the cap (in bytes) of the source-line preview each row carries.
+// The list is capped so a search over a huge file scans at most until that
+// many hits and the results buffer stays small; the status line reports when
+// the cap cut the list short.
+constexpr std::size_t FIND_ALL_LIMIT = 2000;
+constexpr std::size_t FIND_ALL_PREVIEW_BYTES = 200;
 
 // A small in-memory demo document used when no file argument is given: it has
 // enough lines to make scrolling, paging and search worth trying, and its
@@ -136,10 +160,25 @@ public:
   }
 };
 
+struct FindHit {
+  std::uint64_t offset;  // where the hit starts in the source buffer
+  std::uint64_t line;    // its line, and the byte column of `offset` on it
+  std::uint64_t column;
+};
+
 struct DemoState {
   std::shared_ptr<ScrollPane> pane;
   std::shared_ptr<TextArea> area;
   std::shared_ptr<StatusLine> status;
+
+  // Find All state: the results pane between the file view and the status
+  // line, and the read-only TextArea listing one hit per row (buffer row r
+  // corresponds to hits[r]; see run_find_all).
+  std::shared_ptr<ScrollPane> results_pane;
+  std::shared_ptr<TextArea> results_area;
+  std::vector<FindHit> hits;
+  bool find_capped = false;           // the FIND_ALL_LIMIT cut the list short
+  std::size_t previewed = SIZE_MAX;   // the hit last previewed in the file view
 };
 
 // Menu helpers, following the MenuBarDemo wiring: an item's pick closes its
@@ -240,7 +279,145 @@ std::string status_text(DemoState const &state) {
                 area->is_search_regexp() ? "on" : "off",
                 area->is_column_select_mode() ? "  colmode=on" : "",
                 area->is_block_selection() ? "  block" : "");
+  if (state.results_pane and state.results_pane->is_visible()) {
+    auto used = std::strlen(buffer_text);
+    std::snprintf(buffer_text + used, sizeof buffer_text - used, "  hits=%llu%s",
+                  static_cast<unsigned long long>(state.hits.size()),
+                  state.find_capped ? " (capped)" : "");
+  }
   return buffer_text;
+}
+
+// The longest prefix of `text` of at most `max_bytes` bytes that ends on a
+// UTF-8 character boundary, so a preview cut mid-sequence never lets a
+// partial multi-byte character into the results list.
+std::string_view utf8_capped(std::string_view text, std::size_t max_bytes) {
+  auto cap = std::min(max_bytes, text.size());
+  if (cap == 0) {
+    return {};
+  }
+  // Walk back from the cut over continuation bytes to the head of the
+  // character the last kept byte belongs to.
+  auto start = cap - 1;
+  while (start > 0 and (std::uint8_t(text[start]) & 0xC0) == 0x80) {
+    --start;
+  }
+  if ((std::uint8_t(text[start]) & 0xC0) == 0x80) {
+    return {}; // the kept prefix begins inside a sequence: nothing to show
+  }
+  auto const head_len = std::size_t(util::utf8_sequence_length(std::uint8_t(text[start])));
+  return head_len <= cap - start ? text.substr(0, cap) : text.substr(0, start);
+}
+
+// Jumps the file view's caret to hit `index` of the results list (no-op for
+// a marker row beyond the hits, or when the hit is already previewed).
+void preview_result(DemoState &state, std::size_t index) {
+  if (index >= state.hits.size() or index == state.previewed) {
+    return;
+  }
+  state.previewed = index;
+  // set_caret indexes the hit's surroundings, scrolls the row into view and
+  // repaints; the caret is drawn once the file area regains the focus (after
+  // Enter or a click there).
+  state.area->set_caret(state.hits[index].offset);
+  state.status->refresh();
+}
+
+// The buffer row the results area's caret sits on (every hit is one row).
+std::size_t results_caret_row(DemoState const &state) {
+  auto results = state.results_area;
+  return std::size_t(results->get_buffer()->offset_to_line(results->get_caret()).first);
+}
+
+// Hides the results pane and returns the keyboard focus to the file view.
+void close_results(DemoState &state) {
+  if (state.results_pane->is_visible()) {
+    state.results_pane->set_visible(false);
+    state.results_pane->revalidate();
+  }
+  state.area->request_input_focus();
+  state.status->refresh();
+}
+
+// Runs the find-all search and (re)opens the results pane. The pattern is
+// the file area's current search pattern (see TextArea::get_search_pattern):
+// what its F3 entry holds, which survives the entry closing, so F9 repeats
+// the last search. Every hit becomes one row of a fresh in-memory buffer
+// shown by the read-only results area; the row text is the source line's
+// first bytes (capped at a character boundary), so a log line tens of
+// megabytes long cannot bloat the results buffer.
+void run_find_all(DemoState &state) {
+  auto area = state.area;
+  auto pattern = area->get_search_pattern();
+  if (pattern.empty()) {
+    // While the F3 entry is open the message row shows the entry, so only
+    // nag when there is no entry to type in.
+    if (not area->is_search_mode()) {
+      area->show_message("no pattern yet: F3, type a search, then F9 for Find All");
+    }
+    return;
+  }
+  if (area->is_search_mode()) {
+    // Commit the entry: F9 finds all occurrences of the pattern typed so
+    // far (the pattern stays, so the entry opens clean the next time).
+    area->close_search_entry();
+  }
+  auto source = area->get_buffer();
+  // Ask for one hit more than the cap so "capped" is exact (the list holds
+  // FIND_ALL_LIMIT hits either way).
+  auto offsets = source->find_all(pattern, 0, FIND_ALL_LIMIT + 1);
+  state.find_capped = offsets.size() > FIND_ALL_LIMIT;
+  if (state.find_capped) {
+    offsets.resize(FIND_ALL_LIMIT);
+  }
+
+  state.hits.clear();
+  state.hits.reserve(offsets.size());
+  auto rows = std::string();
+  rows.reserve(offsets.size() * 96);
+  for (auto offset : offsets) {
+    // The hits come sorted; the per-hit ensure_scanned_to is one forward
+    // pass, and each hit's line then resolves without rescanning.
+    source->ensure_scanned_to(offset);
+    auto [line, column] = source->offset_to_line(offset);
+    state.hits.push_back({ offset, line, column });
+    char head[32];
+    std::snprintf(head, sizeof head, "%10llu:%-6llu ",
+                  static_cast<unsigned long long>(line),
+                  static_cast<unsigned long long>(column));
+    rows += head;
+    auto ranges = source->read_line_ranges(line, 1);
+    if (not ranges.empty()) {
+      auto text_len = ranges[0].end - ranges[0].start - (ranges[0].has_newline ? 1 : 0);
+      auto take = std::min<std::uint64_t>(text_len, FIND_ALL_PREVIEW_BYTES + 4);
+      if (take > 0) {
+        auto text = source->read(ranges[0].start, take);
+        if (not text.empty() and text.back() == '\r') {
+          text.pop_back(); // CRLF files: keep the preview clean
+        }
+        rows += utf8_capped(text, FIND_ALL_PREVIEW_BYTES);
+      }
+    }
+    rows += '\n';
+  }
+  if (offsets.empty()) {
+    rows += "(no matches for \"" + pattern + "\")\n";
+  } else if (state.find_capped) {
+    rows += "(more hits than FIND_ALL_LIMIT: refine the pattern)\n";
+  }
+
+  auto results_buffer = TextBuffer::create_empty();
+  results_buffer->replace(0, 0, rows);
+  state.results_area->set_buffer(results_buffer);
+  state.previewed = SIZE_MAX;
+  auto results_pane = state.results_pane;
+  if (not results_pane->is_visible()) {
+    results_pane->set_visible(true);
+  }
+  results_pane->revalidate();
+  results_pane->get_viewport()->set_view_position(0, 0);
+  state.results_area->request_input_focus();
+  state.status->refresh();
 }
 
 std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &buffer) {
@@ -284,14 +461,17 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
   pane->set_viewport_view(area);
 
   // The status line below the pane. Refreshed when the scroll bar models
-  // move and after every key/mouse event that reaches the window.
+  // move and after every key/mouse event that reaches the window. It sits in
+  // the bottom strip under the find-all results pane (which is hidden until
+  // the first F9), so the strip is one row tall without results and grows to
+  // the results pane's 10 rows plus 1 with them; the file pane above shrinks
+  // accordingly.
   auto status = make_component<StatusLine>();
   state->status = status;
   status->set_preferred_size(Dimension { 0, 1 });
   status->set_background_color(Color { 8, 10, 15 });
   status->set_foreground_color(Color { 130, 140, 160 });
   status->set_name("status line");
-  frame->add(status, BorderLayout::SOUTH);
   status->text = [state] {
     return status_text(*state);
   };
@@ -300,6 +480,42 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
   };
   pane->get_vertical_scroll_bar()->get_model()->add_change_listener(refresh);
   pane->get_horizontal_scroll_bar()->get_model()->add_change_listener(refresh);
+
+  // The find-all results pane: a read-only TextArea listing one hit per row
+  // (see run_find_all). It is created hidden; Find All (F9) shows it between
+  // the file view and the status line, Esc (or Enter after a jump) hides it.
+  auto results_pane = make_component<ScrollPane>();
+  state->results_pane = results_pane;
+  results_pane->set_name("find all results");
+  results_pane->set_preferred_size(Dimension { 0, 10 });
+  results_pane->set_background_color(Color { 10, 12, 18 });
+  results_pane->set_visible(false);
+  auto results_area = make_component<TextArea>();
+  state->results_area = results_area;
+  results_area->set_name("results list");
+  results_area->set_readonly(true);
+  // Long source lines are cut at the pane's right edge instead of widening
+  // the list (each hit stays one row).
+  results_area->set_line_wrap(true);
+  results_area->set_background_color(Color { 10, 12, 18 });
+  results_area->set_foreground_color(Color { 148, 158, 178 });
+  results_area->set_buffer(TextBuffer::create_empty());
+  results_pane->set_viewport_view(results_area);
+  // A click on a result row previews the hit in the file view. The area's
+  // own press handler (registered at init, before this one) has already
+  // placed the caret on the clicked row.
+  results_area->add_listener([state](MousePressEvent &e) {
+    if (e.id == MousePressEvent::MOUSE_PRESSED) {
+      preview_result(*state, std::size_t(std::max(0, e.y)));
+    }
+  });
+
+  auto bottom = make_component<Panel>();
+  bottom->set_name("results and status");
+  bottom->set_layout(std::make_shared<BorderLayout>());
+  bottom->add(results_pane);
+  bottom->add(status, BorderLayout::SOUTH);
+  frame->add(bottom, BorderLayout::SOUTH);
   refresh();
 
   // The menu bar: File (exit) and Edit (the editing operations of the text
@@ -325,6 +541,13 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
 
   auto edit_menu = make_component<Menu>("Edit");
   edit_menu->set_mnemonic('E');
+  // Find All opens the results pane for the area's current search pattern
+  // (the F3 entry's). The F9 shortcut is handled by the window key handler
+  // below, the way F5/F8 accelerators are.
+  auto find_all_item = add_item(edit_menu, "Find All", 'F', KeyStroke { KeyEvent::VK_F9, InputEvent::NO_MODIFIERS }, [state] {
+    run_find_all(*state);
+  });
+  edit_menu->add_separator();
   auto undo_item = add_item(edit_menu, "Undo", 'U', KeyStroke { KeyEvent::VK_Z, InputEvent::CTRL_DOWN }, edit_action([](auto const &area) {
     area->undo();
   }));
@@ -372,6 +595,7 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
   (void)select_all_item;
   (void)column_mode_item;
   (void)invisibles_item;
+  (void)find_all_item;
 
   auto menu_bar = make_component<MenuBar>();
   menu_bar->add(file_menu);
@@ -381,8 +605,9 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
   wire_menu_popup_toggle(file_menu, { edit_menu });
   wire_menu_popup_toggle(edit_menu, { file_menu });
 
-  // A click on the content (outside the open popup) dismisses the menu.
-  area->add_listener([file_menu, edit_menu](MousePressEvent &e) {
+  // A click on the content (outside the open popup) dismisses the menu:
+  // both text areas are "the content".
+  auto dismiss_menus = [file_menu, edit_menu](MousePressEvent &e) {
     if (e.id != MousePressEvent::MOUSE_PRESSED) {
       return;
     }
@@ -391,7 +616,9 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
         menu->set_popup_menu_visible(false);
       }
     }
-  });
+  };
+  area->add_listener(dismiss_menus);
+  results_area->add_listener(dismiss_menus);
 
   // The caret/scroll changes caused by mouse presses and releases in the
   // area (a release ends a drag selection, whose caret the status mirrors).
@@ -466,6 +693,56 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
       refresh();
     }
   });
+  // Find All keyboard handling. F9 runs (or re-runs) the search from
+  // anywhere; a click or the caret keys in the results area move its caret
+  // first (this listener runs after the area's own key forwarder), so the
+  // row the caret landed on is previewed in the file view; Enter previews
+  // and closes the panel; Esc closes it from either text area.
+  frame->add_listener([state](KeyEvent &e) {
+    if (e.id != KeyEvent::KEY_PRESSED) {
+      return;
+    }
+    auto results = state->results_area;
+    auto results_open = state->results_pane->is_visible();
+    if (e.get_key_code() == KeyEvent::VK_F9) {
+      run_find_all(*state);
+      e.consume();
+      return;
+    }
+    if (not results_open) {
+      return;
+    }
+    auto row = results_caret_row(*state);
+    if (not results->is_focus_owner()) {
+      // The file area (or nothing) owns the focus: Esc dismisses the panel.
+      if (e.get_key_code() == KeyEvent::VK_ESCAPE) {
+        close_results(*state);
+      }
+      return;
+    }
+    switch (e.get_key_code()) {
+    case KeyEvent::VK_UP:
+    case KeyEvent::VK_DOWN:
+    case KeyEvent::VK_LEFT:
+    case KeyEvent::VK_RIGHT:
+    case KeyEvent::VK_PAGE_UP:
+    case KeyEvent::VK_PAGE_DOWN:
+    case KeyEvent::VK_HOME:
+    case KeyEvent::VK_END:
+      // The results area already moved its caret to the row under the key.
+      preview_result(*state, row);
+      break;
+    case KeyEvent::VK_ENTER:
+      preview_result(*state, row);
+      close_results(*state);
+      break;
+    case KeyEvent::VK_ESCAPE:
+      close_results(*state);
+      break;
+    default:
+      break;
+    }
+  });
   // The area becomes the keyboard focus owner once the window is shown.
   area->request_input_focus();
   return frame;
@@ -491,8 +768,12 @@ int usage(const char *program) {
                "F3 search (Enter jumps, F3 repeats), F4 regexp search, F5 Show\n"
                "Invisibles (the Edit menu's whitespace toggle), F6 caret form\n"
                "(block/underline), F7 caret blink (blinking/steady/hidden), F8\n"
-               "column select mode. --log-events writes the event/resize/\n"
-               "graphics history to stderr.\n",
+               "column select mode. F9 Find All (Edit > Find All) lists every\n"
+               "hit of the last search pattern in a results pane: click a row or\n"
+               "use the caret keys to preview the hit in the file view, Enter\n"
+               "previews and closes the pane, Esc closes it, F9 re-runs the\n"
+               "search (the list is plain-substring, UTF-8 safe and capped).\n"
+               "--log-events writes the event/resize/graphics history to stderr.\n",
                program);
   return 1;
 }
