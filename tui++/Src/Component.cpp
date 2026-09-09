@@ -1405,6 +1405,8 @@ std::unique_ptr<Graphics> Component::get_graphics() const {
 
 Dimension Component::get_preferred_size() const {
   if (this->preferred_size.has_value()) {
+    // An explicitly requested size (Swing's setPreferredSize) is stable: it
+    // survives validation and is never recomputed from the layout.
     return this->preferred_size.value();
   } else if (this->ui) {
     if (auto size = this->ui->get_preferred_size(shared_from_this())) {
@@ -1412,19 +1414,31 @@ Dimension Component::get_preferred_size() const {
     }
   }
 
-  if (not this->flags.is_valid or not this->preferred_size.has_value()) {
-    auto lock = get_tree_lock();
-    if (this->layout) {
-      this->preferred_size = this->layout->get_preferred_layout_size(shared_from_this());
-    } else {
-      this->preferred_size = this->minimum_size;
-    }
+  // The layout-computed size is cached only while the component is valid:
+  // invalidate() clears preferred_cache, so a change in the children (their
+  // sizes, visibility, text) is reflected by the next call. Caching into the
+  // preferred_size property instead would freeze the size forever -- the
+  // stale-size bug that kept a re-shown layout at the size it had while its
+  // child was still hidden.
+  if (this->flags.is_valid and this->preferred_cache.has_value()) {
+    return this->preferred_cache.value();
   }
-  return this->preferred_size.value_or(Dimension { });
+
+  auto lock = get_tree_lock();
+  if (this->layout) {
+    this->preferred_cache = this->layout->get_preferred_layout_size(shared_from_this());
+  } else {
+    this->preferred_cache = this->minimum_size;
+  }
+  return this->preferred_cache.value_or(Dimension { });
 }
 
 void Component::set_preferred_size(std::optional<Dimension> preferred_size) {
   this->preferred_size = std::move(preferred_size);
+  // Setting (or clearing) the explicit size invalidates the computed cache:
+  // clearing it must fall back to a fresh layout computation, not to the
+  // last computed size.
+  this->preferred_cache.reset();
 }
 
 Dimension Component::get_minimum_size() const {

@@ -83,7 +83,16 @@ protected:
 
   mutable Property<std::optional<Dimension>> minimum_size { this, "MinimumSize" };
   mutable Property<std::optional<Dimension>> maximum_size { this, "MaximumSize" };
+  // The explicitly requested size (Swing's setPreferredSize); when set it
+  // wins over every computed size. The layout-computed size is cached in
+  // preferred_cache instead (see get_preferred_size).
   mutable Property<std::optional<Dimension>> preferred_size { this, "PreferredSize" };
+
+  // The size this component's layout (or minimum size) computed for it the
+  // last time it was valid; invalidate() drops it, so a layout change (a
+  // child resized, hidden, given new text, ...) is picked up by the next
+  // get_preferred_size().
+  mutable std::optional<Dimension> preferred_cache;
 
   struct {
     unsigned is_valid :1;
@@ -742,6 +751,10 @@ public:
 
   void invalidate() {
     this->flags.is_valid = false;
+    // The preferred size cache (see get_preferred_size) depends on the
+    // layout's children (their sizes, visibility, text); it is only valid
+    // while the component is valid.
+    this->preferred_cache.reset();
 
     // Invalidate every ancestor up to the top of the tree. The window is
     // included on purpose: Window::paint re-validates the tree only when the
