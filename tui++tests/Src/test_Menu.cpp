@@ -369,11 +369,10 @@ void test_MenuKeyboard() {
   frame->set_visible(true);
   drain();
 
-  // The mnemonic letters of the top-level menus are drawn bold with a
-  // double underline ("File", "Edit"), so the Alt+letter shortcuts stand out
-  // on terminal fonts where a single thin underline is barely visible: the
-  // full paint of the menu bar row must carry the bold + double-underline
-  // SGR (1;21) at the mnemonic cells.
+  // The mnemonic letters of the top-level menus are drawn bold with a single
+  // underline ("File", "Edit"), so the Alt+letter shortcuts stand out: the
+  // full paint of the menu bar row must carry the bold + underline SGR
+  // (1;4) at the mnemonic cells.
   {
     auto capture = std::ostringstream { };
     auto *old_cout = std::cout.rdbuf(capture.rdbuf());
@@ -381,7 +380,7 @@ void test_MenuKeyboard() {
     screen.refresh();
     std::cout.rdbuf(old_cout);
     auto bytes = capture.str();
-    CHECK(bytes.find("\x1b[1;21m") != std::string::npos);
+    CHECK(bytes.find("\x1b[1;4m") != std::string::npos);
   }
 
   auto armed = [](std::shared_ptr<Menu> const &menu) {

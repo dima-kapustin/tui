@@ -8,6 +8,7 @@
 #include <tui++/lookandfeel/LookAndFeel.h>
 #include <tui++/MenuItem.h>
 #include <tui++/Screen.h>
+#include <tui++/util/utf-8.h>
 
 namespace tui::laf {
 
@@ -44,6 +45,44 @@ protected:
     auto glyph_height = 2 * g.get_font().get_size();
     auto y = margin.top + (menu_item->get_height() - margin.top - margin.bottom - glyph_height) / 2;
     g.draw_string(menu_item->get_text(), margin.left, y);
+
+    // The mnemonic letter (the Alt+shortcut key, like "File" with mnemonic
+    // 'F') is drawn bold with a single underline beneath the glyph, mirroring
+    // the text screen's bold+underline mnemonic. The label was already drawn
+    // above; the bold glyph is a superset of the plain one (each stroke is
+    // mirrored one column to the right), so re-drawing the letter in bold
+    // over it thickens it in place. The underline is a real pixel line in the
+    // text color, spanning the glyph's cell at the bottom of the glyph box.
+    auto mnemonic = menu_item->get_mnemonic().get_code();
+    if (mnemonic != 0) {
+      auto metrics = screen.get_text_metrics();
+      auto const &text = menu_item->get_text();
+      auto wanted = mnemonic >= 'A' and mnemonic <= 'Z' ? mnemonic - 'A' + 'a' : mnemonic;
+      auto x = margin.left;
+      auto index = std::size_t { 0 };
+      while (index < text.size()) {
+        auto code = char32_t { };
+        auto len = util::mb_to_c32(text.data() + index, text.size() - index, &code);
+        if (len <= 0) {
+          index += 1;
+          continue;
+        }
+        auto folded = code >= 'A' and code <= 'Z' ? code - 'A' + 'a' : code;
+        if (folded == wanted) {
+          auto font = g.get_font();
+          auto style = font.get_style();
+          font.set_style(style | Font::BOLD);
+          g.set_font(font);
+          g.draw_char(Char(code), x, y);
+          font.set_style(style);
+          g.set_font(font);
+          g.draw_hline(x, y + glyph_height - 1, metrics->get_char_width(code));
+          break;
+        }
+        x += metrics->get_char_width(code);
+        index += std::size_t(len);
+      }
+    }
   }
 };
 
