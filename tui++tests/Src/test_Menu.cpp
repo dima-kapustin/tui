@@ -14,6 +14,10 @@
 #include <tui++/RootPane.h>
 #include <tui++/Screen.h>
 
+#include <tui++/Char.h>
+#include <tui++/event/Event.h>
+#include <tui++/event/InputEvent.h>
+#include <tui++/event/KeyEvent.h>
 #include <tui++/terminal/Terminal.h>
 
 #include <cstdio>
@@ -275,4 +279,254 @@ void test_Menu() {
   drain();
 
   std::printf("PASS menu popup show/hide, hover and hit-test\n");
+}
+
+// Posts one key event to `frame` and dispatches it through the window's
+// normal dispatch path (Window::dispatch_event), the way the event loop
+// dispatches a key the terminal posted to the focused window. Returns the
+// event, whose `consumed` flag says whether the menu system took the key.
+static std::shared_ptr<Event> dispatch_key(std::shared_ptr<Frame> const &frame, KeyEvent::Type type, KeyEvent::KeyCode code, InputEvent::Modifiers modifiers = InputEvent::NO_MODIFIERS) {
+  drain();
+  screen.post<KeyEvent>(frame, type, code, modifiers);
+  auto event = screen.get_event_queue().pop();
+  frame->dispatch_event(*event);
+  drain();
+  return event;
+}
+
+static std::shared_ptr<Event> dispatch_char(std::shared_ptr<Frame> const &frame, Char c, InputEvent::Modifiers modifiers = InputEvent::NO_MODIFIERS) {
+  drain();
+  screen.post<KeyEvent>(frame, c, modifiers);
+  auto event = screen.get_event_queue().pop();
+  frame->dispatch_event(*event);
+  drain();
+  return event;
+}
+
+// Exercises the keyboard navigation of a menu bar (MenuKeyboardManager): F10
+// and Alt+mnemonic put the bar on the keyboard, arrows move the highlight
+// across the top-level menus and through the items of an open popup, Enter
+// activates the armed item (dismissing the popup through the selection path),
+// Escape steps back out, and mnemonic letters select their items. Keys the
+// menu system does not want fall through unconsumed.
+void test_MenuKeyboard() {
+  terminal.set_type("text");
+
+  auto frame = make_component<Frame>();
+  frame->set_size({ 100, 30 });
+
+  auto menu_bar = make_component<MenuBar>();
+  auto file_menu = make_component<Menu>("File");
+  file_menu->set_mnemonic('F');
+  auto edit_menu = make_component<Menu>("Edit");
+  edit_menu->set_mnemonic('E');
+  menu_bar->add(file_menu);
+  menu_bar->add(edit_menu);
+  frame->set_menu_bar(menu_bar);
+
+  struct Counters {
+    int new_file = 0;
+    int open = 0;
+    int cut = 0;
+    int paste = 0;
+  };
+  auto counters = std::make_shared<Counters>();
+
+  auto new_item = make_component<MenuItem>("New", Char { 'N' });
+  new_item->add_listener([counters](ActionEvent &) {
+    ++counters->new_file;
+  });
+  auto open_item = make_component<MenuItem>("Open", Char { 'O' });
+  open_item->add_listener([counters](ActionEvent &) {
+    ++counters->open;
+  });
+  auto save_item = make_component<MenuItem>("Save", Char { 'S' });
+  save_item->set_enabled(false); // navigation must skip it
+  auto cut_item = make_component<MenuItem>("Cut", Char { 't' });
+  cut_item->add_listener([counters](ActionEvent &) {
+    ++counters->cut;
+  });
+  auto paste_item = make_component<MenuItem>("Paste", Char { 'P' });
+  paste_item->add_listener([counters](ActionEvent &) {
+    ++counters->paste;
+  });
+
+  // File: New, (separator), Open, Save (disabled), (separator)
+  file_menu->add(new_item);
+  file_menu->add_separator();
+  file_menu->add(open_item);
+  file_menu->add(save_item);
+  file_menu->add_separator();
+  // Edit: Cut, Copy, Paste
+  edit_menu->add(cut_item);
+  edit_menu->add(make_component<MenuItem>("Copy", Char { 'C' }));
+  edit_menu->add(paste_item);
+
+  frame->set_visible(true);
+  drain();
+
+  auto armed = [](std::shared_ptr<Menu> const &menu) {
+    return menu->is_armed();
+  };
+
+  // Without a keyboard session the navigation keys pass through untouched.
+  CHECK(not dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_RIGHT)->consumed);
+  CHECK(not dispatch_char(frame, Char { 'q' })->consumed);
+  CHECK(not dispatch_char(frame, Char { 'q' }, InputEvent::ALT_DOWN)->consumed); // no menu with mnemonic 'q'
+  CHECK(not armed(file_menu));
+  CHECK(not armed(edit_menu));
+
+  // F10 arms the first top-level menu; F10 again leaves the bar.
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_F10)->consumed);
+  CHECK(armed(file_menu));
+  CHECK(not armed(edit_menu));
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_F10)->consumed);
+  CHECK(not armed(file_menu));
+
+  // Left/right move the armed highlight across the bar, without wrap-around.
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_F10)->consumed);
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_RIGHT)->consumed);
+  CHECK(not armed(file_menu));
+  CHECK(armed(edit_menu));
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_RIGHT)->consumed);
+  CHECK(armed(edit_menu)); // last menu: the highlight stays
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_LEFT)->consumed);
+  CHECK(armed(file_menu));
+  CHECK(not armed(edit_menu));
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_LEFT)->consumed);
+  CHECK(armed(file_menu)); // first menu: the highlight stays
+
+  // Down opens the popup and arms its first item; the arrows then move
+  // through the enabled items only, skipping separators and the disabled
+  // Save, and wrap around at the ends.
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN)->consumed);
+  CHECK(file_menu->is_popup_menu_visible());
+  CHECK(new_item->is_armed());
+  CHECK(not open_item->is_armed());
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN)->consumed);
+  CHECK(not new_item->is_armed());
+  CHECK(open_item->is_armed());
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN)->consumed);
+  CHECK(new_item->is_armed()); // wraps around
+  CHECK(not open_item->is_armed());
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_UP)->consumed);
+  CHECK(open_item->is_armed()); // ... and back up
+
+  // A mnemonic letter selects the item it stands for; letters no item
+  // claims are swallowed (the open popup is modal) but change nothing.
+  auto typed = dispatch_char(frame, Char { 'o' });
+  CHECK(typed->consumed);
+  CHECK(open_item->is_armed());
+  typed = dispatch_char(frame, Char { 'x' });
+  CHECK(typed->consumed);
+  CHECK(open_item->is_armed());
+  CHECK(dispatch_char(frame, Char { 'n' })->consumed);
+  CHECK(new_item->is_armed());
+
+  // Enter activates the armed item: its action runs, the popup closes
+  // through the selection path, the bar highlight goes off and the
+  // keyboard leaves the menu entirely.
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER)->consumed);
+  CHECK(counters->new_file == 1);
+  CHECK(not file_menu->is_popup_menu_visible());
+  CHECK(not armed(file_menu));
+  CHECK(not armed(edit_menu));
+  CHECK(not dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN)->consumed);
+
+  // Alt+mnemonic opens the popup of the menu it stands for (no item armed
+  // yet); the first arrow then picks an item.
+  CHECK(dispatch_char(frame, Char { 'e' }, InputEvent::ALT_DOWN)->consumed);
+  CHECK(armed(edit_menu));
+  CHECK(not armed(file_menu));
+  CHECK(edit_menu->is_popup_menu_visible());
+  CHECK(not file_menu->is_popup_menu_visible());
+  CHECK(not cut_item->is_armed());
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN)->consumed);
+  CHECK(cut_item->is_armed());
+
+  // With a popup open, Alt+mnemonic hops to the other top-level menu's
+  // popup (and back); plain letters keep working for the items.
+  CHECK(dispatch_char(frame, Char { 'f' }, InputEvent::ALT_DOWN)->consumed);
+  CHECK(not armed(edit_menu));
+  CHECK(armed(file_menu));
+  CHECK(file_menu->is_popup_menu_visible());
+  CHECK(not edit_menu->is_popup_menu_visible());
+  CHECK(dispatch_char(frame, Char { 'e' }, InputEvent::ALT_DOWN)->consumed);
+  CHECK(edit_menu->is_popup_menu_visible());
+  CHECK(not file_menu->is_popup_menu_visible());
+  CHECK(dispatch_char(frame, Char { 'p' })->consumed);
+  CHECK(paste_item->is_armed());
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER)->consumed);
+  CHECK(counters->paste == 1);
+  CHECK(not edit_menu->is_popup_menu_visible());
+  CHECK(not armed(file_menu));
+  CHECK(not armed(edit_menu));
+
+  // Left/right hop between the popups of adjacent menus; left on the first
+  // menu's popup closes it and steps back onto the bar.
+  CHECK(dispatch_char(frame, Char { 'e' }, InputEvent::ALT_DOWN)->consumed);
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_LEFT)->consumed);
+  CHECK(file_menu->is_popup_menu_visible());
+  CHECK(not edit_menu->is_popup_menu_visible());
+  CHECK(armed(file_menu));
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_LEFT)->consumed);
+  CHECK(not file_menu->is_popup_menu_visible());
+  CHECK(armed(file_menu)); // popup closed, the bar still holds the keyboard
+
+  // Escape closes the open popup back onto the armed bar; the next Escape
+  // leaves the bar (the keys belong to the component again).
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN)->consumed);
+  CHECK(file_menu->is_popup_menu_visible());
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ESCAPE)->consumed);
+  CHECK(not file_menu->is_popup_menu_visible());
+  CHECK(armed(file_menu));
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ESCAPE)->consumed);
+  CHECK(not armed(file_menu));
+  CHECK(not armed(edit_menu));
+  CHECK(not dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN)->consumed);
+
+  // An Escape with nothing armed falls through (the text area of the demos
+  // uses it to leave its search mode, for example).
+  CHECK(not dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ESCAPE)->consumed);
+
+  // A mouse press ends the keyboard session. Pressing outside the menu bar
+  // also drops the armed highlight, so it does not linger after the mouse
+  // takes over.
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_F10)->consumed);
+  CHECK(armed(file_menu));
+  drain();
+  screen.post<MousePressEvent>(frame, MousePressEvent::MOUSE_PRESSED, MousePressEvent::LEFT_BUTTON, InputEvent::NO_MODIFIERS, 40, 20, false);
+  dispatch_mouse(frame, screen.get_event_queue().pop());
+  CHECK(not armed(file_menu));
+  CHECK(not dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN)->consumed);
+
+  // While a popup is open the keyboard keeps working even after a mouse
+  // press (the press only ends the F10-style bar session, not the popup's
+  // own navigation).
+  CHECK(dispatch_char(frame, Char { 'f' }, InputEvent::ALT_DOWN)->consumed);
+  CHECK(file_menu->is_popup_menu_visible());
+  drain();
+  screen.post<MousePressEvent>(frame, MousePressEvent::MOUSE_PRESSED, MousePressEvent::LEFT_BUTTON, InputEvent::NO_MODIFIERS, 40, 20, false);
+  dispatch_mouse(frame, screen.get_event_queue().pop());
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN)->consumed);
+  CHECK(new_item->is_armed());
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ESCAPE)->consumed);
+  CHECK(not file_menu->is_popup_menu_visible());
+
+  // Pressing a top-level menu (inside the bar) keeps its armed highlight:
+  // the pointer is on it, so the mouse owns the highlight now.
+  auto bar_loc = file_menu->get_location_on_screen();
+  auto bar_local = convert_point_from_screen(bar_loc.x + 1, bar_loc.y, frame);
+  drain();
+  screen.post<MousePressEvent>(frame, MousePressEvent::MOUSE_PRESSED, MousePressEvent::LEFT_BUTTON, InputEvent::NO_MODIFIERS, bar_local.x, bar_local.y, false);
+  dispatch_mouse(frame, screen.get_event_queue().pop());
+
+  // Take the frame off the screen and make sure the keyboard session is
+  // fully over, so later tests start clean.
+  file_menu->set_popup_menu_visible(false);
+  edit_menu->set_popup_menu_visible(false);
+  frame->set_visible(false);
+  drain();
+
+  std::printf("PASS menu keyboard navigation (F10, arrows, Enter, Escape, mnemonics)\n");
 }

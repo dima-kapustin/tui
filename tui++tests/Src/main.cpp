@@ -24,6 +24,7 @@ void test_Color();
 void test_Font();
 void test_SixelEncoder();
 void test_Menu();
+void test_MenuKeyboard();
 void test_TextBuffer();
 void test_ScrollPane();
 void test_TextArea_editing();
@@ -55,6 +56,7 @@ int main(int argc, char *argv[]) {
   test_Font();
   test_SixelEncoder();
   test_Menu();
+  test_MenuKeyboard();
   test_TextBuffer();
   test_ScrollPane();
   test_TextArea_editing();
