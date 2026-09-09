@@ -5,6 +5,7 @@
 #endif
 
 #include <tui++/terminal/Terminal.h>
+#include <tui++/util/diagnostics.h>
 
 #include <csignal>
 #include <locale>
@@ -87,9 +88,11 @@ BOOL WINAPI console_ctrl_handler(DWORD type) {
 }
 
 // abort(), std::terminate (an uncaught exception) and raise() come through
-// the CRT signals; restore, then re-raise with the default disposition so
-// the exit status still reflects the original signal.
+// the CRT signals; log the crash diagnostics first, then restore, then
+// re-raise with the default disposition so the exit status still reflects
+// the original signal.
 void crt_signal_handler(int sig) {
+  util::log_fatal_signal(sig);
   restore_console(true);
   std::signal(sig, SIG_DFL);
   std::raise(sig);
@@ -129,13 +132,17 @@ public:
 
     // From here on, even a Ctrl+C, abort() or crash restores the console:
     // the handlers run when the process dies abnormally, before any
-    // destructor would get the chance.
+    // destructor would get the chance. The crash handlers log uncaught
+    // exceptions and hardware faults first and restore through this routine.
     console_state = { this->input_handle, this->output_handle, this->input_mode, this->output_mode, this->input_cp, this->output_cp, 0 };
     ::SetConsoleCtrlHandler(console_ctrl_handler, TRUE);
     std::signal(SIGINT, crt_signal_handler);
     std::signal(SIGTERM, crt_signal_handler);
     std::signal(SIGABRT, crt_signal_handler);
     std::signal(SIGSEGV, crt_signal_handler);
+    util::install_crash_handlers([] {
+      restore_console(true);
+    });
   }
 
   bool read_input(const std::chrono::milliseconds &timeout, Terminal::InputBuffer &into) {

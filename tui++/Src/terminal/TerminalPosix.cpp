@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include <tui++/terminal/Terminal.h>
+#include <tui++/util/diagnostics.h>
 
 namespace tui {
 
@@ -50,8 +51,10 @@ public:
 
     // From here on, even a Ctrl+C, a fatal signal or a crash restores the
     // terminal: the handlers run when the process dies abnormally, before
-    // any destructor would get the chance.
+    // any destructor would get the chance. The crash handlers log uncaught
+    // exceptions and hardware faults first and restore through this routine.
     install_fatal_signal_handlers();
+    util::install_crash_handlers(restore_terminal_state);
   }
 
   bool is_stdin_empty(const std::chrono::microseconds &timeout) {
@@ -137,6 +140,11 @@ void restore_terminal_state() {
 }
 
 void fatal_signal_handler(int sig) {
+  // The crash diagnostics first (name, backtrace; a no-op for deliberate
+  // signals and for crashes the terminate/exception handlers already
+  // reported), then the terminal restore, then the default disposition so
+  // the exit status and core dump still reflect what actually happened.
+  util::log_fatal_signal(sig);
   restore_terminal_state();
   struct sigaction action { };
   action.sa_handler = SIG_DFL;
