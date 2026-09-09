@@ -122,6 +122,13 @@ public:
 
   virtual void refresh() override;
 
+  // Drops the removed windows' pixels from the framebuffer: their content was
+  // painted over the windows beneath them, so the repaint of those windows
+  // only overwrites the pixels they draw. Resetting the area to the cleared
+  // state and invalidating its sent bits lets the following flush re-encode
+  // it (see Screen::on_window_removed).
+  virtual void on_window_removed(Rectangle const &area) override;
+
   // Repaints only `rect` (screen coordinates): paints the component tree with
   // a graphics clipped to the region. The pixels it touches are flushed at
   // the end of the repaint pass (one combined write), or immediately when no

@@ -117,9 +117,16 @@ void Screen::show_window(const std::shared_ptr<Window> &window) {
 void Screen::hide_window(const std::shared_ptr<Window> &window) {
   std::unique_lock lock(this->windows_mutex);
   if (auto pos = std::find(this->windows.begin(), this->windows.end(), window); pos != this->windows.end()) {
+    // The hidden window and whatever was stacked above it leave the screen
+    // together; collect their bounds so a model-based screen can drop their
+    // cells from its back buffer (see on_window_removed).
+    auto area = Rectangle { };
+    for (auto i = pos; i != this->windows.end(); ++i) {
+      area = area.empty() ? (*i)->get_bounds() : area | (*i)->get_bounds();
+    }
     this->windows.erase(pos, this->windows.end());
-    // Repaint what the hidden window uncovered (e.g. a closed popup menu);
-    // pixel-level screens flush the repaint, text screens are unaffected.
+    on_window_removed(area);
+    // Repaint what the hidden window uncovered (e.g. a closed popup menu).
     refresh();
   } else {
     throw std::runtime_error("window not visible");

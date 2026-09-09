@@ -241,6 +241,41 @@ void SixelScreen::refresh() {
   flush();
 }
 
+void SixelScreen::on_window_removed(Rectangle const &area) {
+  // The removed window's pixels were painted over the windows beneath it, so
+  // after it is gone the repaint of those windows only overwrites the pixels
+  // they draw. Reset the area to the cleared (black) buffer state and drop
+  // its sent bits before that repaint runs -- the flush then re-encodes
+  // whatever the repaint leaves empty, erasing the window from the terminal
+  // instead of leaving its stale pixels on screen.
+  auto rect = area & Rectangle { 0, 0, get_pixel_width(), get_pixel_height() };
+  if (rect.empty()) {
+    return;
+  }
+  auto pw = get_pixel_width();
+  for (auto y = rect.y; y < rect.bottom(); ++y) {
+    std::memset(this->pixels.data() + (std::size_t(y) * pw + rect.x) * 3, 0, std::size_t(rect.width) * 3);
+
+    // The sent mirror still shows the removed window, so clear the valid
+    // bits of the area: a flush must re-encode it even when the repaint
+    // below paints nothing over it.
+    auto bit0 = std::size_t(y) * pw + rect.x;
+    auto bit1 = std::size_t(y) * pw + rect.right();
+    auto b0 = bit0 >> 3;
+    auto b1 = (bit1 - 1) >> 3;
+    if (b0 == b1) {
+      this->sent_valid[b0] &= uint8_t(~row_bit_mask(rect.x, rect.right()));
+    } else {
+      this->sent_valid[b0] &= uint8_t(~(0xFFu << (rect.x & 7)));
+      for (auto b = b0 + 1; b < b1; ++b) {
+        this->sent_valid[b] = 0;
+      }
+      this->sent_valid[b1] &= uint8_t(~(0xFFu >> (7 - ((rect.right() - 1) & 7))));
+    }
+  }
+  mark_dirty(rect);
+}
+
 void SixelScreen::repaint_region(Rectangle const &rect) {
   auto region = rect & Rectangle { 0, 0, get_pixel_width(), get_pixel_height() };
   if (region.empty()) {

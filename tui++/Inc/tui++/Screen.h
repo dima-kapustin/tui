@@ -134,6 +134,17 @@ protected:
   virtual void repaint_pass_end() {
   }
 
+  // The windows covering `area` were removed from the screen (hide_window)
+  // and the windows underneath are about to be repainted. Their repaint only
+  // overwrites the cells they draw, so a screen with a back buffer must drop
+  // the removed windows' cells here: cells nothing repaints would otherwise
+  // keep the removed window's content in the buffer (and on the terminal)
+  // forever -- a closed popup's rows floating over a background nothing
+  // paints. `area` is the union of the removed windows' bounds, in screen
+  // coordinates.
+  virtual void on_window_removed(Rectangle const &area) {
+  }
+
 public:
   EventQueue& get_event_queue() {
     return event_queue;

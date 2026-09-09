@@ -11,7 +11,10 @@
 // scrolls must reproduce exactly what a dumb full repaint would print.
 
 #include <tui++/BorderLayout.h>
+#include <tui++/BoxLayout.h>
+#include <tui++/ComboBox.h>
 #include <tui++/Component.h>
+#include <tui++/FlowLayout.h>
 #include <tui++/Frame.h>
 #include <tui++/Menu.h>
 #include <tui++/MenuBar.h>
@@ -714,4 +717,97 @@ void test_TextScreen_scroll_keeps_fixed_ui_out_of_band() {
   drain_events();
   std::cout.rdbuf(old_cout);
   std::fprintf(stderr, "test_TextScreen_scroll_keeps_fixed_ui_out_of_band: ok\n");
+}
+
+// Closing a popup must erase its rows from the terminal even when the content
+// beneath it paints nothing (a combo dropdown over the empty tail of a
+// WidgetDemo-style panel). The repaint of the windows underneath only
+// overwrites the cells they draw, so the closed dropdown's rows used to stay
+// in the screen's back buffer and on the terminal forever; the state after a
+// close must equal the pre-open image, row for row.
+void test_TextScreen_popup_close_erasure() {
+  std::fprintf(stderr, "test_TextScreen_popup_close_erasure: a closed popup erases its rows\n");
+
+  auto capture = std::ostringstream { };
+  auto *old_cout = std::cout.rdbuf(capture.rdbuf());
+  screen.repaint_damaged();
+  capture.str({ });
+  auto take = [&] { auto b = capture.str(); capture.str({ }); return b; };
+
+  auto dim = screen.get_size();
+  assert(dim.width > 12 and dim.height > 10);
+
+  // A WidgetDemo-like frame: a BoxLayout column whose FlowLayout row holds
+  // the combo box, over the (unpainted) content pane -- the dropdown drops
+  // onto cells no component ever paints.
+  auto frame = make_component<Frame>();
+  frame->set_size(dim);
+  frame->set_name("popup erase frame");
+  auto content = frame->get_content_pane();
+  content->set_layout(std::make_shared<BorderLayout>());
+  auto panel = make_component<Panel>();
+  panel->set_layout(std::make_shared<BoxLayout>(panel.get(), BoxLayout::Y));
+  auto row = make_component<Panel>(); // a FlowLayout row, like the demos'
+  auto city = make_component<ComboBox>(std::vector<std::string> { "Paris", "London", "Rome", "Berlin" });
+  city->set_selected_index(0);
+  city->set_name("city");
+  row->add(city);
+  panel->add(row);
+  content->add(panel, BorderLayout::CENTER);
+
+  frame->set_visible(true);
+  drain_events();
+  (void)take();
+
+  // The pre-open image, captured into the model the phases below build on.
+  dynamic_cast<TextScreen&>(screen).clear();
+  screen.refresh();
+  auto closed_paint = take();
+  auto model = VtModel { dim.height, dim.width };
+  assert(model.apply(closed_paint));
+  auto pre_open = model; // the rows the dropdown will cover
+
+  // Open the dropdown: its rows land on the unpainted area below the combo.
+  city->set_popup_visible(true);
+  drain_events();
+  auto open_paint = take();
+  auto at = city->get_location_on_screen();
+  auto popup_window = screen.get_window_at(at.x + 2, at.y + city->get_height() + 1);
+  assert(popup_window != nullptr and popup_window.get() != frame.get() and popup_window->is_visible());
+  auto popup_bounds = popup_window->get_bounds();
+  assert(popup_bounds.height >= 4 and "the dropdown must be tall enough to be visible");
+  assert(model.apply(open_paint));
+  auto saw_item = false;
+  for (auto y = std::max(popup_bounds.y, 0); y < std::min(popup_bounds.bottom(), dim.height); ++y) {
+    if (model.row_text(y).find("Paris") != std::string::npos) {
+      saw_item = true;
+    }
+  }
+  assert(saw_item && "the open dropdown must paint its rows on screen");
+
+  // Close it: every row the dropdown covered must be back to the pre-open
+  // image. Before the screen dropped the removed window's cells, the rows
+  // stayed as the dropdown had painted them (the ghost).
+  city->set_popup_visible(false);
+  drain_events();
+  auto close_paint = take();
+  assert(model.apply(close_paint));
+  for (auto y = std::max(popup_bounds.y, 0); y < std::min(popup_bounds.bottom(), dim.height); ++y) {
+    assert(model.cell[std::size_t(y)] == pre_open.cell[std::size_t(y)] && "closing the dropdown must erase its rows");
+  }
+
+  // Oracle: the incremental stream must reproduce the full-repaint image.
+  dynamic_cast<TextScreen&>(screen).clear();
+  screen.refresh();
+  auto reemit = take();
+  auto oracle = VtModel { dim.height, dim.width };
+  assert(oracle.apply(reemit));
+  for (auto row = 0; row < dim.height; ++row) {
+    assert(oracle.cell[std::size_t(row)] == model.cell[std::size_t(row)] && "closing the dropdown must reproduce the full-repaint image");
+  }
+
+  frame->set_visible(false);
+  drain_events();
+  std::cout.rdbuf(old_cout);
+  std::fprintf(stderr, "test_TextScreen_popup_close_erasure: ok\n");
 }

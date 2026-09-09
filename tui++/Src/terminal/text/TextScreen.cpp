@@ -334,6 +334,24 @@ void TextScreen::refresh() {
   end_flush();
 }
 
+void TextScreen::on_window_removed(Rectangle const &area) {
+  // The removed window's cells were painted over the windows beneath it, so
+  // after it is gone the repaint of those windows only overwrites the cells
+  // they draw; anything else would keep the window's content in the view
+  // forever. Reset the area to the empty (never painted) state before that
+  // repaint runs -- the flush then emits the cells the repaint leaves empty
+  // as erasures, which is exactly what painting the remaining windows over a
+  // clean buffer would show.
+  auto rect = area & Rectangle { 0, 0, get_width(), get_height() };
+  if (rect.empty()) {
+    return;
+  }
+  for (auto y = rect.y; y < rect.bottom(); ++y) {
+    auto &row = this->view[y];
+    std::fill(row.begin() + rect.x, row.begin() + rect.right(), EMPTY_CHAR_VIEW);
+  }
+}
+
 void TextScreen::repaint_region(Rectangle const &rect) {
   auto region = rect & Rectangle { 0, 0, get_width(), get_height() };
   if (region.empty()) {

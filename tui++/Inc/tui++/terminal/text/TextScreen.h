@@ -145,6 +145,13 @@ public:
 
   virtual void refresh();
 
+  // Drops the removed windows' cells from the view: their content was painted
+  // into the same back buffer the remaining windows paint into, so the
+  // repaint of those windows only overwrites the cells they draw. Resetting
+  // the area to the empty state lets the following flush emit the erasure
+  // (see Screen::on_window_removed).
+  virtual void on_window_removed(Rectangle const &area) override;
+
   // Repaints only `rect` (screen coordinates): paints the component tree
   // with a graphics clipped to the region, then emits only what changed in
   // those rows (see flush_rows). The terminal flush is deferred to the end
