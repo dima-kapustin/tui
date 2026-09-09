@@ -25,6 +25,7 @@ void test_Font();
 void test_SixelEncoder();
 void test_Menu();
 void test_MenuKeyboard();
+void test_FocusTraversal();
 void test_TextBuffer();
 void test_ScrollPane();
 void test_TextArea_editing();
@@ -57,6 +58,7 @@ int main(int argc, char *argv[]) {
   test_SixelEncoder();
   test_Menu();
   test_MenuKeyboard();
+  test_FocusTraversal();
   test_TextBuffer();
   test_ScrollPane();
   test_TextArea_editing();

@@ -489,6 +489,33 @@ void test_MenuKeyboard() {
   // uses it to leave its search mode, for example).
   CHECK(not dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ESCAPE)->consumed);
 
+  // Tab and Shift+Tab end a keyboard session the way focus traversal ends
+  // menus on Windows and in Swing: with a popup open the popup closes first,
+  // from the armed bar the highlight goes off, and the keys belong to the
+  // component underneath again (this frame has no focusable content, so the
+  // focus handover itself is exercised by test_FocusTraversal).
+  CHECK(dispatch_char(frame, Char { 'f' }, InputEvent::ALT_DOWN)->consumed);
+  CHECK(file_menu->is_popup_menu_visible());
+  CHECK(not new_item->is_armed()); // Alt+mnemonic opens the popup without arming an item
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_TAB)->consumed);
+  CHECK(not file_menu->is_popup_menu_visible());
+  CHECK(not armed(file_menu));
+  CHECK(not armed(edit_menu));
+  CHECK(not dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN)->consumed);
+
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_F10)->consumed);
+  CHECK(armed(file_menu));
+  auto shift_tab = dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_TAB, InputEvent::SHIFT_DOWN);
+  CHECK(shift_tab->consumed);
+  CHECK(not armed(file_menu));
+  CHECK(not armed(edit_menu));
+  CHECK(not dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_RIGHT)->consumed);
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_F10)->consumed);
+  CHECK(armed(file_menu));
+  auto back_tab = dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_BACK_TAB);
+  CHECK(back_tab->consumed);
+  CHECK(not armed(file_menu));
+
   // A mouse press ends the keyboard session. Pressing outside the menu bar
   // also drops the armed highlight, so it does not linger after the mouse
   // takes over.
