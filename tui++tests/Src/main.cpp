@@ -33,6 +33,7 @@ void test_TextScreen_popup_over_scroll();
 void test_TextScreen_scroll_keeps_fixed_ui_out_of_band();
 void test_TextArea_caret();
 void test_TextArea_selection();
+void test_InputTranslation();
 
 void run_font_visual_test();
 void run_font_editor(bool bench = false, bool scrollbench = false, bool sigtest = false);
@@ -63,6 +64,7 @@ int main(int argc, char *argv[]) {
   test_TextScreen_scroll_keeps_fixed_ui_out_of_band();
   test_TextArea_caret();
   test_TextArea_selection();
+  test_InputTranslation();
 
   if (argc > 1) {
     auto arg = std::string_view(argv[1]);
