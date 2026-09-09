@@ -20,10 +20,19 @@
 //   - picking an item repaints the content panel in the next palette color
 //     and echoes the choice in the terminal title.
 //
+// The menus exercise every menu item kind: plain items with accelerators
+// (File > New, ...), check box items that keep their toggled state (File >
+// Word Wrap), radio items that stay mutually exclusive through a ButtonGroup
+// (the File > Scheme and Edit > Indent radio groups), submenus that open
+// their own popup from a row of a popup (Scheme, Indent), and separators
+// between the groups.
+//
 // Quit with the File > Exit item or Ctrl+C.
 
 #include <tui++/Event.h>
 #include <tui++/BorderLayout.h>
+#include <tui++/ButtonGroup.h>
+#include <tui++/CheckBoxMenuItem.h>
 #include <tui++/Component.h>
 #include <tui++/Frame.h>
 #include <tui++/Graphics.h>
@@ -32,6 +41,8 @@
 #include <tui++/MenuBar.h>
 #include <tui++/MenuItem.h>
 #include <tui++/Panel.h>
+#include <tui++/PopupMenu.h>
+#include <tui++/RadioButtonMenuItem.h>
 #include <tui++/Screen.h>
 #include <tui++/TextMetrics.h>
 #include <tui++/border/EmptyBorder.h>
@@ -77,10 +88,14 @@ constexpr Palette PALETTES[] = {
 };
 
 // Mutable state shared by every menu action: the content panel the actions
-// restyle, and the palette index they cycle through.
+// restyle, and the palette index they cycle through. The ButtonGroups of the
+// demo's radio menu items live here too, so the groups outlive this build
+// function (each radio's model holds only a weak reference to its group).
 struct DemoState {
   std::shared_ptr<Panel> content;
   size_t palette_index = 0;
+  std::shared_ptr<ButtonGroup> scheme_group;
+  std::shared_ptr<ButtonGroup> indent_group;
 };
 
 void apply_palette(const std::shared_ptr<DemoState> &state) {
@@ -99,12 +114,29 @@ void advance_palette(const std::shared_ptr<DemoState> &state, std::string_view i
   terminal.set_title("tui++ MenuBar demo - " + std::string { item });
 }
 
-// Creates an item of `menu` that closes the menu's popup before running
-// `action`. The popup is opened directly (not through the MenuSelectionManager),
-// so a pick has to dismiss it explicitly; the weak reference keeps the item
-// from owning its menu. An optional `accelerator` (Swing's
-// JMenuItem.setAccelerator) is shown right-aligned in the popup's accelerator
-// column.
+// Closes the popup chain `menu` hangs on: the walk climbs from `menu` (the
+// menu a picked item belongs to, possibly a submenu row) to the top-level
+// menu on the bar and hides its popup, which recursively dismisses every
+// submenu popup below it -- the way a Swing pick closes the whole chain.
+// The popup is opened directly (not through the MenuSelectionManager), so a
+// pick has to dismiss it explicitly. With a flat menu `menu` is already the
+// top-level one, and this is the old one-popup close.
+void dismiss_menu_chain(const std::shared_ptr<Menu> &menu) {
+  auto top = menu;
+  while (auto popup = std::dynamic_pointer_cast<PopupMenu>(top->get_parent())) {
+    auto invoker = std::dynamic_pointer_cast<Menu>(popup->get_invoker());
+    if (not invoker) {
+      break;
+    }
+    top = invoker;
+  }
+  top->set_popup_menu_visible(false);
+}
+
+// Creates an item of `menu` that closes the item's popup chain before
+// running `action`. The weak reference keeps the item from owning its menu.
+// An optional `accelerator` (Swing's JMenuItem.setAccelerator) is shown
+// right-aligned in the popup's accelerator column.
 std::shared_ptr<MenuItem> add_item(const std::shared_ptr<Menu> &menu, std::string text, char mnemonic, std::optional<KeyStroke> const &accelerator, std::function<void()> action) {
   auto item = mnemonic ? make_component<MenuItem>(std::move(text), Char { mnemonic }) : make_component<MenuItem>(std::move(text));
   if (accelerator) {
@@ -113,7 +145,40 @@ std::shared_ptr<MenuItem> add_item(const std::shared_ptr<Menu> &menu, std::strin
   auto weak_menu = std::weak_ptr<Menu> { menu };
   item->add_listener([weak_menu, action = std::move(action)](ActionEvent &) {
     if (auto menu = weak_menu.lock()) {
-      menu->set_popup_menu_visible(false);
+      dismiss_menu_chain(menu);
+    }
+    action();
+  });
+  menu->add(item);
+  return item;
+}
+
+// Like add_item, for the check box menu items: picking the item toggles its
+// check mark (the item keeps its state across picks), the popup chain still
+// closes first, then `action` runs.
+std::shared_ptr<CheckBoxMenuItem> add_check_item(const std::shared_ptr<Menu> &menu, std::string text, char mnemonic, std::function<void()> action) {
+  auto item = mnemonic ? make_component<CheckBoxMenuItem>(std::move(text), Char { mnemonic }) : make_component<CheckBoxMenuItem>(std::move(text));
+  auto weak_menu = std::weak_ptr<Menu> { menu };
+  item->add_listener([weak_menu, action = std::move(action)](ActionEvent &) {
+    if (auto menu = weak_menu.lock()) {
+      dismiss_menu_chain(menu);
+    }
+    action();
+  });
+  menu->add(item);
+  return item;
+}
+
+// Like add_item, for the radio menu items: `group` (Swing's ButtonGroup)
+// keeps the members mutually exclusive, so picking one checks it and unchecks
+// the current member of the group.
+std::shared_ptr<RadioButtonMenuItem> add_radio_item(const std::shared_ptr<Menu> &menu, const std::shared_ptr<ButtonGroup> &group, std::string text, char mnemonic, std::function<void()> action) {
+  auto item = mnemonic ? make_component<RadioButtonMenuItem>(std::move(text), Char { mnemonic }) : make_component<RadioButtonMenuItem>(std::move(text));
+  group->add(item);
+  auto weak_menu = std::weak_ptr<Menu> { menu };
+  item->add_listener([weak_menu, action = std::move(action)](ActionEvent &) {
+    if (auto menu = weak_menu.lock()) {
+      dismiss_menu_chain(menu);
     }
     action();
   });
@@ -402,6 +467,39 @@ std::shared_ptr<Frame> build_menu_bar_demo() {
     advance_palette(state, "File: Save");
   });
   file_menu->add_separator();
+
+  // The toggleable item kinds: check box items keep their state and a pick
+  // toggles it; the radio items of one ButtonGroup stay mutually exclusive
+  // (below, in the Scheme submenu of this popup). The separators group the
+  // plain items, the check items and the submenu row.
+  add_check_item(file_menu, "Word Wrap", 'w', [state] {
+    advance_palette(state, "File: Word Wrap");
+  });
+  add_check_item(file_menu, "Show Line Numbers", 'l', [state] {
+    advance_palette(state, "File: Show Line Numbers");
+  });
+  file_menu->add_separator();
+
+  // The scheme choices hang under a submenu of the File popup: a nested Menu
+  // is a row of the popup that opens its own popup (with an arrow at the
+  // row's right edge, Swing's JMenu in a JPopupMenu). The radio items of the
+  // submenu stay exclusive through the ButtonGroup as before.
+  auto scheme_menu = make_component<Menu>("Scheme");
+  scheme_menu->set_mnemonic('c');
+  state->scheme_group = std::make_shared<ButtonGroup>();
+  auto scheme_classic = add_radio_item(scheme_menu, state->scheme_group, "Classic", 'C', [state] {
+    advance_palette(state, "File: Scheme: Classic");
+  });
+  add_radio_item(scheme_menu, state->scheme_group, "Dark", 'D', [state] {
+    advance_palette(state, "File: Scheme: Dark");
+  });
+  add_radio_item(scheme_menu, state->scheme_group, "System", 'S', [state] {
+    advance_palette(state, "File: Scheme: System");
+  });
+  // Preselect the first scheme so the submenu opens with a check in place.
+  scheme_classic->set_selected(true);
+  file_menu->add(scheme_menu);
+  file_menu->add_separator();
   add_item(file_menu, "Exit", 'x', std::nullopt, [] {
     terminal.shutdown();
   });
@@ -424,6 +522,28 @@ std::shared_ptr<Frame> build_menu_bar_demo() {
   add_item(edit_menu, "Delete", 'D', std::nullopt, [state] {
     advance_palette(state, "Edit: Delete");
   });
+  edit_menu->add_separator();
+  add_check_item(edit_menu, "Case Sensitive", 's', [state] {
+    advance_palette(state, "Edit: Case Sensitive");
+  });
+  edit_menu->add_separator();
+
+  // The indent choices hang under an Indent submenu of the Edit popup, like
+  // the Scheme submenu of File.
+  auto indent_menu = make_component<Menu>("Indent");
+  indent_menu->set_mnemonic('I');
+  state->indent_group = std::make_shared<ButtonGroup>();
+  add_radio_item(indent_menu, state->indent_group, "None", 'N', [state] {
+    advance_palette(state, "Edit: Indent: None");
+  });
+  add_radio_item(indent_menu, state->indent_group, "Tabs", 'T', [state] {
+    advance_palette(state, "Edit: Indent: Tabs");
+  });
+  auto indent_spaces = add_radio_item(indent_menu, state->indent_group, "Spaces", 'S', [state] {
+    advance_palette(state, "Edit: Indent: Spaces");
+  });
+  indent_spaces->set_selected(true);
+  edit_menu->add(indent_menu);
 
   auto menu_bar = make_component<MenuBar>();
   menu_bar->add(file_menu);
@@ -467,7 +587,9 @@ int usage(const char *program) {
                "usage: %s [--log-events] [text | sixel]\n"
                "\n"
                "MenuBar demo for tui++. Builds one component tree (a Frame with a\n"
-               "File/Edit MenuBar over a content panel) and runs it on the selected\n"
+               "File/Edit MenuBar -- plain, check box and radio menu items, the\n"
+               "Scheme/Indent submenus and separators -- over a content panel) and\n"
+               "runs it on the selected\n"
                "terminal backend:\n"
                "  text          cell-based escape-sequence terminal (the default)\n"
                "  sixel         pixel-based sixel terminal\n"

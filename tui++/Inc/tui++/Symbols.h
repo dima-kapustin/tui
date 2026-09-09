@@ -82,8 +82,24 @@ constexpr Char SPADES = L'♠';
 constexpr Char BULLET = L'•';
 constexpr Char BULLET_INVERSE = L'◘';
 
-constexpr Char CIRCLE_WHITE = L'○';
+constexpr Char CIRCLE_WHITE = L'○'; // U+25CB
+constexpr Char CIRCLE_BLACK = L'●'; // U+25CF
 constexpr Char CIRCLE_INVERSE_WHITE = L'◙';
+
+// Check/radio indicators. The check box pair (U+2610/U+2611) and the radio
+// pair (U+25CB/U+25CF) are single glyphs that most terminal fonts provide
+// (the toolkit measures them with the text metrics, so the layout adapts
+// where a font renders them wider).
+constexpr Char CHECK_MARK = L'✓'; // U+2713
+constexpr Char SQUARE_ROOT = L'√'; // U+221A
+constexpr Char BALLOT_BOX = L'☐'; // U+2610
+constexpr Char BALLOT_BOX_WITH_X = L'☒'; // U+2612
+
+constexpr Char CHECK_BOX = BALLOT_BOX;
+constexpr Char CHECK_BOX_CHECKED = BALLOT_BOX_WITH_X;
+
+constexpr Char RADIO_BUTTON = CIRCLE_WHITE;
+constexpr Char RADIO_BUTTON_CHECKED = CIRCLE_BLACK;
 
 constexpr Char SQUARE_SOLID = L'■';
 constexpr Char SQUARE_SOLID_SMALL = L'▪';

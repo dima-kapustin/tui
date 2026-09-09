@@ -25,6 +25,7 @@ void test_Font();
 void test_SixelEncoder();
 void test_Menu();
 void test_MenuKeyboard();
+void test_MenuSubmenu();
 void test_FocusTraversal();
 void test_TextBuffer();
 void test_ScrollPane();
@@ -37,6 +38,7 @@ void test_TextArea_caret();
 void test_TextArea_selection();
 void test_TextArea_find_all();
 void test_InputTranslation();
+void test_Widgets();
 
 void run_font_visual_test();
 void run_font_editor(bool bench = false, bool scrollbench = false, bool sigtest = false);
@@ -59,6 +61,7 @@ int main(int argc, char *argv[]) {
   test_SixelEncoder();
   test_Menu();
   test_MenuKeyboard();
+  test_MenuSubmenu();
   test_FocusTraversal();
   test_TextBuffer();
   test_ScrollPane();
@@ -71,6 +74,7 @@ int main(int argc, char *argv[]) {
   test_TextArea_selection();
   test_TextArea_find_all();
   test_InputTranslation();
+  test_Widgets();
 
   if (argc > 1) {
     auto arg = std::string_view(argv[1]);

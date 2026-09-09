@@ -1,0 +1,458 @@
+// Exercises the Swing-style toggleable widgets: ToggleButton, CheckBox and
+// RadioButton (with ButtonGroup exclusivity), CheckBoxMenuItem and
+// RadioButtonMenuItem (also groupable), and the ComboBox (model, dropdown
+// selection and lookup editing).
+#include <tui++/Button.h>
+#include <tui++/ButtonGroup.h>
+#include <tui++/CheckBox.h>
+#include <tui++/CheckBoxMenuItem.h>
+#include <tui++/ComboBox.h>
+#include <tui++/DefaultComboBoxModel.h>
+#include <tui++/Frame.h>
+#include <tui++/KeyboardFocusManager.h>
+#include <tui++/Menu.h>
+#include <tui++/MenuItem.h>
+#include <tui++/RadioButton.h>
+#include <tui++/RadioButtonMenuItem.h>
+#include <tui++/Screen.h>
+#include <tui++/ToggleButton.h>
+#include <tui++/Window.h>
+
+#include <tui++/event/Event.h>
+#include <tui++/event/KeyEvent.h>
+#include <tui++/terminal/Terminal.h>
+#include <tui++/terminal/text/TextScreen.h>
+
+#include <cstdio>
+#include <cstdlib>
+#include <string>
+
+using namespace tui;
+
+#define CHECK(cond)                                                                                                    \
+  do {                                                                                                                 \
+    if (not(cond)) {                                                                                                   \
+      std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);                                            \
+      std::abort();                                                                                                    \
+    }                                                                                                                  \
+  } while (0)
+
+static void drain() {
+  while (screen.get_event_queue().pop(std::chrono::milliseconds::zero())) {
+  }
+}
+
+static std::shared_ptr<Event> dispatch_key(std::shared_ptr<Frame> const &frame, KeyEvent::Type type, KeyEvent::KeyCode code, InputEvent::Modifiers modifiers = InputEvent::NO_MODIFIERS) {
+  drain();
+  screen.post<KeyEvent>(frame, type, code, modifiers);
+  auto event = screen.get_event_queue().pop();
+  frame->dispatch_event(*event);
+  drain();
+  return event;
+}
+
+static std::shared_ptr<Event> dispatch_typed(std::shared_ptr<Frame> const &frame, Char c, InputEvent::Modifiers modifiers = InputEvent::NO_MODIFIERS) {
+  drain();
+  screen.post<KeyEvent>(frame, c, modifiers);
+  auto event = screen.get_event_queue().pop();
+  frame->dispatch_event(*event);
+  drain();
+  return event;
+}
+
+// Dispatches a mouse wheel event at (x, y), window-local, through the
+// window's normal dispatch path (the way the terminal input does).
+static std::shared_ptr<Event> dispatch_wheel(std::shared_ptr<Window> const &window, int x, int y, int rotation) {
+  drain();
+  screen.post<MouseWheelEvent>(window, InputEvent::NO_MODIFIERS, x, y, rotation);
+  auto event = screen.get_event_queue().pop();
+  window->dispatch_event(*event);
+  drain();
+  return event;
+}
+
+// Presses and releases the left button at (x, y), window-local. The press
+// carries its own button-down modifier, as the terminal input reports it, so
+// the dispatcher records the pressed component as the release's target.
+static void click_window(std::shared_ptr<Window> const &window, int x, int y) {
+  drain();
+  screen.post<MousePressEvent>(window, MousePressEvent::MOUSE_PRESSED, MousePressEvent::LEFT_BUTTON, InputEvent::LEFT_BUTTON_DOWN, x, y, false);
+  window->dispatch_event(*screen.get_event_queue().pop());
+  screen.post<MousePressEvent>(window, MousePressEvent::MOUSE_RELEASED, MousePressEvent::LEFT_BUTTON, InputEvent::NO_MODIFIERS, x, y, false);
+  window->dispatch_event(*screen.get_event_queue().pop());
+  drain();
+}
+
+// The toggle buttons and their grouping.
+static void test_toggle_buttons() {
+  // A CheckBox is a toggle: a click selects it, the next click clears it;
+  // each pick fires exactly one ActionEvent.
+  auto check = make_component<CheckBox>("Bold");
+  auto check_actions = 0;
+  check->add_listener([&check_actions](ActionEvent &) {
+    ++check_actions;
+  });
+  CHECK(not check->is_selected());
+  check->do_click(std::chrono::milliseconds::zero());
+  CHECK(check->is_selected());
+  check->do_click(std::chrono::milliseconds::zero());
+  CHECK(not check->is_selected());
+  CHECK(check_actions == 2);
+
+  // A plain toggle button keeps its pressed-in state the same way.
+  auto toggle = make_component<ToggleButton>("Run");
+  toggle->do_click(std::chrono::milliseconds::zero());
+  CHECK(toggle->is_selected());
+
+  // Radio buttons are mutually exclusive inside a ButtonGroup: picking a new
+  // member clears the previous selection, and re-picking the selected member
+  // leaves it selected (a radio cannot be turned off by clicking it).
+  auto group = std::make_shared<ButtonGroup>();
+  auto a = make_component<RadioButton>("Alpha");
+  auto b = make_component<RadioButton>("Beta");
+  auto c = make_component<RadioButton>("Gamma");
+  group->add(a);
+  group->add(b);
+  group->add(c);
+
+  a->do_click(std::chrono::milliseconds::zero());
+  CHECK(a->is_selected());
+  CHECK(not b->is_selected());
+  CHECK(not c->is_selected());
+  CHECK(group->get_selection() == a->get_model());
+
+  c->do_click(std::chrono::milliseconds::zero());
+  CHECK(not a->is_selected());
+  CHECK(c->is_selected());
+  CHECK(group->get_selection() == c->get_model());
+
+  c->do_click(std::chrono::milliseconds::zero());
+  CHECK(c->is_selected());
+
+  // A checkbox inside a group can be cleared by clicking it again (the group
+  // only arbitrates NEW selections).
+  auto shared = std::make_shared<ButtonGroup>();
+  auto box = make_component<CheckBox>("Snap");
+  auto radio = make_component<RadioButton>("Grid");
+  shared->add(box);
+  shared->add(radio);
+  box->do_click(std::chrono::milliseconds::zero());
+  CHECK(box->is_selected());
+  CHECK(group->get_button_count() == 3);
+  radio->do_click(std::chrono::milliseconds::zero());
+  CHECK(not box->is_selected());
+  CHECK(radio->is_selected());
+}
+
+// Focus requests on toggle buttons: a request lands on the button itself
+// when no group member can answer for it -- a standalone toggle, a group
+// with no selection yet, or the group's own selection. (Regression: these
+// cases used to return a null "group selection" that the focus request
+// dereferenced, crashing on the first focus grant of a window.)
+static void test_toggle_button_focus() {
+  terminal.set_type("text");
+
+  auto frame = make_component<Frame>();
+  frame->set_size({ 80, 24 });
+  auto content = frame->get_content_pane();
+
+  auto bold = make_component<ToggleButton>("Bold");
+  content->add(bold);
+
+  auto group = std::make_shared<ButtonGroup>();
+  auto left = make_component<RadioButton>("Align Left");
+  auto center = make_component<RadioButton>("Align Center");
+  group->add(left);
+  group->add(center);
+  content->add(left);
+  content->add(center);
+
+  frame->set_visible(true);
+  drain();
+
+  auto owner = [] {
+    return KeyboardFocusManager::single->get_focus_owner();
+  };
+
+  // The standalone toggle keeps the request for itself (both focus paths).
+  bold->request_focus(FocusEvent::Cause::ACTIVATION);
+  CHECK(owner() == bold);
+  bold->request_focus_in_window(FocusEvent::Cause::TRAVERSAL_FORWARD);
+  CHECK(owner() == bold);
+
+  // A group member requests focus for itself before the group has any
+  // selection.
+  left->request_focus(FocusEvent::Cause::ACTIVATION);
+  CHECK(owner() == left);
+
+  // Once the group has a selection it answers for an unselected member...
+  center->do_click(std::chrono::milliseconds::zero());
+  CHECK(center->is_selected());
+  // ... and the selected member keeps the request for itself.
+  center->request_focus(FocusEvent::Cause::ACTIVATION);
+  CHECK(owner() == center);
+
+  frame->set_visible(false);
+  drain();
+}
+
+// The check/radio menu items and their grouping.
+static void test_menu_items() {
+  auto check_item = make_component<CheckBoxMenuItem>("Show grid");
+  auto check_actions = 0;
+  check_item->add_listener([&check_actions](ActionEvent &) {
+    ++check_actions;
+  });
+  CHECK(not check_item->is_selected());
+  check_item->do_click(std::chrono::milliseconds::zero());
+  CHECK(check_item->is_selected());
+  check_item->do_click(std::chrono::milliseconds::zero());
+  CHECK(not check_item->is_selected());
+  CHECK(check_actions == 2);
+
+  // Radio menu items are exclusive through a ButtonGroup, exactly like radio
+  // buttons: picking one clears the previous member of the group.
+  auto group = std::make_shared<ButtonGroup>();
+  auto left = make_component<RadioButtonMenuItem>("Align Left");
+  auto center = make_component<RadioButtonMenuItem>("Align Center");
+  auto right = make_component<RadioButtonMenuItem>("Align Right");
+  group->add(left);
+  group->add(center);
+  group->add(right);
+
+  center->do_click(std::chrono::milliseconds::zero());
+  CHECK(center->is_selected());
+  CHECK(not left->is_selected());
+  right->do_click(std::chrono::milliseconds::zero());
+  CHECK(not center->is_selected());
+  CHECK(right->is_selected());
+
+  // A plain menu item (ButtonModel) stays unselected after a click.
+  auto plain = make_component<MenuItem>("Dump");
+  plain->do_click(std::chrono::milliseconds::zero());
+  CHECK(not plain->is_selected());
+}
+
+// The ComboBox model: contents, selection and change notifications.
+static void test_combo_model() {
+  auto model = std::make_shared<DefaultComboBoxModel>(std::vector<std::string> { "Alpha", "Beta", "Gamma" });
+  auto changes = 0;
+  model->add_listener([&changes](ChangeEvent &) {
+    ++changes;
+  });
+  CHECK(model->get_size() == 3);
+  CHECK(model->get_item_at(1) == "Beta");
+  CHECK(not model->get_selected_index());
+
+  model->set_selected_index(1);
+  CHECK(model->get_selected_index() == 1);
+  CHECK(changes == 1);
+
+  model->set_selected_index(1); // no change, no event
+  CHECK(changes == 1);
+
+  // Inserting before the selection shifts it; removing the selected item
+  // clears the selection; removing an earlier item shifts it down.
+  model->insert_item_at("Zed", 0);
+  CHECK(model->get_selected_index() == 2);
+  model->remove_item_at(0);
+  CHECK(model->get_selected_index() == 1);
+  model->remove_item_at(1);
+  CHECK(not model->get_selected_index());
+  model->add_item("Delta");
+  model->add_item("Epsilon");
+  model->remove_item_at(0);
+  CHECK(model->get_size() == 3);
+  CHECK(model->get_item_at(0) == "Gamma");
+  CHECK(model->get_item_at(1) == "Delta");
+  CHECK(model->get_item_at(2) == "Epsilon");
+
+  model->set_items({ "One", "Two", "Three" });
+  CHECK(model->get_size() == 3);
+  model->remove_all_items();
+  CHECK(model->get_size() == 0);
+  CHECK(changes > 0);
+}
+
+// The ComboBox on a text screen: dropdown selection and lookup editing.
+static void test_combo_box() {
+  terminal.set_type("text");
+
+  auto frame = make_component<Frame>();
+  frame->set_size({ 80, 24 });
+
+  auto content = frame->get_content_pane();
+  auto combo = make_component<ComboBox>(std::vector<std::string> { "Alpha", "Beta", "Gamma", "Delta", "Epsilon" });
+  combo->set_name("combo");
+  content->add(combo);
+
+  auto actions = std::vector<std::string> { };
+  combo->add_listener([&actions](ActionEvent &e) {
+    actions.push_back(e.action_command);
+  });
+
+  frame->set_visible(true);
+  drain();
+  combo->request_focus(FocusEvent::Cause::ACTIVATION);
+  CHECK(combo->is_focus_owner());
+
+  // ---- programmatic selection fires no ActionEvent ----
+  combo->set_selected_index(1);
+  CHECK(combo->get_selected_item() == "Beta");
+  CHECK(actions.empty());
+
+  // ---- lookup editing: type "Be", Enter commits the matching item ----
+  combo->set_editable(true);
+  dispatch_typed(frame, Char('B'));
+  dispatch_typed(frame, Char('e'));
+  CHECK(combo->get_field_text() == "Be"); // draft, nothing committed yet
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER);
+  CHECK(combo->get_selected_item() == "Beta");
+  CHECK(combo->get_field_text() == "Beta");
+  CHECK(actions.size() == 1);
+  CHECK(actions.back() == "Beta");
+
+  // ---- custom text: type letters no item starts with, Enter keeps them ----
+  dispatch_typed(frame, Char('x'));
+  dispatch_typed(frame, Char('y'));
+  CHECK(combo->get_field_text() == "xy");
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER);
+  CHECK(actions.size() == 2);
+  CHECK(actions.back() == "xy");
+  CHECK(not combo->get_selected_index()); // the custom value stays unselected
+  // Committing a custom value ends the edit session: the field falls back to
+  // the (empty) selection.
+  CHECK(combo->get_field_text() == "");
+
+  // ---- Escape reverts an uncommitted edit ----
+  dispatch_typed(frame, Char('z'));
+  CHECK(combo->get_field_text() == "z");
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ESCAPE);
+  CHECK(combo->get_field_text() == ""); // reverted to the (empty) selection
+
+  // ---- the dropdown: arrow down opens it, arrows move, Enter picks ----
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN);
+  CHECK(combo->is_popup_visible());
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN);
+  CHECK(combo->is_popup_visible());
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN);
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN);
+  CHECK(combo->is_popup_visible());
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER);
+  CHECK(not combo->is_popup_visible());
+  CHECK(combo->get_selected_item() == "Delta"); // Alpha + three downs
+
+  // ---- typing while the dropdown is open moves the highlight to the typed
+  // prefix; Enter commits that item ----
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN);
+  CHECK(combo->is_popup_visible());
+  dispatch_typed(frame, Char('G'));
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER);
+  CHECK(not combo->is_popup_visible());
+  CHECK(combo->get_selected_item() == "Gamma");
+  CHECK(actions.back() == "Gamma");
+
+  // ---- Escape closes the dropdown without picking ----
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN);
+  CHECK(combo->is_popup_visible());
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ESCAPE);
+  CHECK(not combo->is_popup_visible());
+  CHECK(combo->get_selected_item() == "Gamma");
+
+  // ---- type-ahead on a non-editable combo selects as the letters come in ----
+  auto read_only = make_component<ComboBox>(std::vector<std::string> { "Red", "Green", "Blue" });
+  read_only->set_name("read-only");
+  content->add(read_only);
+  frame->validate();
+  drain();
+  read_only->request_focus(FocusEvent::Cause::ACTIVATION);
+  CHECK(read_only->is_focus_owner());
+  CHECK(read_only->get_field_text() == "");
+  dispatch_typed(frame, Char('B'));
+  CHECK(read_only->get_selected_item() == "Blue");
+  CHECK(read_only->get_field_text() == "Blue");
+
+  // ---- the dropdown of a long list scrolls to the maximum row count ----
+  auto many = make_component<ComboBox>();
+  for (auto i = 0; i != 30; ++i) {
+    many->add_item("Item " + std::to_string(i));
+  }
+  many->set_maximum_row_count(5);
+  many->set_name("many");
+  content->add(many);
+  frame->validate();
+  drain();
+  many->request_focus(FocusEvent::Cause::ACTIVATION);
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN); // opens the dropdown
+  CHECK(many->is_popup_visible());
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_END); // armed at the end
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER);
+  CHECK(not many->is_popup_visible());
+  CHECK(many->get_selected_item() == "Item 29");
+
+  // ---- row count and mutation while the popup is open ----
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN);
+  CHECK(many->is_popup_visible());
+  many->set_maximum_row_count(3);
+  CHECK(many->is_popup_visible());
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ESCAPE);
+  CHECK(not many->is_popup_visible());
+
+  // ---- the mouse wheel scrolls the dropdown's window; a click on a row
+  // picks whatever row is visible at the pointer ----
+  {
+    // The dropdown opens at the bottom of the list (the selection, Item 29,
+    // is scrolled into view: rows 27-29) and shows three rows.
+    dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN);
+    CHECK(many->is_popup_visible());
+
+    // The popup drops under the combo; each open creates a fresh popup
+    // window, so hit-test it on the screen while it is up.
+    auto popup_at = [&]() -> std::shared_ptr<Window> {
+      auto origin = many->get_location_on_screen();
+      return screen.get_window_at(origin.x + 2, origin.y + many->get_height());
+    };
+    auto popup_window = popup_at();
+    CHECK(popup_window);
+    CHECK(popup_window.get() != frame.get());
+
+    // One notch scrolls the window three rows toward the earlier items, so
+    // the first visible row is Item 24 (rows 24-26).
+    dispatch_wheel(popup_window, 2, 0, -1);
+    click_window(popup_window, 2, 0);
+    CHECK(not many->is_popup_visible());
+    CHECK(many->get_selected_item() == "Item 24");
+
+    // The other direction scrolls back toward the later items. Reopening
+    // scrolls the selection (Item 24) into view first (rows 22-24); one
+    // notch moves the window to rows 25-27.
+    dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN);
+    CHECK(many->is_popup_visible());
+    auto reopened = popup_at();
+    CHECK(reopened);
+    CHECK(reopened.get() != popup_window.get()); // every open has its own window
+    dispatch_wheel(reopened, 2, 0, +1);
+    click_window(reopened, 2, 0);
+    CHECK(not many->is_popup_visible());
+    CHECK(many->get_selected_item() == "Item 25");
+  }
+
+  // ---- a model swap updates the contents and resets the selection ----
+  combo->set_model(std::make_shared<DefaultComboBoxModel>(std::vector<std::string> { "Uno", "Dos" }));
+  CHECK(combo->get_item_count() == 2);
+  CHECK(not combo->get_selected_index());
+  CHECK(combo->get_field_text() == "");
+
+  frame->set_visible(false);
+  drain();
+
+  std::printf("PASS widgets (toggle buttons, check/radio menu items, combo box)\n");
+}
+
+void test_Widgets() {
+  test_toggle_buttons();
+  test_toggle_button_focus();
+  test_menu_items();
+  test_combo_model();
+  test_combo_box();
+}

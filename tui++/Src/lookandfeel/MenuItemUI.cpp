@@ -1,6 +1,7 @@
 #include <tui++/lookandfeel/MenuItemUI.h>
 #include <tui++/lookandfeel/LazyActionMap.h>
 #include <tui++/lookandfeel/MenuLayout.h>
+#include <tui++/lookandfeel/basic/ToggleIndicator.h>
 #include <tui++/TextMetrics.h>
 #include <tui++/CharIterator.h>
 
@@ -15,6 +16,7 @@
 #include <tui++/MenuSelectionManager.h>
 #include <tui++/Graphics.h>
 #include <tui++/Screen.h>
+#include <tui++/Symbols.h>
 
 #include <cassert>
 
@@ -64,6 +66,78 @@ std::optional<std::pair<int, Char>> mnemonic_cell(MenuItem const *item, TextMetr
   return std::nullopt;
 }
 
+}
+
+// The indicator a check/radio menu item paints, or NONE for a plain item.
+// CheckBoxMenuItem and RadioButtonMenuItem expose no separate UI class;
+// their look-and-feel prefix and indicator are keyed off the component type,
+// the way Swing's BasicCheckBoxMenuItemUI and BasicRadioButtonMenuItemUI
+// (both BasicMenuItemUI subclasses) differ only in their icons.
+IndicatorKind menu_item_indicator(MenuItem const *item) {
+  if (is_a<CheckBoxMenuItem>(item)) {
+    return IndicatorKind::CHECKBOX;
+  } else if (is_a<RadioButtonMenuItem>(item)) {
+    return IndicatorKind::RADIO;
+  }
+  return IndicatorKind::NONE;
+}
+
+bool menu_check_column(MenuItem const *item) {
+  // A top-level menu sits on the menu bar; its row has no indicator column.
+  if (auto menu = dynamic_cast<Menu const*>(item); menu and menu->is_top_level_menu()) {
+    return false;
+  }
+
+  auto parent = item->get_parent();
+  if (not parent) {
+    return false;
+  }
+
+  for (auto &&sibling : parent->get_components()) {
+    if (auto other = std::dynamic_pointer_cast<MenuItem const>(sibling); other and menu_item_indicator(other.get()) != IndicatorKind::NONE) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// The submenu a row opens: a Menu sitting in a popup (not on the menu bar),
+// or null for plain rows and top-level menus.
+Menu const* submenu_row(MenuItem const *item) {
+  if (auto menu = dynamic_cast<Menu const*>(item); menu and not menu->is_top_level_menu()) {
+    return menu;
+  }
+  return nullptr;
+}
+
+// The glyph a submenu row draws at its right edge (a nested Menu inside a
+// popup). Top-level menu bar menus have no arrow.
+Char const& submenu_arrow() {
+  return Symbols::TRIANGLE_LEFT_POINTING_MEDIUM_BLACK;
+}
+
+// The width of the submenu arrow plus the gap to the label, in the screen's
+// units.
+int submenu_arrow_width(TextMetrics const *metrics) {
+  return metrics->get_char_width(submenu_arrow().get_code()) + metrics->get_char_width(char32_t('M'));
+}
+
+bool is_submenu_row(MenuItem const *item) {
+  return submenu_row(item) != nullptr;
+}
+
+// Closes every submenu of `parent` popup whose row is not `keep_open` (null
+// closes them all). Hovering another row of the popup dismisses the open
+// submenu, exactly like hovering another top-level menu switches its popup.
+void close_sibling_submenus(std::shared_ptr<Component> const &parent, Menu const *keep_open) {
+  if (not parent) {
+    return;
+  }
+  for (auto &&sibling : parent->get_components()) {
+    if (auto other = std::dynamic_pointer_cast<Menu>(sibling); other and other.get() != keep_open and other->is_popup_menu_visible()) {
+      other->set_popup_menu_visible(false);
+    }
+  }
 }
 
 std::string const& MenuItemUI::get_property_prefix() const {
@@ -206,12 +280,20 @@ std::vector<std::shared_ptr<MenuElement>> MenuItemUI::get_path() const {
 void MenuItemUI::mouse_released(MousePressEvent &e) {
   if (this->menu_item->is_enabled()) {
     auto &&p = e.point;
-    auto &&manager = MenuSelectionManager::single;
     if (p.x >= 0 and p.x < this->menu_item->get_width() and //
         p.y >= 0 and p.y < this->menu_item->get_height()) {
-      do_click(manager);
+      // A click on a submenu row opens its popup (a click never "activates"
+      // the row, which is why menus have no action of their own). The hover
+      // already opened it in the common case; opening is idempotent, so a
+      // click simply confirms the open submenu.
+      if (auto submenu = const_cast<Menu*>(submenu_row(this->menu_item))) {
+        close_sibling_submenus(this->menu_item->get_parent(), submenu);
+        submenu->set_popup_menu_visible(true);
+        return;
+      }
+      do_click(MenuSelectionManager::single);
     } else {
-      manager->process_mouse_event(e);
+      MenuSelectionManager::single->process_mouse_event(e);
     }
   }
 }
@@ -234,6 +316,17 @@ void MenuItemUI::mouse_overed(MouseOverEvent &e) {
   auto &&manager = MenuSelectionManager::single;
   if (entered) {
     manager->set_selected_path(get_path());
+
+    // Hovering a row of a popup dismisses the popup of any other submenu row
+    // of the same popup (top-level menus of a bar are handled below).
+    if (auto parent = this->menu_item->get_parent(); is_a<PopupMenu>(parent.get())) {
+      close_sibling_submenus(parent, submenu_row(this->menu_item));
+    }
+
+    // Hovering a submenu row opens its popup (Swing's hover-to-open).
+    if (auto submenu = const_cast<Menu*>(submenu_row(this->menu_item))) {
+      submenu->set_popup_menu_visible(true);
+    }
 
     // Hovering another top-level menu while a popup of the same menu bar is
     // open switches the open popup to the hovered menu (as in Swing's menu
@@ -312,6 +405,7 @@ std::optional<Dimension> MenuItemUI::get_preferred_size(std::shared_ptr<const Co
   auto &&text = this->menu_item->get_text();
   auto metrics = screen.get_text_metrics();
   auto width = text.empty() ? 0 : metrics->get_width(text);
+  auto margin = LookAndFeel::get<Insets>("MenuItem.margin", Insets { 0, 1, 0, 1 });
   // The accelerator of an item of a popup shares the row: its width widens
   // the item's preferred size, so the popup (whose width is the widest
   // row's) leaves room for the right-aligned column.
@@ -319,7 +413,15 @@ std::optional<Dimension> MenuItemUI::get_preferred_size(std::shared_ptr<const Co
   if (auto const &accelerator = this->menu_item->get_accelerator()) {
     width += gap + metrics->get_width(to_string(accelerator.value()));
   }
-  auto margin = LookAndFeel::get<Insets>("MenuItem.margin", Insets { 0, 1, 0, 1 });
+  // The indicator column of a popup that holds check/radio items is reserved
+  // on every row (see paint), so the popup's width leaves room for it.
+  if (menu_check_column(this->menu_item)) {
+    width += indicator_column_width(*metrics);
+  }
+  // A submenu row reserves its arrow at the right edge.
+  if (is_submenu_row(this->menu_item)) {
+    width += submenu_arrow_width(metrics.get());
+  }
   return Dimension { width + margin.left + margin.right, metrics->get_line_height() };
 }
 
@@ -340,7 +442,20 @@ void MenuItemUI::paint(Graphics &g, std::shared_ptr<const Component> const &c) c
   }
 
   auto margin = LookAndFeel::get<Insets>("MenuItem.margin", Insets { 0, 1, 0, 1 });
-  g.draw_string(this->menu_item->get_text(), margin.left, margin.top);
+  auto metrics = screen.get_text_metrics();
+
+  // A popup that holds a check/radio item gives every row an indicator
+  // column in front of the label, so all labels (and the selected check
+  // marks) line up -- the way Swing's BasicMenuItemUI reserves the check
+  // icon column for every row of such a popup.
+  auto indicator = menu_item_indicator(this->menu_item);
+  auto column = menu_check_column(this->menu_item);
+  auto label_x = margin.left + (column ? indicator_column_width(*metrics) : 0);
+  if (indicator != IndicatorKind::NONE) {
+    paint_indicator(g, *metrics, indicator, margin.left, margin.top, this->menu_item->is_selected());
+  }
+
+  g.draw_string(this->menu_item->get_text(), label_x, margin.top);
 
   // The mnemonic letter marks the key that selects the item once the menu
   // bar is on the keyboard: Alt+mnemonic opens a top-level menu, a plain
@@ -348,8 +463,8 @@ void MenuItemUI::paint(Graphics &g, std::shared_ptr<const Component> const &c) c
   // underline: the bold letter makes the shortcut key stand out even where
   // the terminal renders a thin underline, and SGR 1;4 is understood
   // everywhere.
-  if (auto cell = mnemonic_cell(this->menu_item, screen.get_text_metrics().get(), margin.left);
-      cell and cell->first >= margin.left and cell->first < this->menu_item->get_width() - margin.right) {
+  if (auto cell = mnemonic_cell(this->menu_item, screen.get_text_metrics().get(), label_x);
+      cell and cell->first >= label_x and cell->first < this->menu_item->get_width() - margin.right) {
     g.draw_char(cell->second, cell->first, margin.top, Attribute::BOLD | Attribute::UNDERLINE);
   }
 
@@ -363,8 +478,20 @@ void MenuItemUI::paint(Graphics &g, std::shared_ptr<const Component> const &c) c
     // Never draw the accelerator over the title (a row that narrow would
     // only happen with a manual size; the layout reserves the room).
     auto title_width = this->menu_item->get_text().empty() ? 0 : metrics->get_width(this->menu_item->get_text());
-    if (x >= margin.left + title_width) {
+    if (x >= label_x + title_width) {
       g.draw_string(text, x, margin.top);
+    }
+  }
+
+  // The arrow of a submenu row (a nested Menu), right-aligned like the
+  // accelerator column; the row's preferred size reserves it.
+  if (is_submenu_row(this->menu_item) and this->menu_item->get_width() > 0) {
+    auto arrow = submenu_arrow();
+    auto arrow_w = metrics->get_char_width(arrow.get_code());
+    auto x = this->menu_item->get_width() - margin.right - arrow_w;
+    auto title_width = this->menu_item->get_text().empty() ? 0 : metrics->get_width(this->menu_item->get_text());
+    if (x >= label_x + title_width) {
+      g.draw_char(arrow, x, margin.top);
     }
   }
 }

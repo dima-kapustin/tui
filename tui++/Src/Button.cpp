@@ -2,8 +2,17 @@
 #include <tui++/RootPane.h>
 
 #include <tui++/lookandfeel/ButtonUI.h>
+#include <tui++/lookandfeel/LookAndFeel.h>
 
 namespace tui {
+Button::Button(std::string const &text) :
+    Button(text, Char { }) {
+}
+
+Button::Button(std::string const &text, Char const &mnemonic) :
+    AbstractButton(std::make_shared<ButtonModel>(), text, mnemonic) {
+}
+
 std::shared_ptr<laf::ButtonUI> Button::get_ui() const {
   return std::static_pointer_cast<laf::ButtonUI>(this->ui.value());
 }

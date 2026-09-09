@@ -17,8 +17,8 @@ namespace tui {
 
 namespace {
 
-// Rendered for code points the bitmap font does not cover (U+0080 and above):
-// a 16x32 box, matching the raster's cell.
+// Rendered for code points neither the basic table nor the widget-symbol
+// table (Font16x32.h) covers: a 16x32 box, matching the raster's cell.
 constexpr uint8_t MISSING_GLYPH[detail::FONT_HEIGHT * 2] = {
     0xFF, 0xFF, 0xFF, 0xFF, // top edge (2 px)
     0xC0, 0x03, 0xC0, 0x03, 0xC0, 0x03, 0xC0, 0x03, // left / right edges
@@ -30,6 +30,21 @@ constexpr uint8_t MISSING_GLYPH[detail::FONT_HEIGHT * 2] = {
     0xC0, 0x03, 0xC0, 0x03, 0xC0, 0x03, 0xC0, 0x03,
     0xFF, 0xFF, 0xFF, 0xFF  // bottom edge (2 px)
 };
+
+// The raster of `code`: the basic ASCII glyph, one of the widget symbols the
+// look-and-feel paints (check/radio indicators, submenu and combo arrows;
+// see Font16x32.h), or the missing-glyph box for everything else.
+const uint8_t *glyph_raster(char32_t code) {
+  if (code < 128) {
+    return detail::FONT16X32_BASIC[code];
+  }
+  for (auto const &symbol : detail::FONT16X32_SYMBOLS) {
+    if (symbol.code == code) {
+      return *symbol.rows;
+    }
+  }
+  return MISSING_GLYPH;
+}
 
 // "#RRGGBB", the format the log lines use for colors.
 std::string color_hex(Color const &color) {
@@ -105,7 +120,7 @@ void SixelGraphics::draw_char(const Char &c, int x, int y, std::optional<Attribu
 }
 
 void SixelGraphics::blit_glyph(char32_t code, int x, int y) {
-  auto const *glyph = (code < 128) ? detail::FONT16X32_BASIC[code] : MISSING_GLYPH;
+  auto const *glyph = glyph_raster(code);
   auto px = x + this->dx;
   auto py = y + this->dy;
 

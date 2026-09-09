@@ -14,6 +14,9 @@
 #include <tui++/RootPane.h>
 #include <tui++/Screen.h>
 
+#include <tui++/ButtonGroup.h>
+#include <tui++/CheckBoxMenuItem.h>
+#include <tui++/RadioButtonMenuItem.h>
 #include <tui++/Char.h>
 #include <tui++/event/Event.h>
 #include <tui++/event/InputEvent.h>
@@ -26,6 +29,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 using namespace tui;
 
@@ -609,4 +613,241 @@ void test_MenuKeyboard() {
   drain();
 
   std::printf("PASS menu keyboard navigation (F10, arrows, Enter, Escape, mnemonics)\n");
+}
+
+// The submenu machinery: a nested Menu row of a popup opens its own popup
+// (hovering it opens it, Right/Enter/Space walk into it from the keyboard),
+// the radio items of the submenu stay exclusive through a ButtonGroup,
+// activating an item dismisses the whole open chain, and Left/Escape step
+// back out of a submenu again. The rows of the open popups also paint the
+// check/radio indicators and the submenu's arrow on the text screen (the
+// box-drawing glyphs ☒/☐, ●/○ and ►).
+void test_MenuSubmenu() {
+  terminal.set_type("text");
+
+  auto frame = make_component<Frame>();
+  frame->set_size({ 100, 30 });
+
+  auto menu_bar = make_component<MenuBar>();
+  auto file_menu = make_component<Menu>("File");
+  file_menu->set_mnemonic('F');
+  menu_bar->add(file_menu);
+  frame->set_menu_bar(menu_bar);
+
+  // The File popup rows: two check items (one checked, one not, so the popup
+  // paints both box glyphs), a separator and the Scheme submenu row.
+  auto wrap = make_component<CheckBoxMenuItem>("Word wrap");
+  wrap->set_selected(true);
+  auto grid = make_component<CheckBoxMenuItem>("Show grid");
+  file_menu->add(wrap);
+  file_menu->add(grid);
+  file_menu->add_separator();
+
+  auto scheme_menu = make_component<Menu>("Scheme");
+  scheme_menu->set_mnemonic('c');
+  auto group = std::make_shared<ButtonGroup>();
+  auto classic = make_component<RadioButtonMenuItem>("Classic", Char { 'C' });
+  auto dark = make_component<RadioButtonMenuItem>("Dark", Char { 'D' });
+  auto system = make_component<RadioButtonMenuItem>("System", Char { 'S' });
+  group->add(classic);
+  group->add(dark);
+  group->add(system);
+  classic->set_selected(true);
+  auto picks = std::vector<std::string> { };
+  for (auto &&item : { classic, dark, system }) {
+    auto label = item->get_text();
+    item->add_listener([&picks, label](ActionEvent &) {
+      picks.push_back(label);
+    });
+  }
+  scheme_menu->add(classic);
+  scheme_menu->add(dark);
+  scheme_menu->add(system);
+  file_menu->add(scheme_menu);
+
+  // Demo-style click-to-toggle on the top-level menu.
+  file_menu->add_listener([file_menu](MousePressEvent &e) {
+    if (e.id == MousePressEvent::MOUSE_RELEASED) {
+      file_menu->set_popup_menu_visible(not file_menu->is_popup_menu_visible());
+      e.consume();
+    }
+  });
+
+  frame->set_visible(true);
+  drain();
+
+  CHECK(file_menu->is_top_level_menu());
+  CHECK(not scheme_menu->is_top_level_menu()); // a row of the File popup
+  CHECK(not file_menu->is_popup_menu_visible());
+  CHECK(not scheme_menu->is_popup_menu_visible());
+
+  // ---- the open popups paint the indicator glyphs on the text screen ----
+  // Word wrap carries the checked box (☒), Show grid the empty one (☐), the
+  // selected Classic the filled radio circle (●), Dark/System the hollow one
+  // (○), and the Scheme row the submenu arrow (►).
+  {
+    file_menu->set_popup_menu_visible(true);
+    scheme_menu->set_popup_menu_visible(true);
+    drain();
+
+    auto capture = std::ostringstream { };
+    auto *old_cout = std::cout.rdbuf(capture.rdbuf());
+    dynamic_cast<TextScreen&>(screen).clear();
+    screen.refresh();
+    std::cout.rdbuf(old_cout);
+    auto bytes = capture.str();
+    CHECK(bytes.find("\xe2\x98\x92") != std::string::npos); // U+2611 '☒'
+    CHECK(bytes.find("\xe2\x98\x90") != std::string::npos); // U+2610 '☐'
+    CHECK(bytes.find("\xe2\x97\x8f") != std::string::npos); // U+25CF '●'
+    CHECK(bytes.find("\xe2\x97\x8b") != std::string::npos); // U+25CB '○'
+    CHECK(bytes.find("\xe2\x8f\xb5") != std::string::npos); // U+25BA '⏵'
+    file_menu->set_popup_menu_visible(false);
+    scheme_menu->set_popup_menu_visible(false);
+    drain();
+  }
+
+  // ---- keyboard: Right on the armed submenu row walks into it, letters
+  // select the radio items, Enter activates the armed one and closes the
+  // whole chain ----
+  CHECK(dispatch_char(frame, Char { 'f' }, InputEvent::ALT_DOWN)->consumed);
+  CHECK(file_menu->is_popup_menu_visible());
+  CHECK(not scheme_menu->is_popup_menu_visible());
+  // The mnemonic 'c' arms the Scheme row (a letter only selects; opening is
+  // a key of its own).
+  CHECK(dispatch_char(frame, Char { 'c' })->consumed);
+  CHECK(scheme_menu->is_armed());
+  // Right opens the armed row's submenu and arms its first radio item.
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_RIGHT)->consumed);
+  CHECK(file_menu->is_popup_menu_visible());
+  CHECK(scheme_menu->is_popup_menu_visible());
+  CHECK(classic->is_armed());
+  // The arrows move through the submenu's items; a letter jumps to its
+  // mnemonic item.
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN)->consumed);
+  CHECK(dark->is_armed());
+  CHECK(not classic->is_armed());
+  CHECK(dispatch_char(frame, Char { 's' })->consumed);
+  CHECK(system->is_armed());
+  CHECK(not dark->is_armed());
+  // Enter activates the armed radio item: its action fires, the radio group
+  // moves to it, and the whole popup chain closes -- the bar un-arms and the
+  // keyboard is free again.
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER)->consumed);
+  CHECK(picks == (std::vector<std::string> { "System" }));
+  CHECK(system->is_selected());
+  CHECK(not classic->is_selected());
+  CHECK(not dark->is_selected());
+  CHECK(not file_menu->is_popup_menu_visible());
+  CHECK(not scheme_menu->is_popup_menu_visible());
+  CHECK(not file_menu->is_armed());
+  CHECK(not dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN)->consumed);
+
+  // ---- keyboard: Enter and Space on the armed row open it too; Left and
+  // Escape step back out of the chain ----
+  CHECK(dispatch_char(frame, Char { 'f' }, InputEvent::ALT_DOWN)->consumed);
+  // Down wraps through the File popup's items: the two check items, then the
+  // submenu row.
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN)->consumed);
+  CHECK(wrap->is_armed());
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN)->consumed);
+  CHECK(grid->is_armed());
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN)->consumed);
+  CHECK(scheme_menu->is_armed());
+  // Enter on the armed submenu row opens it (like Right).
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER)->consumed);
+  CHECK(scheme_menu->is_popup_menu_visible());
+  CHECK(classic->is_armed());
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN)->consumed);
+  CHECK(dark->is_armed());
+  // Left steps back onto the submenu's row; the File popup stays open.
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_LEFT)->consumed);
+  CHECK(not scheme_menu->is_popup_menu_visible());
+  CHECK(scheme_menu->is_armed());
+  CHECK(file_menu->is_popup_menu_visible());
+  // Escape closes the File popup back onto the armed bar; a second Escape
+  // leaves the bar.
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ESCAPE)->consumed);
+  CHECK(not file_menu->is_popup_menu_visible());
+  CHECK(file_menu->is_armed());
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ESCAPE)->consumed);
+  CHECK(not file_menu->is_armed());
+  CHECK(not dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN)->consumed);
+
+  // ---- mouse: hovering the submenu row of an open popup opens its popup, a
+  // click on a radio row picks it, and closing the top-level popup takes the
+  // whole chain down with it ----
+  auto click_at = [](std::shared_ptr<Window> const &window, Point const &local) {
+    drain();
+    screen.post<MousePressEvent>(window, MousePressEvent::MOUSE_PRESSED, MousePressEvent::LEFT_BUTTON, InputEvent::LEFT_BUTTON_DOWN, local.x, local.y, false);
+    dispatch_mouse(window, screen.get_event_queue().pop());
+    screen.post<MousePressEvent>(window, MousePressEvent::MOUSE_RELEASED, MousePressEvent::LEFT_BUTTON, InputEvent::NO_MODIFIERS, local.x, local.y, false);
+    dispatch_mouse(window, screen.get_event_queue().pop());
+  };
+  auto hover_at = [](std::shared_ptr<Window> const &window, Point const &local) {
+    drain();
+    screen.post<MouseMoveEvent>(window, InputEvent::NO_MODIFIERS, local.x, local.y);
+    dispatch_mouse(window, screen.get_event_queue().pop());
+  };
+
+  // Hover and click the File menu row (demo-style toggle, see above).
+  {
+    auto loc = file_menu->get_location_on_screen();
+    auto local = convert_point_from_screen(Point { loc.x + file_menu->get_width() / 2, loc.y + file_menu->get_height() / 2 }, frame);
+    hover_at(frame, local);
+    CHECK(file_menu->is_armed());
+    click_at(frame, local);
+    CHECK(file_menu->is_popup_menu_visible());
+  }
+
+  // Hover the Scheme row of the open popup: the hover opens the submenu.
+  {
+    auto file_popup = file_menu->get_popup_menu()->get_containing_window();
+    auto row_loc = scheme_menu->get_location_on_screen();
+    auto row_local = convert_point_from_screen(Point { row_loc.x + scheme_menu->get_width() / 2, row_loc.y + scheme_menu->get_height() / 2 }, file_popup);
+    hover_at(file_popup, row_local);
+    CHECK(scheme_menu->is_armed());
+    CHECK(scheme_menu->is_popup_menu_visible());
+  }
+
+  // Click Dark in the submenu: its action fires and the radio group moves to
+  // it. The popup chain was opened directly (demo style), so it stays up.
+  {
+    auto submenu_popup = scheme_menu->get_popup_menu()->get_containing_window();
+    auto dark_loc = dark->get_location_on_screen();
+    auto dark_local = convert_point_from_screen(Point { dark_loc.x + dark->get_width() / 2, dark_loc.y + dark->get_height() / 2 }, submenu_popup);
+    click_at(submenu_popup, dark_local);
+    CHECK(picks == (std::vector<std::string> { "System", "Dark" }));
+    CHECK(dark->is_selected());
+    CHECK(not classic->is_selected());
+    CHECK(not system->is_selected());
+    CHECK(file_menu->is_popup_menu_visible());
+    CHECK(scheme_menu->is_popup_menu_visible());
+  }
+
+  // Closing the top-level popup (as a pick's action does) takes the open
+  // submenu down with it.
+  file_menu->set_popup_menu_visible(false);
+  drain();
+  CHECK(not file_menu->is_popup_menu_visible());
+  CHECK(not scheme_menu->is_popup_menu_visible());
+
+  // Reopen and click a check item of the File popup: the pick toggles it.
+  {
+    auto loc = file_menu->get_location_on_screen();
+    auto local = convert_point_from_screen(Point { loc.x + file_menu->get_width() / 2, loc.y + file_menu->get_height() / 2 }, frame);
+    click_at(frame, local);
+    CHECK(file_menu->is_popup_menu_visible());
+
+    auto file_popup = file_menu->get_popup_menu()->get_containing_window();
+    auto wrap_loc = wrap->get_location_on_screen();
+    auto wrap_local = convert_point_from_screen(Point { wrap_loc.x + wrap->get_width() / 2, wrap_loc.y + wrap->get_height() / 2 }, file_popup);
+    click_at(file_popup, wrap_local);
+    CHECK(not wrap->is_selected()); // the pick toggled the check off
+  }
+
+  file_menu->set_popup_menu_visible(false);
+  frame->set_visible(false);
+  drain();
+
+  std::printf("PASS menu submenus (indicator glyphs, hover and keyboard chains)\n");
 }

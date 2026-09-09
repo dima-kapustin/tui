@@ -153,6 +153,20 @@ void TextTheme::init_component_defaults() {
 
   put("Button.Border", button_border);
 
+  // The button family (Swing's BasicButtonUI default properties). Every
+  // button kind installs its background/foreground from its own prefix, so a
+  // program can restyle one kind ("CheckBox.BackgroundColor") without
+  // touching the others; the defaults all share the system control colors.
+  put("ToggleButton.Border", button_border);
+  for (auto &&prefix : { "Button", "ToggleButton", "CheckBox", "RadioButton", "ComboBox" }) {
+    put(std::string(prefix) + ".BackgroundColor", control);
+    put(std::string(prefix) + ".ForegroundColor", controlText);
+  }
+
+  // The combo box reserves one cell around its field; the check box and radio
+  // button labels sit directly next to their indicator.
+  put("ComboBox.margin", make_resource<Insets>(0, 1, 0, 1));
+
 //  put( { { "MenuItem.border", margin_border } });
 //
 //  auto border = get_border("MenuItem.border");

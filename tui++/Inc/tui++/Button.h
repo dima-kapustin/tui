@@ -1,6 +1,7 @@
 #pragma once
 
 #include <tui++/AbstractButton.h>
+#include <tui++/ButtonModel.h>
 
 namespace tui {
 namespace laf {
@@ -12,14 +13,15 @@ public:
   std::shared_ptr<laf::ButtonUI> get_ui() const;
 
 protected:
-  Button(std::string const &text);
+  Button(std::string const &text = "");
+  Button(std::string const &text, Char const &mnemonic);
 
   template<typename T, typename ... Args>
   requires (is_component_v<T> )
   friend auto make_component(Args&&...);
 
   std::shared_ptr<laf::ComponentUI> create_ui() override;
-  
+
 public:
   bool is_default_button() const;
 };

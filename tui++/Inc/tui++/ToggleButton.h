@@ -1,6 +1,7 @@
 #pragma once
 
 #include <tui++/AbstractButton.h>
+#include <tui++/ToggleButtonModel.h>
 
 namespace tui {
 namespace laf {
@@ -9,6 +10,23 @@ class ToggleButtonUI;
 
 class ToggleButton: public AbstractButton {
   using base = AbstractButton;
+
+protected:
+  // Swing's JToggleButton: the default model is a ToggleButtonModel, which
+  // toggles the selected state when the button is clicked (a plain Button's
+  // model only stays selected while it is pressed).
+  ToggleButton(std::string const &text = "") :
+      ToggleButton(text, Char { }) {
+  }
+
+  ToggleButton(std::string const &text, Char const &mnemonic) :
+      base(std::make_shared<ToggleButtonModel>(), text, mnemonic) {
+  }
+
+  template<typename T, typename ... Args>
+  requires (is_component_v<T> )
+  friend auto make_component(Args&&...);
+
 public:
   void request_focus(FocusEvent::Cause cause) override {
     get_group_selection(cause)->request_focus_unconditionally(cause);

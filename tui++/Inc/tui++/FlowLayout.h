@@ -73,6 +73,13 @@ public:
 
   std::optional<Dimension> get_preferred_layout_size(const std::shared_ptr<const Component> &target) override;
 
+  // Like Swing's FlowLayout (which leaves AWT's unbounded maximum alone), a
+  // flow container is free to grow: a FlowLayout panel nested in a BoxLayout
+  // column must stretch to the column width, and without this override the
+  // base Layout's empty maximum is cached and the box layout collapses the
+  // panel to zero width.
+  std::optional<Dimension> get_maximum_layout_size(const std::shared_ptr<const Component> &target) override;
+
   void layout(const std::shared_ptr<Component> &target) override;
 };
 

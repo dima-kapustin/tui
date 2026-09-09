@@ -3,6 +3,7 @@
 #include <tui++/ButtonGroup.h>
 
 #include <tui++/lookandfeel/ToggleButtonUI.h>
+#include <tui++/lookandfeel/LookAndFeel.h>
 
 namespace tui {
 std::shared_ptr<laf::ToggleButtonUI> ToggleButton::get_ui() const {
@@ -35,10 +36,16 @@ std::shared_ptr<ToggleButton> ToggleButton::get_group_selection(FocusEvent::Caus
         }
       }
     }
-    return {};
+    break;
   default:
-    return std::static_pointer_cast<ToggleButton>(shared_from_this());
+    break;
   }
+
+  // The redirect above only moves the focus to another member when an
+  // exclusive group can answer for this one. Every other toggle button --
+  // one outside a group, a group with no selection yet, or the very member
+  // the group has selected -- keeps the focus request for itself.
+  return std::static_pointer_cast<ToggleButton>(shared_from_this());
 }
 
 }

@@ -53,6 +53,11 @@ std::optional<Dimension> FlowLayout::get_preferred_layout_size(const std::shared
 
 }
 
+std::optional<Dimension> FlowLayout::get_maximum_layout_size(const std::shared_ptr<const Component> &target) {
+  auto lock = target->get_tree_lock();
+  return Dimension::max();
+}
+
 void FlowLayout::layout(const std::shared_ptr<Component> &target) {
   auto lock = target->get_tree_lock();
 

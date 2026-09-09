@@ -17,6 +17,7 @@ protected:
     // text screen keeps its one-cell margins from TextTheme.
     put("MenuItem.margin", make_resource<Insets>(2, 2, 2, 2));
     put("Menu.margin", make_resource<Insets>(2, 2, 2, 2));
+    put("ComboBox.margin", make_resource<Insets>(2, 2, 2, 2));
     put("PopupMenuSeparator.margin", make_resource<Insets>(2, 2, 2, 2));
   }
 };

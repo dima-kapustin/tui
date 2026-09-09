@@ -199,6 +199,15 @@ void PopupMenu::show(std::shared_ptr<Component> const &invoker, int x, int y) {
 void PopupMenu::set_visible(bool value) {
   if (is_popup_showing() != value) {
     if (not value) {
+      // Dismiss the submenus hanging off this popup first: their windows sit
+      // over this one (and the frame), so closing the parent must take the
+      // whole chain down with it -- recursively, for nested submenus.
+      for (auto &&child : this->components) {
+        if (auto submenu = std::dynamic_pointer_cast<Menu>(child); submenu and submenu->is_popup_menu_visible()) {
+          submenu->set_popup_menu_visible(false);
+        }
+      }
+
       this->selection_model->clear_selection();
 
       if (this->popup) {

@@ -2,6 +2,7 @@
 
 #include <tui++/AbstractButton.h>
 #include <tui++/Button.h>
+#include <tui++/ToggleButton.h>
 #include <tui++/Component.h>
 #include <tui++/Graphics.h>
 
@@ -17,7 +18,10 @@ void ButtonBorder::paint_border(Component const &c, Graphics &g, int x, int y, i
 
   if (auto *abstract_button = dynamic_cast<AbstractButton const *>(&c)) {
     auto &&model = abstract_button->get_model();
-    is_pressed = model->is_pressed() and model->is_armed();
+    // A selected toggleable button (ToggleButton and its CheckBox/RadioButton
+    // subclasses) keeps the sunken "pressed" look after the click, the way a
+    // Swing toggle shows itself selected.
+    is_pressed = (model->is_pressed() and model->is_armed()) or (dynamic_cast<ToggleButton const*>(&c) and model->is_selected());
 
     if (auto *button = dynamic_cast<Button const *>(&c)) {
       is_default = button->is_default_button();
