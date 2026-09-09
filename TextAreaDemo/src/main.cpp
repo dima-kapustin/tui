@@ -143,10 +143,10 @@ struct DemoState {
 };
 
 // Menu helpers, following the MenuBarDemo wiring: an item's pick closes its
-// popup and runs the action; a click on a top-level menu toggles its popup
-// (opening one closes the others). An optional `accelerator` (Swing's
-// JMenuItem.setAccelerator) gives the item a shortcut shown right-aligned in
-// the popup's accelerator column.
+// popup and runs the action; a click on a top-level menu opens its popup and
+// closes every other menu's (see wire_menu_popup_toggle). An optional
+// `accelerator` (Swing's JMenuItem.setAccelerator) gives the item a shortcut
+// shown right-aligned in the popup's accelerator column.
 std::shared_ptr<MenuItem> add_item(const std::shared_ptr<Menu> &menu, std::string text, char mnemonic, std::optional<KeyStroke> const &accelerator, std::function<void()> action) {
   auto item = mnemonic ? make_component<MenuItem>(std::move(text), Char { mnemonic }) : make_component<MenuItem>(std::move(text));
   if (accelerator) {
@@ -163,6 +163,17 @@ std::shared_ptr<MenuItem> add_item(const std::shared_ptr<Menu> &menu, std::strin
   return item;
 }
 
+// A click on a top-level menu opens its popup (closing every other menu's); a
+// re-click of a menu whose popup this wiring opened with an earlier click
+// closes it again. The bar's hover behavior complicates the toggle: gliding
+// over another top-level menu while a popup is open switches the open popup
+// to it (as in Swing's menu bar), so by the time the pointer reaches a menu
+// the user is about to click, that menu's popup may already be showing -- and
+// a click must not close what the hover just opened, or clicking a menu the
+// pointer crossed could never display its popup. Only a popup opened by a
+// click counts as "open" for the toggle; the click that follows a hover-open
+// keeps the popup. Any other dismissal (picking an item, clicking the
+// content) clears the flag through the popup's BECOMES_INVISIBLE event.
 void wire_menu_popup_toggle(const std::shared_ptr<Menu> &menu, const std::initializer_list<std::shared_ptr<Menu>> &others) {
   auto weak_self = std::weak_ptr<Menu> { menu };
   auto weak_others = std::vector<std::weak_ptr<Menu>> { };
@@ -170,7 +181,15 @@ void wire_menu_popup_toggle(const std::shared_ptr<Menu> &menu, const std::initia
   for (auto &&other : others) {
     weak_others.emplace_back(other);
   }
-  menu->add_listener([weak_self, weak_others](MousePressEvent &e) {
+  auto clicked_open = std::make_shared<bool>(false);
+  if (auto popup_menu = menu->get_popup_menu()) {
+    popup_menu->add_listener([clicked_open](PopupMenuEvent &e) {
+      if (e.id == PopupMenuEvent::BECOMES_INVISIBLE) {
+        *clicked_open = false;
+      }
+    });
+  }
+  menu->add_listener([weak_self, weak_others, clicked_open](MousePressEvent &e) {
     if (e.id != MousePressEvent::MOUSE_RELEASED) {
       return;
     }
@@ -178,15 +197,20 @@ void wire_menu_popup_toggle(const std::shared_ptr<Menu> &menu, const std::initia
     if (not self) {
       return;
     }
-    auto open = not self->is_popup_menu_visible();
-    if (open) {
+    if (self->is_popup_menu_visible() and *clicked_open) {
+      // The deliberate re-click of the menu this wiring opened: close it.
+      self->set_popup_menu_visible(false);
+    } else if (not self->is_popup_menu_visible()) {
       for (auto &&weak_other : weak_others) {
         if (auto other = weak_other.lock()) {
           other->set_popup_menu_visible(false);
         }
       }
+      self->set_popup_menu_visible(true);
+      *clicked_open = true;
     }
-    self->set_popup_menu_visible(open);
+    // A popup the hover-switch already opened stays open: the click confirms
+    // the menu the pointer settled on.
     self->set_armed(true);
     self->repaint();
     e.consume();
