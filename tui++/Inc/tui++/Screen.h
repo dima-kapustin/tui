@@ -149,7 +149,13 @@ public:
    * @return true iff the calling thread is the event dispatching thread
    */
   bool is_event_dispatching_thread() {
-    return std::this_thread::get_id() == event_dispatching_thread_id;
+    // Before any run_event_loop has started -- single-threaded startup, and
+    // the regression tests, which drive the dispatch manually -- the calling
+    // thread is the only thread there is, so it counts as the dispatching
+    // thread (revalidate() then schedules its validation pass instead of
+    // silently deferring it to a loop that never runs).
+    return event_dispatching_thread_id == std::thread::id {} //
+        or std::this_thread::get_id() == event_dispatching_thread_id;
   }
 
   virtual void run_event_loop() = 0;
