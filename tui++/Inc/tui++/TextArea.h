@@ -300,6 +300,16 @@ public:
     return this->search_pattern;
   }
 
+  // Closes the search entry (the pattern above stays, so a later "find all"
+  // can repeat it). A no-op when the entry is not open.
+  void close_search_entry() {
+    if (this->search_mode) {
+      this->search_mode = false;
+      repaint_message_row();
+      repaint_caret_cell();
+    }
+  }
+
   // The last match, as a byte range (end = start when none).
   std::pair<std::uint64_t, std::uint64_t> get_last_match() const {
     return { this->match_start, this->match_end };

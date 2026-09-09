@@ -1409,9 +1409,7 @@ void TextArea::on_key_pressed(KeyEvent &e) {
     e.consume();
     break;
   case KeyEvent::VK_ESCAPE:
-    this->search_mode = false;
-    repaint_message_row();
-    repaint_caret_cell();
+    close_search_entry();
     e.consume();
     break;
   case KeyEvent::VK_F3:
