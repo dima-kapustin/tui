@@ -3,11 +3,13 @@
 #include <tui++/Window.h>
 #include <tui++/KeyboardFocusManager.h>
 
+#include <tui++/event/MouseEvent.h>
 #include <tui++/util/log.h>
 #include <tui++/util/typeid.h>
 
 #include <chrono>
 #include <cstddef>
+#include <cstdio>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -51,6 +53,30 @@ std::string event_type_name(Event const &event) {
     name.erase(0, pos + 2);
   }
   return name;
+}
+
+// Prints what was being dispatched when an exception escaped, so a crash log
+// names the event, the component and the focus owner that were live at the
+// fault (the terminate handler prints the exception itself). Runs inside a
+// catch block that must not throw again, so everything here is guarded.
+void log_uncaught_in_dispatch(Event const &event) {
+  try {
+    std::fprintf(stderr, "\n[tui++ fatal] uncaught exception while dispatching:\n");
+    std::fprintf(stderr, "  event: %s", event_type_name(event).c_str());
+    if (auto component = std::dynamic_pointer_cast<Component>(event.source)) {
+      std::fprintf(stderr, "  source=%s", component->to_string().c_str());
+    }
+    if (auto mouse = dynamic_cast<MouseEvent const *>(&event)) {
+      std::fprintf(stderr, "  at (%d,%d)", mouse->x, mouse->y);
+    }
+    std::fprintf(stderr, "\n");
+    if (auto focus = KeyboardFocusManager::single->get_focus_owner()) {
+      std::fprintf(stderr, "  focus owner: %s\n", focus->to_string().c_str());
+    }
+    std::fprintf(stderr, "  (the exception follows below)\n");
+  } catch (...) {
+    std::fprintf(stderr, "  (could not gather the dispatch context)\n");
+  }
 }
 
 } // namespace
@@ -130,10 +156,18 @@ void Screen::dispatch_event(Event &event) {
   // log macro below no-ops when logging is disabled.
   auto t0 = std::chrono::steady_clock::now();
 
-  if (event.id == InvocationEvent::INVOCATION) {
-    static_cast<InvocationEvent&>(event).dispatch();
-  } else if (auto c = std::dynamic_pointer_cast<Component>(event.source)) {
-    c->dispatch_event(event);
+  try {
+    if (event.id == InvocationEvent::INVOCATION) {
+      static_cast<InvocationEvent&>(event).dispatch();
+    } else if (auto c = std::dynamic_pointer_cast<Component>(event.source)) {
+      c->dispatch_event(event);
+    }
+  } catch (...) {
+    // Name the event/component/focus owner that were live when the handler
+    // threw; the exception then propagates to std::terminate, whose handler
+    // prints what() and a backtrace.
+    log_uncaught_in_dispatch(event);
+    throw;
   }
 
   // Component::dispatch_event already logs the "event: ..." line via
@@ -260,7 +294,12 @@ void Screen::run_pending_timers() {
       this->timers.emplace_back(now + timer->period, timer);
     }
 
-    tick();
+    try {
+      tick();
+    } catch (...) {
+      std::fprintf(stderr, "\n[tui++ fatal] uncaught exception in a timer callback\n");
+      throw;
+    }
   }
 }
 
