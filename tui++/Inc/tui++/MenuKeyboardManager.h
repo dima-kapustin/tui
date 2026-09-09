@@ -45,6 +45,10 @@ public:
   void handle_mouse_pressed(const std::shared_ptr<Window> &window, MousePressEvent const &e);
 
 private:
+  // Ends the keyboard session of `bar`: any open popup closes, the armed
+  // highlight of the top-level menus goes off.
+  void cancel_keyboard_session(const std::shared_ptr<MenuBar> &bar);
+
   bool handle_key_event(const std::shared_ptr<MenuBar> &bar, KeyEvent &e);
   bool handle_open_popup_key(const std::shared_ptr<Menu> &open, KeyEvent &e);
   bool handle_menu_mode_key(const std::shared_ptr<MenuBar> &bar, KeyEvent &e);

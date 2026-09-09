@@ -272,10 +272,44 @@ bool MenuKeyboardManager::handle_key_event(const std::shared_ptr<Window> &window
   if (e.id != KeyEvent::KEY_PRESSED and e.id != KeyEvent::KEY_TYPED) {
     return false;
   }
-  if (auto bar = menu_bar_of(window); bar and bar->is_showing() and bar->is_enabled()) {
-    return handle_key_event(bar, e);
+  auto bar = menu_bar_of(window);
+  if (not bar or not bar->is_showing() or not bar->is_enabled()) {
+    return false;
   }
-  return false;
+
+  // While the menu system holds the keyboard (an open popup, or the armed
+  // bar of a keyboard session), Tab and Shift+Tab leave it again -- as on
+  // Windows and in Swing, where focus traversal dismisses the menus. The
+  // session ends first (popup closed, highlights off), then the focus moves
+  // to the window's content: the first focusable component on Tab, the last
+  // on Shift+Tab. The menu bar itself is never a Tab stop, so this is also
+  // the way the keyboard reaches the text component after F10/menu use.
+  if (open_popup_menu(*bar) or this->keyboard_mode_bars.contains(bar.get())) {
+    auto const code = e.get_key_code();
+    if (e.id == KeyEvent::KEY_PRESSED and (code == KeyEvent::VK_TAB or code == KeyEvent::VK_BACK_TAB)) {
+      auto const backward = code == KeyEvent::VK_BACK_TAB or bool(e.modifiers & InputEvent::SHIFT_DOWN);
+      cancel_keyboard_session(bar);
+      e.consume();
+
+      if (auto policy = window->get_focus_traversal_policy()) {
+        auto target = backward ? policy->get_last_component(window) : policy->get_first_component(window);
+        if (target and not target->is_focus_owner()) {
+          target->request_focus_in_window(backward ? FocusEvent::Cause::TRAVERSAL_BACKWARD : FocusEvent::Cause::TRAVERSAL_FORWARD);
+        }
+      }
+      return true;
+    }
+  }
+
+  return handle_key_event(bar, e);
+}
+
+void MenuKeyboardManager::cancel_keyboard_session(const std::shared_ptr<MenuBar> &bar) {
+  if (auto open = open_popup_menu(*bar)) {
+    open->set_popup_menu_visible(false);
+  }
+  this->keyboard_mode_bars.erase(bar.get());
+  unarm_top_level_menus(*bar);
 }
 
 bool MenuKeyboardManager::handle_key_event(const std::shared_ptr<MenuBar> &bar, KeyEvent &e) {
@@ -358,9 +392,9 @@ bool MenuKeyboardManager::handle_open_popup_key(const std::shared_ptr<Menu> &ope
 
     case KeyEvent::VK_F10:
       if (not has_ctrl(e)) {
-        open->set_popup_menu_visible(false);
-        this->keyboard_mode_bars.erase(bar.get());
-        unarm_top_level_menus(*bar);
+        // F10 with a popup open closes everything and leaves the bar, as a
+        // second F10 after arming does.
+        cancel_keyboard_session(bar);
         e.consume();
         return true;
       }
