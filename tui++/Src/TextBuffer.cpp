@@ -1,5 +1,6 @@
 #include <tui++/TextBuffer.h>
 
+#include <bit>
 #include <cstring>
 #include <regex>
 #include <stdexcept>
@@ -448,6 +449,57 @@ std::pair<std::uint64_t, std::uint64_t> TextBuffer::offset_to_line(std::uint64_t
 // ---------------------------------------------------------------------------
 // search
 
+namespace {
+
+// Searches `hay` for `needle` at or after `from`, eight bytes at a time
+// (SWAR, the same technique glyph_width in util/utf-8.h uses): the needle's
+// first byte is located with the classic per-lane "haszero" test -- a lane
+// holding that byte makes (chunk XOR repeat(first)) zero there, and the
+// per-lane subtraction underflows only in or behind such lanes, so a nonzero
+// mask means the byte occurs in the chunk. Every candidate lane is verified
+// with memcmp (mask bits can also sit on benign false-positive lanes behind
+// a real one), which keeps the scan exact for any bytes, UTF-8 included:
+// searching never decodes, it only compares bytes. The classic worst case (a
+// needle whose first byte saturates the haystack) degrades to a memcmp per
+// byte; typical log needles scan eight bytes per test.
+std::size_t swar_find(std::string_view hay, std::string_view needle, std::size_t from) {
+  auto const n = needle.size();
+  if (n == 0) {
+    return std::min(from, hay.size());
+  }
+  if (from > hay.size() or n > hay.size() - from) {
+    return std::string::npos;
+  }
+
+  constexpr auto ones = std::uint64_t { 0x0101'0101'0101'0101 };
+  constexpr auto high = std::uint64_t { 0x8080'8080'8080'8080 };
+  auto const repeated = ones * std::uint64_t(std::uint8_t(needle[0]));
+
+  auto i = from;
+  while (i + 8 <= hay.size()) {
+    auto chunk = std::uint64_t { };
+    std::memcpy(&chunk, hay.data() + i, sizeof(chunk));
+    auto const xored = chunk ^ repeated;
+    auto mask = (xored - ones) & ~xored & high;
+    while (mask) {
+      auto const at = i + std::size_t(std::countr_zero(mask));
+      if (at + n <= hay.size() and std::memcmp(hay.data() + at, needle.data(), n) == 0) {
+        return at;
+      }
+      mask &= mask - 1;
+    }
+    i += 8;
+  }
+  for (; i + n <= hay.size(); ++i) {
+    if (std::uint8_t(hay[i]) == std::uint8_t(needle[0]) and std::memcmp(hay.data() + i, needle.data(), n) == 0) {
+      return i;
+    }
+  }
+  return std::string::npos;
+}
+
+}
+
 std::optional<std::uint64_t> TextBuffer::find(std::string_view needle, std::uint64_t from) const {
   if (needle.empty()) {
     return std::min(from, this->length());
@@ -459,7 +511,7 @@ std::optional<std::uint64_t> TextBuffer::find(std::string_view needle, std::uint
   while (pos < this->length()) {
     auto take = std::min<std::uint64_t>(window_size + needle.size() - 1, this->length() - pos);
     auto window = read(pos, take);
-    auto hit = window.find(needle);
+    auto hit = swar_find(window, needle, 0);
     if (hit != std::string::npos) {
       return pos + std::uint64_t(hit);
     }
@@ -469,6 +521,44 @@ std::optional<std::uint64_t> TextBuffer::find(std::string_view needle, std::uint
     pos += window_size;
   }
   return std::nullopt;
+}
+
+std::vector<std::uint64_t> TextBuffer::find_all(std::string_view needle, std::uint64_t from, std::size_t limit) const {
+  if (limit == 0) {
+    return {};
+  }
+  auto pos = std::min(from, this->length());
+  if (needle.empty()) {
+    return { pos };
+  }
+
+  // One forward pass over the same windows find() uses. A window owns the
+  // matches that start inside its core (its first window_size bytes); the
+  // overlap tail (needle.size() - 1 bytes) is re-read by the next window,
+  // which starts exactly at the core's end, so a match that straddles a
+  // boundary is reported exactly once, by the window whose core it starts in.
+  auto const window_size = std::uint64_t(1) << 20; // 1 MiB
+  auto results = std::vector<std::uint64_t> { };
+  results.reserve(std::min<std::size_t>(limit, 64));
+  while (pos < this->length() and results.size() < limit) {
+    auto take = std::min<std::uint64_t>(window_size + needle.size() - 1, this->length() - pos);
+    auto window = read(pos, take);
+    auto const core = std::min<std::uint64_t>(window_size, take);
+    auto cursor = std::size_t { 0 };
+    while (results.size() < limit) {
+      auto hit = swar_find(window, needle, cursor);
+      if (hit == std::string::npos or hit >= core) {
+        break; // only the overlap tail is left; the next window owns it
+      }
+      results.emplace_back(pos + std::uint64_t(hit));
+      cursor = hit + needle.size();
+    }
+    if (take <= window_size) {
+      break;
+    }
+    pos += window_size;
+  }
+  return results;
 }
 
 std::optional<std::pair<std::uint64_t, std::uint64_t>> TextBuffer::find_regex(std::string const &pattern, std::uint64_t from) const {

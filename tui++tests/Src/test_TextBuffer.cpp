@@ -2,11 +2,13 @@
 
 #include <tui++/TextBuffer.h>
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
 #include <fstream>
 #include <string>
+#include <vector>
 
 using namespace tui;
 
@@ -223,6 +225,69 @@ void test_search() {
 }
 
 // Opening a real file maps it (read-only) and still allows in-memory edits.
+// The SWAR substring scanner must agree with a brute-force reading on
+// windows that straddle the 1 MiB scan boundaries, from arbitrary start
+// offsets, and the non-overlapping find_all pass must equal repeated
+// find() calls. Searching is byte-level (which is exactly right for UTF-8:
+// a match found in bytes is a match in the text, whatever the encoding).
+void test_find_all() {
+  auto const needle = std::string_view { "needle" };
+  auto text = std::string { };
+  // ~2.6 MiB with an occurrence every few dozen bytes: matches land on and
+  // across every 1 MiB window boundary.
+  for (std::uint64_t i = 0; text.size() < (2u << 20) + 2000; ++i) {
+    text += "line ";
+    text += std::to_string(i);
+    text += " filler needle marker\n";
+  }
+  auto buffer = TextBuffer::create_empty();
+  buffer->replace(0, 0, text);
+
+  auto expected_from = [&](std::size_t from) {
+    auto out = std::vector<std::uint64_t> { };
+    auto p = text.find(needle, from);
+    while (p != std::string::npos) {
+      out.push_back(std::uint64_t(p));
+      p = text.find(needle, p + needle.size());
+    }
+    return out;
+  };
+
+  for (auto from : { std::size_t { 0 }, std::size_t { 12345 }, text.size() / 2, text.size() - 10, text.size() }) {
+    auto expected = expected_from(from);
+    auto got = buffer->find_all(needle, from, 1000000);
+    assert(got.size() == expected.size());
+    assert(std::equal(got.begin(), got.end(), expected.begin()));
+
+    auto first = buffer->find(needle, from);
+    assert(bool(first) == not expected.empty());
+    if (not expected.empty()) {
+      assert(*first == expected.front());
+    }
+  }
+
+  // A match straddling a 1 MiB window boundary is found and listed once.
+  {
+    auto straddle = std::string((1u << 20) - 3, 'a');
+    straddle += needle;
+    straddle += "tail";
+    auto b2 = TextBuffer::create_empty();
+    b2->replace(0, 0, straddle);
+    auto hits = b2->find_all(needle, 0, 10);
+    assert(hits.size() == 1);
+    assert(hits[0] == (1u << 20) - 3);
+    assert(*b2->find(needle, (1u << 20) - 5) == (1u << 20) - 3);
+  }
+
+  // Limit caps, the empty needle and an out-of-range start.
+  auto few = buffer->find_all(needle, 0, 5);
+  assert(few.size() == 5);
+  assert(buffer->find_all(needle, 0, 0).empty());
+  auto empty_hits = buffer->find_all("", 7, 10);
+  assert(empty_hits.size() == 1 and empty_hits[0] == 7);
+  assert(buffer->find_all(needle, text.size() + 5, 10).empty());
+}
+
 void test_open_file() {
   auto path = std::string { "test_textbuffer_edit_me.tmp" };
   {
@@ -284,6 +349,7 @@ void test_TextBuffer() {
   test_edit_across_pages();
   test_read_line_ranges();
   test_search();
+  test_find_all();
   test_open_file();
   test_large_document();
   std::fprintf(stderr, "test_TextBuffer: ok\n");

@@ -293,6 +293,13 @@ public:
     return this->search_mode;
   }
 
+  // The pattern of the current (or last) search entry -- plain text or a
+  // regexp, as reported by is_search_regexp(). It survives the entry closing,
+  // so a "find all" action can repeat the last search.
+  std::string const& get_search_pattern() const {
+    return this->search_pattern;
+  }
+
   // The last match, as a byte range (end = start when none).
   std::pair<std::uint64_t, std::uint64_t> get_last_match() const {
     return { this->match_start, this->match_end };

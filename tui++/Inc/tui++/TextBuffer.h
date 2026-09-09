@@ -138,6 +138,12 @@ public:
   // windowed (memory stays bounded); matches may span page boundaries.
   std::optional<std::uint64_t> find(std::string_view needle, std::uint64_t from) const;
 
+  // Every non-overlapping occurrence of `needle` at or after `from`, in
+  // order, capped at `limit` results -- one single forward pass with the same
+  // window semantics and SWAR scanner as find(). An empty needle yields the
+  // single offset `from` (like find()).
+  std::vector<std::uint64_t> find_all(std::string_view needle, std::uint64_t from, std::size_t limit) const;
+
   // Finds the first ECMAScript-regexp match at or after `from`, running the
   // regex over overlapping windows of REGEX_WINDOW bytes. Returns (start,
   // end) of the match; matches longer than the window overlap may straddle a
