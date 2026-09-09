@@ -4,6 +4,7 @@
 // selection and lookup editing).
 #include <tui++/Button.h>
 #include <tui++/ButtonGroup.h>
+#include <tui++/BorderLayout.h>
 #include <tui++/CheckBox.h>
 #include <tui++/CheckBoxMenuItem.h>
 #include <tui++/ComboBox.h>
@@ -12,6 +13,7 @@
 #include <tui++/KeyboardFocusManager.h>
 #include <tui++/Menu.h>
 #include <tui++/MenuItem.h>
+#include <tui++/Panel.h>
 #include <tui++/RadioButton.h>
 #include <tui++/RadioButtonMenuItem.h>
 #include <tui++/Screen.h>
@@ -19,6 +21,7 @@
 #include <tui++/Window.h>
 
 #include <tui++/event/Event.h>
+#include <tui++/event/FocusEvent.h>
 #include <tui++/event/KeyEvent.h>
 #include <tui++/terminal/Terminal.h>
 #include <tui++/terminal/text/TextScreen.h>
@@ -312,6 +315,14 @@ static void test_combo_box() {
   CHECK(actions.size() == 1);
   CHECK(actions.back() == "Beta");
 
+  // ---- a stray (or repeated, or auto-repeated) Enter after a commit is a
+  // no-op: it must not wipe the selection or the field ----
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER);
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER);
+  CHECK(combo->get_selected_item() == "Beta");
+  CHECK(combo->get_field_text() == "Beta");
+  CHECK(actions.size() == 1); // the stray Enters fired nothing
+
   // ---- custom text: type letters no item starts with, Enter keeps them ----
   dispatch_typed(frame, Char('x'));
   dispatch_typed(frame, Char('y'));
@@ -320,15 +331,15 @@ static void test_combo_box() {
   CHECK(actions.size() == 2);
   CHECK(actions.back() == "xy");
   CHECK(not combo->get_selected_index()); // the custom value stays unselected
-  // Committing a custom value ends the edit session: the field falls back to
-  // the (empty) selection.
-  CHECK(combo->get_field_text() == "");
+  // Committing a custom value keeps the typed text in the field (the index
+  // model cannot hold it, so it stays unselected but visible).
+  CHECK(combo->get_field_text() == "xy");
 
   // ---- Escape reverts an uncommitted edit ----
   dispatch_typed(frame, Char('z'));
   CHECK(combo->get_field_text() == "z");
   dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ESCAPE);
-  CHECK(combo->get_field_text() == ""); // reverted to the (empty) selection
+  CHECK(combo->get_field_text() == "xy"); // reverted to the custom value
 
   // ---- the dropdown: arrow down opens it, arrows move, Enter picks ----
   dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN);
@@ -449,10 +460,184 @@ static void test_combo_box() {
   std::printf("PASS widgets (toggle buttons, check/radio menu items, combo box)\n");
 }
 
+// Two combo boxes side by side on one screen: the dropdown's window spans
+// the combo's width with its right border aligned to the box's, opening one
+// combo's dropdown dismisses another combo's open dropdown (and the
+// dismissed combo's bookkeeping follows -- it neither keeps holding the
+// window's keys nor toggles a ghost on the next arrow click), and the
+// editable field keeps working while its dropdown is open: Backspace edits
+// the draft and every change re-highlights the first item (from the top)
+// that matches it.
+static void test_combo_dropdown() {
+  terminal.set_type("text");
+
+  auto frame = make_component<Frame>();
+  frame->set_size({ 80, 24 });
+  auto content = frame->get_content_pane();
+  auto row = make_component<Panel>(); // a FlowLayout row, like the demo's
+
+  auto city = make_component<ComboBox>(std::vector<std::string> { "Barcelona", "Paris", "London", "Rome", "Berlin", "Madrid", "Amsterdam", "Prague", "Vienna" });
+  city->set_editable(true);
+  city->set_selected_index(0);
+  city->set_name("city");
+  auto size = make_component<ComboBox>();
+  for (auto i = 8; i <= 24; i += 2) {
+    size->add_item(std::to_string(i) + " pt");
+  }
+  size->set_maximum_row_count(5);
+  size->set_selected_index(0);
+  size->set_name("size");
+  row->add(city);
+  row->add(size);
+  content->add(row, BorderLayout::CENTER);
+
+  frame->set_visible(true);
+  drain();
+
+  // The popup window under `c` (null when no dropdown is showing).
+  auto dropdown_window = [](std::shared_ptr<ComboBox> const &c) -> std::shared_ptr<Window> {
+    auto at = c->get_location_on_screen();
+    auto window = screen.get_window_at(at.x + 2, at.y + c->get_height() + 1);
+    return window and window.get() != c->get_containing_window().get() ? window : nullptr;
+  };
+  // The index of the highlighted row of `c`'s open dropdown, or -1.
+  auto armed_row = [&dropdown_window](std::shared_ptr<ComboBox> const &c) -> int {
+    auto window = dropdown_window(c);
+    if (not window or window->get_content_pane()->get_component_count() == 0) {
+      return -1;
+    }
+    auto menu = std::dynamic_pointer_cast<Component>(window->get_content_pane()->get_component(0));
+    auto index = 0;
+    for (auto &&component : menu->get_components()) {
+      if (auto item = std::dynamic_pointer_cast<MenuItem>(component); item and item->is_armed()) {
+        return index;
+      }
+      ++index;
+    }
+    return -1;
+  };
+  // Clicks the arrow strip of `c` (its rightmost cell) through the frame.
+  auto arrow_click = [&](std::shared_ptr<ComboBox> const &c) {
+    auto at = c->get_location_on_screen();
+    auto local = convert_point_from_screen(Point { at.x + c->get_width() - 1, at.y + c->get_height() / 2 }, frame);
+    click_window(frame, local.x, local.y);
+  };
+
+  // ---- the dropdown's width matches the box's, right borders aligned ----
+  {
+    city->set_popup_visible(true);
+    drain();
+    auto window = dropdown_window(city);
+    CHECK(window);
+    auto at = city->get_location_on_screen();
+    CHECK(window->get_location().x == at.x);
+    CHECK(window->get_size().width == city->get_width());
+    CHECK(window->get_location().x + window->get_size().width == at.x + city->get_width());
+
+    auto size_window = dropdown_window(size);
+    CHECK(not size_window); // only one dropdown on the screen
+    city->set_popup_visible(false);
+    drain();
+    CHECK(not dropdown_window(city));
+  }
+
+  // ---- opening the second combo's dropdown dismisses the first's ----
+  {
+    city->set_popup_visible(true);
+    drain();
+    CHECK(city->is_popup_visible());
+
+    size->set_popup_visible(true);
+    drain();
+    CHECK(not city->is_popup_visible()); // closed, not just hidden
+    CHECK(not dropdown_window(city));
+    CHECK(size->is_popup_visible());
+
+    // Arrow clicks keep working with a dropdown on the screen: a click on
+    // the other box's arrow moves the dropdown to it, another click closes
+    // it again.
+    arrow_click(city);
+    CHECK(city->is_popup_visible());
+    CHECK(not size->is_popup_visible());
+    arrow_click(city);
+    CHECK(not city->is_popup_visible());
+    arrow_click(size);
+    CHECK(size->is_popup_visible());
+    CHECK(not city->is_popup_visible());
+    arrow_click(size);
+    CHECK(not size->is_popup_visible());
+  }
+
+  // ---- a mouse pick in the dropdown commits and closes it (non-editable
+  // combo, opened by clicking the arrow): click the second row ("10 pt") ----
+  {
+    arrow_click(size);
+    CHECK(size->is_popup_visible());
+    auto window = dropdown_window(size);
+    CHECK(window);
+    click_window(window, 2, 1); // the second row of the dropdown
+    CHECK(not size->is_popup_visible());
+    CHECK(size->get_selected_item() == "10 pt");
+  }
+
+  // ---- the editable field works while the dropdown is open: Backspace and
+  // the live lookup ----
+  {
+    city->request_focus(FocusEvent::Cause::ACTIVATION);
+    CHECK(city->is_focus_owner());
+    dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN); // opens the dropdown
+    CHECK(city->is_popup_visible());
+
+    // "be" highlights Berlin (the first "be" from the top); Backspace
+    // reverts the draft to "b" and the highlight jumps back to Barcelona,
+    // the first "b" from the top -- the lookup follows every edit live.
+    dispatch_typed(frame, Char('b'));
+    CHECK(armed_row(city) == 0); // Barcelona
+    dispatch_typed(frame, Char('e'));
+    CHECK(city->get_field_text() == "be");
+    CHECK(armed_row(city) == 4); // Berlin
+    dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_BACK_SPACE);
+    CHECK(city->get_field_text() == "b");
+    CHECK(armed_row(city) == 0); // Barcelona again
+    dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER);
+    CHECK(not city->is_popup_visible());
+    CHECK(city->get_selected_item() == "Barcelona");
+    CHECK(city->get_field_text() == "Barcelona");
+
+    // Delete and the caret keys edit the draft with the dropdown open too.
+    dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN);
+    CHECK(city->is_popup_visible());
+    dispatch_typed(frame, Char('a'));
+    CHECK(city->get_field_text() == "a");
+    dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ESCAPE); // revert
+    CHECK(city->get_field_text() == "Barcelona");
+    CHECK(not city->is_popup_visible());
+
+    // An unmatched draft drops the stale highlight (Enter must not pick the
+    // row that was highlighted before the typing); Enter keeps the typed text
+    // as the custom value and the field shows it.
+    dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN);
+    CHECK(city->is_popup_visible());
+    dispatch_typed(frame, Char('q'));
+    CHECK(city->get_field_text() == "q");
+    CHECK(armed_row(city) == -1); // nothing highlighted
+    dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER);
+    CHECK(not city->is_popup_visible());
+    CHECK(not city->get_selected_index()); // the custom value stays unselected
+    CHECK(city->get_field_text() == "q"); // and stays in the field
+  }
+
+  frame->set_visible(false);
+  drain();
+
+  std::printf("PASS combo dropdowns (aligned width, one at a time, live lookup)\n");
+}
+
 void test_Widgets() {
   test_toggle_buttons();
   test_toggle_button_focus();
   test_menu_items();
   test_combo_model();
   test_combo_box();
+  test_combo_dropdown();
 }

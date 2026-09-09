@@ -32,10 +32,17 @@ class TextMetrics;
 //     dismisses the popup,
 //   - the field is directly editable when set_editable(true) ("lookup
 //     editing"): typing edits the text, the popup selection follows the
-//     typed prefix and Enter commits the matching item -- or keeps the typed
-//     text as a custom value when no item matches. Escape reverts an
-//     uncommitted edit. A non-editable combo selects the item matching the
-//     letters typed.
+//     typed prefix (the first match from the top is highlighted, live, after
+//     every change) and Enter commits the matching item -- or keeps the typed
+//     text as a custom value when no item matches (the field then shows that
+//     value, unselected). Enter with nothing to commit is a no-op, so a
+//     stray or repeated Enter after a commit cannot discard the selection.
+//     Escape reverts an uncommitted edit. A non-editable combo selects the
+//     item matching the letters typed.
+//
+// The dropdown closes when the arrow is clicked again, when Enter commits a
+// pick, when the combo loses the focus, or on a mouse press anywhere outside
+// the combo and its dropdown.
 //
 // A programmatic selection change (set_selected_index) fires no ActionEvent;
 // user picks and Enter commits do.
@@ -73,6 +80,13 @@ class ComboBox: public ComponentExtension<Component, ActionEvent> {
   // resets its buffer) has passed.
   std::u32string lookup_buffer;
   EventClock::time_point lookup_buffer_time;
+
+  // The custom text of the last commit that matched no item (Enter with a
+  // draft no item starts with). The index model cannot hold it, so it stays
+  // unselected but the field keeps showing it until a real selection or a
+  // new edit replaces it -- Swing's editable combo leaves the editor's text
+  // in place the same way.
+  std::u32string committed_text;
 
   friend class ComboBoxKeyForwarder;
   friend class ComboBoxDismissObserver;
@@ -204,6 +218,11 @@ private:
   void on_key_typed(KeyEvent &e);
   void on_mouse_pressed(MousePressEvent &e);
   void on_focus_changed(bool gained);
+
+  // Applies a draft-editing key (Backspace, Delete, the caret arrows, Home,
+  // End) to the editable field's draft; see ComboBox.cpp for the split of
+  // editing keys and popup keys while the dropdown is open.
+  void handle_draft_edit_key(KeyEvent::KeyCode code);
 
   // Scrolls the dropdown's window when the mouse wheel turns over the open
   // popup (the listener lives on the popup menu, the rows' parent).

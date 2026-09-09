@@ -212,8 +212,12 @@ void PopupMenu::set_visible(bool value) {
 
       if (this->popup) {
         fire_event<PopupMenuEvent>(std::static_pointer_cast<PopupMenu>(shared_from_this()), PopupMenuEvent::BECOMES_INVISIBLE);
-        this->popup->hide();
-        this->popup = nullptr;
+        // A listener may have hidden the popup again while the event was
+        // being delivered (a nested hide): only hide what is still showing.
+        if (this->popup) {
+          this->popup->hide();
+          this->popup = nullptr;
+        }
       }
 
       // Drop the hover/selection highlight of every item so a popup that is
