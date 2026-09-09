@@ -16,6 +16,18 @@ target_link_libraries(${PROJECT_NAME}
     tui++
 )
 
+# The tests assert() their way through most suites; Release builds define
+# NDEBUG, which would compile the assertions out and make the pack pass
+# vacuously (test_Menu works around that with its own CHECK, but the other
+# suites would verify nothing). Re-enable assertions for this target in every
+# configuration, so a regression always fails the build where it was
+# introduced.
+if(MSVC)
+  target_compile_options(${PROJECT_NAME} PRIVATE /UNDEBUG)
+else()
+  target_compile_options(${PROJECT_NAME} PRIVATE -UNDEBUG)
+endif()
+
 # Run the regression pack (the unit tests of this executable; the interactive
 # font tools need explicit arguments and are not exercised) after the tests
 # executable is (re)built, so a regression fails the build right where it was

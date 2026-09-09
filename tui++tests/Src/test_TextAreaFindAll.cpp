@@ -233,7 +233,9 @@ struct Harness {
       rows += head;
       auto ranges = source->read_line_ranges(line, 1);
       if (not ranges.empty()) {
-        auto text_len = ranges[0].end - ranges[0].start - (ranges[0].has_newline ? 1 : 0);
+        // end points at the terminating '\n', so the content length is
+        // end - start already.
+        auto text_len = ranges[0].end - ranges[0].start;
         if (text_len > 0) {
           rows += source->read(ranges[0].start, std::min<std::uint64_t>(text_len, 204));
         }
@@ -257,8 +259,12 @@ struct Harness {
     this->results->request_input_focus();
   }
 
-  // One key through the window, the way the terminal does.
+  // One key through the window, the way the terminal does. Pending repaint
+  // invocations queued by earlier calls (e.g. set_caret) are drained first:
+  // otherwise the pop() below would return the stale invocation and the key
+  // under test would be dropped with the post-dispatch drain.
   void type_key(KeyEvent::Type type, KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers) {
+    drain_events();
     screen.post<KeyEvent>(this->frame, type, key_code, modifiers);
     auto event = screen.get_event_queue().pop();
     assert(event != nullptr);
@@ -271,6 +277,7 @@ struct Harness {
   }
 
   void type_char(Char const &character) {
+    drain_events();
     screen.post<KeyEvent>(this->frame, character, InputEvent::NO_MODIFIERS);
     auto event = screen.get_event_queue().pop();
     assert(event != nullptr);
@@ -291,12 +298,14 @@ struct Harness {
   }
 
   void press(Point const &at, InputEvent::Modifiers modifiers) {
+    drain_events();
     screen.post<MousePressEvent>(this->frame, MousePressEvent::MOUSE_PRESSED, MouseEvent::LEFT_BUTTON, modifiers | InputEvent::LEFT_BUTTON_DOWN, at.x, at.y, false);
     this->frame->dispatch_event(*screen.get_event_queue().pop());
     drain_events();
   }
 
   void release(Point const &at) {
+    drain_events();
     screen.post<MousePressEvent>(this->frame, MousePressEvent::MOUSE_RELEASED, MouseEvent::LEFT_BUTTON, InputEvent::NO_MODIFIERS, at.x, at.y, false);
     this->frame->dispatch_event(*screen.get_event_queue().pop());
     drain_events();
@@ -368,8 +377,9 @@ void test_find_all_panel() {
   }
   auto list = content_of(*harness.results);
   // The row format: "<line right-aligned 10>:<column left-aligned 6> " then
-  // the source line's text (hit 0 is line 0 column 0).
-  assert(list.find("         0:0      alpha line 00 carries one needle here") != std::string::npos);
+  // the source line's text (the first hit is line 0, column 26 -- the
+  // needle of "alpha line 00 carries one needle here").
+  assert(list.find("         0:26     alpha line 00 carries one needle here") != std::string::npos);
   // The last loop line (line 39, column 26) and the extra line's hit (line
   // 40, column 19) follow.
   assert(list.find("        39:26     alpha line 39 carries one needle here") != std::string::npos);
@@ -421,8 +431,12 @@ void test_find_all_panel() {
   harness.type_key(KeyEvent::VK_ESCAPE, InputEvent::NO_MODIFIERS);
   assert(not harness.results_pane->is_visible());
 
-  // With no pattern the F9 keeps the panel closed and only reports it.
-  harness.area->request_input_focus();
+  // With no pattern the F9 keeps the panel closed and only reports it: F3
+  // opens the search entry (clearing the remembered pattern), Esc closes it
+  // empty, and F9 then has nothing to list.
+  harness.type_key(KeyEvent::VK_F3, InputEvent::NO_MODIFIERS);
+  harness.type_key(KeyEvent::VK_ESCAPE, InputEvent::NO_MODIFIERS);
+  assert(harness.area->get_search_pattern().empty());
   harness.type_key(KeyEvent::VK_F9, InputEvent::NO_MODIFIERS);
   assert(not harness.results_pane->is_visible());
 }
@@ -464,10 +478,14 @@ void test_find_all_capped() {
   // previews nothing.
   harness.area->set_caret(0);
   auto results_buffer = harness.results->get_buffer();
+  // The results buffer's line index is lazy: index up to the last hit row
+  // before resolving its start.
+  results_buffer->ensure_line(FIND_ALL_LIMIT);
   auto last_hit_offset = results_buffer->line_start(FIND_ALL_LIMIT - 1);
   harness.results->set_caret(last_hit_offset);
   harness.type_key(KeyEvent::VK_DOWN, InputEvent::NO_MODIFIERS);
-  assert(harness.results->get_buffer()->offset_to_line(harness.results->get_caret()).first == FIND_ALL_LIMIT);
+  auto caret_line = harness.results->get_buffer()->offset_to_line(harness.results->get_caret()).first;
+  assert(caret_line == FIND_ALL_LIMIT);
   auto caret = harness.area->get_caret();
   harness.type_key(KeyEvent::VK_ENTER, InputEvent::NO_MODIFIERS);
   assert(not harness.results_pane->is_visible());

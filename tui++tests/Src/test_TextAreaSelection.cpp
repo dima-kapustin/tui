@@ -90,8 +90,12 @@ struct Harness {
 
   // Dispatches one key event through the window, the way the terminal does
   // (keys go to the focused window; the area receives them through its
-  // forwarder).
+  // forwarder). Pending repaint invocations queued by earlier calls (e.g.
+  // set_caret) are drained first: otherwise the pop() below would return the
+  // stale invocation, the key would be dropped with the post-dispatch drain,
+  // and the event under test would silently never run.
   void type_key(KeyEvent::Type type, KeyEvent::KeyCode key_code, InputEvent::Modifiers modifiers) {
+    drain_events();
     screen.post<KeyEvent>(this->frame, type, key_code, modifiers);
     auto event = screen.get_event_queue().pop();
     assert(event != nullptr);
@@ -104,6 +108,7 @@ struct Harness {
   }
 
   void type_char(Char const &character) {
+    drain_events();
     screen.post<KeyEvent>(this->frame, character, InputEvent::NO_MODIFIERS);
     auto event = screen.get_event_queue().pop();
     assert(event != nullptr);
@@ -127,18 +132,21 @@ struct Harness {
     // The terminal reports a press with the button already down, so
     // was_button_down_before() treats it as just-released (a press reported
     // without it would be mistaken for a drag in progress).
+    drain_events();
     screen.post<MousePressEvent>(this->frame, MousePressEvent::MOUSE_PRESSED, MouseEvent::LEFT_BUTTON, modifiers | InputEvent::LEFT_BUTTON_DOWN, at.x, at.y, false);
     this->frame->dispatch_event(*screen.get_event_queue().pop());
     drain_events();
   }
 
   void drag(Point const &to) {
+    drain_events();
     screen.post<MouseDragEvent>(this->frame, MouseEvent::LEFT_BUTTON, InputEvent::LEFT_BUTTON_DOWN, to.x, to.y);
     this->frame->dispatch_event(*screen.get_event_queue().pop());
     drain_events();
   }
 
   void release(Point const &at) {
+    drain_events();
     screen.post<MousePressEvent>(this->frame, MousePressEvent::MOUSE_RELEASED, MouseEvent::LEFT_BUTTON, InputEvent::NO_MODIFIERS, at.x, at.y, false);
     this->frame->dispatch_event(*screen.get_event_queue().pop());
     drain_events();
