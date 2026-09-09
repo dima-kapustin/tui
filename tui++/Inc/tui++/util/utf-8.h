@@ -24,70 +24,50 @@
 namespace tui::util {
 
 constexpr int mb_to_c32(const char *utf8, std::size_t size, char32_t *c32) {
-  if (size == 0 or *utf8 == 0) {
+  if (size == 0 || *utf8 == '\0') {
     return 0;
   }
 
-  auto const c0 = utf8[0];
+  // Explicitly cast to unsigned char to prevent sign extension traps
+  const auto c0 = static_cast<unsigned char>(utf8[0]);
 
-  // 1 byte code point
-  if ((c0 & 0b1000'0000) == 0b0000'0000) {
-    *c32 = c0 & 0b0111'1111;
+  // 1-byte code point (ASCII: 0x00 - 0x7F)
+  if (c0 <= 0x7F) {
+    *c32 = c0;
     return 1;
   }
 
-  // 2 byte code point
-  if ((c0 & 0b1110'0000) == 0b1100'0000) {
-    if (size >= 2) {
-      auto const c1 = utf8[1];
-      auto c = char32_t { 0 };
-      c += c0 & 0b0001'1111;
-      c <<= 6;
-      c += c1 & 0b0011'1111;
-      *c32 = c;
-      return 2;
-    } else {
+  // 2-byte code point (0xC0 - 0xDF)
+  if ((c0 & 0xE0) == 0xC0) {
+    if (size < 2)
       return -2; // incomplete
-    }
+
+    const auto c1 = static_cast<unsigned char>(utf8[1]);
+    *c32 = (static_cast<char32_t>(c0 & 0x1F) << 6) | (c1 & 0x3F);
+    return 2;
   }
 
-  // 3 byte code point
-  if ((c0 & 0b1111'0000) == 0b1110'0000) {
-    if (size >= 3) {
-      auto const c1 = utf8[1];
-      auto const c2 = utf8[2];
-      auto c = char32_t { 0 };
-      c += c0 & 0b0000'1111;
-      c <<= 6;
-      c += c1 & 0b0011'1111;
-      c <<= 6;
-      c += c2 & 0b0011'1111;
-      *c32 = c;
-      return 3;
-    } else {
+  // 3-byte code point (0xE0 - 0xEF)
+  if ((c0 & 0xF0) == 0xE0) {
+    if (size < 3)
       return -2; // incomplete
-    }
+
+    const auto c1 = static_cast<unsigned char>(utf8[1]);
+    const auto c2 = static_cast<unsigned char>(utf8[2]);
+    *c32 = (static_cast<char32_t>(c0 & 0x0F) << 12) | (static_cast<char32_t>(c1 & 0x3F) << 6) | (c2 & 0x3F);
+    return 3;
   }
 
-  // 4 byte string.
-  if ((c0 & 0b1111'1000) == 0b1111'0000) {
-    if (size >= 4) {
-      auto const c1 = utf8[1];
-      auto const c2 = utf8[2];
-      auto const c3 = utf8[3];
-      auto c = char32_t { 0 };
-      c += c0 & 0b0000'0111;
-      c <<= 6;
-      c += c1 & 0b0011'1111;
-      c <<= 6;
-      c += c2 & 0b0011'1111;
-      c <<= 6;
-      c += c3 & 0b0011'1111;
-      *c32 = c;
-      return 4;
-    } else {
+  // 4-byte code point (0xF0 - 0xF7)
+  if ((c0 & 0xF8) == 0xF0) {
+    if (size < 4)
       return -2; // incomplete
-    }
+
+    const auto c1 = static_cast<unsigned char>(utf8[1]);
+    const auto c2 = static_cast<unsigned char>(utf8[2]);
+    const auto c3 = static_cast<unsigned char>(utf8[3]);
+    *c32 = (static_cast<char32_t>(c0 & 0x07) << 18) | (static_cast<char32_t>(c1 & 0x3F) << 12) | (static_cast<char32_t>(c2 & 0x3F) << 6) | (c3 & 0x3F);
+    return 4;
   }
 
   return -1; // invalid
@@ -141,51 +121,36 @@ constexpr int utf8_char_decode(const char *utf8, std::size_t available, char32_t
 }
 
 constexpr size_t c32_to_mb(char32_t c, char *mb) {
-  // 1 byte UTF8
-  if (c <= 0b000'0000'0111'1111) {
-    auto const b1 = c;
-    mb[0] = u8string::value_type(b1);
+  // 1 byte UTF-8 (0x00 - 0x7F)
+  if (c <= 0x7F) {
+    mb[0] = static_cast<char>(c);
     return 1;
   }
 
-  // 2 bytes UTF8
-  if (c <= 0b000'0111'1111'1111) {
-    auto const b2 = c & 0b111111;
-    c >>= 6;
-    auto const b1 = c;
-    mb[0] = u8string::value_type(0b11000000 + b1);
-    mb[1] = u8string::value_type(0b10000000 + b2);
+  // 2 bytes UTF-8 (0x80 - 0x7FF)
+  if (c <= 0x7FF) {
+    mb[0] = static_cast<char>(0xC0 | (c >> 6));
+    mb[1] = static_cast<char>(0x80 | (c & 0x3F));
     return 2;
   }
 
-  // 3 bytes UTF8
-  if (c <= 0b1111'1111'1111'1111) {
-    auto const b3 = c & 0b111111;
-    c >>= 6;
-    auto const b2 = c & 0b111111;
-    c >>= 6;
-    auto const b1 = c;
-    mb[0] = u8string::value_type(0b11100000 + b1);
-    mb[1] = u8string::value_type(0b10000000 + b2);
-    mb[2] = u8string::value_type(0b10000000 + b3);
+  // 3 bytes UTF-8 (0x800 - 0xFFFF)
+  if (c <= 0xFFFF) {
+    mb[0] = static_cast<char>(0xE0 | (c >> 12));
+    mb[1] = static_cast<char>(0x80 | ((c >> 6) & 0x3F));
+    mb[2] = static_cast<char>(0x80 | (c & 0x3F));
     return 3;
   }
 
-  // 4 bytes UTF8
-  if (c <= 0b1'0000'1111'1111'1111'1111) {
-    auto const b4 = c & 0b111111;
-    c >>= 6;
-    auto const b3 = c & 0b111111;
-    c >>= 6;
-    auto const b2 = c & 0b111111;
-    c >>= 6;
-    auto const b1 = c;
-    mb[0] = u8string::value_type(0b11110000 + b1);
-    mb[1] = u8string::value_type(0b10000000 + b2);
-    mb[2] = u8string::value_type(0b10000000 + b3);
-    mb[3] = u8string::value_type(0b10000000 + b4);
+  // 4 bytes UTF-8 (0x10000 - 0x10FFFF)
+  if (c <= 0x10FFFF) {
+    mb[0] = static_cast<char>(0xF0 | (c >> 18));
+    mb[1] = static_cast<char>(0x80 | ((c >> 12) & 0x3F));
+    mb[2] = static_cast<char>(0x80 | ((c >> 6) & 0x3F));
+    mb[3] = static_cast<char>(0x80 | (c & 0x3F));
     return 4;
   }
+
   return 0;
 }
 
@@ -390,7 +355,7 @@ requires (std::is_same_v<WChar, wchar_t> or std::is_same_v<WChar, char16_t>)
 constexpr size_t to_utf8(const WChar *ws, const WChar *we, char *s, char *e) {
   auto *p = s;
   auto wcount = 0U;
-  auto cp = char32_t {0}; // code point
+  auto cp = char32_t { 0 }; // code point
   while ((wcount = wc_to_c32(ws, we, &cp)) > 0) {
     p += c32_to_mb(cp, p);
     ws += wcount;
