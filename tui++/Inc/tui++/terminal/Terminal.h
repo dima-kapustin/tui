@@ -314,6 +314,58 @@ private:
   std::optional<Dimension> query_cell_size_from_terminal();
 
   void new_resize_event();
+
+public:
+  // -------------------------------------------------------------------
+  // Input translation
+  //
+  // The input path is: platform input reader -> InputParser (bytes to event
+  // parameters) -> the new_*_event entry points below (event parameters to
+  // events on the screen, tracking the held-button/keyboard state in
+  // between). The decode steps are pure and the entry points only touch the
+  // screen queue and this terminal's input state, so both halves are
+  // exercised in-process by the unit tests (tui++tests/test_InputTranslation)
+  // instead of only through a live console.
+
+  // The decoded content of one SGR mouse report, `ESC [ < code ; x ; y M`
+  // (press/motion) or `... m` (release), mode 1006. `code`'s low two bits
+  // carry the X11 button numbering the press reports use: 0 = left,
+  // 1 = middle, 2 = right. Motion reports (bit 5, mode 1003) reuse the same
+  // numbering for the button HELD during the motion, and code 3 -- the X10
+  // release marker -- means no button is held, i.e. a plain move (xterm, the
+  // Windows console and Windows Terminal all encode a buttonless move as
+  // 32 + 3 = 35). Bit 6 marks a wheel report (64 + button, rotation -1 for
+  // button 0 = wheel up, +1 otherwise). The modifier bits 2..4 (Shift = 4,
+  // Alt/Meta = 8, Ctrl = 16) apply to every report kind.
+  // `pressed` (the report terminator) selects PRESS over RELEASE for the
+  // non-motion reports; motion and wheel reports ignore it.
+  struct MouseReport {
+    enum class Kind { PRESS, RELEASE, DRAG, MOVE, WHEEL };
+    Kind kind = Kind::MOVE;
+    MousePressEvent::Button button = MousePressEvent::NO_BUTTON;
+    int wheel_rotation = 0;
+    InputEvent::Modifiers key_modifiers = InputEvent::NO_MODIFIERS;
+  };
+  static MouseReport decode_mouse_report(unsigned code, bool pressed);
+
+  // The modifiers of a modified key sequence, `ESC [ 1 ; <param> X`: xterm
+  // encodes them as 1 + a bit mask (bit 0 = Shift, 1 = Alt, 2 = Ctrl,
+  // 3 = Meta), so Ctrl+Up arrives as `ESC [ 1 ; 5 A`. Returns
+  // NO_MODIFIERS when the sequence carries no modifier parameter.
+  static InputEvent::Modifiers decode_csi_key_modifiers(std::vector<unsigned> const &params);
+
+  // The key of a parameterized CSI key sequence `ESC [ params ; <selector>`
+  // for the selectors that carry keys: the cursor keys 'A'..'D', 'H'/'F'
+  // (Home/End) and the numbered '~' keys (`ESC [ 3 ~` = Delete,
+  // `ESC [ 5 ; 5 ~` = Ctrl+PageUp). Returns nothing for selectors that are
+  // not keys (the mouse reports 'M'/'m', the 'R' cursor position report, ...).
+  static std::optional<KeyEvent::KeyCode> decode_csi_key(std::vector<unsigned> const &params, char selector);
+
+  // Posts an input event on the screen queue, the way the parser does after
+  // decoding one report/sequence. The keyboard entry points target the
+  // focused window; the mouse ones retarget to the component under the
+  // pointer (the window dispatcher does the hit-test). Application code
+  // normally reaches these through the parser only.
   void new_key_event(const Char &c, InputEvent::Modifiers key_modifiers);
   void new_key_event(KeyEvent::KeyCode key_code, InputEvent::Modifiers key_modifiers);
   void new_mouse_event(MousePressEvent::Type type, MousePressEvent::Button button, InputEvent::Modifiers key_modifiers, int x, int y);
@@ -322,6 +374,7 @@ private:
   void new_mouse_drag_event(MousePressEvent::Button button, InputEvent::Modifiers modifiers, int x, int y);
 //  void new_mouse_click_event(MousePressEvent::Button button, InputEvent::Modifiers modifiers, int x, int y);
 
+private:
   friend class TerminalImpl;
   friend class InputParser;
 

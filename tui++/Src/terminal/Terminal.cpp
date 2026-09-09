@@ -57,6 +57,38 @@ static void print_ocs(const P &param, const Params &... params) {
   std::cout << "\x1b\\"sv;
 }
 
+Terminal::MouseReport Terminal::decode_mouse_report(unsigned code, bool pressed) {
+  auto report = MouseReport { };
+  report.key_modifiers = (code & 4 ? InputEvent::SHIFT_DOWN : InputEvent::NO_MODIFIERS) | //
+                         (code & 8 ? InputEvent::META_DOWN : InputEvent::NO_MODIFIERS) | //
+                         (code & 16 ? InputEvent::CTRL_DOWN : InputEvent::NO_MODIFIERS);
+  auto button = code & 3;
+  if (code & 64) {
+    // Wheel (SGR button codes 64..67): the low two bits select the direction.
+    report.kind = MouseReport::Kind::WHEEL;
+    report.wheel_rotation = button == 0 ? -1 : 1;
+  } else if (code & 32) {
+    // Motion (SGR button codes 32..35, mode 1003): the low two bits carry the
+    // button held during the motion; code 3, the X10 release marker, means no
+    // button is held -- a plain move, which the hover tracking needs. Treating
+    // code 3 as a held button (an earlier version read it as a right-button
+    // drag) turned every plain move into a drag: the sticky button modifier
+    // then made presses look like drag continuations, so the dispatcher never
+    // retargeted them to the component under the pointer and menu popups never
+    // opened.
+    if (button == 3) {
+      report.kind = MouseReport::Kind::MOVE;
+    } else {
+      report.kind = MouseReport::Kind::DRAG;
+      report.button = MousePressEvent::Button(button);
+    }
+  } else {
+    report.kind = pressed ? MouseReport::Kind::PRESS : MouseReport::Kind::RELEASE;
+    report.button = MousePressEvent::Button(button);
+  }
+  return report;
+}
+
 void Terminal::InputParser::new_mouse_event(bool pressed) {
   // A mouse report is button;x;y (SGR 1006); anything shorter is malformed
   // input and must not be turned into an event (or read out of bounds).
@@ -64,40 +96,33 @@ void Terminal::InputParser::new_mouse_event(bool pressed) {
     return;
   }
 
-  auto button = this->csi_params[0] & 3;
-  auto key_modifiers = this->csi_params[0] & 4 ? InputEvent::SHIFT_DOWN : InputEvent::NO_MODIFIERS;
-  key_modifiers |= this->csi_params[0] & 8 ? InputEvent::META_DOWN : InputEvent::NO_MODIFIERS;
-  key_modifiers |= this->csi_params[0] & 16 ? InputEvent::CTRL_DOWN : InputEvent::NO_MODIFIERS;
-  auto x = this->csi_params[1] - 1;
-  auto y = this->csi_params[2] - 1;
-  if (this->csi_params[0] & 64) {
+  auto report = decode_mouse_report(this->csi_params[0], pressed);
+  auto key_modifiers = report.key_modifiers;
+  if (report.kind == MouseReport::Kind::WHEEL and key_modifiers == InputEvent::NO_MODIFIERS) {
     // Some terminals (the Windows console among them) do not encode the held
     // modifiers in a wheel report (SGR bit 4 = Shift, 8 = Meta, 16 = Ctrl);
     // recover them from the platform so Shift+wheel can scroll horizontally.
-    if (key_modifiers == InputEvent::NO_MODIFIERS) {
-      key_modifiers = this->terminal.current_key_modifiers();
-    }
-    this->terminal.new_mouse_wheel_event(button == 0 ? -1 : 1, key_modifiers, x, y);
-//  } else if (this->csi_params[0] & 32) {
-//    // Motion (SGR button codes 32..35): the low two bits identify the held
-//    // button (0 = none, 1 = left, 2 = middle, 3 = right).
-//    switch (button) {
-//    case 0:
-//      this->terminal.new_mouse_move_event(key_modifiers, x, y);
-//      break;
-//    case 1:
-//      this->terminal.new_mouse_drag_event(MousePressEvent::LEFT_BUTTON, key_modifiers, x, y);
-//      break;
-//    case 2:
-//      this->terminal.new_mouse_drag_event(MousePressEvent::MIDDLE_BUTTON, key_modifiers, x, y);
-//      break;
-//    case 3:
-//      this->terminal.new_mouse_drag_event(MousePressEvent::RIGHT_BUTTON, key_modifiers, x, y);
-//      break;
-//    }
-  } else {
-    auto type = pressed ? MousePressEvent::MOUSE_PRESSED : MousePressEvent::MOUSE_RELEASED;
-    this->terminal.new_mouse_event(type, MousePressEvent::Button(button), key_modifiers, x, y);
+    key_modifiers = this->terminal.current_key_modifiers();
+  }
+
+  auto x = this->csi_params[1] - 1;
+  auto y = this->csi_params[2] - 1;
+  switch (report.kind) {
+  case MouseReport::Kind::PRESS:
+    this->terminal.new_mouse_event(MousePressEvent::MOUSE_PRESSED, report.button, key_modifiers, x, y);
+    break;
+  case MouseReport::Kind::RELEASE:
+    this->terminal.new_mouse_event(MousePressEvent::MOUSE_RELEASED, report.button, key_modifiers, x, y);
+    break;
+  case MouseReport::Kind::DRAG:
+    this->terminal.new_mouse_drag_event(report.button, key_modifiers, x, y);
+    break;
+  case MouseReport::Kind::MOVE:
+    this->terminal.new_mouse_move_event(key_modifiers, x, y);
+    break;
+  case MouseReport::Kind::WHEEL:
+    this->terminal.new_mouse_wheel_event(report.wheel_rotation, key_modifiers, x, y);
+    break;
   }
 }
 
@@ -291,7 +316,14 @@ void Terminal::new_mouse_wheel_event(int wheel_rotation, InputEvent::Modifiers k
 }
 
 void Terminal::new_mouse_move_event(InputEvent::Modifiers key_modifiers, int x, int y) {
-  modifiers = (modifiers & ~(InputEvent::SHIFT_DOWN | InputEvent::CTRL_DOWN | InputEvent::ALT_DOWN | InputEvent::META_DOWN)) | key_modifiers;
+  // A move report by definition carries no held button (motion with a button
+  // held is reported as a drag), so drop any button state left over from a
+  // drag whose release the terminal never reported -- the pointer left the
+  // terminal window mid-drag. Without this the stale button modifier makes
+  // later presses look like drag continuations and the window dispatcher
+  // keeps sending them to the old press target instead of the component under
+  // the pointer (the symptom that made menu popups impossible to open).
+  modifiers = (modifiers & ~(InputEvent::SHIFT_DOWN | InputEvent::CTRL_DOWN | InputEvent::ALT_DOWN | InputEvent::META_DOWN | InputEvent::LEFT_BUTTON_DOWN | InputEvent::MIDDLE_BUTTON_DOWN | InputEvent::RIGHT_BUTTON_DOWN)) | key_modifiers;
 
   auto p = screen.convert_mouse_point(x, y);
   auto window = screen.get_window_at(p);

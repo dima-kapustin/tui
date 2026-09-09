@@ -221,7 +221,18 @@ public:
           }
           this->terminal.new_mouse_wheel_event(rotation, modifiers, x, y);
         } else if (mouse.dwEventFlags & MOUSE_MOVED) {
-          this->terminal.new_mouse_move_event(modifiers, x, y);
+          // A move while a button is held is a drag (the window dispatcher
+          // retargets it to the component that received the press); a move
+          // without one is plain motion.
+          auto held = mouse.dwButtonState & (FROM_LEFT_1ST_BUTTON_PRESSED | RIGHTMOST_BUTTON_PRESSED | FROM_LEFT_2ND_BUTTON_PRESSED);
+          if (held) {
+            auto button = held & FROM_LEFT_1ST_BUTTON_PRESSED ? MousePressEvent::LEFT_BUTTON
+                : held & RIGHTMOST_BUTTON_PRESSED ? MousePressEvent::RIGHT_BUTTON
+                : MousePressEvent::MIDDLE_BUTTON;
+            this->terminal.new_mouse_drag_event(button, modifiers, x, y);
+          } else {
+            this->terminal.new_mouse_move_event(modifiers, x, y);
+          }
         } else {
           // A press sets the button's bit; a release clears them all.
           auto state = mouse.dwButtonState & (FROM_LEFT_1ST_BUTTON_PRESSED | RIGHTMOST_BUTTON_PRESSED | FROM_LEFT_2ND_BUTTON_PRESSED);

@@ -261,12 +261,65 @@ void Terminal::InputParser::parse_csi_params() {
   }
 }
 
-static InputEvent::Modifiers parse_modifiers(const std::vector<unsigned> &args) {
-  if (args.size() < 2) {
+std::optional<KeyEvent::KeyCode> Terminal::decode_csi_key(std::vector<unsigned> const &params, char selector) {
+  switch (selector) {
+  case 'A':
+    return KeyEvent::VK_UP;
+  case 'B':
+    return KeyEvent::VK_DOWN;
+  case 'C':
+    return KeyEvent::VK_RIGHT;
+  case 'D':
+    return KeyEvent::VK_LEFT;
+  case 'H':
+    return KeyEvent::VK_HOME;
+  case 'F':
+    return KeyEvent::VK_END;
+  case '~':
+    // The numbered keys, ESC [ <code> ~: Insert, Delete, PageUp/Down and
+    // F5..F12 (the unnumbered legacy keys of the table -- Find, Select,
+    // Help, ... -- are not translated).
+    switch (params.empty() ? 0 : params[0]) {
+    case 2:
+      return KeyEvent::VK_INSERT;
+    case 3:
+      return KeyEvent::VK_DELETE;
+    case 5:
+      return KeyEvent::VK_PAGE_UP;
+    case 6:
+      return KeyEvent::VK_PAGE_DOWN;
+    case 15:
+      return KeyEvent::VK_F5;
+    case 17:
+      return KeyEvent::VK_F6;
+    case 18:
+      return KeyEvent::VK_F7;
+    case 19:
+      return KeyEvent::VK_F8;
+    case 20:
+      return KeyEvent::VK_F9;
+    case 21:
+      return KeyEvent::VK_F10;
+    case 23:
+      return KeyEvent::VK_F11;
+    case 24:
+      return KeyEvent::VK_F12;
+    default:
+      return std::nullopt;
+    }
+  default:
+    // The mouse reports ('M'/'m'), the 'R' cursor position report and any
+    // other final byte are not keys.
+    return std::nullopt;
+  }
+}
+
+InputEvent::Modifiers Terminal::decode_csi_key_modifiers(std::vector<unsigned> const &params) {
+  if (params.size() < 2) {
     return InputEvent::Modifiers::NONE;
   }
 
-  switch (args[1]) {
+  switch (params[1]) {
   case 2:
     return InputEvent::SHIFT_DOWN;
   case 3:
@@ -303,82 +356,22 @@ static InputEvent::Modifiers parse_modifiers(const std::vector<unsigned> &args) 
 }
 
 void Terminal::InputParser::parse_csi_selector() {
-  switch (consume()) {
+  switch (char selector = consume()) {
   case 'M':
     new_mouse_event(true);
     break;
   case 'm':
     new_mouse_event(false);
     break;
-  case 'A':
-    new_key_event(KeyEvent::VK_UP, parse_modifiers(this->csi_params));
-    break;
-  case 'B':
-    new_key_event(KeyEvent::VK_DOWN, parse_modifiers(this->csi_params));
-    break;
-  case 'C':
-    new_key_event(KeyEvent::VK_RIGHT, parse_modifiers(this->csi_params));
-    break;
-  case 'D':
-    new_key_event(KeyEvent::VK_LEFT, parse_modifiers(this->csi_params));
-    break;
-  case 'R':
-    break;
-
-  case '~':
-    switch (this->csi_params[0]) {
-    case 1:
-      //new_key_event(KeyEvent::VK_FIND);
-      break;
-    case 2:
-      new_key_event(KeyEvent::VK_INSERT);
-      break;
-    case 3:
-      new_key_event(KeyEvent::VK_DELETE);
-      break;
-    case 4:
-      //new_key_event(KeyEvent::VK_SELECT);
-      break;
-    case 5:
-      new_key_event(KeyEvent::VK_PAGE_UP);
-      break;
-    case 6:
-      new_key_event(KeyEvent::VK_PAGE_DOWN);
-      break;
-    case 15:
-      new_key_event(KeyEvent::VK_F5);
-      break;
-    case 17:
-      new_key_event(KeyEvent::VK_F6);
-      break;
-    case 18:
-      new_key_event(KeyEvent::VK_F7);
-      break;
-    case 19:
-      new_key_event(KeyEvent::VK_F8);
-      break;
-    case 20:
-      new_key_event(KeyEvent::VK_F9);
-      break;
-    case 21:
-      new_key_event(KeyEvent::VK_F10);
-      break;
-    case 23:
-      new_key_event(KeyEvent::VK_F11);
-      break;
-    case 24:
-      new_key_event(KeyEvent::VK_F12);
-      break;
-    case 28:
-      //new_key_event(KeyEvent::VK_HELP);
-      break;
-    case 29:
-      //new_key_event(KeyEvent::VK_MENU);
-      break;
-    }
-    break;
-
   default:
+    // The key selectors: the cursor keys 'A'..'D', Home/End 'H'/'F' and the
+    // numbered '~' keys, with the xterm modifier parameter (CSI 1;<mod> A)
+    // where the terminal sent one -- Ctrl+Up and Ctrl+Home/End arrive this
+    // way. Anything else (the 'R' cursor position report, a '<' mouse
+    // report's selector, ...) is not a key and is dropped.
+    if (auto key_code = Terminal::decode_csi_key(this->csi_params, selector)) {
+      new_key_event(key_code.value(), decode_csi_key_modifiers(this->csi_params));
+    }
     break;
   }
 }
