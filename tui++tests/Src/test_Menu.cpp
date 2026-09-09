@@ -19,9 +19,13 @@
 #include <tui++/event/InputEvent.h>
 #include <tui++/event/KeyEvent.h>
 #include <tui++/terminal/Terminal.h>
+#include <tui++/terminal/text/TextScreen.h>
 
 #include <cstdio>
 #include <cstdlib>
+#include <iostream>
+#include <sstream>
+#include <string>
 
 using namespace tui;
 
@@ -364,6 +368,21 @@ void test_MenuKeyboard() {
 
   frame->set_visible(true);
   drain();
+
+  // The mnemonic letters of the top-level menus are drawn bold with a
+  // double underline ("File", "Edit"), so the Alt+letter shortcuts stand out
+  // on terminal fonts where a single thin underline is barely visible: the
+  // full paint of the menu bar row must carry the bold + double-underline
+  // SGR (1;21) at the mnemonic cells.
+  {
+    auto capture = std::ostringstream { };
+    auto *old_cout = std::cout.rdbuf(capture.rdbuf());
+    dynamic_cast<TextScreen&>(screen).clear();
+    screen.refresh();
+    std::cout.rdbuf(old_cout);
+    auto bytes = capture.str();
+    CHECK(bytes.find("\x1b[1;21m") != std::string::npos);
+  }
 
   auto armed = [](std::shared_ptr<Menu> const &menu) {
     return menu->is_armed();

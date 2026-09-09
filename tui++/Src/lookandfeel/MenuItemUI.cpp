@@ -342,13 +342,15 @@ void MenuItemUI::paint(Graphics &g, std::shared_ptr<const Component> const &c) c
   auto margin = LookAndFeel::get<Insets>("MenuItem.margin", Insets { 0, 1, 0, 1 });
   g.draw_string(this->menu_item->get_text(), margin.left, margin.top);
 
-  // The mnemonic letter is underlined ("File" with mnemonic 'F' shows the
-  // F underlined), marking the key that selects the item once the menu bar
-  // is on the keyboard: Alt+mnemonic opens a top-level menu, a plain letter
-  // picks the item of an open popup.
+  // The mnemonic letter marks the key that selects the item once the menu
+  // bar is on the keyboard: Alt+mnemonic opens a top-level menu, a plain
+  // letter picks the item of an open popup. It is drawn bold with a double
+  // underline -- a single underline is a thin line that many terminal fonts
+  // barely show, while bold + SGR 21 stays readable everywhere and reads as
+  // a fat underscore on terminals that render the double underline.
   if (auto cell = mnemonic_cell(this->menu_item, screen.get_text_metrics().get(), margin.left);
       cell and cell->first >= margin.left and cell->first < this->menu_item->get_width() - margin.right) {
-    g.draw_char(cell->second, cell->first, margin.top, Attribute::UNDERLINE);
+    g.draw_char(cell->second, cell->first, margin.top, Attribute::BOLD | Attribute::DOUBLE_UNDERLINE);
   }
 
   // The accelerator ("Ctrl+Z") is right-aligned in the row. The rows of a
