@@ -388,7 +388,9 @@ void run_find_all(DemoState &state) {
     rows += head;
     auto ranges = source->read_line_ranges(line, 1);
     if (not ranges.empty()) {
-      auto text_len = ranges[0].end - ranges[0].start - (ranges[0].has_newline ? 1 : 0);
+      // end points at the terminating '\n', so the content length is
+      // end - start already (no newline byte to subtract).
+      auto text_len = ranges[0].end - ranges[0].start;
       auto take = std::min<std::uint64_t>(text_len, FIND_ALL_PREVIEW_BYTES + 4);
       if (take > 0) {
         auto text = source->read(ranges[0].start, take);
