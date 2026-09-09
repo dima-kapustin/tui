@@ -19,43 +19,6 @@ namespace tui {
 
 namespace {
 
-std::string to_utf8(char32_t code) {
-  std::string out;
-  if (code < 0x80) {
-    out += char(code);
-  } else if (code < 0x800) {
-    out += char(0xC0 | (code >> 6));
-    out += char(0x80 | (code & 0x3F));
-  } else if (code < 0x10000) {
-    out += char(0xE0 | (code >> 12));
-    out += char(0x80 | ((code >> 6) & 0x3F));
-    out += char(0x80 | (code & 0x3F));
-  } else {
-    out += char(0xF0 | (code >> 18));
-    out += char(0x80 | ((code >> 12) & 0x3F));
-    out += char(0x80 | ((code >> 6) & 0x3F));
-    out += char(0x80 | (code & 0x3F));
-  }
-  return out;
-}
-
-int utf8_len(char const *p, std::size_t available) {
-  auto first = std::uint8_t(*p);
-  if (first < 0x80) {
-    return 1;
-  }
-  auto n = first < 0xE0 ? 2 : first < 0xF0 ? 3 : 4;
-  return int(std::min<std::size_t>(n, available));
-}
-
-// Decodes the character starting at `p` (valid for `available` bytes).
-char32_t decode_char(char const *p, std::size_t available) {
-  auto len = utf8_len(p, available);
-  char32_t code = 0;
-  util::mb_to_c32(p, len, &code);
-  return code;
-}
-
 // The number of content bytes needed to be reasonably sure `cells` terminal
 // cells are covered by one read: at most 4 UTF-8 bytes per cell, plus slack
 // for combining marks (which consume bytes but no cells).
@@ -307,7 +270,7 @@ void TextArea::move_caret_right(std::uint64_t &offset) const {
     return;
   }
   auto probe = this->buffer->read(offset, 4);
-  offset += std::uint64_t(utf8_len(probe.data(), probe.size()));
+  offset += std::uint64_t(util::utf8_char_length(probe.data(), probe.size()));
 }
 
 std::pair<std::uint64_t, int> TextArea::offset_cell(std::uint64_t offset) const {
@@ -324,12 +287,13 @@ std::pair<std::uint64_t, int> TextArea::offset_cell(std::uint64_t offset) const 
   auto cell = 0;
   auto pos = std::size_t(0);
   while (pos < text.size()) {
-    auto code = decode_char(text.data() + pos, text.size() - pos);
+    auto code = char32_t { };
+    auto len = std::size_t(util::utf8_char_decode(text.data() + pos, text.size() - pos, &code));
     auto width = util::unicode::glyph_width(code);
     if (width > 0) {
       cell += width;
     }
-    pos += std::size_t(utf8_len(text.data() + pos, text.size() - pos));
+    pos += len;
   }
   return { line, cell };
 }
@@ -357,7 +321,8 @@ std::uint64_t TextArea::cell_to_offset(std::uint64_t line, int cell) const {
   auto offset = start;
   while (offset < end and current < cell) {
     auto probe = this->buffer->read(offset, 4);
-    auto code = decode_char(probe.data(), probe.size());
+    auto code = char32_t { };
+    auto len = std::size_t(util::utf8_char_decode(probe.data(), probe.size(), &code));
     if (code == '\n') {
       break;
     }
@@ -368,7 +333,7 @@ std::uint64_t TextArea::cell_to_offset(std::uint64_t line, int cell) const {
       }
       current += width;
     }
-    offset += std::uint64_t(utf8_len(probe.data(), probe.size()));
+    offset += len;
   }
   return std::min(offset, end);
 }
@@ -954,12 +919,12 @@ std::pair<std::uint64_t, std::uint64_t> TextArea::block_line_span(std::uint64_t 
     auto pos = std::size_t { 0 };
     while (pos < window.size()) {
       auto first = std::uint8_t(window[pos]);
-      auto expected = first < 0x80 ? 1 : first < 0xE0 ? 2 : first < 0xF0 ? 3 : 4;
-      if (window.size() - pos < std::size_t(expected)) {
+      auto expected = std::size_t(util::utf8_sequence_length(first));
+      if (window.size() - pos < expected) {
         break; // partial tail: leave it for the next window
       }
-      auto len = utf8_len(window.data() + pos, window.size() - pos);
-      auto code = decode_char(window.data() + pos, window.size() - pos);
+      auto code = char32_t { };
+      auto len = std::size_t(util::utf8_char_decode(window.data() + pos, window.size() - pos, &code));
 
       // Skipped (no cell consumed): carriage returns and combining marks.
       if (code == '\r' or util::unicode::glyph_width(code) == 0) {
@@ -1519,7 +1484,7 @@ void TextArea::on_key_typed(KeyEvent &e) {
     break;
   default:
     if (code >= 0x20 and code != 0x7F) {
-      insert_text(to_utf8(code));
+      insert_text(util::to_utf8(code));
       e.consume();
     }
     break;
@@ -1645,12 +1610,12 @@ std::uint64_t TextArea::measure_line_cells(TextBuffer::LineRange const &range) c
     auto pos = std::size_t { 0 };
     while (pos < window.size()) {
       auto first = std::uint8_t(window[pos]);
-      auto expected = first < 0x80 ? 1 : first < 0xE0 ? 2 : first < 0xF0 ? 3 : 4;
-      if (window.size() - pos < std::size_t(expected)) {
+      auto expected = std::size_t(util::utf8_sequence_length(first));
+      if (window.size() - pos < expected) {
         break; // partial tail: leave it for the next window
       }
-      auto len = utf8_len(window.data() + pos, window.size() - pos);
-      auto code = decode_char(window.data() + pos, window.size() - pos);
+      auto code = char32_t { };
+      auto len = std::size_t(util::utf8_char_decode(window.data() + pos, window.size() - pos, &code));
 
       // Skipped (no cell consumed): carriage returns and combining marks.
       if (code == '\r' or util::unicode::glyph_width(code) == 0) {
@@ -1794,12 +1759,12 @@ void TextArea::paint(Graphics &g) {
       auto pos = std::size_t(0);
       while (pos < window.size() and cell < right) {
         auto first = std::uint8_t(window[pos]);
-        auto expected = first < 0x80 ? 1 : first < 0xE0 ? 2 : first < 0xF0 ? 3 : 4;
-        if (window.size() - pos < std::size_t(expected)) {
+        auto expected = std::size_t(util::utf8_sequence_length(first));
+        if (window.size() - pos < expected) {
           break; // partial tail: leave it for the next window
         }
-        auto len = utf8_len(window.data() + pos, window.size() - pos);
-        auto code = decode_char(window.data() + pos, window.size() - pos);
+        auto code = char32_t { };
+        auto len = std::size_t(util::utf8_char_decode(window.data() + pos, window.size() - pos, &code));
 
         // Skipped (no cell consumed): carriage returns and combining marks
         // (the cell terminal cannot attach a combining mark to the previous

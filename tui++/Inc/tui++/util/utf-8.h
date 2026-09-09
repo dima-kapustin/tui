@@ -1,6 +1,22 @@
 #pragma once
 
+// UTF-8 helpers shared by the whole toolkit: multi-byte <-> code point
+// conversion, sequence classification, cell-width measurement of UTF-8 text
+// and wide/UTF-16 interop. Everything byte-level lives here; per-code-point
+// classification (control/combining/full-width tables) lives in unicode.h.
+//
+// The hot text paths (text measurement, line painting) are dominated by
+// ASCII, so glyph_width() scores whole ASCII runs eight bytes at a time with
+// SWAR ("SIMD within a register", the technique glibc's strlen and StringZilla
+// use) before falling back to the per-character decoder. The scalar decoders
+// stay constexpr for the constant-expression paths (Char, static assertions).
+
+#include <algorithm>
+#include <bit>
+#include <cstdint>
+#include <cstring>
 #include <string>
+#include <type_traits>
 
 #include <tui++/util/string.h>
 #include <tui++/util/unicode.h>
@@ -85,6 +101,45 @@ constexpr int mb_to_c32(const u8string_view &str, char32_t *c32) {
   return mb_to_c32(str.data(), str.length(), c32);
 }
 
+// Byte length of the UTF-8 sequence a lead byte announces (1..4). Mirrors
+// the stream's own arithmetic: continuation bytes (0x80-0xBF) and lead bytes
+// above 0xF7 classify as 2/4 so callers never stall on malformed input; the
+// decoder (mb_to_c32) reports those as invalid.
+constexpr int utf8_sequence_length(std::uint8_t first) noexcept {
+  if (first < 0x80) {
+    return 1;
+  }
+  if (first < 0xE0) {
+    return 2;
+  }
+  if (first < 0xF0) {
+    return 3;
+  }
+  return 4;
+}
+
+// Length of the sequence starting at `utf8`, capped at the bytes available:
+// a sequence a buffer cuts short (the end of a window, end of the document)
+// reports the bytes that are left instead of over-reading.
+constexpr int utf8_char_length(const char *utf8, std::size_t available) noexcept {
+  if (available == 0) {
+    return 0;
+  }
+  auto const length = std::size_t(utf8_sequence_length(std::uint8_t(utf8[0])));
+  return int(std::min(length, available));
+}
+
+// Decodes the sequence starting at `utf8` and returns its (capped) byte
+// length. `*code` receives the code point, or 0 when the bytes do not form a
+// complete, valid sequence.
+constexpr int utf8_char_decode(const char *utf8, std::size_t available, char32_t *code) noexcept {
+  auto const length = utf8_char_length(utf8, available);
+  if (length == 0 or mb_to_c32(utf8, std::size_t(length), code) <= 0) {
+    *code = 0;
+  }
+  return length;
+}
+
 constexpr size_t c32_to_mb(char32_t c, char *mb) {
   // 1 byte UTF8
   if (c <= 0b000'0000'0111'1111) {
@@ -134,7 +189,44 @@ constexpr size_t c32_to_mb(char32_t c, char *mb) {
   return 0;
 }
 
-constexpr std::size_t glyph_width(const char *utf8, std::size_t size) {
+namespace detail {
+
+constexpr std::uint64_t ones64() noexcept {
+  return 0x0101'0101'0101'0101ull;
+}
+
+constexpr std::uint64_t high_bits64() noexcept {
+  return 0x8080'8080'8080'8080ull;
+}
+
+constexpr bool has_high_bit(std::uint64_t chunk) noexcept {
+  return bool(chunk & high_bits64());
+}
+
+// One high bit per byte lane whose byte lies in [first, last). Per-lane
+// exact for all-ASCII chunks: b >= n  <=>  b + (0x80 - n) >= 0x80, and the
+// per-lane sums never reach 0x100 (max 0x7F + 0x7F), so no carry can leak
+// between lanes -- unlike the classic subtract-based "hasless" SWAR test,
+// whose borrow chains make per-lane counts inexact.
+constexpr std::uint64_t lanes_in(std::uint64_t chunk, unsigned first, unsigned last) noexcept {
+  auto const ge_first = chunk + ones64() * (0x80 - first);
+  auto const ge_last = chunk + ones64() * (0x80 - last);
+  return ge_first & ~ge_last & high_bits64();
+}
+
+// The number of lanes of an all-ASCII chunk that occupy one terminal cell:
+// printable ASCII plus line feed. Everything else below 0x80 is a C0/DEL
+// control character and takes no cell (see unicode::is_control).
+constexpr std::size_t ascii_cell_lanes(std::uint64_t chunk) noexcept {
+  auto const cells = lanes_in(chunk, 0x20, 0x7F) | lanes_in(chunk, 0x0A, 0x0B);
+  return std::popcount(cells);
+}
+
+// The reference scalar implementation. Constant evaluation cannot run the
+// SWAR path (it reads the bytes through memcpy), so glyph_width() keeps this
+// for is_constant_evaluated() -- static assertions and constexpr call sites
+// get exactly the historical code.
+constexpr std::size_t scalar_glyph_width(const char *utf8, std::size_t size) {
   auto width = std::size_t { 0 };
   auto index = std::size_t { 0 };
   while (index < size) {
@@ -153,11 +245,83 @@ constexpr std::size_t glyph_width(const char *utf8, std::size_t size) {
   return width;
 }
 
+} // namespace detail
+
+constexpr std::size_t glyph_width(const char *utf8, std::size_t size) {
+  if (std::is_constant_evaluated()) {
+    return detail::scalar_glyph_width(utf8, size);
+  }
+
+  auto width = std::size_t { 0 };
+  auto index = std::size_t { 0 };
+  while (index < size) {
+    // Whole ASCII runs score eight bytes at a time; the lane arithmetic
+    // assumes the little-endian lane order the chunk is read in.
+    if constexpr (std::endian::native == std::endian::little) {
+      while (size - index >= 8) {
+        auto chunk = std::uint64_t { };
+        std::memcpy(&chunk, utf8 + index, sizeof(chunk));
+        if (detail::has_high_bit(chunk)) {
+          break; // a multi-byte sequence starts here
+        }
+        width += detail::ascii_cell_lanes(chunk);
+        index += 8;
+      }
+    }
+
+    // ASCII tail up to the next multi-byte character (also the whole fast
+    // path on big-endian targets).
+    while (index < size and std::uint8_t(utf8[index]) < 0x80) {
+      auto const byte = std::uint8_t(utf8[index]);
+      if ((byte >= 0x20 and byte < 0x7F) or byte == 0x0A) {
+        width += 1;
+      }
+      index += 1;
+    }
+    if (index >= size) {
+      break;
+    }
+
+    auto cp = char32_t { };
+    auto cp_size = mb_to_c32(utf8 + index, size - index, &cp);
+    if (cp_size < 0) {
+      index += 1;
+      continue;
+    }
+    if (unicode::is_full_width(cp)) {
+      width += 2;
+    } else if (not (unicode::is_control(cp) or unicode::is_combining(cp))) {
+      width += 1;
+    }
+    index += std::size_t(cp_size);
+  }
+  return width;
+}
+
 constexpr std::size_t glyph_width(const std::string &utf8) {
   return glyph_width(utf8.data(), utf8.size());
 }
 constexpr std::size_t glyph_width(const std::string_view &utf8) {
   return glyph_width(utf8.data(), utf8.size());
+}
+
+// Length of the leading run of ASCII bytes (high bit clear), eight bytes per
+// SWAR step. The whole 8-byte check is endian-independent (it only tests the
+// high bit of every lane), so it runs everywhere.
+inline std::size_t ascii_prefix_length(const char *utf8, std::size_t size) noexcept {
+  auto index = std::size_t { 0 };
+  while (size - index >= 8) {
+    auto chunk = std::uint64_t { };
+    std::memcpy(&chunk, utf8 + index, sizeof(chunk));
+    if (detail::has_high_bit(chunk)) {
+      break;
+    }
+    index += 8;
+  }
+  while (index < size and std::uint8_t(utf8[index]) < 0x80) {
+    index += 1;
+  }
+  return index;
 }
 
 constexpr std::size_t next_c32(const char *utf8, std::size_t size, std::size_t index, char32_t *cp) {
@@ -252,6 +416,16 @@ constexpr std::string to_utf8(wchar_t wc) {
   auto utf8_size = to_utf8(&wc, &wc + 1, utf8.data(), utf8.data() + utf8.size());
   utf8.resize(utf8_size);
   return utf8;
+}
+
+// One UTF-32 code point to UTF-8 (the wide/UTF-16 overloads above are the
+// multi-character variants; this is the single-scalar one the text area uses
+// when a typed character enters the document). Values above U+10FFFF are not
+// representable in UTF-8 and encode to an empty string.
+constexpr std::string to_utf8(char32_t code) {
+  char bytes[4] = { };
+  auto const length = c32_to_mb(code, bytes);
+  return std::string(bytes, length);
 }
 
 constexpr std::wstring from_utf8(const std::string &s) {
