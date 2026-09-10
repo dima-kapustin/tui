@@ -236,6 +236,14 @@ void SixelScreen::refresh() {
   // whole screen a second time.
   this->damaged_regions.clear();
 
+  // A repaint starts from the cleared buffer: pixels the tree no longer
+  // paints must go back to the default instead of keeping the old image (a
+  // widget that moved, a layout that changed, a closed window). clear() also
+  // marks the screen dirty, so the flush re-encodes whatever does not match
+  // the mirror -- tiles that were already sent and are painted back
+  // identically are still skipped.
+  clear();
+
   auto g = SixelGraphics { *this };
   paint(g);
   flush();
@@ -281,6 +289,12 @@ void SixelScreen::repaint_region(Rectangle const &rect) {
   if (region.empty()) {
     return;
   }
+
+  // The damaged region is repainted from scratch: reset its pixels first, so
+  // a component that moved or shrank does not leave its old content in the
+  // pixels it no longer paints. fill_pixels also marks the region dirty, so
+  // the flush re-encodes it even where nothing was painted over the reset.
+  fill_pixels(region, Color { 0, 0, 0 });
 
   // Paint the tree with a graphics clipped to the region: every draw is
   // clipped to it, so the pixels it changes lie inside the region rect.

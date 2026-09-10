@@ -325,6 +325,15 @@ void TextScreen::refresh() {
   // whole screen a second time.
   this->damaged_regions.clear();
 
+  // A repaint starts from a clean slate: cells the tree no longer paints must
+  // go back to "nothing" (the terminal's default background). Whatever is
+  // left in the view -- a widget that moved, a layout that changed, a closed
+  // window -- would otherwise stay on screen, because the flush only emits
+  // what differs from the view.
+  for (auto &&row : this->view) {
+    std::fill(row.begin(), row.end(), EMPTY_CHAR_VIEW);
+  }
+
   // The terminal content may be unknown (first paint, resize), so treat this
   // as a fresh pass: rows not marked as sent are emitted in full.
   this->emitted_any = false;
@@ -356,6 +365,17 @@ void TextScreen::repaint_region(Rectangle const &rect) {
   auto region = rect & Rectangle { 0, 0, get_width(), get_height() };
   if (region.empty()) {
     return;
+  }
+
+  // The damaged region is repainted from scratch: reset its cells first, so a
+  // component that moved or shrank does not leave its old content in the
+  // cells it no longer paints (the cells then read as "nothing" and the
+  // flush emits them as erasures wherever the shadow still holds the old
+  // content). Cells the repaint does paint over cost nothing extra: the
+  // flush still diffs the result against the shadow.
+  for (auto y = region.y; y < region.bottom(); ++y) {
+    auto &&row = this->view[y];
+    std::fill(row.begin() + region.x, row.begin() + region.right(), EMPTY_CHAR_VIEW);
   }
 
   // Paint the tree with a graphics clipped to the region: every draw is
@@ -821,11 +841,25 @@ void TextScreen::flush_rows(Rectangle const &region) {
     }
 
     // Compare (and if needed emit) the damaged span; a row never sent before
-    // is compared in full, whatever the region says.
+    // is not compared at all: the terminal's content for it is unknown, so
+    // the row is written whole below, whatever the region says.
     auto sent = this->row_sent[y];
     auto first = sent ? std::max(0, region.x) : 0;
     auto last = sent ? std::min(width, region.x + region.width) : width;
     if (last <= first) {
+      continue;
+    }
+
+    if (not sent) {
+      // A row the terminal never received in full -- the first paint, or a
+      // resize that left its content unknown -- must be written whole, blanks
+      // included. Diffing it against the fresh shadow would only emit the
+      // cells the tree paints and leave every other cell showing whatever the
+      // terminal had there (the pre-resize layout); writing the whole row
+      // clears them to the default background, the way a repaint from scratch
+      // would.
+      emit_whole_row(y, 0, width);
+      this->row_sent[y] = true;
       continue;
     }
 
@@ -855,9 +889,6 @@ void TextScreen::flush_rows(Rectangle const &region) {
     auto changed_span = last_changed - first_changed + 1;
     if (changed_span >= 4 and changed * 2 >= changed_span) {
       emit_whole_row(y, first_changed, last_changed + 1);
-      if (first == 0 and last == width) {
-        this->row_sent[y] = true; // the whole row was emitted (never-sent row)
-      }
     } else {
       emit_row(y, first, last);
     }

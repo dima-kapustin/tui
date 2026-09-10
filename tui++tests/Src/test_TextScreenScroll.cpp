@@ -12,6 +12,7 @@
 
 #include <tui++/BorderLayout.h>
 #include <tui++/BoxLayout.h>
+#include <tui++/Button.h>
 #include <tui++/ComboBox.h>
 #include <tui++/Component.h>
 #include <tui++/FlowLayout.h>
@@ -810,4 +811,106 @@ void test_TextScreen_popup_close_erasure() {
   drain_events();
   std::cout.rdbuf(old_cout);
   std::fprintf(stderr, "test_TextScreen_popup_close_erasure: ok\n");
+}
+
+// A repaint after the terminal's content became unknown -- the first paint, a
+// resize -- must write every row in full, clearing the cells the tree does not
+// paint. The cells of a layout the app has left behind used to keep whatever
+// the terminal showed there, so after a resize the old widget positions stayed
+// on screen as dirt and the widgets seemed never to move back. The same stream
+// applied to a terminal full of stale content and to a blank terminal must
+// produce the same screen.
+void test_TextScreen_repaint_over_unknown_content() {
+  std::fprintf(stderr, "test_TextScreen_repaint_over_unknown_content: a repaint determines the whole screen\n");
+
+  auto capture = std::ostringstream { };
+  auto *old_cout = std::cout.rdbuf(capture.rdbuf());
+  screen.repaint_damaged();
+  capture.str({ });
+  auto take = [&] { auto b = capture.str(); capture.str({ }); return b; };
+
+  auto dim = screen.get_size();
+  assert(dim.width > 8 and dim.height > 6);
+
+  // A tree that paints only part of the screen: a button box in a corner, the
+  // rest left to the terminal's background -- a WidgetDemo-style panel whose
+  // rows of controls leave most of the cells transparent.
+  auto frame = make_component<Frame>();
+  frame->set_size(dim);
+  frame->set_name("repaint frame");
+  auto content = frame->get_content_pane();
+  content->set_layout({ }); // explicit bounds, no layout manager
+  auto button = make_component<Button>("Go");
+  button->set_bounds(2, 2, 8, 3);
+  content->add(button);
+
+  frame->set_visible(true);
+  drain_events();
+  (void)take();
+
+  // The pre-resize layout: a full paint from a known state, applied to the
+  // (blank) terminal model.
+  dynamic_cast<TextScreen&>(screen).clear();
+  screen.refresh();
+  auto before = take();
+  auto terminal = VtModel { dim.height, dim.width };
+  assert(terminal.apply(before));
+
+  // "The resize": the terminal's content became unknown and the layout moved
+  // the widget. clear() leaves the screen exactly like TextScreen::resized
+  // does -- the view and the shadow are reset, every row is unsent -- so the
+  // refresh below is the resize's full repaint.
+  button->set_bounds(2, dim.height - 8, 8, 3);
+  drain_events();
+  dynamic_cast<TextScreen&>(screen).clear();
+  screen.refresh();
+  auto after = take();
+  assert(terminal.apply(after)); // the repaint lands on the stale terminal
+
+  // Oracle: the same stream on a blank terminal must give the same screen.
+  auto clean = VtModel { dim.height, dim.width };
+  assert(clean.apply(after));
+  for (auto row = 0; row < dim.height; ++row) {
+    if (clean.cell[std::size_t(row)] != terminal.cell[std::size_t(row)]) {
+      std::fprintf(stderr, "row %d differs:\n  stale terminal: %s\n  blank terminal: %s\n", row, terminal.row_text(row).c_str(), clean.row_text(row).c_str());
+      break;
+    }
+  }
+  for (auto row = 0; row < dim.height; ++row) {
+    assert(clean.cell[std::size_t(row)] == terminal.cell[std::size_t(row)] && "a repaint must clear the cells the tree no longer paints");
+  }
+
+  // A widget that moves must not leave its old cells behind either: the
+  // damaged-region repaint that follows the move must reproduce the full
+  // repaint of the new state.
+  {
+    auto moved_capture = std::ostringstream { };
+    auto *old = std::cout.rdbuf(moved_capture.rdbuf());
+    button->set_bounds(2, (dim.height - 8) / 2, 8, 3);
+    drain_events();
+    auto moved = moved_capture.str();
+    dynamic_cast<TextScreen&>(screen).clear();
+    screen.refresh();
+    auto full = moved_capture.str().substr(moved.size());
+    std::cout.rdbuf(old);
+
+    auto incremental = terminal; // the screen before the move
+    assert(incremental.apply(moved));
+    auto oracle = VtModel { dim.height, dim.width };
+    assert(oracle.apply(full));
+    for (auto row = 0; row < dim.height; ++row) {
+      if (incremental.cell[std::size_t(row)] != oracle.cell[std::size_t(row)]) {
+        std::fprintf(stderr, "move: row %d differs:\n  incremental: %s\n  full paint : %s\n", row, incremental.row_text(row).c_str(), oracle.row_text(row).c_str());
+        break;
+      }
+    }
+    for (auto row = 0; row < dim.height; ++row) {
+      assert(incremental.cell[std::size_t(row)] == oracle.cell[std::size_t(row)] && "a moved widget must not leave its old cells behind");
+    }
+  }
+
+  frame->set_visible(false);
+  drain_events();
+  std::cout.rdbuf(old_cout);
+  std::fprintf(stderr, "test_TextScreen_repaint_over_unknown_content: ok\n");
 }
