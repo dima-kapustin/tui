@@ -853,9 +853,16 @@ void TextField::on_key_pressed(KeyEvent &e) {
     }
     break;
   case KeyEvent::VK_ENTER:
-    // Swing's notify-field-accept: the field announces its content.
+    // Swing's notify-field-accept, with the enablement rule of the action it
+    // is bound to: a field with nobody to notify (no ActionEvent listeners)
+    // leaves the stroke to the window, so Enter clicks the default button the
+    // way a Swing dialog submits from a text field. A field with a listener
+    // keeps the key, and the combo box's editor never sees it at all (the
+    // combo is the focus owner, and Enter picks the highlighted item).
     post_action_event();
-    e.consume();
+    if (get_event_listener_count<ActionEvent>() > 0) {
+      e.consume();
+    }
     break;
   case KeyEvent::VK_A:
     if (ctrl) {

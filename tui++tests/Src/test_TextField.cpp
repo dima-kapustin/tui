@@ -6,9 +6,11 @@
 // read-only mode.
 
 #include <tui++/BorderLayout.h>
+#include <tui++/Button.h>
 #include <tui++/Clipboard.h>
 #include <tui++/Frame.h>
 #include <tui++/Panel.h>
+#include <tui++/RootPane.h>
 #include <tui++/Screen.h>
 #include <tui++/TextField.h>
 
@@ -234,9 +236,33 @@ void test_text_field() {
   };
   field->add_listener(listener);
   field->set_text("commit me");
-  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER);
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER)->consumed);
   CHECK(actions.size() == 1 and actions.back() == "commit me");
+
+  // A field with a listener to notify keeps Enter; without one it leaves the
+  // key to the window, where it clicks the window's default button (Swing's
+  // NotifyAction is only enabled while there is a listener to accept the
+  // field's content).
+  auto ok = make_component<Button>("OK");
+  auto ok_actions = 0;
+  ok->add_listener([&ok_actions](ActionEvent &) {
+    ++ok_actions;
+  });
+  frame->get_content_pane()->add(ok);
+  frame->get_root_pane()->set_default_dutton(ok);
+  drain();
+  CHECK(field->is_focus_owner());
+
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER)->consumed);
+  CHECK(actions.size() == 2);
+  CHECK(ok_actions == 0);
+
   field->remove_listener(listener);
+  // The stroke reaches the root pane's binding, which consumes it as it
+  // clicks the button.
+  CHECK(dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER)->consumed);
+  CHECK(ok_actions == 1);
+  CHECK(actions.size() == 2);
 
   // ---- the mouse: click places the caret, drag selects, double-click
   // selects the word ----
