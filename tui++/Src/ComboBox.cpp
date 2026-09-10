@@ -11,10 +11,12 @@
 #include <tui++/Screen.h>
 #include <tui++/Symbols.h>
 #include <tui++/TextMetrics.h>
+#include <tui++/TextField.h>
 #include <tui++/Window.h>
 
 #include <tui++/event/FocusEvent.h>
 #include <tui++/lookandfeel/LookAndFeel.h>
+#include <tui++/util/utf-8.h>
 
 #include <cassert>
 #include <cstddef>
@@ -45,25 +47,6 @@ bool is_printable(KeyEvent const &e) {
   }
   auto code = e.get_key_char().get_code();
   return code >= 0x20 and code != 0x7f;
-}
-
-std::u32string to_u32(std::string_view text) {
-  auto result = std::u32string { };
-  result.reserve(text.size());
-  for (auto it = to_chars(text), last = end(it); it != last; ++it) {
-    result.push_back((*it).get_code());
-  }
-  return result;
-}
-
-std::string to_utf8(std::u32string const &text) {
-  auto result = std::string { };
-  result.reserve(text.size());
-  for (auto code : text) {
-    auto glyph = Char(code);
-    result.append(std::string_view(glyph));
-  }
-  return result;
 }
 
 }
@@ -122,10 +105,16 @@ public:
       return;
     }
 
-    // A press on the combo itself (its own handler toggles the popup) or
-    // inside the dropdown's popup window (a row pick there hides it) leaves
-    // the popup alone.
-    if (source.get() == combo.get() or source->get_containing_window() == combo->popup_window()) {
+    // A press on the combo or one of its children (the editor field) leaves
+    // the popup alone: the combo's own handler toggles it, and a press in the
+    // editor only moves the caret. A press inside the dropdown's window is a
+    // row pick or a wheel-free scroll; everything else dismisses the popup.
+    for (auto c = source; c; c = c->get_parent()) {
+      if (c.get() == combo.get()) {
+        return;
+      }
+    }
+    if (source->get_containing_window() == combo->popup_window()) {
       return;
     }
     combo->set_popup_visible(false);
@@ -153,6 +142,21 @@ void ComboBox::init() {
 
   this->model->add_listener(this->model_change_listener);
   this->popup_menu = make_component<PopupMenu>();
+
+  // The editor field of an editable combo (Swing's BasicComboBoxEditor): a
+  // TextField child laid out over the field area. It stays hidden until
+  // set_editable(true). The combo keeps the keyboard focus and forwards its
+  // keys to the editor; the editor is not focusable itself, so a press in it
+  // focuses the combo (Swing's BasicComboBoxUI does the same with its editor).
+  this->editor = make_component<TextField>();
+  this->editor->set_name("combo editor");
+  this->editor->set_focusable(false);
+  this->editor->set_editable(false);
+  this->editor->set_visible(false);
+  this->editor->add_listener([this](ChangeEvent &) {
+    editor_changed();
+  });
+  add(this->editor);
 
   // The mouse wheel over the open dropdown scrolls its window. The wheel
   // event lands on the hovered row (a MenuItem has no wheel handling), and
@@ -193,8 +197,9 @@ void ComboBox::init() {
     on_focus_changed(e.id == FocusEvent::FOCUS_GAINED);
   });
 
-  update_field_from_model();
+  set_editor_text(selected_item_text());
   update_preferred_size();
+  layout_editor();
 }
 
 void ComboBox::add_notify() {
@@ -239,15 +244,10 @@ void ComboBox::set_model(std::shared_ptr<ComboBoxModel> const &model) {
 
   // A new model resets the edit state and dismisses the dropdown, as Swing's
   // setModel does.
-  this->is_editing = false;
-  this->draft.clear();
-  this->draft_caret = 0;
-  this->caret_moved = false;
   this->lookup_index = std::nullopt;
-  this->committed_text.clear();
   set_popup_visible(false);
 
-  update_field_from_model();
+  set_editor_text(selected_item_text());
   update_preferred_size();
   repaint();
 }
@@ -304,18 +304,20 @@ void ComboBox::set_selected_item(std::string const &item) {
 void ComboBox::set_editable(bool value) {
   if (this->editable != value) {
     this->editable = value;
-    // Dropping the editable mode discards the draft and the committed custom
-    // text; enabling it starts from the current selection's text.
-    if (not value) {
-      this->is_editing = false;
-      this->draft.clear();
-      this->draft_caret = 0;
-      this->caret_moved = false;
-      this->lookup_index = std::nullopt;
-      this->committed_text.clear();
+    // Dropping the editable mode discards the edit in flight and the custom
+    // value; enabling it starts from the current selection's text and lays the
+    // editor over the field area.
+    this->lookup_index = std::nullopt;
+    if (this->editor) {
+      this->editor->set_editable(value);
+      this->editor->set_visible(value);
+      this->editor->set_editing_focus(value and is_focus_owner());
     }
-    update_field_from_model();
+    if (value) {
+      set_editor_text(selected_item_text());
+    }
     update_preferred_size();
+    layout_editor();
     repaint();
   }
 }
@@ -357,43 +359,57 @@ std::string ComboBox::selected_item_text() const {
 }
 
 std::string ComboBox::display_text() const {
-  if (this->is_editing) {
-    return draft_utf8();
+  // The editor owns the field's text while the combo is editable: the selected
+  // item, a committed custom value and an edit in flight all live there.
+  if (this->editable and this->editor) {
+    return this->editor->get_text();
   }
-  if (auto index = this->model->get_selected_index()) {
-    return this->model->get_item_at(*index);
-  }
-  // Nothing selected: the field shows the committed custom value (a text no
-  // item matched, kept by Enter), if there is one.
-  return to_utf8(this->committed_text);
+  return selected_item_text();
 }
 
-std::string ComboBox::draft_utf8() const {
-  return to_utf8(this->draft);
+void ComboBox::set_editor_text(std::string const &text) {
+  if (not this->editor) {
+    return;
+  }
+  // Programmatic updates must not read as user edits (they would run the
+  // lookup and the commit tests against the combo's own text).
+  this->setting_editor_text = true;
+  this->editor->set_text(text);
+  this->setting_editor_text = false;
+  this->editor_baseline = text;
+  // The combo's value arrives selected, so the first typed letter replaces it
+  // (the type-to-look-up gesture); a click or an arrow key inside the field
+  // collapses the selection and the next letter inserts at the caret, as the
+  // old draft's "caret moved" rule did.
+  this->editor->select_all();
 }
 
-void ComboBox::update_field_from_model() {
-  if (not this->is_editing) {
-    this->draft.clear();
-    this->draft_caret = 0;
+bool ComboBox::editor_modified() const {
+  return this->editor and this->editor->get_text() != this->editor_baseline;
+}
+
+void ComboBox::editor_changed() {
+  if (this->setting_editor_text or not this->editor) {
+    return;
   }
+  // The user edited the field: the first item matching its text is
+  // highlighted live (when the dropdown is open, and by the arrows when a
+  // non-editable combo looks items up).
+  set_lookup_prefix(util::to_u32(this->editor->get_text()));
+  update_preferred_size();
 }
 
 void ComboBox::model_changed(ChangeEvent &e) {
-  // Contents and selection changes come through the model. A change the
-  // combo itself caused (commit_selection) already cleared the draft; an
-  // external change (set_selected_index from the application, model edits)
-  // supersedes an edit in flight the way Swing's setSelectedItem does.
-  this->is_editing = false;
-  this->draft.clear();
-  this->draft_caret = 0;
-  this->caret_moved = false;
+  // Contents and selection changes come through the model. An external change
+  // (set_selected_index from the application, model edits) supersedes an edit
+  // in flight, the way Swing's setSelectedItem rewrites the editor's text.
   this->lookup_index = std::nullopt;
 
   if (this->popup_visible) {
     this->popup_armed_index = std::nullopt;
     rebuild_popup_rows();
   }
+  set_editor_text(selected_item_text());
   update_preferred_size();
   repaint();
 }
@@ -450,7 +466,7 @@ void ComboBox::show_popup() {
   repaint();
 }
 
-void ComboBox::hide_popup(bool revert_draft) {
+void ComboBox::hide_popup(bool revert_edit) {
   if (not this->popup_visible) {
     return;
   }
@@ -464,12 +480,11 @@ void ComboBox::hide_popup(bool revert_draft) {
     screen.remove_listener(this->dismiss_observer);
     this->dismiss_observer.reset();
   }
-  if (revert_draft) {
-    this->is_editing = false;
-    this->draft.clear();
-    this->draft_caret = 0;
-    this->caret_moved = false;
+  if (revert_edit) {
+    // Escape: cancel the edit in flight and restore the combo's own value
+    // (the selected item, or the committed custom text).
     this->lookup_index = std::nullopt;
+    set_editor_text(this->editor_baseline);
   }
   repaint();
 }
@@ -517,7 +532,7 @@ std::optional<size_t> ComboBox::lookup(std::u32string const &prefix) const {
     return std::nullopt;
   }
   for (auto i = size_t { 0 }, n = this->model->get_size(); i != n; ++i) {
-    auto item = to_u32(this->model->get_item_at(i));
+    auto item = util::to_u32(this->model->get_item_at(i));
     if (item.size() < prefix.size()) {
       continue;
     }
@@ -566,25 +581,6 @@ bool ComboBox::field_hit(int x) const {
 
 // ---- user actions ----------------------------------------------------------
 
-void ComboBox::begin_editing_if_needed() {
-  if (not this->is_editing) {
-    if (this->caret_moved) {
-      // The user moved the caret first: keep the text she is editing (the
-      // selection or the committed custom value).
-      this->draft = to_u32(display_text());
-      this->draft_caret = this->draft.size();
-    } else {
-      // A fresh edit session: the first typed letter replaces the field's
-      // text (the type-to-look-up gesture).
-      this->draft.clear();
-      this->draft_caret = 0;
-    }
-    this->is_editing = true;
-    this->caret_moved = false;
-    this->lookup_index = std::nullopt;
-  }
-}
-
 void ComboBox::commit_selection(std::optional<size_t> index) {
   if (index and *index >= this->model->get_size()) {
     return;
@@ -594,39 +590,23 @@ void ComboBox::commit_selection(std::optional<size_t> index) {
   // item's text, or the custom typed text when no item was picked.
   auto text = index ? this->model->get_item_at(*index) : display_text();
 
-  this->is_editing = false;
-  this->draft.clear();
-  this->draft_caret = 0;
-  this->caret_moved = false;
   this->lookup_index = std::nullopt;
-
-  // A pick replaces the committed custom value; a custom-value commit keeps
-  // the typed text in the field (the index model cannot hold it, so it stays
-  // unselected but visible, the way Swing's editable combo keeps the editor's
-  // text after a custom commit).
-  if (index) {
-    this->committed_text.clear();
-  } else {
-    this->committed_text = to_u32(text);
-  }
 
   // Selecting through the model fires the model's ChangeEvent (which also
   // repaints); the combo's own ActionEvent announces the user's pick, as
   // Swing's JComboBox does.
-  auto changed = this->model->get_selected_index() != index;
   this->model->set_selected_index(index);
   hide_popup(false);
 
-  if (changed) {
-    // The model event already handled the field and the preferred size.
-    update_field_from_model();
-  } else {
-    // The selection did not move; the field must still show the committed
-    // text again and the width may have changed (the draft is gone).
-    update_field_from_model();
-    update_preferred_size();
-    repaint();
-  }
+  // A pick puts the item's text into the editor; a custom-value commit keeps
+  // the typed text (the index model cannot hold it, so it stays unselected
+  // but visible, the way Swing's editable combo keeps the editor's text after
+  // a custom commit). Either way the combo's value is now the editor's text:
+  // the re-assert also covers the model's ChangeEvent, which wrote the empty
+  // selection into the editor on a custom commit.
+  set_editor_text(index ? this->model->get_item_at(*index) : text);
+  update_preferred_size();
+  repaint();
   fire_action_event(text);
 }
 
@@ -724,83 +704,14 @@ void ComboBox::ensure_popup_armed_visible() {
 
 // ---- keyboard ---------------------------------------------------------------
 
-// Applies a draft-editing key (Backspace, Delete, the caret arrows, Home,
-// End) to the editable field's draft and re-runs the lookup, so the first
-// item matching the draft is re-highlighted after every change -- a live
-// lookup. With the dropdown open these keys edit the draft too (only Home
-// and End stay with the popup selection there); without one they move the
-// caret of an edit in progress.
-void ComboBox::handle_draft_edit_key(KeyEvent::KeyCode code) {
-  switch (code) {
-  case KeyEvent::VK_LEFT:
-    this->caret_moved = true;
-    begin_editing_if_needed();
-    if (this->draft_caret != 0) {
-      this->draft_caret -= 1;
-      repaint();
-    }
-    break;
-  case KeyEvent::VK_RIGHT:
-    this->caret_moved = true;
-    begin_editing_if_needed();
-    if (this->draft_caret < this->draft.size()) {
-      this->draft_caret += 1;
-      repaint();
-    }
-    break;
-  case KeyEvent::VK_HOME:
-    this->caret_moved = true;
-    begin_editing_if_needed();
-    this->draft_caret = 0;
-    repaint();
-    break;
-  case KeyEvent::VK_END:
-    this->caret_moved = true;
-    begin_editing_if_needed();
-    this->draft_caret = this->draft.size();
-    repaint();
-    break;
-  case KeyEvent::VK_BACK_SPACE:
-    begin_editing_if_needed();
-    if (this->draft_caret != 0) {
-      this->draft.erase(this->draft.begin() + (this->draft_caret - 1));
-      this->draft_caret -= 1;
-      set_lookup_prefix(this->draft);
-      repaint();
-    }
-    break;
-  case KeyEvent::VK_DELETE:
-    begin_editing_if_needed();
-    if (this->draft_caret < this->draft.size()) {
-      this->draft.erase(this->draft.begin() + this->draft_caret);
-      set_lookup_prefix(this->draft);
-      repaint();
-    }
-    break;
-  default:
-    break;
-  }
-}
-
+// The combo's keys, split between the popup, the editor and the combo (Swing's
+// JComboBox and its editor split them the same way): Up/Down/Page/Home/End
+// drive the open dropdown, Enter picks or commits and Escape cancels; every
+// other key of an editable combo belongs to the editor field -- the caret and
+// selection commands, the deletions, the clipboard chords, and Home/End while
+// the dropdown is closed. The editor's ChangeEvent drives the live lookup.
 void ComboBox::on_key_pressed(KeyEvent &e) {
   auto code = e.get_key_code();
-
-  // The draft-editing keys of an editable combo work whether the dropdown is
-  // open or not -- Backspace/Delete correct the lookup text and the caret
-  // arrows move through it while the first matching item is highlighted live.
-  if (is_editable() and code != KeyEvent::VK_HOME and code != KeyEvent::VK_END) {
-    switch (code) {
-    case KeyEvent::VK_LEFT:
-    case KeyEvent::VK_RIGHT:
-    case KeyEvent::VK_BACK_SPACE:
-    case KeyEvent::VK_DELETE:
-      handle_draft_edit_key(code);
-      e.consume();
-      return;
-    default:
-      break;
-    }
-  }
 
   if (this->popup_visible) {
     switch (code) {
@@ -835,8 +746,8 @@ void ComboBox::on_key_pressed(KeyEvent &e) {
       }
       if (index) {
         commit_selection(index);
-      } else if (is_editable() and this->is_editing) {
-        // Enter with an open dropdown, no row highlighted and a draft in
+      } else if (is_editable() and editor_modified()) {
+        // Enter with an open dropdown, no row highlighted and an edit in
         // flight commits the field's text as the custom value.
         commit_selection(std::nullopt);
       } else {
@@ -859,9 +770,6 @@ void ComboBox::on_key_pressed(KeyEvent &e) {
   } else if (code == KeyEvent::VK_UP or code == KeyEvent::VK_DOWN) {
     // The arrow keys open the dropdown (editable and non-editable alike), as
     // Swing's combo does.
-    if (is_editable()) {
-      begin_editing_if_needed();
-    }
     show_popup();
     e.consume();
     return;
@@ -869,13 +777,13 @@ void ComboBox::on_key_pressed(KeyEvent &e) {
     switch (code) {
     case KeyEvent::VK_ENTER: {
       // Commit: the item the typed text matched -- or, when nothing matches
-      // and a draft is in flight, keep the typed text as the combo's custom
+      // and the field was edited, keep the typed text as the combo's custom
       // value (it stays in the field). Enter with nothing to commit -- no
-      // match, no draft -- is a no-op, so a repeated Enter after a commit
+      // match, no edit -- is a no-op, so a repeated Enter after a commit
       // cannot wipe the selection or the field.
       if (auto index = this->lookup_index) {
         commit_selection(index);
-      } else if (this->is_editing) {
+      } else if (editor_modified()) {
         commit_selection(std::nullopt);
       }
       e.consume();
@@ -883,21 +791,10 @@ void ComboBox::on_key_pressed(KeyEvent &e) {
     }
     case KeyEvent::VK_ESCAPE:
       // Revert an uncommitted edit.
-      if (this->is_editing) {
-        this->is_editing = false;
-        this->draft.clear();
-        this->draft_caret = 0;
-        this->caret_moved = false;
+      if (editor_modified()) {
         this->lookup_index = std::nullopt;
-        repaint();
+        set_editor_text(this->editor_baseline);
       }
-      e.consume();
-      return;
-    case KeyEvent::VK_HOME:
-    case KeyEvent::VK_END:
-      // Home/End without an open dropdown move the caret; with the dropdown
-      // open they belong to the popup selection (see above).
-      handle_draft_edit_key(code);
       e.consume();
       return;
     default:
@@ -911,42 +808,48 @@ void ComboBox::on_key_pressed(KeyEvent &e) {
       this->lookup_buffer.clear();
     }
   }
+
+  // Everything else belongs to the editor of an editable combo: the caret and
+  // selection commands, the deletions, the clipboard chords and Home/End
+  // (when the dropdown is closed; with it open they drive the popup above).
+  // The editor's ChangeEvent drives the live lookup.
+  if (is_editable() and this->editor) {
+    this->editor->on_key_pressed(e);
+  }
 }
 
 void ComboBox::on_key_typed(KeyEvent &e) {
+  if (is_editable()) {
+    // "Lookup editing": the character goes into the editor, and the dropdown
+    // (when open) follows the typed prefix; the match is committed by Enter.
+    if (this->editor) {
+      this->editor->on_key_typed(e);
+    }
+    return;
+  }
+
   if (not is_printable(e)) {
     return;
   }
   auto code = e.get_key_char().get_code();
-  if (is_editable()) {
-    // "Lookup editing": the letter goes into the draft, and the dropdown
-    // (when open) follows the typed prefix; the match is committed by Enter.
-    begin_editing_if_needed();
-    this->caret_moved = true;
-    this->draft.insert(this->draft.begin() + this->draft_caret, code);
-    this->draft_caret += 1;
-    set_lookup_prefix(this->draft);
-    repaint();
-    e.consume();
+
+  // Type-ahead lookup on a non-editable combo. Letters that stop matching
+  // drop the buffer's first letter until a match is found again (a sliding
+  // window, as Swing's KeySelectionManager searches).
+  this->lookup_buffer.push_back(code);
+  if (this->popup_visible) {
+    set_lookup_prefix(std::u32string { char32_t(code) });
   } else {
-    // Type-ahead lookup on a non-editable combo. Letters that stop matching
-    // drop the buffer's first letter until a match is found again (a sliding
-    // window, as Swing's KeySelectionManager searches).
-    this->lookup_buffer.push_back(code);
-    if (this->popup_visible) {
-      set_lookup_prefix(std::u32string { char32_t(code) });
-    } else {
-      while (not this->lookup_buffer.empty()) {
-        set_lookup_prefix(this->lookup_buffer);
-        if (this->lookup_index) {
-          break;
-        }
-        this->lookup_buffer.erase(this->lookup_buffer.begin());
+    while (not this->lookup_buffer.empty()) {
+      set_lookup_prefix(this->lookup_buffer);
+      if (this->lookup_index) {
+        break;
       }
+      this->lookup_buffer.erase(this->lookup_buffer.begin());
     }
-    this->lookup_buffer_time = EventClock::now();
-    e.consume();
   }
+  this->lookup_buffer_time = EventClock::now();
+  e.consume();
 }
 
 // ---- mouse ---------------------------------------------------------------
@@ -958,48 +861,64 @@ void ComboBox::on_mouse_pressed(MousePressEvent &e) {
 
   request_focus(false, true, FocusEvent::Cause::ACTIVATION);
 
-  if (not field_hit(e.x) or not is_editable()) {
-    // The arrow of an editable combo, and every press on a non-editable one
-    // (its whole face is the button, as in Swing), toggles the dropdown.
+  // The editor child handles the presses on the field itself (the caret and
+  // the selection gestures). What reaches the combo is the arrow strip of an
+  // editable combo, and the whole face of a non-editable one (its face is the
+  // button, as in Swing): both toggle the dropdown.
+  if (not is_editable() or not field_hit(e.x)) {
     set_popup_visible(not this->popup_visible);
-    e.consume();
-    return;
   }
-
-  // A press on the field of an editable combo places the caret and keeps (or
-  // starts) an edit session; the dropdown stays as it is.
-  this->caret_moved = true;
-  begin_editing_if_needed();
-  auto metrics = screen.get_text_metrics();
-  auto insets = get_insets();
-  auto margin = laf::LookAndFeel::get<Insets>(this, "ComboBox.margin", Insets { 0, 1, 0, 1 });
-  auto x = insets.left + margin.left;
-  auto caret = size_t { 0 };
-  for (auto code : this->draft) {
-    auto width = metrics->get_char_width(code);
-    if (e.x < x + width / 2) {
-      break;
-    }
-    x += width;
-    caret += 1;
-  }
-  this->draft_caret = caret;
-  repaint();
   e.consume();
 }
 
 void ComboBox::on_focus_changed(bool gained) {
+  if (this->editor) {
+    this->editor->set_editing_focus(gained and is_editable());
+  }
   if (gained) {
+    // An editable combo selects the editor's text when it takes the focus, so
+    // the first typed letter replaces the field's value instead of appending
+    // to it (the type-to-look-up gesture, as Swing's editor behaves).
+    if (is_editable() and this->editor) {
+      this->editor->select_all();
+    }
     repaint();
   } else {
-    // Losing the focus closes the dropdown. An uncommitted draft survives so
+    // Losing the focus closes the dropdown. An uncommitted edit survives so
     // the user can come back to it (Swing's editor keeps its text); Escape
     // reverts it explicitly.
     hide_popup(false);
   }
 }
 
-// ---- preferred size and painting ---------------------------------------------
+// ---- layout, preferred size and painting --------------------------------------
+
+void ComboBox::do_layout() {
+  base::do_layout();
+  layout_editor();
+}
+
+void ComboBox::layout_editor() {
+  if (not this->editor) {
+    return;
+  }
+  // The editor covers the field area: from the combo's border to the arrow
+  // strip. Its own "TextField.margin" insets give the text the same one-cell
+  // inset the combo's margin does; a press anywhere in it belongs to the
+  // editor (caret placement and selection).
+  auto metrics = screen.get_text_metrics();
+  auto margin = laf::LookAndFeel::get<Insets>(this, "ComboBox.margin", Insets { 0, 1, 0, 1 });
+  auto insets = get_insets();
+  auto cell = metrics->get_char_width(char32_t('M'));
+  auto arrow_area = (ARROW_GAP_COLUMNS + ARROW_GLYPH_COLUMNS) * cell;
+  auto bounds = Rectangle { insets.left, insets.top, get_width() - insets.left - insets.right - margin.right - arrow_area, get_height() - insets.top - insets.bottom };
+  if (bounds.width <= 0 or bounds.height <= 0) {
+    return;
+  }
+  if (this->editor->get_bounds() != bounds) {
+    this->editor->set_bounds(bounds.x, bounds.y, bounds.width, bounds.height);
+  }
+}
 
 void ComboBox::update_preferred_size() {
   // The preferred width shows the widest item plus the arrow; the height is
@@ -1013,11 +932,10 @@ void ComboBox::update_preferred_size() {
   for (auto i = size_t { 0 }, n = this->model->get_size(); i != n; ++i) {
     widest = std::max(widest, metrics->get_width(this->model->get_item_at(i)));
   }
-  if (this->is_editing) {
-    widest = std::max(widest, metrics->get_width(draft_utf8()));
-  } else if (not this->model->get_selected_index()) {
-    // The field shows the committed custom value; make room for it.
-    widest = std::max(widest, metrics->get_width(to_utf8(this->committed_text)));
+  if (this->editor) {
+    // The field may hold more than any item: an edit in flight, or a
+    // committed custom value.
+    widest = std::max(widest, metrics->get_width(this->editor->get_text()));
   }
 
   auto arrow = (ARROW_GAP_COLUMNS + ARROW_GLYPH_COLUMNS) * cell;
@@ -1026,7 +944,7 @@ void ComboBox::update_preferred_size() {
   set_preferred_size(Dimension { width, height });
 }
 
-void ComboBox::paint(Graphics &g) {
+void ComboBox::paint_component(Graphics &g) {
   auto metrics = screen.get_text_metrics();
   auto margin = laf::LookAndFeel::get<Insets>(this, "ComboBox.margin", Insets { 0, 1, 0, 1 });
   auto insets = get_insets();
@@ -1051,48 +969,22 @@ void ComboBox::paint(Graphics &g) {
   auto arrow_x = x1 - cell;
   auto field_limit = x1 - arrow_area;
 
-  auto text = display_text();
+  // The editor child paints the field's text, its selection and its caret
+  // (Swing's BasicComboBoxUI paints the renderer itself only when there is no
+  // editor); the combo paints the item text for a non-editable combo.
   auto y = y0 + std::max(0, (y1 - y0 - metrics->get_line_height()) / 2);
-
-  // Cell of the caret (an editable, focused combo): the sum of the glyph
-  // widths before the caret.
-  auto show_caret = is_editable() and is_focus_owner();
-  auto caret_x = x0;
-  auto caret_glyph = Char(' ');
-  if (show_caret) {
-    auto caret_index = std::min(this->draft_caret, this->draft.size());
-    for (auto i = size_t { 0 }; i != caret_index; ++i) {
-      caret_x += metrics->get_char_width(this->draft[i]);
+  if (not is_editable()) {
+    auto text = display_text();
+    auto x = x0;
+    for (auto it = to_chars(text), last = tui::end(it); it != last; ++it) {
+      auto glyph = *it;
+      auto width = metrics->get_char_width(glyph.get_code());
+      if (x + width > field_limit) {
+        break;
+      }
+      g.draw_char(glyph, x, y);
+      x += width;
     }
-    if (caret_index < this->draft.size()) {
-      caret_glyph = Char(this->draft[caret_index]);
-    }
-    if (caret_x >= field_limit) {
-      show_caret = false;
-    }
-  }
-
-  // The field text, clipped to the field; the caret glyph is drawn after the
-  // text with the field colors swapped (a solid block on both backends).
-  auto x = x0;
-  auto pos = size_t { 0 };
-  for (auto it = to_chars(text), last = tui::end(it); it != last; ++it) {
-    auto glyph = *it;
-    auto width = metrics->get_char_width(glyph.get_code());
-    if (x + width > field_limit) {
-      break;
-    }
-    g.draw_char(glyph, x, y);
-    x += width;
-    pos += 1;
-  }
-
-  if (show_caret and caret_x + metrics->get_char_width(caret_glyph.get_code()) <= field_limit) {
-    g.set_background_color(foreground);
-    g.set_foreground_color(background);
-    g.draw_char(caret_glyph, caret_x, y);
-    g.set_background_color(background);
-    g.set_foreground_color(foreground);
   }
 
   // The arrow reads "pressed" while the dropdown is open.

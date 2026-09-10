@@ -17,6 +17,7 @@
 #include <tui++/RadioButton.h>
 #include <tui++/RadioButtonMenuItem.h>
 #include <tui++/Screen.h>
+#include <tui++/TextField.h>
 #include <tui++/ToggleButton.h>
 #include <tui++/Window.h>
 
@@ -625,6 +626,21 @@ static void test_combo_dropdown() {
     CHECK(not city->is_popup_visible());
     CHECK(not city->get_selected_index()); // the custom value stays unselected
     CHECK(city->get_field_text() == "q"); // and stays in the field
+
+    // A press in the editor field moves the caret and keeps the dropdown open
+    // (only a press outside the combo and its dropdown dismisses it).
+    dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_DOWN);
+    CHECK(city->is_popup_visible());
+    {
+      auto field = city->get_editor();
+      CHECK(field);
+      auto at = city->get_location_on_screen();
+      auto local = convert_point_from_screen(Point { at.x + 1, at.y }, frame);
+      click_window(frame, local.x, local.y);
+      CHECK(city->is_popup_visible());
+      CHECK(not field->has_selection()); // the click collapsed the selection
+      CHECK(field->get_caret_position() == 0); // and placed the caret on the click
+    }
   }
 
   frame->set_visible(false);

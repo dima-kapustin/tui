@@ -89,7 +89,9 @@ protected:
 
 class MouseClickEvent: public MouseEvent {
 public:
-  constexpr static unsigned MOUSE_CLICKED = event_id_v<EventType::MOUSE_CLICK>;
+  enum Type {
+    MOUSE_CLICKED = event_id_v<EventType::MOUSE_CLICK>
+  };
 public:
   unsigned click_count;
   bool is_popup_trigger;

@@ -393,6 +393,36 @@ constexpr std::string to_utf8(char32_t code) {
   return std::string(bytes, length);
 }
 
+// A UTF-8 string as its code points, and back. The text components keep their
+// content as UTF-32 (the code-point unit) so the caret, the selection and the
+// editing commands count characters, not bytes; UTF-8 is the interchange form
+// (clipboard, the application's strings).
+inline std::u32string to_u32(std::string_view const &utf8) {
+  std::u32string text;
+  text.reserve(utf8.size());
+  for (auto i = std::size_t { 0 }; i < utf8.size();) {
+    auto code = char32_t { 0 };
+    auto const length = mb_to_c32(utf8.data() + i, utf8.size() - i, &code);
+    if (length <= 0) {
+      // A malformed byte: skip it, as a decoder of a corrupt stream must.
+      ++i;
+      continue;
+    }
+    text.push_back(code);
+    i += std::size_t(length);
+  }
+  return text;
+}
+
+constexpr std::string to_utf8(std::u32string const &text) {
+  std::string utf8;
+  utf8.reserve(text.size());
+  for (auto code : text) {
+    utf8 += to_utf8(code);
+  }
+  return utf8;
+}
+
 constexpr std::wstring from_utf8(const std::string &s) {
   std::wstring ws;
   ws.reserve(s.length());

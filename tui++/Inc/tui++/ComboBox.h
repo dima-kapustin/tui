@@ -18,6 +18,7 @@ namespace tui {
 
 class ComboBoxModel;
 class PopupMenu;
+class TextField;
 class TextMetrics;
 
 // Swing's JComboBox: a button-and-field widget that shows the selected item
@@ -46,6 +47,14 @@ class TextMetrics;
 //
 // A programmatic selection change (set_selected_index) fires no ActionEvent;
 // user picks and Enter commits do.
+//
+// The editable field is a TextField child (Swing's BasicComboBoxEditor holds a
+// JTextField), laid out over the field area: it owns the text, the caret and
+// the selection, so the editing keys, the selection gestures and the clipboard
+// commands in the editor are the text component's. The combo keeps the
+// keyboard focus and forwards its keys to the editor (see on_key_pressed),
+// drives the editor's caret through set_editing_focus, and reads the editor's
+// text for the live lookup and the Enter commits.
 class ComboBox: public ComponentExtension<Component, ActionEvent> {
   using base = ComponentExtension<Component, ActionEvent>;
 
@@ -63,30 +72,26 @@ class ComboBox: public ComponentExtension<Component, ActionEvent> {
   std::optional<size_t> popup_armed_index;
   std::optional<size_t> lookup_index;
 
-  // The text being edited (editable combo): the caret is a code point index
-  // into `draft`. When no edit is in flight the field shows the selected
-  // item instead.
-  std::u32string draft;
-  size_t draft_caret = 0;
-  bool is_editing = false;
-  // Whether the user moved the caret (mouse click, arrow keys) since the
-  // edit session began. Without it, the first typed letter replaces the
-  // selection's text -- the "type to look up" gesture -- instead of
-  // appending to the end of it.
-  bool caret_moved = false;
+  // The text the field is editing (editable combo): a TextField child owning
+  // the caret and the selection. While the combo is not editable the editor
+  // is hidden and the combo paints the selected item itself.
+  std::shared_ptr<TextField> editor;
+
+  // The text the combo last put into the editor (the selected item, or a
+  // committed custom value). It is what Escape reverts to and what tells an
+  // edit in flight apart from a programmatic field update -- Swing's
+  // "editor modified" test.
+  std::string editor_baseline;
+
+  // Guards the editor's change listener while the combo updates the field
+  // itself (a programmatic set_text must not run the lookup as a user edit).
+  bool setting_editor_text = false;
 
   // The letters a non-editable combo collected for its prefix lookup; stale
   // once the combo's "type-ahead" delay (as Swing's KeySelectionManager
   // resets its buffer) has passed.
   std::u32string lookup_buffer;
   EventClock::time_point lookup_buffer_time;
-
-  // The custom text of the last commit that matched no item (Enter with a
-  // draft no item starts with). The index model cannot hold it, so it stays
-  // unselected but the field keeps showing it until a real selection or a
-  // new edit replaces it -- Swing's editable combo leaves the editor's text
-  // in place the same way.
-  std::u32string committed_text;
 
   friend class ComboBoxKeyForwarder;
   friend class ComboBoxDismissObserver;
@@ -137,6 +142,13 @@ public:
   // Enter.
   void set_editable(bool value);
 
+  // The editor field of an editable combo (Swing's getEditor: the
+  // BasicComboBoxEditor that wraps a text field), null while the combo is not
+  // editable.
+  std::shared_ptr<TextField> get_editor() const {
+    return this->editable ? this->editor : nullptr;
+  }
+
   int get_maximum_row_count() const {
     return this->maximum_row_count;
   }
@@ -171,20 +183,37 @@ protected:
   virtual void add_notify() override;
   virtual void remove_notify() override;
 
-  virtual void paint(Graphics &g) override;
+  // Lays the editor field out over the combo's field area, before the tree
+  // paints (Swing's BasicComboBoxUI.layoutContainer does the same for its
+  // editor).
+  virtual void do_layout() override;
+
+  // The combo paints its own face; the editor child is painted by the base
+  // class's paint (paint_component, the border, then the children).
+  virtual void paint_component(Graphics &g) override;
 
 private:
   std::string selected_item_text() const;
   std::string display_text() const;
-  std::string draft_utf8() const;
 
   void update_preferred_size();
-  void update_field_from_model();
 
+  // Puts `text` into the editor as the combo's own value: the lookup does not
+  // run and the text becomes the baseline the edit-in-flight test and Escape
+  // compare against.
+  void set_editor_text(std::string const &text);
+
+  // Whether the editor holds text the user typed (anything but the combo's
+  // own value): what Enter commits as a custom value.
+  bool editor_modified() const;
+
+  void layout_editor();
+
+  void editor_changed();
   void model_changed(ChangeEvent &e);
 
   void show_popup();
-  void hide_popup(bool revert_draft);
+  void hide_popup(bool revert_edit);
   void rebuild_popup_rows();
 
   // The item index whose text starts with `prefix` (case-insensitive ASCII),
@@ -202,10 +231,6 @@ private:
   // window), or null when no dropdown is shown.
   std::shared_ptr<Window> popup_window() const;
 
-  // Starts an edit session from the current field text when none is in
-  // flight, leaving the caret at the end.
-  void begin_editing_if_needed();
-
   void commit_selection(std::optional<size_t> index);
   void fire_action_event(std::string const &text);
 
@@ -218,11 +243,6 @@ private:
   void on_key_typed(KeyEvent &e);
   void on_mouse_pressed(MousePressEvent &e);
   void on_focus_changed(bool gained);
-
-  // Applies a draft-editing key (Backspace, Delete, the caret arrows, Home,
-  // End) to the editable field's draft; see ComboBox.cpp for the split of
-  // editing keys and popup keys while the dropdown is open.
-  void handle_draft_edit_key(KeyEvent::KeyCode code);
 
   // Scrolls the dropdown's window when the mouse wheel turns over the open
   // popup (the listener lives on the popup menu, the rows' parent).

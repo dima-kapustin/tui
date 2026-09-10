@@ -167,6 +167,16 @@ void TextTheme::init_component_defaults() {
   // button labels sit directly next to their indicator.
   put("ComboBox.margin", make_resource<Insets>(0, 1, 0, 1));
 
+  // Swing's text components (BasicTextUI defaults): a field paints the system
+  // window colors and its selection the system text-highlight pair; the
+  // margin is the one cell Swing's TextField.margin reserves around the text
+  // (the editable combo's editor shares it through the key's default).
+  put("TextField.BackgroundColor", window);
+  put("TextField.ForegroundColor", textText);
+  put("TextField.SelectionBackground", textHighlight);
+  put("TextField.SelectionForeground", textHighlightText);
+  put("TextField.margin", make_resource<Insets>(0, 1, 0, 1));
+
 //  put( { { "MenuItem.border", margin_border } });
 //
 //  auto border = get_border("MenuItem.border");

@@ -31,6 +31,7 @@
 #include <tui++/Panel.h>
 #include <tui++/RadioButton.h>
 #include <tui++/RadioButtonMenuItem.h>
+#include <tui++/TextField.h>
 #include <tui++/ToggleButton.h>
 
 #include <tui++/terminal/Terminal.h>
@@ -132,12 +133,17 @@ int main(int argc, char *argv[]) {
   size->set_maximum_row_count(5);
   size->set_selected_index(0);
 
+  // A plain text field: caret and selection, the editing and clipboard
+  // commands, Enter firing an ActionEvent.
+  auto comment = make_component<TextField>("type here", 34);
+
   auto status = make_component<WidgetDemoTextLine>();
   auto refresh_status = [=] {
     auto text = std::string { "bold=" + widget_on_off(bold->is_selected()) + " italic=" + widget_on_off(italic->is_selected()) + " underline=" + widget_on_off(underline->is_selected()) };
     text += " | align=" + widget_selected_text(align_left) + widget_selected_text(align_center) + widget_selected_text(align_right);
     text += " | snap=" + widget_on_off(snap->is_selected()) + " guides=" + widget_on_off(guides->is_selected());
     text += " | city=" + city->get_field_text() + " size=" + size->get_selected_item();
+    text += " | text=\"" + comment->get_text() + "\"";
     status->set_text(text);
   };
   auto notify_all = [refresh_status](auto const &component) {
@@ -155,6 +161,13 @@ int main(int argc, char *argv[]) {
   notify_all(guides);
   notify_all(city);
   notify_all(size);
+  notify_all(comment);
+
+  // The text field's edits (typing, deletion, paste) update the status line
+  // live, through its ChangeEvent (the way a Swing DocumentListener would).
+  comment->add_listener([refresh_status](ChangeEvent &) {
+    refresh_status();
+  });
 
   // ---- the menu bar: check and radio menu items, and a submenu ----
   auto file_menu = make_component<Menu>("File");
@@ -266,6 +279,13 @@ int main(int argc, char *argv[]) {
   row4->add(size);
   panel->add(heading4);
   panel->add(row4);
+
+  // A plain text field section (see the control set above).
+  auto heading5 = make_component<WidgetDemoTextLine>("Text field (caret, selection, clipboard):");
+  auto row5 = make_component<WidgetDemoRow>();
+  row5->add(comment);
+  panel->add(heading5);
+  panel->add(row5);
 
   content->add(panel, BorderLayout::CENTER);
   content->add(status, BorderLayout::SOUTH);

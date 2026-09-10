@@ -39,6 +39,7 @@ void test_TextArea_caret();
 void test_TextArea_selection();
 void test_TextArea_find_all();
 void test_InputTranslation();
+void test_text_field();
 void test_Widgets();
 
 void run_font_visual_test();
@@ -76,6 +77,7 @@ int main(int argc, char *argv[]) {
   test_TextArea_selection();
   test_TextArea_find_all();
   test_InputTranslation();
+  test_text_field();
   test_Widgets();
 
   if (argc > 1) {
