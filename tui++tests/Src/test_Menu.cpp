@@ -834,7 +834,10 @@ void test_MenuSubmenu() {
   CHECK(not file_menu->is_popup_menu_visible());
   CHECK(not scheme_menu->is_popup_menu_visible());
 
-  // Reopen and click a check item of the File popup: the pick toggles it.
+  // Reopen and click a check item of the File popup: the pick toggles it and
+  // the row keeps its highlight (the pick did not dismiss the popup, so the
+  // row under the pointer stays armed -- the click's press animation must not
+  // leave it looking unselected).
   {
     auto loc = file_menu->get_location_on_screen();
     auto local = convert_point_from_screen(Point { loc.x + file_menu->get_width() / 2, loc.y + file_menu->get_height() / 2 }, frame);
@@ -846,6 +849,21 @@ void test_MenuSubmenu() {
     auto wrap_local = convert_point_from_screen(Point { wrap_loc.x + wrap->get_width() / 2, wrap_loc.y + wrap->get_height() / 2 }, file_popup);
     click_at(file_popup, wrap_local);
     CHECK(not wrap->is_selected()); // the pick toggled the check off
+    CHECK(file_menu->is_popup_menu_visible());
+    CHECK(wrap->is_armed());
+
+    // A second pick toggles it back on, the highlight still in place.
+    click_at(file_popup, wrap_local);
+    CHECK(wrap->is_selected());
+    CHECK(wrap->is_armed());
+
+    // The row that loses the pointer loses the highlight with it (the popup
+    // stays open).
+    auto grid_loc = grid->get_location_on_screen();
+    auto grid_local = convert_point_from_screen(Point { grid_loc.x + grid->get_width() / 2, grid_loc.y + grid->get_height() / 2 }, file_popup);
+    hover_at(file_popup, grid_local);
+    CHECK(grid->is_armed());
+    CHECK(not wrap->is_armed());
   }
 
   file_menu->set_popup_menu_visible(false);

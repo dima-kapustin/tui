@@ -258,7 +258,10 @@ public:
     do_click(68ms);
   }
 
-  void do_click(std::chrono::milliseconds const &press_time);
+  // Presses and releases the button, firing its action: the "down" look is
+  // painted for `press_time` and the model is left unarmed, the way a real
+  // click ends. Menu rows adjust this (see MenuItem::do_click).
+  virtual void do_click(std::chrono::milliseconds const &press_time);
 
   std::shared_ptr<Icon const> get_icon() const {
     return this->icon;
