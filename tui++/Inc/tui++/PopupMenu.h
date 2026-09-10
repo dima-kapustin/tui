@@ -78,10 +78,9 @@ public:
   // Whether the popup window is currently on the screen. The component's own
   // `visible` stays true (hiding it would also hide the popup from its
   // parent's layout, collapsing the popup to zero size); the shown state is
-  // the popup window's existence instead.
-  bool is_popup_showing() const {
-    return this->popup != nullptr;
-  }
+  // the popup window's instead, which can go off the screen behind the
+  // menu's back (see Screen::hide_window).
+  bool is_popup_showing() const;
 
   // Whether this menu is showing as a component's context menu: the menu the
   // popup trigger -- a right click, Shift+F10 -- opened through
@@ -139,6 +138,16 @@ private:
   // Set while the menu is showing as a component's context menu (see
   // is_context_menu); cleared when the popup goes down.
   bool shown_as_context_menu = false;
+
+  // Everything a popup menu does when it stops showing: the submenus hanging
+  // off it are dismissed, the selection is cleared, BECOMES_INVISIBLE is
+  // fired, the popup window is let go and the item highlights are dropped.
+  // set_visible(false) calls it, and it is what cleans up after a popup whose
+  // window the screen took down with the window it was shown over (see
+  // Screen::hide_window): is_popup_showing() already reports that popup as
+  // gone, so the next hide -- an application closing its popup, a menu
+  // session dropping a stale one -- puts its state to rest through here.
+  void drop_popup();
 };
 
 }

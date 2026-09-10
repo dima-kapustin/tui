@@ -157,9 +157,11 @@ public:
   // it starts scrolling.
   void set_maximum_row_count(int count);
 
-  bool is_popup_visible() const {
-    return this->popup_visible;
-  }
+  // Whether the dropdown is open. It is only really open while its popup
+  // window is on the screen: hiding the window the combo lives in takes the
+  // dropdown off the screen with it (see Screen::hide_window), behind the
+  // combo's back.
+  bool is_popup_visible() const;
 
   // Shows or dismisses the dropdown (Swing's setPopupVisible).
   void set_popup_visible(bool value);

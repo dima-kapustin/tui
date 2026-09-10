@@ -6,9 +6,12 @@
 #include <tui++/Separator.h>
 #include <tui++/Frame.h>
 #include <tui++/Popup.h>
+#include <tui++/Window.h>
 
 #include <tui++/lookandfeel/PopupMenuUI.h>
 #include <tui++/lookandfeel/PopupMenuSeparatorUI.h>
+
+#include <utility>
 
 namespace tui {
 
@@ -192,51 +195,29 @@ void PopupMenu::show(std::shared_ptr<Component> const &invoker, int x, int y) {
 }
 
 void PopupMenu::set_visible(bool value) {
-  if (is_popup_showing() != value) {
-    if (not value) {
-      // Dismiss the submenus hanging off this popup first: their windows sit
-      // over this one (and the frame), so closing the parent must take the
-      // whole chain down with it -- recursively, for nested submenus.
-      for (auto &&child : this->components) {
-        if (auto submenu = std::dynamic_pointer_cast<Menu>(child); submenu and submenu->is_popup_menu_visible()) {
-          submenu->set_popup_menu_visible(false);
-        }
-      }
-
-      this->selection_model->clear_selection();
-
-      if (this->popup) {
-        fire_event<PopupMenuEvent>(std::static_pointer_cast<PopupMenu>(shared_from_this()), PopupMenuEvent::BECOMES_INVISIBLE);
-        // A listener may have hidden the popup again while the event was
-        // being delivered (a nested hide): only hide what is still showing.
-        if (this->popup) {
-          this->popup->hide();
-          this->popup = nullptr;
-        }
-      }
-
-      // Drop the hover/selection highlight of every item so a popup that is
-      // re-shown later starts unarmed (the pointer is no longer on them).
-      for (auto &&child : this->components) {
-        if (auto item = std::dynamic_pointer_cast<MenuItem>(child); item and item->is_armed()) {
-          item->set_armed(false);
-        }
-      }
-
-      if (is_popup_menu()) {
-        MenuSelectionManager::single->clear_selected_path();
-      }
-    } else {
-      // This is a popup menu with MenuElement children,
-      // set selection path before popping up!
-      if (is_popup_menu()) {
-        auto path = std::vector<std::shared_ptr<MenuElement>> {std::static_pointer_cast<MenuElement>(std::static_pointer_cast<PopupMenu>(shared_from_this()))};
-        MenuSelectionManager::single->set_selected_path(path);
-      }
-
-      fire_event<PopupMenuEvent>(std::static_pointer_cast<PopupMenu>(shared_from_this()), PopupMenuEvent::BECOMES_VISIBLE);
-      show_popup();
+  if (value) {
+    if (is_popup_showing()) {
+      return;
     }
+
+    // This is a popup menu with MenuElement children,
+    // set selection path before popping up!
+    if (is_popup_menu()) {
+      auto path = std::vector<std::shared_ptr<MenuElement>> {std::static_pointer_cast<MenuElement>(std::static_pointer_cast<PopupMenu>(shared_from_this()))};
+      MenuSelectionManager::single->set_selected_path(path);
+    }
+
+    fire_event<PopupMenuEvent>(std::static_pointer_cast<PopupMenu>(shared_from_this()), PopupMenuEvent::BECOMES_VISIBLE);
+    show_popup();
+  } else {
+    // The popup reference, not is_popup_showing(): a popup whose window went
+    // off the screen (see Screen::hide_window) still has to be dropped and
+    // its take-down run.
+    if (not this->popup) {
+      return;
+    }
+
+    drop_popup();
   }
 }
 
@@ -251,12 +232,70 @@ void PopupMenu::set_location(int x, int y) {
 }
 
 void PopupMenu::show_popup() {
-  if (auto old_popup = this->popup; old_popup) {
+  // Let the old popup go before hiding its window: hiding fires the window's
+  // hide, and a reference still held here would make the menu take itself
+  // down -- a popup that merely moves (set_location re-shows it) must not
+  // fire BECOMES_INVISIBLE on the way, and a popup whose window went off the
+  // screen behind the menu's back is gone either way.
+  if (auto old_popup = std::exchange(this->popup, nullptr)) {
     old_popup->hide();
   }
 
   this->popup = get_ui()->get_popup(std::static_pointer_cast<PopupMenu>(shared_from_this()), this->desired_location.x, this->desired_location.y);
   this->popup->show();
+}
+
+bool PopupMenu::is_popup_showing() const {
+  // A popup is only showing while its window is on the screen: the screen
+  // takes the popups stacked above a hidden window down with it (see
+  // Screen::hide_window), so the menu's reference to the popup can outlive
+  // the window's stay on the screen. Asking the window keeps the menu (and
+  // whatever opened it) from believing in a dropdown the screen no longer
+  // shows.
+  return this->popup != nullptr and this->popup->get_window() and this->popup->get_window()->is_showing();
+}
+
+void PopupMenu::drop_popup() {
+  if (not this->popup) {
+    return;
+  }
+
+  // Dismiss the submenus hanging off this popup first: their windows sit over
+  // this one (and the frame), so closing the parent must take the whole chain
+  // down with it -- recursively, for nested submenus.
+  for (auto &&child : this->components) {
+    if (auto submenu = std::dynamic_pointer_cast<Menu>(child); submenu and submenu->is_popup_menu_visible()) {
+      submenu->set_popup_menu_visible(false);
+    }
+  }
+
+  this->selection_model->clear_selection();
+
+  // The menu is no longer showing as soon as the reference is dropped, so a
+  // listener that hides the popup again while the event is delivered (a
+  // nested hide) has nothing left to hide; hiding the window is a no-op when
+  // the screen already took it down.
+  auto popup = std::exchange(this->popup, nullptr);
+  fire_event<PopupMenuEvent>(std::static_pointer_cast<PopupMenu>(shared_from_this()), PopupMenuEvent::BECOMES_INVISIBLE);
+  popup->hide();
+
+  // A menu that was a component's context menu is a widget's own popup again
+  // until the popup trigger makes it one once more (see is_context_menu); a
+  // program that hides and re-shows the menu by hand must not keep the menu
+  // system's keyboard session alive.
+  this->shown_as_context_menu = false;
+
+  // Drop the hover/selection highlight of every item so a popup that is
+  // re-shown later starts unarmed (the pointer is no longer on them).
+  for (auto &&child : this->components) {
+    if (auto item = std::dynamic_pointer_cast<MenuItem>(child); item and item->is_armed()) {
+      item->set_armed(false);
+    }
+  }
+
+  if (is_popup_menu()) {
+    MenuSelectionManager::single->clear_selected_path();
+  }
 }
 
 }

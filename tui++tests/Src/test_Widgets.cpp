@@ -824,6 +824,39 @@ static void test_combo_dropdown() {
     }
   }
 
+  // ---- hiding the frame takes an open dropdown down with it ----
+  // A popup cannot be displayed over a window that is gone, so the screen
+  // takes the popups stacked above a hidden window off with it (see
+  // Screen::hide_window). They have to come down for real -- not merely
+  // vanish from the screen's list -- or the dropdown keeps believing it is
+  // showing and the menu system's next session walks into a "window not
+  // visible" error. The dropdown also has to open again on the next click.
+  {
+    city->request_focus(FocusEvent::Cause::ACTIVATION);
+    city->set_popup_visible(true);
+    drain();
+    CHECK(city->is_popup_visible());
+    auto window = dropdown_window(city);
+    CHECK(window);
+    CHECK(window->is_showing());
+
+    frame->set_visible(false);
+    drain();
+    CHECK(not window->is_showing());
+    CHECK(not city->is_popup_visible());
+
+    frame->set_visible(true);
+    drain();
+    city->request_focus(FocusEvent::Cause::ACTIVATION);
+    city->set_popup_visible(true);
+    drain();
+    CHECK(city->is_popup_visible());
+    auto reopened = dropdown_window(city);
+    CHECK(reopened and reopened->is_showing());
+    city->set_popup_visible(false);
+    drain();
+  }
+
   frame->set_visible(false);
   drain();
 

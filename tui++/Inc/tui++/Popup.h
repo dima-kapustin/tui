@@ -15,6 +15,12 @@ public:
 public:
   void show();
   void hide();
+
+  // The popup window this popup shows its contents in: a popup menu watches
+  // it to notice its window going off the screen (see PopupMenu::drop_popup).
+  std::shared_ptr<Window> get_window() const {
+    return this->window;
+  }
 };
 
 }
