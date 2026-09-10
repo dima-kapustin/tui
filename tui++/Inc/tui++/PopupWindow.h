@@ -19,6 +19,13 @@ class PopupWindow: public Window, public ModalExclude {
   friend auto make_component(Args&&...);
 
 protected:
+  // A popup created for its own sake (a tooltip, an editor's completer)
+  // takes the generic popup shadow; the popup a menu, a combo box or a
+  // dialog opens carries its own key instead (see Popup).
+  virtual std::string_view get_shadow_key() const override {
+    return "PopupWindow.Shadow";
+  }
+
   void show() override {
     pack();
     if (get_width() and get_height()) {

@@ -45,6 +45,7 @@ void test_TextArea_find_all();
 void test_InputTranslation();
 void test_text_field();
 void test_Widgets();
+void test_Shadow();
 void test_ContextMenu();
 
 void run_font_visual_test();
@@ -88,6 +89,7 @@ int main(int argc, char *argv[]) {
   test_InputTranslation();
   test_text_field();
   test_Widgets();
+  test_Shadow();
   test_ContextMenu();
 
   if (argc > 1) {

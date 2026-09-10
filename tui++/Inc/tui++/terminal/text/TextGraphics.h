@@ -72,6 +72,8 @@ public:
 
   virtual void fill_rect(int x, int y, int width, int height) override;
 
+  virtual void blend_rect(int x, int y, int width, int height, Color const &color, double opacity) override;
+
   virtual Rectangle get_clip_rect() const override;
   virtual void set_clip_rect(const Rectangle &rect) override;
 

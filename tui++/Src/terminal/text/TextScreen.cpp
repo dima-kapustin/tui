@@ -11,6 +11,7 @@
 #include <tui++/util/utf-8.h>
 #include <tui++/util/log.h>
 
+#include <cmath>
 #include <string_view>
 
 using namespace std::string_view_literals;
@@ -40,6 +41,37 @@ long long bg_distance_sq(TextColor const &a, TextColor const &b) {
   auto dg = int(ca.green) - int(cb.green);
   auto db = int(ca.blue) - int(cb.blue);
   return 1LL * dr * dr + 1LL * dg * dg + 1LL * db * db;
+}
+
+// A cell color shifted towards `overlay` by `opacity` (0..1): the shade the
+// cells under a shadow take (see TextScreen::blend_rect). The cell's own
+// color is kept -- only moved towards the shadow's -- so the content stays
+// readable; the result is a truecolor whatever the base was, since the blend
+// lands between palette entries. A color the program never set is the
+// terminal's own default, which `terminal_default` holds when the terminal
+// said what it is (see TextScreen::set_default_colors); without an answer
+// there is nothing to blend against and the cell is left alone.
+TextColor shade(TextColor const &base, Color const &overlay, double opacity, std::optional<Color> const &terminal_default) {
+  auto rgb = std::visit([&terminal_default](auto const &value) -> std::optional<detail::TrueColor> {
+    using T = std::decay_t<decltype(value)>;
+    if constexpr (std::is_same_v<T, detail::DefaultColor>) {
+      if (terminal_default) {
+        return detail::TrueColor { terminal_default->red(), terminal_default->green(), terminal_default->blue() };
+      }
+      return std::nullopt;
+    } else {
+      return static_cast<detail::TrueColor>(value);
+    }
+  }, base);
+
+  if (not rgb) {
+    return base;
+  }
+
+  auto mix = [opacity](uint8_t from, uint8_t to) {
+    return uint8_t(std::lround(from * (1 - opacity) + to * opacity));
+  };
+  return detail::TrueColor { mix(rgb->red, overlay.red()), mix(rgb->green, overlay.green()), mix(rgb->blue, overlay.blue()) };
 }
 
 }
@@ -232,6 +264,14 @@ void TextScreen::move_cursor_by(int lines, int columns) {
 void TextScreen::run_event_loop() {
   event_dispatching_thread_id = std::this_thread::get_id();
 
+  // Ask the terminal for its own colors before the first frame: the shadows
+  // blend the cells a program never painted against them (see blend_rect),
+  // and the round-trip would otherwise swallow a keystroke when the first
+  // popup opens. Terminals that do not answer leave the colors unknown.
+  if (auto colors = terminal.query_default_colors(); colors.foreground or colors.background) {
+    set_default_colors(colors.foreground, colors.background);
+  }
+
   // Coalesce repaint requests onto a frame clock: input bursts (fast mouse
   // motion) damage repeatedly between paints and each paint costs a terminal
   // write, so painting at the next frame boundary after the first damage
@@ -397,6 +437,27 @@ void TextScreen::repaint_pass_begin() {
 
 void TextScreen::repaint_pass_end() {
   end_flush();
+}
+
+void TextScreen::blend_rect(Rectangle const &rect, Color const &color, double opacity) {
+  auto region = rect & Rectangle { 0, 0, get_width(), get_height() };
+  if (region.empty() or opacity <= 0) {
+    return;
+  }
+  opacity = std::min(opacity, 1.0);
+
+  // Only the cells' colors change: the shadow does not write glyphs, and the
+  // flush emits exactly the cells whose color moved (the view against the
+  // terminal shadow), so an unchanged cell under a shadow still costs
+  // nothing.
+  for (auto y = region.y; y < region.bottom(); ++y) {
+    auto &&row = this->view[y];
+    for (auto x = region.x; x < region.right(); ++x) {
+      auto &&cell = row[x];
+      cell.foreground_color = shade(cell.foreground_color, color, opacity, this->default_foreground);
+      cell.background_color = shade(cell.background_color, color, opacity, this->default_background);
+    }
+  }
 }
 
 TextColor TextScreen::to_terminal(Color const &c) {

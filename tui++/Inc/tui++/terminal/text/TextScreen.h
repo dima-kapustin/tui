@@ -125,13 +125,37 @@ private:
     }
   }
 
+  // Shifts the colors of every cell of `rect` towards `color` by `opacity`:
+  // the cells keep their content -- the glyphs, the layout, the background --
+  // and only darken (or lighten, with a light color). A cell color the
+  // program never set is the terminal's own default (see set_default_colors),
+  // which can only be shaded when the terminal told the screen what it is;
+  // until then such a cell is left as it is. The primitive drop shadows are
+  // painted with (see TextGraphics::blend_rect).
+  void blend_rect(Rectangle const &rect, Color const &color, double opacity);
+
+  // The colors the terminal shows for a cell the program never painted (its
+  // OSC 10/11 answers, asked for when the event loop starts).
+  std::optional<Color> default_foreground;
+  std::optional<Color> default_background;
+
   friend class TextGraphics;
 
 public:
   void move_cursor_to(int line, int column);
   void move_cursor_by(int lines, int columns);
 
+  // Tells the screen what the terminal shows for a cell the program never
+  // painted; the shadows blend such cells against these colors (see
+  // blend_rect). run_event_loop fills them from the terminal's own OSC 10/11
+  // answers; a program that drives the screen itself can set them here.
+  void set_default_colors(std::optional<Color> const &foreground, std::optional<Color> const &background) {
+    this->default_foreground = foreground;
+    this->default_background = background;
+  }
+
   virtual void run_event_loop() override;
+
   virtual std::unique_ptr<Graphics> get_graphics() override;
   virtual std::unique_ptr<Graphics> get_graphics(Rectangle const &clip) override;
 

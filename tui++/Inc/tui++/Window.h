@@ -1,9 +1,13 @@
 #pragma once
 
 #include <tui++/RootPane.h>
+#include <tui++/Shadow.h>
 #include <tui++/WindowMouseEventDispatcher.h>
 
 #include <tui++/event/WindowEvent.h>
+
+#include <optional>
+#include <string_view>
 
 namespace tui {
 
@@ -28,6 +32,10 @@ class Window: public ComponentExtension<Component, WindowEvent>, public RootPane
   Property<std::string> title { this, "Title" };
   Property<bool> focusable_window_state { this, "FocusableWindowState", true };
   Property<bool> always_on_top { this, "AlwaysOnTop", false };
+
+  // The window's drop shadow, installed from the theme by its kind (see
+  // get_shadow_key) and overridable per window (set_shadow).
+  Property<std::optional<Shadow>> shadow { this, "Shadow" };
 
   std::weak_ptr<Component> temporary_lost_component;
 
@@ -88,6 +96,20 @@ protected:
     base::dispatch_event(e);
   }
 
+  // The theme key of the shadow a window of this kind casts. A popup window's
+  // key is chosen by whatever opened it (see Popup), so a combo box dropdown
+  // and a menu popup can shade differently; a frame fills the screen and
+  // defines no shadow of its own.
+  virtual std::string_view get_shadow_key() const {
+    return "Window.Shadow";
+  }
+
+  // Shades the window's shadow into the graphics before the window's content
+  // is painted over its middle (see Screen::paint). The graphics is the
+  // screen's own, in screen coordinates and untranslated, so the shadow lands
+  // where the window is -- not where the window's own paint context sits.
+  void paint_shadow(Graphics &g);
+
 public:
   const std::string& get_title() const {
     return this->title;
@@ -104,6 +126,13 @@ public:
   virtual void remove(const std::shared_ptr<Component> &c) override;
   virtual void set_layout(const std::shared_ptr<Layout> &layout) override;
   virtual void dispatch_event(Event &e) override;
+
+  // The shadow this window casts, if any: the theme's shadow of its kind,
+  // unless the application set one, and nothing at all while the global
+  // shadow switch is off (see Shadow::set_enabled).
+  std::optional<Shadow> get_shadow() const;
+
+  void set_shadow(std::optional<Shadow> const &shadow);
 
   virtual bool is_opaque() const override;
 
@@ -178,6 +207,10 @@ private:
   }
 
   void to_front();
+
+  // The screen rectangle the window's shadow covers (empty when it casts
+  // none).
+  Rectangle get_shadow_area() const;
 
   void enable_events_for_dispatching(EventTypeMask event_mask) {
     if (this->mouse_event_dispatcher) {

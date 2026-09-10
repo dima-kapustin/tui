@@ -11,6 +11,7 @@
 #include <tui++/lookandfeel/basic/ButtonBorder.h>
 
 #include <tui++/Insets.h>
+#include <tui++/Shadow.h>
 
 #include <tui++/Font.h>
 
@@ -174,6 +175,18 @@ void TextTheme::init_component_defaults() {
   // The combo box reserves one cell around its field; the check box and radio
   // button labels sit directly next to their indicator.
   put("ComboBox.margin", make_resource<Insets>(0, 1, 0, 1));
+
+  // Drop shadows (see Shadow): the floating windows -- a popup menu (a menu
+  // bar's dropdown and every submenu), a combo box dropdown and a dialog --
+  // darken the cells beneath their right and bottom edge by half, so they
+  // read as sitting above the window below. A frame fills the screen and
+  // casts none; its key exists so a look-and-feel can shade a frame that does
+  // not cover the whole screen. The global switch turns them all off.
+  auto popup_shadow = make_resource<Shadow>(BLACK_COLOR, 0.5, Point { 2, 1 });
+  put("Shadow.Enabled", true);
+  put("PopupMenu.Shadow", popup_shadow);
+  put("ComboBox.Shadow", popup_shadow);
+  put("Dialog.Shadow", popup_shadow);
 
   // Swing's text components (BasicTextUI defaults): a field paints the system
   // window colors and its selection the system text-highlight pair; the

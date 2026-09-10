@@ -24,6 +24,12 @@ protected:
 
   std::shared_ptr<laf::ComponentUI> create_ui() override;
 
+  // A frame fills the screen, so it casts no shadow of its own; the key lets
+  // a look-and-feel shade a frame that does not cover the whole screen.
+  virtual std::string_view get_shadow_key() const override {
+    return "Frame.Shadow";
+  }
+
 public:
   std::shared_ptr<MenuBar> get_menu_bar() const;
   void set_menu_bar(const std::shared_ptr<MenuBar> &menu_bar);

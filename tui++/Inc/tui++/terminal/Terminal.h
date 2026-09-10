@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <optional>
 #include <variant>
 #include <iostream>
 #include <functional>
@@ -8,6 +9,7 @@
 #include <string_view>
 
 #include <tui++/Event.h>
+#include <tui++/Color.h>
 #include <tui++/Cursor.h>
 #include <tui++/Screen.h>
 #include <tui++/Dimension.h>
@@ -23,6 +25,13 @@ class TextGraphics;
 class SixelScreen;
 
 class Terminal {
+  // The terminal's own default colors: what a cell shows when the program
+  // never set a color for it.
+  struct DefaultColors {
+    std::optional<Color> foreground;
+    std::optional<Color> background;
+  };
+
   enum class DECModeOption {
     LINE_WRAP = 7,
     CURSOR = 25,
@@ -302,6 +311,9 @@ private:
 
   DeviceAttributes query_device_attributes();
 
+  DefaultColors default_colors;
+  bool default_colors_queried = false;
+
 private:
   void set_option(Option option);
   void reset_option(Option option);
@@ -469,6 +481,19 @@ public:
   // screen (the default) or "sixel" for the pixel-level sixel screen. The
   // screen is created implicitly the first time it is requested.
   void set_type(std::string_view type);
+
+  // Asks the terminal for its default foreground and background colors, via
+  // the xterm controls OSC 10 ; ? and OSC 11 ; ? (Windows Terminal and
+  // others answer them too; the Linux console and older terminals never do).
+  // A color is empty when the terminal does not answer within a short
+  // timeout, and the round-trip runs at most once -- the answers are cached.
+  DefaultColors query_default_colors();
+
+  // The color a terminal color report names: OSC 10/11 answer with
+  // "rgb:RRRR/GGGG/BBBB" (xterm sends four hex digits per component, other
+  // terminals two or one) or "#RRGGBB". The components are scaled from
+  // however many digits the report carries; anything else has no color.
+  static std::optional<Color> parse_color_spec(std::string_view const &spec);
 
   void hide_cursor();
   void show_cursor(std::optional<Cursor> const &cursor = { });

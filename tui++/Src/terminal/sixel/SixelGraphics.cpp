@@ -265,6 +265,13 @@ void SixelGraphics::fill_rect(int x, int y, int width, int height) {
   }
 }
 
+void SixelGraphics::blend_rect(int x, int y, int width, int height, const Color &color, double opacity) {
+  if (auto rect = clipped(x, y, width, height); not rect.empty()) {
+    log_graphics_ln("SixelGraphics::blend_rect (" << rect.x << ", " << rect.y << " " << rect.width << 'x' << rect.height << ") color=" << color_hex(color) << " opacity=" << opacity);
+    this->screen.blend_pixels(rect, color, opacity);
+  }
+}
+
 Rectangle SixelGraphics::get_clip_rect() const {
   return { this->clip.x - this->dx, this->clip.y - this->dy, this->clip.width, this->clip.height };
 }
