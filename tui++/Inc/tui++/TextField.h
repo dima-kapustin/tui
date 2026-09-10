@@ -31,6 +31,7 @@
 
 #include <tui++/Component.h>
 #include <tui++/Graphics.h>
+#include <tui++/TextComponent.h>
 #include <tui++/Timer.h>
 
 #include <tui++/event/ActionEvent.h>
@@ -59,7 +60,7 @@ class TextFieldKeyForwarder;
 // retargets them to the press target for screen listeners only.
 class TextFieldDragObserver;
 
-class TextField: public ComponentExtension<Component, ActionEvent, ChangeEvent> {
+class TextField: public ComponentExtension<Component, ActionEvent, ChangeEvent>, public TextComponent {
   using base = ComponentExtension<Component, ActionEvent, ChangeEvent>;
 
 public:
@@ -143,7 +144,7 @@ public:
   // The preferred width in cells; 0 asks the field to size to its content.
   void set_columns(int columns);
 
-  bool is_editable() const {
+  bool is_editable() const override {
     return this->editable;
   }
 
@@ -173,12 +174,7 @@ public:
   std::size_t get_selection_start() const;
   std::size_t get_selection_end() const;
 
-  bool has_selection() const {
-    return this->dot != this->mark;
-  }
-
   void select(std::size_t start, std::size_t end);
-  void select_all();
 
   // Replaces the selection (or inserts at the caret when there is none) with
   // `text`; Swing's replaceSelection. The inserted text is one undoable step.
@@ -201,20 +197,35 @@ public:
 
   // ---- editing commands (the DefaultEditorKit actions) ----
 
-  void copy();
-  void cut();
-  void paste();
+  void copy() override;
+  void cut() override;
+  void paste() override;
 
-  void undo();
-  void redo();
+  // Deletes the selection, or the character after the caret when there is
+  // none (Swing's delete-next-char). The word-wise variant belongs to the
+  // editing keys only.
+  void delete_forward() override;
 
-  bool can_undo() const {
+  bool has_selection() const override {
+    return this->dot != this->mark;
+  }
+
+  void undo() override;
+  void redo() override;
+
+  bool can_undo() const override {
     return not this->undo_stack.empty();
   }
 
-  bool can_redo() const {
+  bool can_redo() const override {
     return not this->redo_stack.empty();
   }
+
+  void select_all() override;
+
+  // The keyboard's popup trigger opens the standard menu at the caret, as
+  // Swing shows a text component's popup at its caret cell.
+  virtual Point get_popup_menu_location() const override;
 
   // Fires the field's ActionEvent (Swing's JTextField.postActionEvent: the
   // Enter key, and the programmatic equivalent).
