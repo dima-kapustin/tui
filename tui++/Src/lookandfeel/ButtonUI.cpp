@@ -1,7 +1,12 @@
 #include <tui++/lookandfeel/ButtonUI.h>
 
+#include <tui++/lookandfeel/LazyActionMap.h>
 #include <tui++/lookandfeel/LookAndFeel.h>
 #include <tui++/lookandfeel/basic/ToggleIndicator.h>
+
+#include <tui++/InputMap.h>
+#include <tui++/KeyStroke.h>
+#include <tui++/event/KeyEvent.h>
 
 #include <tui++/AbstractButton.h>
 #include <tui++/Button.h>
@@ -19,9 +24,19 @@
 #include <tui++/TextMetrics.h>
 
 #include <cassert>
+#include <chrono>
 #include <optional>
 
 namespace tui::laf {
+
+// The theme keys of the button family's keyboard resources. The four button
+// kinds take the same gestures, so one pair of maps serves them all (Swing's
+// "Button.actionMap" and "Button.focusInputMap" are shared the same way).
+constexpr std::string_view ACTION_MAP_KEY = "Button.ActionMap";
+constexpr std::string_view FOCUS_INPUT_MAP_KEY = "Button.FocusInputMap";
+
+// The command of the keyboard click, the way the menu items name theirs.
+constexpr std::string CLICK = "do_click";
 
 namespace {
 
@@ -145,9 +160,11 @@ void ButtonUI::install_ui(std::shared_ptr<Component> const &c) {
   LookAndFeel::install_border(c.get(), prefix + ".Border");
 
   install_listeners();
+  install_keyboard_actions();
 }
 
 void ButtonUI::uninstall_ui(std::shared_ptr<Component> const &c) {
+  uninstall_keyboard_actions();
   uninstall_listeners();
   this->button = nullptr;
 }
@@ -162,6 +179,47 @@ void ButtonUI::uninstall_listeners() {
   this->button->remove_listener(this->mouse_overed_listener);
   this->button->remove_listener(this->mouse_released_listener);
   this->button->remove_listener(this->mouse_pressed_listener);
+}
+
+void ButtonUI::install_keyboard_actions() {
+  install_lazy_action_map();
+  install_focus_input_map();
+}
+
+void ButtonUI::uninstall_keyboard_actions() {
+  // The maps are theme resources parented by the button's own (empty) maps:
+  // both go away with the button, and the theme keeps the shared resources
+  // for the next one, the way a Swing UIManager keeps its action and input
+  // maps across components.
+}
+
+void ButtonUI::install_lazy_action_map() {
+  auto action_map = LookAndFeel::get<std::shared_ptr<ActionMap>>(ACTION_MAP_KEY);
+  if (not action_map) {
+    action_map = std::make_shared<LazyActionMap>(load_action_map);
+    LookAndFeel::put(ACTION_MAP_KEY, action_map);
+  }
+  LookAndFeel::replace_action_map(this->button, action_map);
+}
+
+void ButtonUI::load_action_map(LazyActionMap &map) {
+  // Space clicks the focused button. Swing's BasicButtonUI binds the key's
+  // press and release to the model separately; a terminal reports no key
+  // release, so the one stroke does the whole click -- what a mouse release
+  // over the button does -- and the model fires its action exactly once.
+  map.emplace(CLICK, [](ActionEvent &e) {
+    std::static_pointer_cast<AbstractButton>(e.source)->do_click(std::chrono::milliseconds::zero());
+  });
+}
+
+void ButtonUI::install_focus_input_map() {
+  auto input_map = LookAndFeel::get<std::shared_ptr<InputMap>>(FOCUS_INPUT_MAP_KEY);
+  if (not input_map) {
+    input_map = LookAndFeel::make_theme_resource<InputMap>();
+    input_map->emplace(KeyStroke(KeyEvent::VK_SPACE, InputEvent::NO_MODIFIERS), CLICK);
+    LookAndFeel::put(FOCUS_INPUT_MAP_KEY, input_map);
+  }
+  LookAndFeel::replace_input_map(this->button, Component::WHEN_FOCUSED, input_map);
 }
 
 void ButtonUI::mouse_pressed(MousePressEvent &e) {

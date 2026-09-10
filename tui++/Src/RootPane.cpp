@@ -85,6 +85,12 @@ public:
 };
 
 void RootPane::init() {
+  // The root pane's UI (Swing's BasicRootPaneUI): Component::init installs it,
+  // the way every other component gets its delegate. The window as a whole
+  // hangs its keyboard behavior off it (the default button's Enter), so it has
+  // to be installed before the frame is ever shown.
+  Component::init();
+
   set_glass_pane(create_class_pane());
   set_layered_pane(create_layered_pane());
   set_content_pane(create_content_pane());

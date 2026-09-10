@@ -287,6 +287,100 @@ static void test_toggle_button_mouse_clicks() {
   drain();
 }
 
+// The buttons' keyboard behavior, installed by their UI delegate the way
+// Swing installs it: Space clicks the focused button (BasicButtonUI), and
+// Enter clicks the window's default button (JRootPane.DefaultAction).
+static void test_button_keyboard() {
+  terminal.set_type("text");
+
+  auto frame = make_component<Frame>();
+  frame->set_size({ 80, 24 });
+  auto content = frame->get_content_pane();
+
+  auto run = make_component<Button>("Run");
+  auto run_actions = 0;
+  run->add_listener([&run_actions](ActionEvent &) {
+    ++run_actions;
+  });
+
+  auto bold = make_component<CheckBox>("Bold");
+  auto ok = make_component<Button>("OK");
+  auto ok_actions = 0;
+  ok->add_listener([&ok_actions](ActionEvent &) {
+    ++ok_actions;
+  });
+
+  content->add(run);
+  content->add(bold);
+  content->add(ok);
+  frame->set_visible(true);
+  drain();
+
+  auto focus_owner = [] {
+    return KeyboardFocusManager::single->get_focus_owner();
+  };
+
+  // Space clicks the focused button, once per stroke.
+  run->request_focus(FocusEvent::Cause::ACTIVATION);
+  CHECK(focus_owner() == run);
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_SPACE);
+  CHECK(run_actions == 1);
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_SPACE);
+  CHECK(run_actions == 2);
+
+  // The stroke belongs to the focus owner: a toggle clicks on it the way a
+  // mouse release does, and a button without the focus ignores it.
+  bold->request_focus(FocusEvent::Cause::ACTIVATION);
+  CHECK(focus_owner() == bold);
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_SPACE);
+  CHECK(bold->is_selected());
+  CHECK(run_actions == 2);
+
+  // Enter clicks the window's default button, from the default button itself
+  // or from any other component that does not claim the key.
+  frame->get_root_pane()->set_default_dutton(ok);
+  ok->request_focus(FocusEvent::Cause::ACTIVATION);
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER);
+  CHECK(ok_actions == 1);
+  run->request_focus(FocusEvent::Cause::ACTIVATION);
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER);
+  CHECK(ok_actions == 2);
+  CHECK(run_actions == 2); // the focused button is not the default one
+
+  // A disabled default button stays put, and without one Enter goes nowhere.
+  ok->set_enabled(false);
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER);
+  CHECK(ok_actions == 2);
+  ok->set_enabled(true);
+  frame->get_root_pane()->set_default_dutton(nullptr);
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER);
+  CHECK(ok_actions == 2);
+
+  // Enter reaches the default button of the window the focused component
+  // belongs to, not the one of another window.
+  auto other_frame = make_component<Frame>();
+  other_frame->set_size({ 40, 10 });
+  auto other_ok = make_component<Button>("OK");
+  auto other_ok_actions = 0;
+  other_ok->add_listener([&other_ok_actions](ActionEvent &) {
+    ++other_ok_actions;
+  });
+  other_frame->get_content_pane()->add(other_ok);
+  other_frame->get_root_pane()->set_default_dutton(other_ok);
+  other_frame->set_visible(true);
+  drain();
+
+  run->request_focus(FocusEvent::Cause::ACTIVATION);
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_ENTER);
+  CHECK(other_ok_actions == 0);
+
+  other_frame->set_visible(false);
+  frame->set_visible(false);
+  drain();
+
+  std::printf("PASS button keyboard (Space clicks, Enter clicks the default button)\n");
+}
+
 // The check/radio menu items and their grouping.
 static void test_menu_items() {
   auto check_item = make_component<CheckBoxMenuItem>("Show grid");
@@ -740,6 +834,7 @@ void test_Widgets() {
   test_toggle_buttons();
   test_toggle_button_focus();
   test_toggle_button_mouse_clicks();
+  test_button_keyboard();
   test_menu_items();
   test_combo_model();
   test_combo_box();

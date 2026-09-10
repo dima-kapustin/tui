@@ -12,10 +12,12 @@ class AbstractButton;
 
 namespace tui::laf {
 
+class LazyActionMap;
+
 // Swing's BasicButtonUI: installs the button's theme defaults (colors and
-// border) and the listener that gives it its mouse behavior, and paints its
-// content -- the check/radio indicator of the toggle button family, the
-// optional icon and the label with its mnemonic -- plus the pressed/selected
+// border) and the listeners that give it its mouse and keyboard behavior, and
+// paints its content -- the check/radio indicator of the toggle button family,
+// the optional icon and the label with its mnemonic -- plus the pressed/selected
 // state, and reports the preferred size. Every button kind (Button,
 // ToggleButton, CheckBox, RadioButton) shares this delegate; ToggleButtonUI
 // subclasses it so a look-and-feel can hand a distinct UI class to the
@@ -45,6 +47,19 @@ protected:
 
   virtual void install_listeners();
   virtual void uninstall_listeners();
+
+  // The button's keyboard behavior, installed from the theme's shared
+  // "Button.ActionMap"/"Button.FocusInputMap" resources (Swing's
+  // BasicButtonUI.installKeyboardActions and the "Button.actionMap" /
+  // "Button.focusInputMap" UI defaults). Every kind of button takes the same
+  // gestures, so the whole family shares the two maps.
+  virtual void install_keyboard_actions();
+  virtual void uninstall_keyboard_actions();
+
+  virtual void install_lazy_action_map();
+  virtual void install_focus_input_map();
+
+  static void load_action_map(LazyActionMap &map);
 
   virtual void mouse_pressed(MousePressEvent &e);
   virtual void mouse_released(MousePressEvent &e);
