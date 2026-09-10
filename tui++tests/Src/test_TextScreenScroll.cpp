@@ -27,6 +27,7 @@
 #include <tui++/TextBuffer.h>
 #include <tui++/Viewport.h>
 #include <tui++/event/InvocationEvent.h>
+#include <tui++/event/MouseEvent.h>
 #include <tui++/terminal/Terminal.h>
 #include <tui++/terminal/text/TextScreen.h>
 
@@ -53,13 +54,19 @@ struct VtModel {
   // One glyph (a possibly multi-byte UTF-8 character) per cell, so the
   // model's column indices are cell indices like the escape positions.
   std::vector<std::vector<std::string>> cell;
+  // The cell's colors and attributes, as the canonical text "fg=..;bg=..;a=.."
+  // the SGR sequences in effect put there (a glyph's appearance, not the
+  // escape stream that produced it).
+  std::vector<std::vector<std::string>> style;
   int cursor_row = 0;
   int cursor_col = 0;
   int region_top = 0;    // DECSTBM, 0-based inclusive
   int region_bottom = 0;
 
   explicit VtModel(int rows, int cols) :
-      rows(rows), cols(cols), region_bottom(rows - 1), cell(std::size_t(rows), std::vector<std::string>(std::size_t(cols), " ")) {
+      rows(rows), cols(cols), region_bottom(rows - 1),
+      cell(std::size_t(rows), std::vector<std::string>(std::size_t(cols), " ")),
+      style(std::size_t(rows), std::vector<std::string>(std::size_t(cols), "fg=-;bg=-;a=-")) {
   }
 
   std::string row_text(int y) const {
@@ -76,8 +83,70 @@ struct VtModel {
     }
   }
 
+  // The SGR state the cells printed from now on carry. Only what the text
+  // screen emits is interpreted: a reset, the attributes it uses, and the
+  // truecolor foreground/background. The canonical text keeps two streams
+  // that leave the same appearance comparable even when they set it
+  // differently.
+  std::string sgr_state = "fg=-;bg=-;a=-";
+  std::string fg = "-";
+  std::string bg = "-";
+  std::string attributes;
+
+  void set_sgr(std::vector<int> const &params) {
+    auto i = std::size_t { 0 };
+    auto apply_code = [&](int code) {
+      if (code == 0) {
+        this->fg = "-";
+        this->bg = "-";
+        this->attributes.clear();
+      } else if (code == 1 or code == 4) {
+        auto name = code == 1 ? "b" : "u";
+        if (this->attributes.find(name) == std::string::npos) {
+          this->attributes += name;
+        }
+      } else if (code == 22 or code == 24) {
+        auto name = code == 22 ? "b" : "u";
+        if (auto pos = this->attributes.find(name); pos != std::string::npos) {
+          this->attributes.erase(pos, 1);
+        }
+      } else if (code == 7) {
+        if (this->attributes.find('7') == std::string::npos) {
+          this->attributes += '7';
+        }
+      } else if (code == 27) {
+        if (auto pos = this->attributes.find('7'); pos != std::string::npos) {
+          this->attributes.erase(pos, 1);
+        }
+      } else if (code == 39) {
+        this->fg = "-";
+      } else if (code == 49) {
+        this->bg = "-";
+      } else if (code >= 30 and code <= 37) {
+        this->fg = std::to_string(code - 30);
+      } else if (code >= 40 and code <= 47) {
+        this->bg = std::to_string(code - 40);
+      }
+    };
+
+    while (i < params.size()) {
+      auto code = params[i];
+      if ((code == 38 or code == 48) and i + 4 < params.size() and params[i + 1] == 2) {
+        auto color = std::to_string(params[i + 2]) + "," + std::to_string(params[i + 3]) + "," + std::to_string(params[i + 4]);
+        (code == 38 ? this->fg : this->bg) = color;
+        i += 5;
+      } else {
+        apply_code(code);
+        ++i;
+      }
+    }
+
+    this->sgr_state = "fg=" + this->fg + ";bg=" + this->bg + ";a=" + this->attributes;
+  }
+
   void print(std::string const &glyph) {
     this->cell[std::size_t(this->cursor_row)][std::size_t(this->cursor_col)] = glyph;
+    this->style[std::size_t(this->cursor_row)][std::size_t(this->cursor_col)] = this->sgr_state;
     if (++this->cursor_col >= this->cols) {
       // No emission wraps in practice (the emitter positions every run), but
       // keep the model from indexing out of bounds either way.
@@ -186,7 +255,9 @@ struct VtModel {
             params.push_back(param);
           }
           switch (c) {
-          case 'm': // SGR: not needed to track characters
+          case 'm': // SGR: the colors and attributes of the cells that follow
+            set_sgr(params);
+            break;
           case 'h':
           case 'l': // modes
           case '?':
@@ -245,6 +316,29 @@ void drain_events() {
       return;
     }
     if (event->id == InvocationEvent::INVOCATION) {
+      static_cast<InvocationEvent&>(*event).dispatch();
+    }
+  }
+  assert(!"event queue did not drain");
+}
+
+// Pops and dispatches every queued event the way the event loop does, focus
+// events and repaint invocations alike (drain_events above drops everything
+// but the invocations, which is enough for tests that drive the widgets
+// themselves but not for one that has to match what the running application
+// does -- a posted focus change repaints its own components).
+void pump_events() {
+  auto &queue = screen.get_event_queue();
+  for (auto i = 0; i < 2000; ++i) {
+    auto event = queue.pop(std::chrono::milliseconds(2));
+    if (not event) {
+      return;
+    }
+    // What Screen::dispatch_event does with a queued event: hand it to the
+    // component it was posted to.
+    if (auto target = std::dynamic_pointer_cast<Component>(event->source)) {
+      target->dispatch_event(*event);
+    } else if (event->id == InvocationEvent::INVOCATION) {
       static_cast<InvocationEvent&>(*event).dispatch();
     }
   }
@@ -811,6 +905,227 @@ void test_TextScreen_popup_close_erasure() {
   drain_events();
   std::cout.rdbuf(old_cout);
   std::fprintf(stderr, "test_TextScreen_popup_close_erasure: ok\n");
+}
+
+// A repaint whose region only covers part of a bordered component must draw
+// the border cells it covers -- the cells at the region's own edges included.
+// The rect painter stepped over them (it assumed the box's own corner would
+// be drawn there), so a partial repaint left the border cell at the region's
+// edge as a blank: the black square a closed dropdown used to leave on a
+// frame's border.
+void test_TextScreen_clipped_border_repaint() {
+  std::fprintf(stderr, "test_TextScreen_clipped_border_repaint: a partial repaint redraws the border cells it covers\n");
+
+  auto capture = std::ostringstream { };
+  auto *old_cout = std::cout.rdbuf(capture.rdbuf());
+  screen.repaint_damaged();
+  capture.str({ });
+  auto take = [&] {
+    auto bytes = capture.str();
+    capture.str({ });
+    return bytes;
+  };
+
+  auto dim = screen.get_size();
+  assert(dim.width > 20 and dim.height > 12);
+
+  auto frame = make_component<Frame>();
+  frame->set_size(dim);
+  frame->set_name("clipped border frame");
+  auto panel = make_component<Panel>();
+  auto line = make_component<Panel>();
+  line->set_preferred_size(Dimension { dim.width - 6, 1 });
+  panel->add(line);
+  frame->get_content_pane()->add(panel);
+
+  frame->set_visible(true);
+  drain_events();
+  (void) take();
+
+  // The full-repaint image: the reference every partial repaint must match.
+  dynamic_cast<TextScreen&>(screen).clear();
+  screen.refresh();
+  auto reference = VtModel { dim.height, dim.width };
+  assert(reference.apply(take()));
+  assert(reference.row_text(0).find_first_not_of(' ') != std::string::npos && "the frame must paint its top border");
+
+  // Bands that cut each edge of the border, and each corner, in the middle:
+  // the repaint of a band must leave every cell it covers as the full repaint
+  // draws it.
+  auto bands = std::vector<std::pair<char const *, Rectangle>> {
+      { "top edge", Rectangle { dim.width / 2, 0, 4, 1 } },
+      { "bottom edge", Rectangle { dim.width / 2, dim.height - 1, 4, 1 } },
+      { "left edge", Rectangle { 0, dim.height / 2, 1, 3 } },
+      { "right edge", Rectangle { dim.width - 1, dim.height / 2, 1, 3 } },
+      { "top left corner", Rectangle { 0, 0, 4, 1 } },
+      { "top right corner", Rectangle { dim.width - 4, 0, 4, 1 } },
+      { "bottom left corner", Rectangle { 0, dim.height - 1, 4, 1 } },
+      { "bottom right corner", Rectangle { dim.width - 4, dim.height - 1, 4, 1 } },
+  };
+
+  for (auto const &[what, band] : bands) {
+    frame->repaint(band);
+    drain_events();
+    auto incremental = reference;
+    assert(incremental.apply(take()));
+
+    for (auto y = band.y; y < band.bottom(); ++y) {
+      for (auto x = band.x; x < band.right(); ++x) {
+        if (incremental.cell[std::size_t(y)][std::size_t(x)] != reference.cell[std::size_t(y)][std::size_t(x)]) {
+          std::fprintf(stderr, "%s: cell (%d, %d) is '%s', the border has '%s'\n  repainted: %s\n  border:    %s\n",
+              what, x, y, incremental.cell[std::size_t(y)][std::size_t(x)].c_str(), reference.cell[std::size_t(y)][std::size_t(x)].c_str(),
+              incremental.row_text(y).c_str(), reference.row_text(y).c_str());
+        }
+        assert(incremental.cell[std::size_t(y)][std::size_t(x)] == reference.cell[std::size_t(y)][std::size_t(x)] && "a partial repaint must redraw the border cells it covers");
+      }
+    }
+
+    // Nothing outside the band may change.
+    for (auto y = 0; y < dim.height; ++y) {
+      assert(incremental.cell[std::size_t(y)] == reference.cell[std::size_t(y)] && "a partial repaint must not touch anything outside its region");
+    }
+  }
+
+  frame->set_visible(false);
+  drain_events();
+  std::cout.rdbuf(old_cout);
+  std::fprintf(stderr, "test_TextScreen_clipped_border_repaint: ok\n");
+}
+
+// Clicking the combo box arrow open and closed again must leave every cell of
+// the screen as it was -- the frame's own border and title included, not only
+// the rows the dropdown covered. (Dropping a removed window's cells already
+// restores the rows under the dropdown; what this guards is the whole screen,
+// where a cell the repaint failed to restore shows as a blank block.)
+void test_TextScreen_combo_arrow_repaint() {
+  std::fprintf(stderr, "test_TextScreen_combo_arrow_repaint: the arrow open/close cycle leaves the screen untouched\n");
+
+  auto capture = std::ostringstream { };
+  auto *old_cout = std::cout.rdbuf(capture.rdbuf());
+  screen.repaint_damaged();
+  capture.str({ });
+  auto take = [&] {
+    auto bytes = capture.str();
+    capture.str({ });
+    return bytes;
+  };
+
+  auto dim = screen.get_size();
+  assert(dim.width > 20 and dim.height > 12);
+
+  // A WidgetDemo-like frame: a framed window with a menu bar and a row of
+  // widgets, a combo box among them.
+  auto frame = make_component<Frame>();
+  frame->set_size(dim);
+  frame->set_name("combo repaint frame");
+
+  auto menu_bar = make_component<MenuBar>();
+  auto file_menu = make_component<Menu>("File");
+  menu_bar->add(file_menu);
+  frame->set_menu_bar(menu_bar);
+
+  auto content = frame->get_content_pane();
+  content->set_layout(std::make_shared<BorderLayout>());
+  auto panel = make_component<Panel>();
+  panel->set_layout(std::make_shared<BoxLayout>(panel.get(), BoxLayout::Y));
+  auto row = make_component<Panel>(); // a FlowLayout row, like the demos'
+  auto city = make_component<ComboBox>(std::vector<std::string> { "Paris", "London", "Rome", "Berlin" });
+  city->set_selected_index(0);
+  city->set_name("city");
+  auto size = make_component<ComboBox>(std::vector<std::string> { "8 pt", "10 pt", "12 pt" });
+  size->set_selected_index(0);
+  size->set_name("size");
+  row->add(city);
+  row->add(size);
+  panel->add(row);
+  content->add(panel, BorderLayout::CENTER);
+
+  frame->set_visible(true);
+  drain_events();
+  (void) take();
+
+  // The pre-open image: the whole screen, the frame's border included.
+  dynamic_cast<TextScreen&>(screen).clear();
+  screen.refresh();
+  auto model = VtModel { dim.height, dim.width };
+  assert(model.apply(take()));
+  auto pre_open = model;
+  assert(model.row_text(0).find_first_not_of(' ') != std::string::npos && "the frame must paint its top border");
+
+  // One arrow click: the pointer moves onto the arrow strip (the box's
+  // rightmost cell) and presses and releases there, dispatched through the
+  // window as the terminal does.
+  auto click_arrow = [&](std::shared_ptr<ComboBox> const &box) {
+    pump_events();
+    auto at = box->get_location_on_screen();
+    auto local = convert_point_from_screen(Point { at.x + box->get_width() - 1, at.y + box->get_height() / 2 }, frame);
+    screen.post<MouseMoveEvent>(frame, InputEvent::NO_MODIFIERS, local.x, local.y);
+    frame->dispatch_event(*screen.get_event_queue().pop());
+    screen.post<MousePressEvent>(frame, MousePressEvent::MOUSE_PRESSED, MousePressEvent::LEFT_BUTTON, InputEvent::LEFT_BUTTON_DOWN, local.x, local.y, false);
+    frame->dispatch_event(*screen.get_event_queue().pop());
+    screen.post<MousePressEvent>(frame, MousePressEvent::MOUSE_RELEASED, MousePressEvent::LEFT_BUTTON, InputEvent::NO_MODIFIERS, local.x, local.y, false);
+    frame->dispatch_event(*screen.get_event_queue().pop());
+    // The focus changes the press asked for are posted: the running
+    // application dispatches them on its next loop, before it paints.
+    pump_events();
+  };
+
+  // Every cell must be back to the pre-open image -- the glyph and the colors
+  // and attributes it is drawn in, not just the rows the dropdown covered.
+  auto same_as_pre_open = [&](char const *what) {
+    for (auto y = 0; y < dim.height; ++y) {
+      for (auto x = 0; x < dim.width; ++x) {
+        auto const &now = model.cell[std::size_t(y)][std::size_t(x)];
+        auto const &was = pre_open.cell[std::size_t(y)][std::size_t(x)];
+        auto const &now_style = model.style[std::size_t(y)][std::size_t(x)];
+        auto const &was_style = pre_open.style[std::size_t(y)][std::size_t(x)];
+        if (now != was or now_style != was_style) {
+          std::fprintf(stderr, "%s: cell (%d, %d) is '%s' [%s], was '%s' [%s]\n  after:  %s\n  before: %s\n",
+              what, x, y, now.c_str(), now_style.c_str(), was.c_str(), was_style.c_str(),
+              model.row_text(y).c_str(), pre_open.row_text(y).c_str());
+        }
+        assert(now == was && "closing the dropdown must restore the whole screen");
+        assert(now_style == was_style && "closing the dropdown must restore every cell's appearance");
+      }
+    }
+  };
+
+  // Open the city dropdown with the arrow, close it again.
+  click_arrow(city);
+  assert(city->is_popup_visible() && "the arrow click must open the dropdown");
+  assert(model.apply(take()));
+  click_arrow(city);
+  assert(not city->is_popup_visible() && "the second arrow click must close the dropdown");
+  assert(model.apply(take()));
+  same_as_pre_open("open/close");
+
+  // Move the dropdown from one box to the other with the arrows, then close
+  // it: the first box's dropdown is dismissed as the second one opens.
+  click_arrow(city);
+  assert(model.apply(take()));
+  click_arrow(size);
+  assert(not city->is_popup_visible() and size->is_popup_visible() && "the second box's arrow moves the dropdown to it");
+  assert(model.apply(take()));
+  click_arrow(size);
+  assert(not size->is_popup_visible() && "the second box's second arrow click closes the dropdown");
+  assert(model.apply(take()));
+  same_as_pre_open("two boxes");
+
+  // The oracle: a full repaint must show the same screen the incremental
+  // stream left (glyphs and appearances alike).
+  dynamic_cast<TextScreen&>(screen).clear();
+  screen.refresh();
+  auto oracle = VtModel { dim.height, dim.width };
+  assert(oracle.apply(take()));
+  for (auto y = 0; y < dim.height; ++y) {
+    assert(oracle.cell[std::size_t(y)] == model.cell[std::size_t(y)] && "the incremental paints must reproduce the full-repaint image");
+    assert(oracle.style[std::size_t(y)] == model.style[std::size_t(y)] && "the incremental paints must reproduce the full-repaint appearance");
+  }
+
+  frame->set_visible(false);
+  drain_events();
+  std::cout.rdbuf(old_cout);
+  std::fprintf(stderr, "test_TextScreen_combo_arrow_repaint: ok\n");
 }
 
 // A repaint after the terminal's content became unknown -- the first paint, a

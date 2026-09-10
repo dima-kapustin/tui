@@ -100,48 +100,43 @@ void TextGraphics::draw_rect(int x, int y, int width, int height, const BoxChara
   int max_top = std::max(top, clip_top);
   int min_bottom = std::min(bottom, clip_bottom);
 
-  // If the top of the box is outside the clipping rectangle, don't bother to draw the clipTop.
-  if (top >= clip_top and top < clip_bottom) {
-    if (left == max_left) {
-      // top left corner
-      this->screen.draw_char(chars.top_left, left, top, this->foreground_color, this->background_color, this->attributes);
-    }
-    for (int i = max_left + 1; i < min_right - 1; i++) {
-      // top horizontal line
-      this->screen.draw_char(chars.top, i, top, this->foreground_color, this->background_color, this->attributes);
-    }
-    if (right == min_right) {
-      // top right corner
-      this->screen.draw_char(chars.top_right, right - 1, top, this->foreground_color, this->background_color, this->attributes);
+  // Each edge is drawn across the span the clip leaves of it: the corner
+  // glyphs where the box's own corners are inside the clip, the plain edge
+  // glyph for every other cell -- the cell at the clip's edge included. The
+  // runs used to start one cell in, holding back the cell where the box's own
+  // corner would be; when the clip cuts the box that corner belongs to
+  // another region, so the cell was left unpainted: a repaint of part of a
+  // border showed as a gap (the black square a closed dropdown left on the
+  // frame's border).
+  if (top >= clip_top and top < clip_bottom and max_left < min_right) {
+    for (int i = max_left; i < min_right; ++i) {
+      this->screen.draw_char(i == left ? chars.top_left : (i == right - 1 ? chars.top_right : chars.top), i, top, this->foreground_color, this->background_color, this->attributes);
     }
   }
 
   // If the bottom of the box is outside the clipping rectangle, don't bother
-  if (bottom >= clip_top and bottom <= clip_bottom) {
-    if (left == max_left) {
-      // bottom left corner
-      this->screen.draw_char(chars.bottom_left, left, bottom - 1, this->foreground_color, this->background_color, this->attributes);
-    }
-    for (int i = max_left + 1; i < min_right - 1; i++) {
-      // bottom horizontal line
-      this->screen.draw_char(chars.bottom, i, bottom - 1, this->foreground_color, this->background_color, this->attributes);
-    }
-    if (right == min_right) {
-      // bottom right corner
-      this->screen.draw_char(chars.bottom_right, right - 1, bottom - 1, this->foreground_color, this->background_color, this->attributes);
+  if (bottom > clip_top and bottom <= clip_bottom and max_left < min_right) {
+    for (int i = max_left; i < min_right; ++i) {
+      this->screen.draw_char(i == left ? chars.bottom_left : (i == right - 1 ? chars.bottom_right : chars.bottom), i, bottom - 1, this->foreground_color, this->background_color, this->attributes);
     }
   }
 
   // If the left side of the box is outside the clipping rectangle, don't bother.
   if (left >= clip_left and left < clip_right) {
-    for (int i = max_top + 1; i < min_bottom - 1; i++) {
+    for (int i = max_top; i < min_bottom; ++i) {
+      if (i == top or i == bottom - 1) {
+        continue; // the corners are the horizontal edges' to draw
+      }
       this->screen.draw_char(chars.left, left, i, this->foreground_color, this->background_color, this->attributes);
     }
   }
   //
   // If the right side of the box is outside the clipping rectangle, don't bother.
-  if (right >= clip_left and right <= clip_right) {
-    for (int i = max_top + 1; i < min_bottom - 1; i++) {
+  if (right > clip_left and right <= clip_right) {
+    for (int i = max_top; i < min_bottom; ++i) {
+      if (i == top or i == bottom - 1) {
+        continue; // the corners are the horizontal edges' to draw
+      }
       this->screen.draw_char(chars.right, right - 1, i, this->foreground_color, this->background_color, this->attributes);
     }
   }

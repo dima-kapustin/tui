@@ -36,6 +36,8 @@ void test_TextScreen_horizontal_scroll();
 void test_TextScreen_popup_over_scroll();
 void test_TextScreen_scroll_keeps_fixed_ui_out_of_band();
 void test_TextScreen_popup_close_erasure();
+void test_TextScreen_combo_arrow_repaint();
+void test_TextScreen_clipped_border_repaint();
 void test_TextScreen_repaint_over_unknown_content();
 void test_TextArea_caret();
 void test_TextArea_selection();
@@ -76,6 +78,8 @@ int main(int argc, char *argv[]) {
   test_TextScreen_popup_over_scroll();
   test_TextScreen_scroll_keeps_fixed_ui_out_of_band();
   test_TextScreen_popup_close_erasure();
+  test_TextScreen_combo_arrow_repaint();
+  test_TextScreen_clipped_border_repaint();
   test_TextScreen_repaint_over_unknown_content();
   test_TextArea_caret();
   test_TextArea_selection();
