@@ -74,6 +74,83 @@ static void print_ocs(const P &param, const Params &... params) {
   std::cout << "\x1b\\"sv;
 }
 
+// The value of one hex digit, or -1.
+static int hex_digit(char c) {
+  if (c >= '0' and c <= '9') {
+    return c - '0';
+  } else if (c >= 'a' and c <= 'f') {
+    return c - 'a' + 10;
+  } else if (c >= 'A' and c <= 'F') {
+    return c - 'A' + 10;
+  }
+  return -1;
+}
+
+// The color of an OSC 10/11 reply's spec: "rgb:RRRR/GGGG/BBBB" (xterm answers
+// four hex digits per component, others two or one) or "#RRGGBB". The
+// components are scaled from however many digits the terminal sent, so
+// "rgb:ffff/ffff/ffff" and "#ffffff" both come out white.
+std::optional<Color> Terminal::parse_color_spec(std::string_view const &spec) {
+  auto component = [](std::string_view const &digits) -> std::optional<uint8_t> {
+    if (digits.empty() or digits.size() > 4) {
+      return std::nullopt;
+    }
+    auto value = 0u;
+    for (auto &&c : digits) {
+      auto digit = hex_digit(c);
+      if (digit < 0) {
+        return std::nullopt;
+      }
+      value = value * 16 + unsigned(digit);
+    }
+    auto max = (1u << (4 * unsigned(digits.size()))) - 1;
+    return uint8_t(value * 255 / max);
+  };
+
+  if (spec.starts_with("rgb:"sv)) {
+    auto rest = spec.substr(4);
+    auto channels = std::array<uint8_t, 3> { };
+    for (auto i = 0; i < 3; ++i) {
+      auto end = rest.find('/');
+      auto value = component(rest.substr(0, end));
+      if (not value) {
+        return std::nullopt;
+      }
+      channels[std::size_t(i)] = *value;
+      rest = end == std::string_view::npos ? std::string_view { } : rest.substr(end + 1);
+    }
+    return Color { channels[0], channels[1], channels[2] };
+  } else if (spec.starts_with('#') and spec.size() == 7) {
+    auto channels = std::array<uint8_t, 3> { };
+    for (auto i = 0; i < 3; ++i) {
+      auto value = component(spec.substr(std::size_t(1 + 2 * i), 2));
+      if (not value) {
+        return std::nullopt;
+      }
+      channels[std::size_t(i)] = *value;
+    }
+    return Color { channels[0], channels[1], channels[2] };
+  }
+  return std::nullopt;
+}
+
+// The color an OSC 10/11 query has been answered with in `reply`, if the
+// terminal answered it: the reply is "ESC ] <code> ; <spec> BEL|ST", and
+// `code` is "10" for the foreground and "11" for the background.
+static std::optional<Color> find_osc_color(std::string_view const &reply, std::string_view const &code) {
+  auto header = std::string { "\x1b]" } + std::string(code) + ";";
+  auto pos = reply.find(header);
+  if (pos == std::string_view::npos) {
+    return std::nullopt;
+  }
+
+  auto spec = reply.substr(pos + header.size());
+  if (auto end = spec.find_first_of("\x07\x1b"); end != std::string_view::npos) {
+    spec = spec.substr(0, end);
+  }
+  return Terminal::parse_color_spec(spec);
+}
+
 Terminal::MouseReport Terminal::decode_mouse_report(unsigned code, bool pressed) {
   auto report = MouseReport { };
   report.key_modifiers = (code & 4 ? InputEvent::SHIFT_DOWN : InputEvent::NO_MODIFIERS) | //
@@ -410,6 +487,41 @@ std::optional<Dimension> Terminal::query_cell_size_from_terminal() {
   }
 
   return { };
+}
+
+Terminal::DefaultColors Terminal::query_default_colors() {
+  if (not this->default_colors_queried) {
+    this->default_colors_queried = true;
+
+    // OSC 10 ; ? (foreground) and OSC 11 ; ? (background), with the ST
+    // terminator the other queries here use. Terminals that never answer are
+    // simply left unanswered: the caller then keeps its own default.
+    std::cout << "\x1b]10;?\x1b\\\x1b]11;?\x1b\\" << std::flush;
+
+    auto deadline = Clock::now() + std::chrono::milliseconds(150);
+    std::string reply;
+    reply.reserve(64);
+    InputReader reader { *this };
+    while (Clock::now() < deadline) {
+      auto ms = std::max(int64_t(1), std::chrono::duration_cast<std::chrono::milliseconds>(deadline - Clock::now()).count());
+      auto c = reader.get(std::chrono::milliseconds(ms));
+      if (c == 0) {
+        break; // no more input before the deadline
+      }
+      reply += c;
+      while (auto more = reader.consume()) {
+        reply += more;
+      }
+
+      this->default_colors.foreground = find_osc_color(reply, "10");
+      this->default_colors.background = find_osc_color(reply, "11");
+      if (this->default_colors.foreground and this->default_colors.background) {
+        break;
+      }
+    }
+  }
+
+  return this->default_colors;
 }
 
 Terminal::DeviceAttributes Terminal::query_device_attributes() {

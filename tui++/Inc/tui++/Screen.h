@@ -170,6 +170,7 @@ public:
   }
 
   virtual void run_event_loop() = 0;
+
   virtual std::unique_ptr<Graphics> get_graphics() = 0;
   virtual std::unique_ptr<Graphics> get_graphics(Rectangle const& clip) = 0;
 
@@ -205,6 +206,15 @@ public:
   std::shared_ptr<Window> get_window_at(int x, int y) const;
   std::shared_ptr<Window> get_window_at(const Point &p) const {
     return get_window_at(p.x, p.y);
+  }
+
+  // Whether any window is showing. A screen with nothing on it paints
+  // nothing: a full repaint then only writes the terminal blank, which a
+  // caller asking for one (e.g. Shadow::set_enabled before the first window)
+  // would not want.
+  bool has_windows() const {
+    std::unique_lock lock(this->windows_mutex);
+    return not this->windows.empty();
   }
 
   // Converts a terminal mouse position (reported in text cells) into this

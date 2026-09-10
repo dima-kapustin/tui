@@ -14,6 +14,7 @@
 #include <tui++/util/log.h>
 
 #include <chrono>
+#include <cmath>
 #include <cstring>
 #include <limits>
 #include <memory>
@@ -191,6 +192,31 @@ void SixelScreen::fill_pixels(Rectangle const &rect, Color const &color) {
       *row++ = color.red();
       *row++ = color.green();
       *row++ = color.blue();
+    }
+  }
+
+  mark_dirty({ left, top, right - left, bottom - top });
+}
+
+void SixelScreen::blend_pixels(Rectangle const &rect, Color const &color, double opacity) {
+  auto left = std::max(rect.x, 0);
+  auto top = std::max(rect.y, 0);
+  auto right = std::min(rect.right(), get_pixel_width());
+  auto bottom = std::min(rect.bottom(), get_pixel_height());
+  if (left >= right or top >= bottom or opacity <= 0) {
+    return;
+  }
+  opacity = std::min(opacity, 1.0);
+
+  auto mix = [opacity](uint8_t from, uint8_t to) {
+    return uint8_t(std::lround(from * (1 - opacity) + to * opacity));
+  };
+  for (auto y = top; y < bottom; ++y) {
+    auto *row = this->pixels.data() + (y * get_pixel_width() + left) * 3;
+    for (auto x = left; x < right; ++x) {
+      *row++ = mix(*row, color.red());
+      *row++ = mix(*row, color.green());
+      *row++ = mix(*row, color.blue());
     }
   }
 

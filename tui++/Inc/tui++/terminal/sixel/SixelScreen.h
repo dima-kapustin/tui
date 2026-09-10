@@ -190,6 +190,13 @@ public:
 
   void fill_pixels(Rectangle const &rect, Color const &color);
 
+  // Shifts the colors of every pixel of `rect` towards `color` by `opacity`:
+  // the pixels keep their content and only darken (or lighten, with a light
+  // color). The primitive drop shadows are painted with (see
+  // SixelGraphics::blend_rect); unlike fill_pixels, which replaces the
+  // content, what is already in the framebuffer stays visible.
+  void blend_pixels(Rectangle const &rect, Color const &color, double opacity);
+
   // Blits a monochrome glyph at pixel (x, y). `rows` holds `height` rows of
   // (width + 7) / 8 bytes each; bit 7 of the first byte of a row is the
   // leftmost pixel. Set bits are painted with the foreground color, unset

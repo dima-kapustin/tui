@@ -237,6 +237,12 @@ void TextGraphics::fill_rect(int x, int y, int width, int height) {
   }
 }
 
+void TextGraphics::blend_rect(int x, int y, int width, int height, const Color &color, double opacity) {
+  if (auto const rect = this->clip.intersection(x + this->dx, y + this->dy, width, height)) {
+    this->screen.blend_rect(rect, color, opacity);
+  }
+}
+
 Rectangle TextGraphics::get_clip_rect() const {
   auto clip_rect = this->clip;
   clip_rect.translate(-this->dx, -this->dy);

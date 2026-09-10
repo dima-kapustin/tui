@@ -84,6 +84,10 @@ void log_uncaught_in_dispatch(Event const &event) {
 void Screen::paint(Graphics &g) {
   std::unique_lock lock(this->windows_mutex);
   for (auto &&window : this->windows) {
+    // The shadow first: it shades what the windows below (and the ones
+    // already painted) have drawn, and the window's own content then covers
+    // the shadow's middle -- see Window::paint_shadow.
+    window->paint_shadow(g);
     window->paint(g);
   }
 }

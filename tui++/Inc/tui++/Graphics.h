@@ -50,6 +50,19 @@ public:
     fill_rect(rect.x, rect.y, rect.width, rect.height);
   }
 
+  /**
+   * Composites a translucent `color` over the content already drawn in the
+   * rectangle (Swing's AlphaComposite SRC_OVER): unlike fill_rect, which
+   * replaces the content, the content stays visible, shifted towards `color`
+   * by `opacity` (0 leaves it as it is, 1 paints the color solid). This is
+   * the primitive drop shadows are painted with (see Shadow). Like every
+   * other draw it is clipped to this graphics' clip rectangle.
+   */
+  virtual void blend_rect(int x, int y, int width, int height, Color const &color, double opacity) = 0;
+  void blend_rect(Rectangle const &rect, Color const &color, double opacity) {
+    blend_rect(rect.x, rect.y, rect.width, rect.height, color, opacity);
+  }
+
   virtual Rectangle get_clip_rect() const = 0;
   virtual void set_clip_rect(Rectangle const &rect) = 0;
   void set_clip_rect(int x, int y, int width, int height) {
