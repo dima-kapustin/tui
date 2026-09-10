@@ -6,6 +6,7 @@
 
 #include <tui++/lookandfeel/PanelUI.h>
 #include <tui++/lookandfeel/FrameUI.h>
+#include <tui++/lookandfeel/DialogUI.h>
 #include <tui++/lookandfeel/ButtonUI.h>
 #include <tui++/lookandfeel/RootPaneUI.h>
 #include <tui++/lookandfeel/ToggleButtonUI.h>
@@ -77,6 +78,10 @@ public:
 
   virtual std::shared_ptr<ToggleButtonUI> create_toggle_button_ui(ToggleButton *c) override {
     return std::make_shared<ToggleButtonUI>();
+  }
+
+  virtual std::shared_ptr<DialogUI> create_dialog_ui(Dialog *c) override {
+    return std::make_shared<DialogUI>();
   }
 };
 

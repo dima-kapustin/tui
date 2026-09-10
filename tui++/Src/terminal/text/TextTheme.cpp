@@ -176,6 +176,16 @@ void TextTheme::init_component_defaults() {
   // button labels sit directly next to their indicator.
   put("ComboBox.margin", make_resource<Insets>(0, 1, 0, 1));
 
+  // The dialogs (Swing's JDialog chrome): an opaque face on the system
+  // control colors and the raised box the popup menus draw, so a dialog
+  // reads as a window of its own over the frame it shades (the theme defines
+  // "Dialog.Shadow" below). The layout keeps the content inside the border:
+  // the dialog's insets are the border's (see Window::get_insets), which the
+  // root pane empties its panes into.
+  put("Dialog.BackgroundColor", control);
+  put("Dialog.ForegroundColor", controlText);
+  put("Dialog.Border", internal_frame_border);
+
   // Drop shadows (see Shadow): the floating windows -- a popup menu (a menu
   // bar's dropdown and every submenu), a combo box dropdown and a dialog --
   // darken the cells beneath their right and bottom edge by half, so they

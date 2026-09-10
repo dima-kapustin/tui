@@ -153,6 +153,23 @@ public:
     return this->type;
   }
 
+  // Whether this window blocks the input of `window` while it is showing:
+  // false for every window kind but a modal dialog (see Dialog::blocks).
+  virtual bool blocks(const std::shared_ptr<Window> &window) const {
+    return false;
+  }
+
+  // The showing modal window that holds this window's input right now, or
+  // null (Swing's Window.getModalBlocker).
+  std::shared_ptr<Window> get_modal_blocker() const;
+
+  // Whether some modal window of the screen blocks this window (Swing's
+  // Window.isModalBlocked): its mouse and key events are dropped and it
+  // cannot take the focus until the modal window is dismissed.
+  bool is_modal_blocked() const {
+    return get_modal_blocker() != nullptr;
+  }
+
   std::shared_ptr<Window> get_owner() const {
     return this->owner;
   }

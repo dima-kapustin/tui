@@ -281,35 +281,48 @@ void TextScreen::run_event_loop() {
   this->repaint_interval = std::chrono::milliseconds { 16 };
 
   while (not this->quit) {
-    terminal.read_events();
-
-    // Dispatch a bounded batch of events. Repainting is not a side effect of
-    // the loop: repaint() requests accumulate damaged regions and schedule a
-    // single repaint (on the queue, or on the frame clock -- see
-    // Screen::add_damage). The batch cap keeps a burst (or a self-reposting
-    // timer) from starving the loop. The wait is shortened to the pending
-    // repaint's due time, so an idle screen still paints at its frame
-    // boundary.
-    auto wait = WAIT_EVENT_TIMEOUT;
-    auto now = std::chrono::steady_clock::now();
-    if (this->repaint_event_pending and this->repaint_due <= now + wait) {
-      wait = std::chrono::duration_cast<std::chrono::milliseconds>(this->repaint_due - now);
-      wait = std::max(wait, std::chrono::milliseconds::zero());
-    }
-    auto event = this->event_queue.pop(wait);
-    for (auto n = 0; event and n < MAX_EVENTS_PER_TICK; ++n) {
-      dispatch_event(*event);
-      event = this->event_queue.pop(std::chrono::milliseconds::zero());
-    }
-
-    // Fire due timers (caret blink, ...) on the dispatch thread, ordered
-    // after the events they were scheduled between.
-    run_pending_timers();
-
-    // Paint the frame once its boundary is due: every request that arrived
-    // since the boundary was armed is painted together.
-    repaint_if_due();
+    event_loop_iteration();
   }
+}
+
+void TextScreen::run_modal_event_loop(const std::shared_ptr<Window> &modal_window) {
+  // A modal dialog's nested pump (see Screen::run_modal_event_loop): the
+  // running loop's setup is in place, so only the iteration runs, until the
+  // dialog is gone.
+  while (not this->quit and modal_window and modal_window->is_showing()) {
+    event_loop_iteration();
+  }
+}
+
+void TextScreen::event_loop_iteration() {
+  terminal.read_events();
+
+  // Dispatch a bounded batch of events. Repainting is not a side effect of
+  // the loop: repaint() requests accumulate damaged regions and schedule a
+  // single repaint (on the queue, or on the frame clock -- see
+  // Screen::add_damage). The batch cap keeps a burst (or a self-reposting
+  // timer) from starving the loop. The wait is shortened to the pending
+  // repaint's due time, so an idle screen still paints at its frame
+  // boundary.
+  auto wait = WAIT_EVENT_TIMEOUT;
+  auto now = std::chrono::steady_clock::now();
+  if (this->repaint_event_pending and this->repaint_due <= now + wait) {
+    wait = std::chrono::duration_cast<std::chrono::milliseconds>(this->repaint_due - now);
+    wait = std::max(wait, std::chrono::milliseconds::zero());
+  }
+  auto event = this->event_queue.pop(wait);
+  for (auto n = 0; event and n < MAX_EVENTS_PER_TICK; ++n) {
+    dispatch_event(*event);
+    event = this->event_queue.pop(std::chrono::milliseconds::zero());
+  }
+
+  // Fire due timers (caret blink, ...) on the dispatch thread, ordered
+  // after the events they were scheduled between.
+  run_pending_timers();
+
+  // Paint the frame once its boundary is due: every request that arrived
+  // since the boundary was armed is painted together.
+  repaint_if_due();
 }
 
 std::unique_ptr<Graphics> TextScreen::get_graphics() {

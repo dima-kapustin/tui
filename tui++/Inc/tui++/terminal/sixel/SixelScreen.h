@@ -85,6 +85,12 @@ private:
   void resize_buffer();
   void mark_dirty(Rectangle const &rect);
 
+  // One turn of the event loop: reads the terminal's input, dispatches the
+  // pending events, handles a resize and paints what the turn damaged.
+  // run_event_loop and the nested modal pump share it, so both behave the
+  // same way.
+  void event_loop_iteration();
+
   // True when the terminal already displays exactly the pixels of `rect`
   // (every pixel marked sent, and the buffer equal to the mirror).
   bool sent_matches(Rectangle const &rect) const;
@@ -108,6 +114,7 @@ public:
   SixelScreen();
 
   virtual void run_event_loop() override;
+  virtual void run_modal_event_loop(const std::shared_ptr<Window> &modal_window) override;
 
   virtual std::unique_ptr<Graphics> get_graphics() override;
   virtual std::unique_ptr<Graphics> get_graphics(Rectangle const &clip) override;

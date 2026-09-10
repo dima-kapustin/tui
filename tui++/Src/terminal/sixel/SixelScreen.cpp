@@ -401,64 +401,75 @@ void SixelScreen::run_event_loop() {
   // Coalesce repaint requests onto a frame clock (see TextScreen::run_event_loop).
   this->repaint_interval = std::chrono::milliseconds { 16 };
 
-  auto size = this->size;
   while (not this->quit) {
-    terminal.read_events();
+    event_loop_iteration();
+  }
+}
 
-    // The terminal screen owns the physical display and clears it when the
-    // terminal is resized; detect the resize here and repaint the windows.
-    // The last terminal row is excluded (see the constructor comment).
-    auto ts = terminal.get_size();
-    auto pixel_size = Dimension { ts.width * this->cell_width, std::max(1, ts.height - 1) * this->cell_height };
-    if (pixel_size != size) {
-      log_resize_ln("sixel screen " << size.width << 'x' << size.height << " px -> " << pixel_size.width << 'x' << pixel_size.height << " px");
-      size = pixel_size;
-      this->size = pixel_size;
-      resize_buffer();
+void SixelScreen::run_modal_event_loop(const std::shared_ptr<Window> &modal_window) {
+  // A modal dialog's nested pump (see Screen::run_modal_event_loop): the
+  // running loop's setup is in place, so only the iteration runs, until the
+  // dialog is gone.
+  while (not this->quit and modal_window and modal_window->is_showing()) {
+    event_loop_iteration();
+  }
+}
 
-      // Top-level windows track the screen size so the layout fills the new
-      // terminal instead of leaving stale, mis-sized frames behind. Popup
-      // windows keep their own size and position (see TextScreen::resized).
-      {
-        std::unique_lock lock(this->windows_mutex);
-        log_resize_ln("screen resize: " << this->windows.size() << " top-level window(s) to " << pixel_size.width << 'x' << pixel_size.height);
-        for (auto &&window : this->windows) {
-          if (window->get_type() != WindowType::POPUP) {
-            window->set_size(pixel_size);
-          }
+void SixelScreen::event_loop_iteration() {
+  terminal.read_events();
+
+  // The terminal screen owns the physical display and clears it when the
+  // terminal is resized; detect the resize here and repaint the windows.
+  // The last terminal row is excluded (see the constructor comment).
+  auto ts = terminal.get_size();
+  auto pixel_size = Dimension { ts.width * this->cell_width, std::max(1, ts.height - 1) * this->cell_height };
+  if (pixel_size != this->size) {
+    log_resize_ln("sixel screen " << this->size.width << 'x' << this->size.height << " px -> " << pixel_size.width << 'x' << pixel_size.height << " px");
+    this->size = pixel_size;
+    resize_buffer();
+
+    // Top-level windows track the screen size so the layout fills the new
+    // terminal instead of leaving stale, mis-sized frames behind. Popup
+    // windows keep their own size and position (see TextScreen::resized).
+    {
+      std::unique_lock lock(this->windows_mutex);
+      log_resize_ln("screen resize: " << this->windows.size() << " top-level window(s) to " << pixel_size.width << 'x' << pixel_size.height);
+      for (auto &&window : this->windows) {
+        if (window->get_type() != WindowType::POPUP) {
+          window->set_size(pixel_size);
         }
       }
-
-      // The terminal still displays the previous sixel image; erase it so a
-      // smaller new image does not leave stale pixels around it.
-      terminal << "\x1b[2J\x1b[1;1H"sv;
-      terminal.flush();
-
-      refresh();
     }
 
-    // Dispatch a bounded batch of events. Repainting is not a side effect of
-    // the loop: repaint() requests accumulate damaged regions and schedule a
-    // single repaint (on the queue, or on the frame clock -- see
-    // Screen::add_damage). The batch cap keeps a burst (or a self-reposting
-    // timer) from starving the loop. The wait is shortened to the pending
-    // repaint's due time, so an idle screen still paints at its frame
-    // boundary.
-    auto wait = WAIT_EVENT_TIMEOUT;
-    auto now = std::chrono::steady_clock::now();
-    if (this->repaint_event_pending and this->repaint_due <= now + wait) {
-      wait = std::chrono::duration_cast<std::chrono::milliseconds>(this->repaint_due - now);
-      wait = std::max(wait, std::chrono::milliseconds::zero());
-    }
-    auto event = this->event_queue.pop(wait);
-    for (auto n = 0; event and n < MAX_EVENTS_PER_TICK; ++n) {
-      dispatch_event(*event);
-      event = this->event_queue.pop(std::chrono::milliseconds::zero());
-    }
+    // The terminal still displays the previous sixel image; erase it so a
+    // smaller new image does not leave stale pixels around it.
+    terminal << "\x1b[2J\x1b[1;1H"sv;
+    terminal.flush();
 
-    // Paint the frame once its boundary is due.
-    repaint_if_due();
+    refresh();
   }
+
+  // Dispatch a bounded batch of events. Repainting is not a side effect of
+  // the loop: repaint() requests accumulate damaged regions and schedule a
+  // single repaint (on the queue, or on the frame clock -- see
+  // Screen::add_damage). The batch cap keeps a burst (or a self-reposting
+  // timer) from starving the loop. The wait is shortened to the pending
+  // repaint's due time, so an idle screen still paints at its frame
+  // boundary.
+  auto wait = WAIT_EVENT_TIMEOUT;
+  auto now = std::chrono::steady_clock::now();
+  if (this->repaint_event_pending and this->repaint_due <= now + wait) {
+    wait = std::chrono::duration_cast<std::chrono::milliseconds>(this->repaint_due - now);
+    wait = std::max(wait, std::chrono::milliseconds::zero());
+  }
+  auto event = this->event_queue.pop(wait);
+  for (auto n = 0; event and n < MAX_EVENTS_PER_TICK; ++n) {
+    dispatch_event(*event);
+    event = this->event_queue.pop(std::chrono::milliseconds::zero());
+  }
+
+  // Paint the frame once its boundary is due.
+  repaint_if_due();
 }
 
 std::unique_ptr<Graphics> SixelScreen::get_graphics() {
