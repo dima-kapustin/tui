@@ -77,6 +77,19 @@ void MenuItem::menu_selection_changed(bool is_included) {
   }
 }
 
+void MenuItem::do_click(std::chrono::milliseconds const &press_time) {
+  base::do_click(press_time);
+
+  // The press animation un-armed the row, but the pick need not have taken
+  // the popup down with it: a row that is still on the screen (a check box
+  // item whose menu stays open, a row the keyboard activated into an open
+  // popup) keeps its highlight under the pointer. A row whose pick dismissed
+  // its popup is not showing anymore, and stays unarmed with it.
+  if (is_showing()) {
+    set_armed(true);
+  }
+}
+
 std::vector<std::shared_ptr<MenuElement>> MenuItem::get_sub_elements() const {
   return {};
 }

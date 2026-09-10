@@ -42,6 +42,16 @@ public:
     get_model()->set_armed(value);
   }
 
+  // A menu row is not a button: AbstractButton::do_click's press animation
+  // ends with the model unarmed -- correct for a button, whose press is over
+  // -- but a row whose popup is still open keeps the highlight the pointer
+  // (or the keyboard) gave it. Picking a check box item whose menu stays open
+  // (see CheckBoxMenuItem.DoNotCloseOnMouseClick) must not leave the row
+  // looking unselected; the popup takes the highlight off when it closes (see
+  // PopupMenu::drop_popup).
+  using base::do_click;
+  virtual void do_click(std::chrono::milliseconds const &press_time) override;
+
   std::optional<KeyStroke> const& get_accelerator() const {
     return this->accelerator;
   }
