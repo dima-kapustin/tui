@@ -470,11 +470,17 @@ bool Component::notify_action(const std::shared_ptr<Action> &action, const KeySt
   }
 
   auto action_command = action->get_action_command();
-  // Get the command object.
-  if (action_command.empty() and e.get_key_char() != KeyEvent::CHAR_UNDEFINED) {
-    action_command = e.get_key_char();
-  } else {
-    return false;
+  // The command the ActionEvent carries. An action of its own may name one;
+  // failing that the stroke's character is the command (a binding on a plain
+  // key), and failing that the action's name -- the key it is registered
+  // under -- stands in, so a look-and-feel action bound to a non-typing
+  // stroke (a button's Space) still fires.
+  if (action_command.empty()) {
+    if (e.get_key_char() != KeyEvent::CHAR_UNDEFINED) {
+      action_command = e.get_key_char();
+    } else {
+      action_command = action->get_name();
+    }
   }
   auto event = ActionEvent { sender, action_command, e.modifiers, e.when };
   action->action_performed(event);
@@ -665,6 +671,20 @@ void Component::dispatch_event(Event &e) {
 
   if (is_event_enabled(e)) {
     base::process_event(e);
+  }
+
+  // The focus owner's input maps come last: its WHEN_FOCUSED bindings and
+  // the WHEN_ANCESTOR_OF_FOCUSED_COMPONENT bindings of the components above
+  // it (Swing's JComponent.processKeyBindings, which the window runs on the
+  // owner's behalf -- the framework posts key events to windows, not to the
+  // focus owner). Consulting them after the window's listeners keeps a key
+  // that a component handles directly with that component (the text family
+  // registers itself on its window while it is displayable); the input maps
+  // only ever claim strokes nobody else has taken.
+  if (auto key_event = dynamic_cast<KeyEvent*>(&e); key_event and not key_event->consumed and is_window(shared_from_this())) {
+    if (auto owner = KeyboardFocusManager::single->get_focus_owner(); owner and owner.get() != this and owner->get_containing_window() == get_containing_window()) {
+      key_event->consumed = owner->process_key_bindings(*key_event);
+    }
   }
 }
 

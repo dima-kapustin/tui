@@ -20,7 +20,11 @@ class KeyboardManager {
   std::shared_ptr<Component> get_top_ancestor(const std::shared_ptr<Component> &component);
 
 public:
-  static inline std::shared_ptr<KeyboardManager> single = std::shared_ptr<KeyboardManager>();
+  // The registry of WHEN_IN_FOCUSED_WINDOW strokes, shared by every window.
+  // It is created here like the other managers (KeyboardFocusManager,
+  // MenuSelectionManager, ...): a null one would be dereferenced by the first
+  // component that processed a key binding through its window.
+  static inline std::shared_ptr<KeyboardManager> single = std::make_shared<KeyboardManager>();
 
 public:
   void register_key_stroke(const KeyStroke &key_stroke, const std::shared_ptr<Component> &component);
