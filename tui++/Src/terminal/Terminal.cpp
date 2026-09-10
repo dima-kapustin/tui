@@ -43,6 +43,23 @@ Terminal::Singleton::~Singleton() {
   }
 }
 
+namespace {
+
+// Whether a mouse report is the platform's popup trigger -- the gesture that
+// opens a context menu (Swing's MouseEvent.isPopupTrigger). Swing asks the
+// toolkit: Windows triggers on the right button's release, the X11 toolkits
+// on its press. A terminal reports both halves of the gesture, so the press
+// is made the trigger, the way the X11 toolkits and the classic console
+// menus behave: the menu appears under the pointer at once, and the release
+// that follows finds the popup's window with no press target of its own and
+// is dropped (see WindowMouseEventDispatcher) instead of picking the item the
+// menu just opened under the mouse.
+bool is_popup_trigger(MousePressEvent::Type type, MousePressEvent::Button button) {
+  return type == MousePressEvent::MOUSE_PRESSED and button == MousePressEvent::RIGHT_BUTTON;
+}
+
+}
+
 template<typename P, typename ...Params>
 static void print_ocs(const P &param, const Params &... params) {
   std::cout << "\x1b]"sv << param;
@@ -280,7 +297,7 @@ void Terminal::new_mouse_event(MousePressEvent::Type type, MousePressEvent::Butt
       screen.post_system<MouseMoveEvent>(window, modifiers, p.x, p.y);
     }
   } else {
-    screen.post_system<MousePressEvent>(window, type, button, modifiers, p.x, p.y, false);
+    screen.post_system<MousePressEvent>(window, type, button, modifiers, p.x, p.y, is_popup_trigger(type, button));
 
     if (type == MousePressEvent::MOUSE_PRESSED) {
       prev_mouse_press_time = Clock::now();
@@ -293,7 +310,7 @@ void Terminal::new_mouse_event(MousePressEvent::Type type, MousePressEvent::Butt
         } else {
           prev_mouse_click_time = Clock::now();
         }
-        screen.post_system<MouseClickEvent>(window, button, modifiers, p.x, p.y, click_count, false);
+        screen.post_system<MouseClickEvent>(window, button, modifiers, p.x, p.y, click_count, is_popup_trigger(type, button));
       }
     }
   }

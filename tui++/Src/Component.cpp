@@ -3,6 +3,7 @@
 #include <tui++/Graphics.h>
 #include <tui++/Component.h>
 #include <tui++/KeyStroke.h>
+#include <tui++/PopupMenu.h>
 #include <tui++/PopupWindow.h>
 #include <tui++/ToolTipManager.h>
 #include <tui++/KeyboardManager.h>
@@ -61,6 +62,33 @@ Point convert_point(Point const &p, std::shared_ptr<Component> from, std::shared
 
 std::recursive_mutex Component::tree_mutex;
 bool Component::descend_unconditionally_when_validating = false;
+
+namespace {
+
+// The keyboard shortcuts that open a context menu: Shift+F10 (the classic
+// chord the menu bar's F10 must not swallow) and the dedicated context-menu
+// key where the terminal reports it.
+bool is_popup_menu_key(KeyEvent const &e) {
+  if (e.id != KeyEvent::KEY_PRESSED or e.consumed) {
+    return false;
+  }
+  return e.get_key_code() == KeyEvent::VK_F10 and bool(e.modifiers & InputEvent::SHIFT_DOWN);
+}
+
+}
+
+void Component::show_component_popup_menu(int x, int y) {
+  if (auto popup_menu = get_component_popup_menu()) {
+    // The invoker is this component: the menu is placed relative to it, and
+    // the press that triggered the menu cannot reach through it (the event
+    // was consumed by caller -- see dispatch_event). The flag marks the menu
+    // as a context menu for the menu system, which drives it (keyboard
+    // navigation, click-outside dismissal) while a widget's own dropdown is
+    // left alone.
+    popup_menu->set_context_menu(true);
+    popup_menu->show(shared_from_this(), x, y);
+  }
+}
 
 Component::~Component() {
 }
@@ -681,6 +709,19 @@ void Component::dispatch_event(Event &e) {
     base::process_event(e);
   }
 
+  if (auto press = dynamic_cast<MousePressEvent*>(&e); press and press->is_popup_trigger) {
+    // Swing's popup trigger: the component's context menu -- its own, or an
+    // ancestor's when it inherits one -- opens at the mouse. Listeners saw
+    // the event first, but the trigger is a gesture of its own: the caret a
+    // text component places on the press (which consumes the event) must not
+    // keep the menu away, or the standard text popup would never open. A
+    // program that wants no menu clears the component's popup menu; a menu
+    // another component opened is dismissed by the press on the way in (see
+    // MenuKeyboardManager::handle_mouse_pressed).
+    show_component_popup_menu(press->x, press->y);
+    press->consume();
+  }
+
   // The focus owner's input maps come last: its WHEN_FOCUSED bindings and
   // the WHEN_ANCESTOR_OF_FOCUSED_COMPONENT bindings of the components above
   // it (Swing's JComponent.processKeyBindings, which the window runs on the
@@ -691,6 +732,15 @@ void Component::dispatch_event(Event &e) {
   // only ever claim strokes nobody else has taken.
   if (auto key_event = dynamic_cast<KeyEvent*>(&e); key_event and not key_event->consumed and is_window(shared_from_this())) {
     if (auto owner = KeyboardFocusManager::single->get_focus_owner(); owner and owner.get() != this and owner->get_containing_window() == get_containing_window()) {
+      // The keyboard's popup trigger opens the context menu of the component
+      // that has the focus, at its caret where it has one (Swing's
+      // Shift+F10). It is offered before the input maps, so a component's
+      // own binding can still claim the stroke by consuming it in a listener.
+      if (is_popup_menu_key(*key_event) and owner->get_component_popup_menu()) {
+        owner->show_component_popup_menu(owner->get_popup_menu_location());
+        key_event->consume();
+        return;
+      }
       key_event->consumed = owner->process_key_bindings(*key_event);
     } else {
       // Nothing in this window holds the focus: the window-wide bindings are

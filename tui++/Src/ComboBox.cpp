@@ -859,6 +859,12 @@ void ComboBox::on_mouse_pressed(MousePressEvent &e) {
     return;
   }
 
+  // The popup trigger is the context menu's gesture: it must not toggle the
+  // dropdown underneath the menu that is about to open.
+  if (e.is_popup_trigger and get_component_popup_menu()) {
+    return;
+  }
+
   request_focus(false, true, FocusEvent::Cause::ACTIVATION);
 
   // The editor child handles the presses on the field itself (the caret and

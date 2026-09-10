@@ -7,6 +7,7 @@ namespace tui {
 
 class MenuBar;
 class Menu;
+class PopupMenu;
 class Window;
 class KeyEvent;
 class MousePressEvent;
@@ -53,6 +54,13 @@ private:
   bool handle_open_popup_key(const std::shared_ptr<Menu> &open, KeyEvent &e);
   bool handle_menu_mode_key(const std::shared_ptr<MenuBar> &bar, KeyEvent &e);
   bool handle_idle_key(const std::shared_ptr<MenuBar> &bar, KeyEvent &e);
+
+  // The keyboard's half of a component's context menu (see Component's
+  // popup trigger): the arrows walk the popup's rows, Enter/Space pick,
+  // Escape closes, and the mnemonic letters select their rows. Everything
+  // else the popup has a claim on -- the editing keys, the letters no row
+  // wants -- is swallowed, because an open popup is modal for the keyboard.
+  bool handle_component_popup_key(const std::shared_ptr<PopupMenu> &popup, KeyEvent &e);
 
   // Clicks the armed item of `open`'s popup (if any) and ends the keyboard
   // session: the popup is dismissed through the selection path, the menu bar
