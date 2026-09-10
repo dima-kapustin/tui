@@ -106,11 +106,30 @@ std::shared_ptr<Window> Screen::get_window_at(int x, int y) const {
   return { };
 }
 
+std::shared_ptr<Window> Screen::get_modal_blocker(const std::shared_ptr<Window> &window) const {
+  std::unique_lock lock(this->windows_mutex);
+  for (auto i = this->windows.rbegin(); i != this->windows.rend(); ++i) {
+    auto const &candidate = *i;
+    if (candidate.get() == window.get()) {
+      continue;
+    }
+    if (candidate->is_showing() and candidate->blocks(window)) {
+      return candidate;
+    }
+  }
+  return { };
+}
+
 void Screen::show_window(const std::shared_ptr<Window> &window) {
   std::unique_lock lock(this->windows_mutex);
   if (std::find(this->windows.begin(), this->windows.end(), window) == this->windows.end()) {
     this->windows.emplace_back(window);
     if (this->windows.size() == 1) {
+      focus(window, nullptr);
+    } else if (window->is_focusable_window() and not window->is_modal_blocked()) {
+      // A window that opens over another one takes the focus, as a Swing
+      // dialog does when it is shown (a popup is not focusable and leaves
+      // the focus where it is, which is what its invoker wants).
       focus(window, nullptr);
     }
 
@@ -157,7 +176,7 @@ void Screen::hide_window(const std::shared_ptr<Window> &window) {
   // dialog) or become unreachable behind nothing: the input belongs to the
   // window on top of what is left, as it does when a dialog closes in Swing.
   auto focused = KeyboardFocusManager::single->get_focused_window();
-  if (not focused or not focused->is_showing()) {
+  if (not focused or not focused->is_showing() or focused->is_modal_blocked()) {
     for (auto i = this->windows.rbegin(); i != this->windows.rend(); ++i) {
       if ((*i)->is_focusable_window()) {
         focus(*i, nullptr);

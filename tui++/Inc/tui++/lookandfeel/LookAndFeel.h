@@ -38,6 +38,7 @@ class PopupMenuUI;
 class PopupMenuSeparatorUI;
 class SeparatorUI;
 class ToggleButtonUI;
+class DialogUI;
 
 // Interface for a look-and-feel. The concrete instance is created by (and
 // retrieved through) the screen, which is global and always instantiated.
@@ -58,6 +59,7 @@ public:
   virtual std::shared_ptr<PopupMenuSeparatorUI> create_popup_menu_separator_ui(PopupMenuSeparator *c) = 0;
   virtual std::shared_ptr<SeparatorUI> create_separator_ui(Separator *c) = 0;
   virtual std::shared_ptr<ToggleButtonUI> create_toggle_button_ui(ToggleButton *c) = 0;
+  virtual std::shared_ptr<DialogUI> create_dialog_ui(Dialog *c) = 0;
 
 protected:
   void init_theme(std::shared_ptr<Theme> const &theme) {
@@ -175,6 +177,9 @@ public:
   }
   static std::shared_ptr<ToggleButtonUI> create_ui(ToggleButton *c) {
     return get_current()->create_toggle_button_ui(c);
+  }
+  static std::shared_ptr<DialogUI> create_ui(Dialog *c) {
+    return get_current()->create_dialog_ui(c);
   }
 };
 

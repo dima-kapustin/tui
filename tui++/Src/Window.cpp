@@ -38,6 +38,19 @@ void Window::add_notify() {
 }
 
 void Window::dispatch_event(Event &e) {
+  // A modal dialog holds the input of the windows it stands over (Swing's
+  // ModalEventFilter): their mouse and key events are consumed here, before
+  // the window's listeners or its focused component could see them. The
+  // window keeps painting; only the input is held back. The dialog itself and
+  // its own windows are never blocked (see Dialog::blocks), so the input
+  // reaches the modal dialog and whatever it opens.
+  if ((MOUSE_EVENT_MASK & e.id) or (KEY_EVENT_MASK & e.id)) {
+    if (is_modal_blocked()) {
+      e.consume();
+      return;
+    }
+  }
+
   if (this->mouse_event_dispatcher and (MOUSE_EVENT_MASK & e.id)) {
     // A mouse press ends the keyboard menu session (F10 mode, keyboard
     // navigation of an open popup) before the dispatcher runs: from the
@@ -64,6 +77,13 @@ void Window::dispatch_event(Event &e) {
 
 bool Window::is_opaque() const {
   return this->background_color.has_value();
+}
+
+std::shared_ptr<Window> Window::get_modal_blocker() const {
+  // shared_from_this() hands out the Component identity; the window itself is
+  // what the screen's modal filter is asked about.
+  auto self = std::dynamic_pointer_cast<Window>(const_cast<Window*>(this)->shared_from_this());
+  return screen.get_modal_blocker(self);
 }
 
 void Window::paint_children(Graphics &g) {

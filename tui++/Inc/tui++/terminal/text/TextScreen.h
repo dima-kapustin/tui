@@ -155,6 +155,13 @@ public:
   }
 
   virtual void run_event_loop() override;
+  virtual void run_modal_event_loop(const std::shared_ptr<Window> &modal_window) override;
+
+  // One turn of the event loop: reads the terminal's input, dispatches the
+  // pending events, fires the due timers and paints what the turn damaged.
+  // run_event_loop and the nested modal pump share it, so both behave the
+  // same way.
+  void event_loop_iteration();
 
   virtual std::unique_ptr<Graphics> get_graphics() override;
   virtual std::unique_ptr<Graphics> get_graphics(Rectangle const &clip) override;

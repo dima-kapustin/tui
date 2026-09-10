@@ -171,6 +171,14 @@ public:
 
   virtual void run_event_loop() = 0;
 
+  // Pumps events until `modal_window` is no longer showing: the nested loop a
+  // modal dialog's show() runs, the way Swing's Dialog.setVisible(true) keeps
+  // the event dispatch thread pumping while the dialog is up. The concrete
+  // screens implement it with their own input reading, exactly as their
+  // run_event_loop does; a screen that has not been pumped before (a test
+  // driving the screen by hand) reads input the same way.
+  virtual void run_modal_event_loop(const std::shared_ptr<Window> &modal_window) = 0;
+
   virtual std::unique_ptr<Graphics> get_graphics() = 0;
   virtual std::unique_ptr<Graphics> get_graphics(Rectangle const& clip) = 0;
 
@@ -207,6 +215,12 @@ public:
   std::shared_ptr<Window> get_window_at(const Point &p) const {
     return get_window_at(p.x, p.y);
   }
+
+  // The showing modal window that blocks `window`, or null (Swing's
+  // Window.getModalBlocker). The topmost blocker is the one reported: it is
+  // the window the user is working with. The caller must not hold the
+  // window list lock.
+  std::shared_ptr<Window> get_modal_blocker(const std::shared_ptr<Window> &window) const;
 
   // Whether any window is showing. A screen with nothing on it paints
   // nothing: a full repaint then only writes the terminal blank, which a

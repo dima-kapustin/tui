@@ -95,6 +95,14 @@ bool KeyboardFocusManager::dispatch_event(Event &e) {
       restore_focus(we);
       break;
     }
+
+    // A window a modal dialog stands over cannot take the focus either: the
+    // input belongs to the modal window (Swing's DefaultKeyboardFocusManager
+    // refuses a blocked window the same way).
+    if (newFocusedWindow->is_modal_blocked()) {
+      restore_focus(we);
+      break;
+    }
     // If there exists a current focused window, then notify it
     // that it has lost focus.
     if (oldFocusedWindow) {
@@ -288,6 +296,16 @@ bool KeyboardFocusManager::dispatch_event(Event &e) {
     auto newFocusOwner = fe.component();
     if (oldFocusOwner == newFocusOwner) {
       log_focus_ln("Skipping " << fe << " because focus owner is the same");
+      break;
+    }
+
+    // A component of a window a modal dialog holds cannot take the focus: the
+    // input belongs to the dialog until it closes. The gain is refused here,
+    // before the window gain below could bounce between the blocked window
+    // and the modal one (each refusal asking the other to take the focus
+    // back), and the focus goes back into the modal window.
+    if (auto window = newFocusOwner->get_containing_window(); window and window->is_modal_blocked()) {
+      restore_focus(fe, window);
       break;
     }
 
@@ -493,6 +511,18 @@ void KeyboardFocusManager::restore_focus(WindowEvent &e) {
 
 bool KeyboardFocusManager::restore_focus(const std::shared_ptr<Window> &window, const std::shared_ptr<Component> &vetoed_component, bool clear_on_failure) {
   this->restore_focus_to = nullptr;
+
+  // A window a modal dialog holds is not a restore target: its components
+  // would only be refused the focus again (see the FOCUS_GAINED and
+  // WINDOW_GAINED_FOCUS handlers), so the dialog keeps the input and the
+  // caller falls through to the next candidate -- or leaves the focus where
+  // it is. Restoring into a blocked window used to ask the modal window for
+  // the focus back and the refusal asked the blocked one again: an endless
+  // exchange of focus events.
+  if (window and window->is_modal_blocked()) {
+    return false;
+  }
+
   auto to_focus = get_most_recent_focus_owner(window);
   if (to_focus and to_focus != vetoed_component) {
     if (do_restore_focus(to_focus, vetoed_component, false)) {

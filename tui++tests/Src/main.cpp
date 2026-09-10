@@ -47,6 +47,7 @@ void test_text_field();
 void test_Widgets();
 void test_Shadow();
 void test_ContextMenu();
+void test_Dialog();
 
 void run_font_visual_test();
 void run_font_editor(bool bench = false, bool scrollbench = false, bool sigtest = false);
@@ -91,6 +92,7 @@ int main(int argc, char *argv[]) {
   test_Widgets();
   test_Shadow();
   test_ContextMenu();
+  test_Dialog();
 
   if (argc > 1) {
     auto arg = std::string_view(argv[1]);
