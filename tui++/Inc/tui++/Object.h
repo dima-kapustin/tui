@@ -261,7 +261,11 @@ public:
   }
 
   virtual void set_value(const PropertyValue &value, bool initial = false) override final {
-    set_value(*std::any_cast<T>(&value));
+    // A value of another type than the property's is ignored (the property
+    // keeps its value), rather than read as one of this type.
+    if (auto *new_value = std::any_cast<T>(&value)) {
+      set_value(*new_value);
+    }
     this->value_set_ = not initial;
   }
 
@@ -333,10 +337,14 @@ public:
   }
 
   virtual void set_value(const PropertyValue &value, bool initial = false) override final {
-    if (value.has_value()) {
-      set_optional_value(std::nullopt);
+    // An empty property value clears the optional; a value sets it, whether
+    // it carries the value or the optional itself.
+    if (auto *new_value = std::any_cast<value_type>(&value)) {
+      set_optional_value(*new_value);
+    } else if (auto *new_optional = std::any_cast<T>(&value)) {
+      set_optional_value(*new_optional);
     } else {
-      set_optional_value(std::make_optional<value_type>(*std::any_cast<value_type>(&value)));
+      set_optional_value(std::nullopt);
     }
     this->value_set_ = has_value() and not initial;
   }

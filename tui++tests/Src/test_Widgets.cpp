@@ -24,6 +24,7 @@
 #include <tui++/event/Event.h>
 #include <tui++/event/FocusEvent.h>
 #include <tui++/event/KeyEvent.h>
+#include <tui++/event/MouseEvent.h>
 #include <tui++/terminal/Terminal.h>
 #include <tui++/terminal/text/TextScreen.h>
 
@@ -195,6 +196,92 @@ static void test_toggle_button_focus() {
   // ... and the selected member keeps the request for itself.
   center->request_focus(FocusEvent::Cause::ACTIVATION);
   CHECK(owner() == center);
+
+  frame->set_visible(false);
+  drain();
+}
+
+// The toggle widgets answer the mouse the way Swing's buttons do (Swing's
+// BasicButtonListener): a left press arms and presses the model -- the
+// "down" look -- and takes the focus, and the release over the button drops
+// the pressed state, which fires the action. A click on the label or on the
+// indicator picks the button; the grouped radio buttons stay exclusive.
+static void test_toggle_button_mouse_clicks() {
+  terminal.set_type("text");
+
+  auto frame = make_component<Frame>();
+  frame->set_size({ 80, 24 });
+  auto content = frame->get_content_pane();
+  auto row = make_component<Panel>(); // a row of controls, like the demo's
+
+  auto bold = make_component<ToggleButton>("Bold");
+  auto italic = make_component<CheckBox>("Italic");
+
+  auto group = std::make_shared<ButtonGroup>();
+  auto left = make_component<RadioButton>("Left");
+  auto right = make_component<RadioButton>("Right");
+  group->add(left);
+  group->add(right);
+
+  row->add(bold);
+  row->add(italic);
+  row->add(left);
+  row->add(right);
+  content->add(row);
+  frame->set_visible(true);
+  drain();
+
+  auto click = [&](std::shared_ptr<Component> const &c, int dx) {
+    auto at = c->get_location_on_screen();
+    auto local = convert_point_from_screen(Point { at.x + dx, at.y + c->get_height() / 2 }, frame);
+    click_window(frame, local.x, local.y);
+  };
+
+  auto bold_actions = 0;
+  bold->add_listener([&bold_actions](ActionEvent &) {
+    ++bold_actions;
+  });
+
+  // A click selects a toggle button, the next one clears it, and each click
+  // fires exactly one action.
+  click(bold, 1);
+  CHECK(bold->is_selected());
+  CHECK(bold_actions == 1);
+  click(bold, 1);
+  CHECK(not bold->is_selected());
+  CHECK(bold_actions == 2);
+
+  // The label belongs to the check box: a click on its last cell toggles it.
+  click(italic, italic->get_width() - 1);
+  CHECK(italic->is_selected());
+
+  // Clicked radio buttons stay exclusive, and the click takes the focus.
+  click(left, 1);
+  CHECK(left->is_selected());
+  CHECK(KeyboardFocusManager::single->get_focus_owner() == left);
+  click(right, 1);
+  CHECK(right->is_selected());
+  CHECK(not left->is_selected());
+  CHECK(KeyboardFocusManager::single->get_focus_owner() == right);
+
+  // A button that is held and then released away from it does not fire: the
+  // exit disarms it (the press's action would otherwise fire on the release).
+  auto actions_before = bold_actions;
+  drain();
+  auto at = bold->get_location_on_screen();
+  auto inside = convert_point_from_screen(Point { at.x + 1, at.y + bold->get_height() / 2 }, frame);
+  auto outside = convert_point_from_screen(Point { at.x + 1, at.y + bold->get_height() + 1 }, frame);
+  screen.post<MousePressEvent>(frame, MousePressEvent::MOUSE_PRESSED, MousePressEvent::LEFT_BUTTON, InputEvent::LEFT_BUTTON_DOWN, inside.x, inside.y, false);
+  frame->dispatch_event(*screen.get_event_queue().pop());
+  CHECK(bold->get_model()->is_pressed()); // the press shows the "down" look
+  screen.post<MouseMoveEvent>(frame, InputEvent::LEFT_BUTTON_DOWN, outside.x, outside.y);
+  frame->dispatch_event(*screen.get_event_queue().pop());
+  screen.post<MousePressEvent>(frame, MousePressEvent::MOUSE_RELEASED, MousePressEvent::LEFT_BUTTON, InputEvent::NO_MODIFIERS, outside.x, outside.y, false);
+  frame->dispatch_event(*screen.get_event_queue().pop());
+  drain();
+  CHECK(not bold->get_model()->is_pressed());
+  CHECK(not bold->is_selected()); // the release away from the button did not pick it
+  CHECK(bold_actions == actions_before);
 
   frame->set_visible(false);
   drain();
@@ -652,6 +739,7 @@ static void test_combo_dropdown() {
 void test_Widgets() {
   test_toggle_buttons();
   test_toggle_button_focus();
+  test_toggle_button_mouse_clicks();
   test_menu_items();
   test_combo_model();
   test_combo_box();

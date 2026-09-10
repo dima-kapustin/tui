@@ -77,9 +77,29 @@ Color text_color(AbstractButton const *button) {
   return button->get_foreground_color().value_or(Color { 0, 0, 0 });
 }
 
-// Width of `text` in the screen's units; the widest line counts.
-int text_width(TextMetrics const *metrics, std::string const &text) {
-  return text.empty() ? 0 : metrics->get_width(text);
+// The width of the button's content: the indicator, the icon and the label on
+// one line. The indicator column already ends with its own gap (Swing's check
+// icon text gap); the button's icon-text gap separates the icon and the label
+// when both are present. The preferred size and the paint share this helper,
+// so a laid-out button always has room for the label it paints (measuring the
+// gap on one side only used to lay the label out wider than the size the
+// layout had given the button, clipping its tail away).
+int content_width(TextMetrics const &metrics, AbstractButton const *button) {
+  auto width = 0;
+  if (auto kind = indicator_kind(button); kind != IndicatorKind::NONE) {
+    width += indicator_column_width(metrics);
+  }
+  auto const &icon = button->get_icon();
+  if (icon) {
+    width += icon->get_icon_width();
+  }
+  if (auto const &text = button->get_text(); not text.empty()) {
+    if (icon) {
+      width += int(button->get_icon_text_gap());
+    }
+    width += metrics.get_width(text);
+  }
+  return width;
 }
 
 // Draws `text` starting at (x, y), clipping at the content area's right edge
@@ -110,6 +130,7 @@ void paint_clipped_text(Graphics &g, TextMetrics const *metrics, std::string con
 }
 
 void ButtonUI::install_ui(std::shared_ptr<Component> const &c) {
+  this->button = static_cast<AbstractButton*>(c.get());
   auto const &prefix = property_prefix(c.get());
 
   // The button family is opaque and filled (Swing's opaque default), on the
@@ -121,6 +142,65 @@ void ButtonUI::install_ui(std::shared_ptr<Component> const &c) {
   LookAndFeel::install(c.get(), "Opaque", LookAndFeel::get<bool>(prefix + ".Opaque", true));
   LookAndFeel::install_colors(c.get(), prefix + ".BackgroundColor", prefix + ".ForegroundColor");
   LookAndFeel::install_border(c.get(), prefix + ".Border");
+
+  install_listeners();
+}
+
+void ButtonUI::uninstall_ui(std::shared_ptr<Component> const &c) {
+  uninstall_listeners();
+  this->button = nullptr;
+}
+
+void ButtonUI::install_listeners() {
+  this->button->add_listener(MousePressEvent::MOUSE_PRESSED, this->mouse_pressed_listener);
+  this->button->add_listener(MousePressEvent::MOUSE_RELEASED, this->mouse_released_listener);
+  this->button->add_listener(this->mouse_overed_listener);
+}
+
+void ButtonUI::uninstall_listeners() {
+  this->button->remove_listener(this->mouse_overed_listener);
+  this->button->remove_listener(this->mouse_released_listener);
+  this->button->remove_listener(this->mouse_pressed_listener);
+}
+
+void ButtonUI::mouse_pressed(MousePressEvent &e) {
+  if (e.id != MousePressEvent::MOUSE_PRESSED or e.button != MouseEvent::LEFT_BUTTON or not this->button->is_enabled()) {
+    return;
+  }
+
+  // The press takes the focus (a mouse event, so a radio button's group does
+  // not redirect it to its selected member the way traversal does) and puts
+  // the model into the armed+pressed state the delegate paints as "down".
+  this->button->request_focus(FocusEvent::Cause::MOUSE_EVENT);
+
+  auto const &model = this->button->get_model();
+  model->set_armed(true);
+  model->set_pressed(true);
+}
+
+void ButtonUI::mouse_released(MousePressEvent &e) {
+  if (e.id != MousePressEvent::MOUSE_RELEASED or e.button != MouseEvent::LEFT_BUTTON) {
+    return;
+  }
+
+  // Dropping the pressed state fires the model's action while the button is
+  // still armed (the pointer is on it); the disarm that follows leaves a
+  // release outside the button without an action.
+  auto const &model = this->button->get_model();
+  model->set_pressed(false);
+  model->set_armed(false);
+}
+
+void ButtonUI::mouse_overed(MouseOverEvent &e) {
+  auto const &model = this->button->get_model();
+  if (not model->is_pressed() or not this->button->is_enabled()) {
+    return;
+  }
+
+  // While the button is held, leaving it disarms and coming back arms again:
+  // the "down" look follows the pointer, and only a release over the button
+  // fires its action.
+  model->set_armed(e.type() == MouseOverEvent::MOUSE_ENTERED);
 }
 
 std::optional<Dimension> ButtonUI::get_preferred_size(std::shared_ptr<const Component> const &c) const {
@@ -128,14 +208,7 @@ std::optional<Dimension> ButtonUI::get_preferred_size(std::shared_ptr<const Comp
   auto metrics = screen.get_text_metrics();
   auto margin = button->get_margin().value_or(Insets { 0, 0, 0, 0 });
 
-  auto width = text_width(metrics.get(), button->get_text());
-  auto kind = indicator_kind(c.get());
-  if (kind != IndicatorKind::NONE) {
-    width += indicator_column_width(*metrics);
-  }
-  if (auto const &icon = button->get_icon()) {
-    width += int(button->get_icon_text_gap()) + icon->get_icon_width();
-  }
+  auto width = content_width(*metrics, button);
 
   auto insets = c->get_insets();
   auto height = metrics->get_line_height();
@@ -176,30 +249,23 @@ void ButtonUI::paint(Graphics &g, std::shared_ptr<const Component> const &c) con
   auto y = y0 + std::max(0, (y1 - y0 - metrics->get_line_height()) / 2);
 
   // Lay the indicator, the icon and the label out on one line (Swing's
-  // layoutCompoundLabel for the default vertical CENTER / text TRAILING).
+  // layoutCompoundLabel for the default vertical CENTER / text TRAILING),
+  // measuring the line exactly as the preferred size did.
   auto kind = indicator_kind(c.get());
   auto text = button->get_text();
   auto icon_gap = int(button->get_icon_text_gap());
-  auto width_so_far = 0;
-  if (kind != IndicatorKind::NONE) {
-    width_so_far += indicator_column_width(*metrics);
-  }
-  if (auto const &icon = button->get_icon()) {
-    width_so_far += (width_so_far != 0 ? icon_gap : 0) + icon->get_icon_width();
-  }
-  auto label_width = text_width(metrics.get(), text);
-  auto content_width = width_so_far + (width_so_far != 0 and not text.empty() ? icon_gap : 0) + label_width;
+  auto content = content_width(*metrics, button);
 
   // Horizontal alignment within the content area.
   auto available = x1 - x0;
   auto x = x0;
   switch (button->get_horizontal_alignment()) {
   case HorizontalAlignment::CENTER:
-    x = x0 + std::max(0, (available - content_width) / 2);
+    x = x0 + std::max(0, (available - content) / 2);
     break;
   case HorizontalAlignment::RIGHT:
   case HorizontalAlignment::TRAILING:
-    x = x0 + std::max(0, available - content_width);
+    x = x0 + std::max(0, available - content);
     break;
   case HorizontalAlignment::LEFT:
   case HorizontalAlignment::LEADING:
@@ -211,15 +277,13 @@ void ButtonUI::paint(Graphics &g, std::shared_ptr<const Component> const &c) con
     paint_indicator(g, *metrics, kind, cursor, y, model->is_selected());
     cursor += indicator_column_width(*metrics);
   }
-  if (auto const &icon = button->get_icon()) {
-    if (cursor != x) {
-      cursor += icon_gap;
-    }
+  auto const &icon = button->get_icon();
+  if (icon) {
     icon->paint_icon(c.get(), g, cursor, y);
-    cursor += icon_gap + icon->get_icon_width();
+    cursor += icon->get_icon_width();
   }
   if (not text.empty()) {
-    if (cursor != x) {
+    if (icon) {
       cursor += icon_gap;
     }
     auto focus_underline = button->is_focus_owner() and button->is_focus_painted() and not model->is_selected();
