@@ -1,5 +1,6 @@
 #include <tui++/TextArea.h>
 #include <tui++/Clipboard.h>
+#include <tui++/TextPopupMenu.h>
 #include <tui++/Viewport.h>
 #include <tui++/ScrollPane.h>
 #include <tui++/Window.h>
@@ -14,6 +15,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 
 namespace tui {
 
@@ -142,6 +144,12 @@ void TextArea::init() {
     if (e.id != MousePressEvent::MOUSE_PRESSED) {
       return;
     }
+    // The popup trigger opens the context menu (see TextPopupMenu); it is not
+    // the area's own gesture, so the caret stays and the selection survives
+    // for the menu's Cut and Copy rows.
+    if (e.is_popup_trigger and get_component_popup_menu()) {
+      return;
+    }
     auto line = std::uint64_t(std::max(0, e.y));
     if (this->buffer->known_line_count() > line) {
       auto shift = bool(e.modifiers & InputEvent::SHIFT_DOWN);
@@ -169,6 +177,11 @@ void TextArea::init() {
   add_listener([this](FocusEvent &e) {
     focus_changed(e.id == FocusEvent::FOCUS_GAINED);
   });
+
+  // The standard text popup, as BasicTextUI gives every Swing text component
+  // one (see TextPopupMenu). On a read-only area its editing rows disable
+  // themselves; Copy and Select All stay available.
+  set_component_popup_menu(create_text_popup_menu(std::dynamic_pointer_cast<TextComponent>(shared_from_this())));
 }
 
 TextArea::~TextArea() = default;
@@ -303,6 +316,15 @@ void TextArea::refresh_caret_geometry() {
   auto [line, cell] = offset_cell(this->caret);
   this->caret_line = line;
   this->caret_cell = cell;
+}
+
+Point TextArea::get_popup_menu_location() const {
+  // The caret's cell in the area's own coordinates -- which are the file's,
+  // the viewport places the view at -view_position (see init) -- so the menu
+  // opens over the caret wherever the view is scrolled. Every caret move
+  // scrolls the caret into view (scroll_caret_to_visible), so this is a
+  // visible cell in the common case.
+  return { this->caret_cell, int(std::min<std::uint64_t>(this->caret_line, std::uint64_t(std::numeric_limits<int>::max()))) };
 }
 
 // Byte offset of the character whose leading cell column is >= `cell`, or the

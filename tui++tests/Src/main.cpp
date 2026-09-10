@@ -45,6 +45,7 @@ void test_TextArea_find_all();
 void test_InputTranslation();
 void test_text_field();
 void test_Widgets();
+void test_ContextMenu();
 
 void run_font_visual_test();
 void run_font_editor(bool bench = false, bool scrollbench = false, bool sigtest = false);
@@ -87,6 +88,7 @@ int main(int argc, char *argv[]) {
   test_InputTranslation();
   test_text_field();
   test_Widgets();
+  test_ContextMenu();
 
   if (argc > 1) {
     auto arg = std::string_view(argv[1]);

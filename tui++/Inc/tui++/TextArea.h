@@ -29,6 +29,7 @@
 #include <tui++/Component.h>
 #include <tui++/Scrollable.h>
 #include <tui++/TextBuffer.h>
+#include <tui++/TextComponent.h>
 #include <tui++/Timer.h>
 
 #include <cstdint>
@@ -50,7 +51,7 @@ class TextAreaKeyForwarder;
 // retargets them to the press target for screen listeners only.
 class TextAreaDragObserver;
 
-class TextArea: public Component, public Scrollable {
+class TextArea: public Component, public Scrollable, public TextComponent {
   using base = Component;
 
 public:
@@ -88,6 +89,12 @@ public:
 
   bool is_readonly() const {
     return this->readonly;
+  }
+
+  // Whether the area accepts edits (Swing's JTextComponent.isEditable, the
+  // positive of setReadonly). A read-only area still selects and copies.
+  bool is_editable() const override {
+    return not this->readonly;
   }
 
   void set_show_whitespace(bool value) {
@@ -187,7 +194,7 @@ public:
   // Selection / clipboard editing (the Edit menu operations) -----------------
 
   // True when a (non-empty) range is selected between the anchor and caret.
-  bool has_selection() const {
+  bool has_selection() const override {
     return this->sel_anchor != this->caret;
   }
 
@@ -237,31 +244,34 @@ public:
   }
 
   // Copies the selection into the Clipboard. Safe without a selection.
-  void copy();
+  void copy() override;
 
   // Copies the selection and deletes it (a no-op in read-only mode).
-  void cut();
+  void cut() override;
 
   // Inserts the Clipboard content at the caret (replacing the selection).
-  void paste();
+  void paste() override;
 
   // Selects the whole content.
-  void select_all();
+  void select_all() override;
 
   // Undo/redo of edits (typing runs and backspaces coalesce into one step).
-  void undo();
-  void redo();
-  bool can_undo() const {
+  void undo() override;
+  void redo() override;
+  bool can_undo() const override {
     return not this->undo_stack.empty();
   }
-  bool can_redo() const {
+  bool can_redo() const override {
     return not this->redo_stack.empty();
   }
 
   // Deletes the selection when there is one, otherwise the character before
   // (backward) / after (forward) the caret.
   void delete_backward();
-  void delete_forward();
+  void delete_forward() override;
+
+  // The keyboard's popup trigger opens the standard text menu at the caret.
+  virtual Point get_popup_menu_location() const override;
 
   // Scrolls so the caret is visible; no-op when the area is not inside a
   // viewport.

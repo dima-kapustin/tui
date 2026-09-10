@@ -3,6 +3,7 @@
 #include <tui++/Clipboard.h>
 #include <tui++/Screen.h>
 #include <tui++/TextMetrics.h>
+#include <tui++/TextPopupMenu.h>
 #include <tui++/Window.h>
 #include <tui++/lookandfeel/LookAndFeel.h>
 #include <tui++/util/utf-8.h>
@@ -163,6 +164,12 @@ void TextField::init() {
   add_listener(MouseClickEvent::MOUSE_CLICKED, [this](MouseClickEvent &e) {
     on_mouse_click(e);
   });
+
+  // The standard text popup, as BasicTextUI gives every Swing text component
+  // one: the editing and clipboard commands over a menu the popup trigger
+  // opens (see TextPopupMenu). A program replaces it by setting its own
+  // component popup menu.
+  set_component_popup_menu(create_text_popup_menu(std::dynamic_pointer_cast<TextComponent>(shared_from_this())));
 
   update_preferred_size();
 }
@@ -407,6 +414,17 @@ void TextField::delete_forward(bool word) {
   }
   auto end = word ? next_word_boundary(this->dot) : this->dot + 1;
   replace_range(this->dot, end, { });
+}
+
+void TextField::delete_forward() {
+  delete_forward(false);
+}
+
+Point TextField::get_popup_menu_location() const {
+  // The caret's cell in the field's own coordinates (the content is scrolled
+  // under the field, so the view offset comes off), which is where a Swing
+  // text component anchors its popup for the keyboard trigger.
+  return { content_left() + cells_before(this->dot) - view_offset(), 0 };
 }
 
 void TextField::push_undo() {
@@ -734,6 +752,14 @@ void TextField::on_mouse_pressed(MousePressEvent &e) {
     return;
   }
   if (e.id != MousePressEvent::MOUSE_PRESSED) {
+    return;
+  }
+
+  // The popup trigger is the context menu's gesture, not the field's: the
+  // caret stays where it is and the selection survives, so the menu's Cut and
+  // Copy rows act on what the click was aiming at (the platform text
+  // components behave the same way: a right click on a selection keeps it).
+  if (e.is_popup_trigger and get_component_popup_menu()) {
     return;
   }
 
