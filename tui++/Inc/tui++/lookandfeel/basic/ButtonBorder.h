@@ -25,6 +25,10 @@ public:
   std::optional<Color> get_light_highlight_color(Component const &c) const;
 
 private:
+  // The one-cell frame of a state: the color of its top and left edges, and
+  // the color of its bottom and right ones.
+  void paint_frame(Graphics &g, int w, int h, std::optional<Color> const &top_left, std::optional<Color> const &bottom_right) const;
+
   void paint_bezel(Component const &c, Graphics &g, int x, int y, int width, int height, bool is_pressed, bool is_default) const;
 
 private:

@@ -140,6 +140,7 @@ void ButtonUI::install_ui(std::shared_ptr<Component> const &c) {
   // their constructors and paint only the indicator, so the theme's border
   // keys of those kinds are intentionally left undefined.
   LookAndFeel::install(c.get(), "Opaque", LookAndFeel::get<bool>(prefix + ".Opaque", true));
+  LookAndFeel::install(c.get(), "Margin", LookAndFeel::get<std::optional<Insets>>(prefix + ".margin"));
   LookAndFeel::install_colors(c.get(), prefix + ".BackgroundColor", prefix + ".ForegroundColor");
   LookAndFeel::install_border(c.get(), prefix + ".Border");
 

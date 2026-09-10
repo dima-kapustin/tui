@@ -153,6 +153,14 @@ void TextTheme::init_component_defaults() {
 
   put("Button.Border", button_border);
 
+  // The button family's padding inside its bezel: Swing's "Button.margin"
+  // (the Metal default is a wide {2, 14, 2, 14}; one cell around the label is
+  // the character-cell equivalent). The check box and radio button kinds have
+  // no bezel -- their label follows the indicator's own gap column -- so they
+  // take no margin.
+  put("Button.margin", make_resource<Insets>(0, 1, 0, 1));
+  put("ToggleButton.margin", make_resource<Insets>(0, 1, 0, 1));
+
   // The button family (Swing's BasicButtonUI default properties). Every
   // button kind installs its background/foreground from its own prefix, so a
   // program can restyle one kind ("CheckBox.BackgroundColor") without
