@@ -1,9 +1,10 @@
 cmake_minimum_required(VERSION 3.20)
 
-# WidgetDemo - the toggleable widgets and combo box demo for tui++.
+# WidgetDemo - the widgets, context menus and dialogs demo for tui++.
 #
-# Builds ONE component tree (a Frame with a View MenuBar over a panel of
-# ToggleButtons/CheckBoxes/RadioButtons and ComboBoxes) and runs it on either
+# Builds ONE component tree (a Frame with a File/View/Dialogs MenuBar over a
+# panel of ToggleButtons/CheckBoxes/RadioButtons and ComboBoxes, plus the
+# comment TextField and its standard context menu) and runs it on either
 # terminal backend:
 #
 #     WidgetDemo            text screen  (cell-based escape sequences)
@@ -12,7 +13,9 @@ cmake_minimum_required(VERSION 3.20)
 #
 # Mouse/keyboard: click toggles; Tab moves the focus; the combo boxes are
 # operated with the arrow keys (dropdown), Enter (pick) and typing (lookup;
-# editable combo).
+# editable combo); the right button (or Shift+F10) opens the context menus,
+# the panel's and the standard text menu of the fields; the Dialogs menu opens
+# a modal and a modeless dialog.
 project(WidgetDemo)
 
 set(CMAKE_CXX_STANDARD 26)
