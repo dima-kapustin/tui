@@ -84,6 +84,14 @@ protected:
   void show() override;
   void hide() override;
 
+  // The window's own part of a hide -- its visible state, its events and its
+  // listeners -- without touching the screen's window list. Window::hide runs
+  // it once the screen has dropped the window; Screen::hide_window runs it
+  // for every window it takes off the list, because a hidden window takes the
+  // popups stacked above it with it and each of them has to come down the
+  // same way (see Screen::hide_window).
+  void hide_impl();
+
   void dispatch_event_to_self(Event &e) {
     base::dispatch_event(e);
   }

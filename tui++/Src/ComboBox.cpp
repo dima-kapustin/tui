@@ -336,9 +336,9 @@ void ComboBox::set_maximum_row_count(int count) {
 }
 
 void ComboBox::set_popup_visible(bool value) {
-  if (value and not this->popup_visible) {
+  if (value and not is_popup_visible()) {
     show_popup();
-  } else if (not value and this->popup_visible) {
+  } else if (not value and is_popup_visible()) {
     // Closing with the mouse or by picking keeps the field as it is; Escape
     // reverts explicitly (hide_popup(true)).
     hide_popup(false);
@@ -416,8 +416,15 @@ void ComboBox::model_changed(ChangeEvent &e) {
 
 // ---- dropdown ---------------------------------------------------------------
 
+bool ComboBox::is_popup_visible() const {
+  // The dropdown is only open while its popup window is on the screen: hiding
+  // the window the combo lives in takes the dropdown off the screen with it
+  // (see Screen::hide_window), behind the combo's back.
+  return this->popup_visible and this->popup_menu and this->popup_menu->is_popup_showing();
+}
+
 void ComboBox::show_popup() {
-  if (this->model->get_size() == 0 or this->popup_visible or (this->popup_menu and this->popup_menu->is_popup_showing())) {
+  if (this->model->get_size() == 0 or is_popup_visible() or (this->popup_menu and this->popup_menu->is_popup_showing())) {
     return;
   }
 
@@ -872,7 +879,7 @@ void ComboBox::on_mouse_pressed(MousePressEvent &e) {
   // editable combo, and the whole face of a non-editable one (its face is the
   // button, as in Swing): both toggle the dropdown.
   if (not is_editable() or not field_hit(e.x)) {
-    set_popup_visible(not this->popup_visible);
+    set_popup_visible(not is_popup_visible());
   }
   e.consume();
 }

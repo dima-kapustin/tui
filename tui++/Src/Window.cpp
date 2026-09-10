@@ -171,10 +171,15 @@ void Window::show() {
 
 void Window::hide() {
   screen.hide_window(std::dynamic_pointer_cast<Window>(shared_from_this()));
+  hide_impl();
+}
 
+void Window::hide_impl() {
   // The screen keeps a registered mouse dispatcher alive; once the window is
   // hidden it must not keep observing (or be kept alive by) the screen, and a
-  // dispatcher must never outlive the window it points at.
+  // dispatcher must never outlive the window it points at. unregister() is
+  // idempotent, so a window the screen already took down (with the window it
+  // was stacked over) costs nothing here.
   if (this->mouse_event_dispatcher) {
     this->mouse_event_dispatcher->unregister();
   }

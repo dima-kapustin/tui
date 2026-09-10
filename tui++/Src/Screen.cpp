@@ -120,21 +120,54 @@ void Screen::show_window(const std::shared_ptr<Window> &window) {
 
 void Screen::hide_window(const std::shared_ptr<Window> &window) {
   std::unique_lock lock(this->windows_mutex);
-  if (auto pos = std::find(this->windows.begin(), this->windows.end(), window); pos != this->windows.end()) {
-    // The hidden window and whatever was stacked above it leave the screen
-    // together; collect their bounds so a model-based screen can drop their
-    // cells from its back buffer (see on_window_removed).
-    auto area = Rectangle { };
-    for (auto i = pos; i != this->windows.end(); ++i) {
-      area = area.empty() ? (*i)->get_bounds() : area | (*i)->get_bounds();
-    }
-    this->windows.erase(pos, this->windows.end());
-    on_window_removed(area);
-    // Repaint what the hidden window uncovered (e.g. a closed popup menu).
-    refresh();
-  } else {
-    throw std::runtime_error("window not visible");
+  auto pos = std::find(this->windows.begin(), this->windows.end(), window);
+  if (pos == this->windows.end()) {
+    // Not on the screen: the window was never shown, or it is already down --
+    // possibly taken down with the window it was stacked over (see below).
+    // Hiding it is then a no-op, the way setVisible(false) on a hidden window
+    // is in Swing, and Window::hide settles the window's own state either
+    // way.
+    return;
   }
+
+  // The hidden window and whatever was stacked above it leave the screen
+  // together: a popup cannot be displayed over a window that is gone. Collect
+  // them (and their bounds, so a model-based screen can drop their cells) and
+  // trim the list before taking them down.
+  auto going_off = std::vector<std::shared_ptr<Window>> { pos, this->windows.end() };
+  auto area = Rectangle { };
+  for (auto &&off : going_off) {
+    area = area.empty() ? off->get_bounds() : area | off->get_bounds();
+  }
+
+  this->windows.erase(pos, this->windows.end());
+  on_window_removed(area);
+
+  // Take each of them down from the top, through the window's own hide: a
+  // window that goes off the screen with another one must not keep believing
+  // it is showing -- its mouse dispatcher would keep observing for a window
+  // that is gone, and the next hide of it (an application hiding its popup,
+  // a menu session dropping a stale popup) used to walk into this function's
+  // "window not visible" error.
+  for (auto i = going_off.rbegin(); i != going_off.rend(); ++i) {
+    (*i)->hide_impl();
+  }
+
+  // The window that had the focus may have just gone down (a dismissed modal
+  // dialog) or become unreachable behind nothing: the input belongs to the
+  // window on top of what is left, as it does when a dialog closes in Swing.
+  auto focused = KeyboardFocusManager::single->get_focused_window();
+  if (not focused or not focused->is_showing()) {
+    for (auto i = this->windows.rbegin(); i != this->windows.rend(); ++i) {
+      if ((*i)->is_focusable_window()) {
+        focus(*i, nullptr);
+        break;
+      }
+    }
+  }
+
+  // Repaint what the hidden windows uncovered (e.g. a closed popup menu).
+  refresh();
 }
 
 void Screen::to_front(const std::shared_ptr<Window> &window) {
@@ -158,7 +191,15 @@ void Screen::to_front(const std::shared_ptr<Window> &window) {
 }
 
 void Screen::focus(const std::shared_ptr<Window> &gained, const std::shared_ptr<Window> &lost) {
-  post_system<WindowEvent>(lost, WindowEvent::WINDOW_LOST_FOCUS, gained);
+  // The loser is optional: a window that opens without the focus having been
+  // on another window (the first window of the screen, a dialog coming up
+  // while nothing was focused) posts only the gain; the focus manager works
+  // out what it has to take the focus from. A lost event without a source
+  // would be dropped by dispatch_event anyway, and not queueing it keeps the
+  // event stream honest for callers that pop the queue themselves.
+  if (lost) {
+    post_system<WindowEvent>(lost, WindowEvent::WINDOW_LOST_FOCUS, gained);
+  }
   post_system<WindowEvent>(gained, WindowEvent::WINDOW_GAINED_FOCUS, lost);
 }
 
