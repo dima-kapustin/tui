@@ -570,6 +570,10 @@ void Component::add_impl(const std::shared_ptr<Component> &c, const Constraints 
   c->create_hierarchy_events(HierarchyEvent::PARENT_CHANGED, c, shared_from_this());
 }
 
+// The client property a component tracks the window-wide strokes it has
+// registered with the KeyboardManager under.
+constexpr auto WHEN_IN_FOCUSED_WINDOW_BINDINGS_KEY = "when-in-focused-window";
+
 void Component::add_notify() {
   if (auto window = get_containing_window()) {
     window->enable_events_for_dispatching(get_event_listener_mask() | this->event_mask);
@@ -585,6 +589,10 @@ void Component::remove_notify() {
   if (KeyboardFocusManager::single->get_permanent_focus_owner() == shared_from_this()) {
     KeyboardFocusManager::single->set_permanent_focus_owner(nullptr);
   }
+
+  // The strokes this component registered through its window's input map go
+  // with it.
+  unregister_with_keyboard_manager();
 }
 
 void Component::remove(const std::shared_ptr<Component> &c) {
@@ -684,6 +692,11 @@ void Component::dispatch_event(Event &e) {
   if (auto key_event = dynamic_cast<KeyEvent*>(&e); key_event and not key_event->consumed and is_window(shared_from_this())) {
     if (auto owner = KeyboardFocusManager::single->get_focus_owner(); owner and owner.get() != this and owner->get_containing_window() == get_containing_window()) {
       key_event->consumed = owner->process_key_bindings(*key_event);
+    } else {
+      // Nothing in this window holds the focus: the window-wide bindings are
+      // offered to it all the same (in Swing the root pane answers them as
+      // the fallback focus owner).
+      key_event->consumed = process_key_bindings_for_all_components(*key_event, shared_from_this());
     }
   }
 }
@@ -1194,7 +1207,6 @@ Point Component::get_location_on_screen() const {
 }
 
 void Component::register_with_keyboard_manager(bool only_if_new) {
-  constexpr auto WHEN_IN_FOCUSED_WINDOW_BINDINGS_KEY = "when-in-focused-window";
   auto strokes = std::vector<KeyStroke> { };
   auto registered = get_client_property<std::shared_ptr<std::unordered_set<KeyStroke>>>(WHEN_IN_FOCUSED_WINDOW_BINDINGS_KEY);
   if (auto input_map = get_input_map(InputCondition::WHEN_IN_FOCUSED_WINDOW, false)) {
@@ -1229,6 +1241,15 @@ void Component::register_with_keyboard_manager(bool only_if_new) {
     for (auto &&stroke : strokes) {
       registered->emplace(stroke);
     }
+  }
+}
+
+void Component::unregister_with_keyboard_manager() {
+  if (auto registered = get_client_property<std::shared_ptr<std::unordered_set<KeyStroke>>>(WHEN_IN_FOCUSED_WINDOW_BINDINGS_KEY)) {
+    for (auto &&stroke : *registered) {
+      unregister_with_keyboard_manager(stroke);
+    }
+    registered->clear();
   }
 }
 

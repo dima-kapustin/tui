@@ -26,6 +26,7 @@ void test_SixelEncoder();
 void test_Menu();
 void test_MenuKeyboard();
 void test_MenuSubmenu();
+void test_MenuAccelerators();
 void test_FocusTraversal();
 void test_TextBuffer();
 void test_ScrollPane();
@@ -65,6 +66,7 @@ int main(int argc, char *argv[]) {
   test_Menu();
   test_MenuKeyboard();
   test_MenuSubmenu();
+  test_MenuAccelerators();
   test_FocusTraversal();
   test_TextBuffer();
   test_ScrollPane();

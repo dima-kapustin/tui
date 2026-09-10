@@ -29,9 +29,18 @@ void LookAndFeel::replace_input_map(Component *c, Component::InputCondition cond
     auto parent = map->get_parent();
     if (not parent or is_theme_resource(parent)) {
       map->set_parent(new_map);
-      return;
+      break;
     }
     map = parent;
+  }
+
+  // A window-wide map's strokes enter the KeyboardManager's registry, so the
+  // whole window offers them to this component (Swing registers them with the
+  // component's own input map). The window is resolved when a key is fired,
+  // not here: an accelerator may be installed while its component is not in a
+  // window yet.
+  if (condition == Component::WHEN_IN_FOCUSED_WINDOW) {
+    c->register_with_keyboard_manager(false);
   }
 }
 

@@ -32,6 +32,12 @@ public:
   std::shared_ptr<MenuItem> add(std::shared_ptr<Action> const &action);
   void add_separator();
 
+  // The rows of a menu live in its popup (see add_impl), so a removal has to
+  // reach them there -- Menu's own component list is empty.
+  using base::remove;
+  virtual void remove(const std::shared_ptr<Component> &c) override;
+  virtual void remove(size_t index) override;
+
   std::chrono::milliseconds get_delay() const {
     return this->delay;
   }

@@ -177,11 +177,14 @@ void MenuItemUI::install_listeners() {
   this->menu_item->add_listener(this->menu_drag_mouse_overed_listener);
   this->menu_item->add_listener(this->menu_drag_mouse_dragged_listener);
   this->menu_item->add_listener(this->menu_drag_mouse_released_listener);
-  this->menu_item->add_property_change_listener(this->property_change_listener);
+  // For the accelerator alone: a listener for every property would be told
+  // about each change under the wildcard name, which cannot be told apart
+  // from the property it is about.
+  this->menu_item->add_property_change_listener("accelerator", this->property_change_listener);
 }
 
 void MenuItemUI::uninstall_listeners() {
-  this->menu_item->remove_property_change_listener(this->property_change_listener);
+  this->menu_item->remove_property_change_listener("accelerator", this->property_change_listener);
   this->menu_item->remove_listener(this->menu_drag_mouse_released_listener);
   this->menu_item->remove_listener(this->menu_drag_mouse_dragged_listener);
   this->menu_item->remove_listener(this->menu_drag_mouse_overed_listener);
@@ -220,10 +223,16 @@ void MenuItemUI::update_accelerator_binding() {
   if (auto accelerator = this->menu_item->get_accelerator()) {
     if (not window_input_map) {
       window_input_map = LookAndFeel::make_theme_resource<ComponentInputMap>(this->menu_item);
-      LookAndFeel::replace_input_map(this->menu_item, Component::WHEN_IN_FOCUSED_WINDOW, window_input_map);
     }
 
     window_input_map->emplace(accelerator.value(), CLICK);
+  }
+
+  // Install the map even when it was already in place: replacing it is what
+  // moves the binding into the KeyboardManager's stroke registry, so the
+  // stroke an earlier accelerator had is dropped.
+  if (window_input_map) {
+    LookAndFeel::replace_input_map(this->menu_item, Component::WHEN_IN_FOCUSED_WINDOW, window_input_map);
   }
 }
 

@@ -11,8 +11,11 @@
 #include <tui++/Menu.h>
 #include <tui++/MenuBar.h>
 #include <tui++/MenuItem.h>
+#include <tui++/Panel.h>
 #include <tui++/RootPane.h>
 #include <tui++/Screen.h>
+
+#include <tui++/event/FocusEvent.h>
 
 #include <tui++/ButtonGroup.h>
 #include <tui++/CheckBoxMenuItem.h>
@@ -850,4 +853,73 @@ void test_MenuSubmenu() {
   drain();
 
   std::printf("PASS menu submenus (indicator glyphs, hover and keyboard chains)\n");
+}
+
+// The items' accelerators fire from anywhere in the window: the stroke enters
+// the KeyboardManager's registry through the item's WHEN_IN_FOCUSED_WINDOW
+// input map, and the window offers it to the item after the focused
+// component's own bindings. A changed accelerator moves the binding, and an
+// item that leaves the window stops answering to it.
+void test_MenuAccelerators() {
+  terminal.set_type("text");
+
+  auto frame = make_component<Frame>();
+  frame->set_size({ 80, 24 });
+
+  auto menu_bar = make_component<MenuBar>();
+  auto file_menu = make_component<Menu>("File");
+  menu_bar->add(file_menu);
+
+  auto opens = 0, closes = 0;
+  auto open_item = make_component<MenuItem>("Open");
+  open_item->add_listener([&opens](ActionEvent &) {
+    ++opens;
+  });
+  open_item->set_accelerator(KeyStroke { KeyEvent::VK_O, InputEvent::CTRL_DOWN });
+  auto close_item = make_component<MenuItem>("Close");
+  close_item->add_listener([&closes](ActionEvent &) {
+    ++closes;
+  });
+  close_item->set_accelerator(KeyStroke { KeyEvent::VK_W, InputEvent::CTRL_DOWN });
+  file_menu->add(open_item);
+  file_menu->add(close_item);
+  frame->set_menu_bar(menu_bar);
+
+  // A content component owns the focus, so the keys arrive the way a real
+  // window delivers them.
+  auto content = make_component<Panel>();
+  frame->get_content_pane()->add(content);
+  frame->set_visible(true);
+  drain();
+  content->request_focus(FocusEvent::Cause::ACTIVATION);
+  CHECK(content->is_focus_owner());
+
+  // Each item answers to its own stroke, and to no other.
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_O, InputEvent::CTRL_DOWN);
+  CHECK(opens == 1);
+  CHECK(closes == 0);
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_W, InputEvent::CTRL_DOWN);
+  CHECK(closes == 1);
+  CHECK(opens == 1);
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_Q, InputEvent::CTRL_DOWN);
+  CHECK(opens == 1 and closes == 1);
+
+  // A changed accelerator moves the binding: the stroke the item had falls
+  // silent and the new one fires.
+  open_item->set_accelerator(KeyStroke { KeyEvent::VK_T, InputEvent::CTRL_DOWN });
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_O, InputEvent::CTRL_DOWN);
+  CHECK(opens == 1);
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_T, InputEvent::CTRL_DOWN);
+  CHECK(opens == 2);
+
+  // An item that leaves the window stops answering to its stroke.
+  file_menu->remove(open_item);
+  drain();
+  dispatch_key(frame, KeyEvent::KEY_PRESSED, KeyEvent::VK_T, InputEvent::CTRL_DOWN);
+  CHECK(opens == 2);
+
+  frame->set_visible(false);
+  drain();
+
+  std::printf("PASS menu accelerators (window-wide strokes, live changes)\n");
 }

@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <unordered_map>
+#include <vector>
 
 #include <tui++/KeyStroke.h>
 
@@ -12,11 +13,19 @@ class KeyEvent;
 class Component;
 
 class KeyboardManager {
-  using KeyMap = std::unordered_map<KeyStroke, std::vector<std::shared_ptr<Component>>>;
+  // The components that bind a stroke, most recently registered last. A menu
+  // row's accelerator and a root pane's Enter may bind the same stroke; which
+  // of them a key reaches is decided when it is fired, by the window the key
+  // was dispatched to. The references are weak: a row that is dropped from
+  // its menu without ever becoming displayable cannot unregister itself, and
+  // its binding must not keep it alive.
+  using StrokeBindings = std::vector<std::weak_ptr<Component>>;
 
-  std::unordered_map<std::shared_ptr<Component>, KeyMap> component_map;
+  std::unordered_map<KeyStroke, StrokeBindings> component_map;
   std::unordered_map<std::shared_ptr<Component>, std::vector<std::shared_ptr<MenuBar>>> menu_bar_map;
 
+  // The window a component's keys are dispatched to, or null while the
+  // component is not in one.
   std::shared_ptr<Component> get_top_ancestor(const std::shared_ptr<Component> &component);
 
 public:

@@ -48,6 +48,14 @@ void Menu::add_impl(const std::shared_ptr<Component> &c, const Constraints &cons
   this->popup_menu->add(c, constraints, z_order);
 }
 
+void Menu::remove(const std::shared_ptr<Component> &c) {
+  this->popup_menu->remove(c);
+}
+
+void Menu::remove(size_t index) {
+  this->popup_menu->remove(index);
+}
+
 bool Menu::is_popup_menu_visible() const {
   return this->popup_menu->is_popup_showing();
 }

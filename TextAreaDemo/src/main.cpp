@@ -633,26 +633,16 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
   frame->set_visible(true);
   frame->add_listener(std::make_shared<KeyRefresher>(refresh));
   // The caret's look is configurable, as a Swing text component's caret is:
-  // F5 toggles the whitespace rendering (Edit > Show Invisibles), F6 cycles
-  // the form (block/underline), F7 the blink mode
-  // (blinking/steady/hidden); the message row reports the current choice.
-  frame->add_listener([area, refresh, toggle_invisibles, toggle_column_mode](KeyEvent &e) {
+  // F6 cycles the form (block/underline) and F7 the blink mode
+  // (blinking/steady/hidden), reported on the message row. The keys the menu
+  // items already carry as accelerators (F5 for Show Invisibles, F8 for
+  // Column Select Mode, F9 for Find All) are left to them.
+  frame->add_listener([area, refresh](KeyEvent &e) {
     if (e.id != KeyEvent::KEY_PRESSED) {
       return;
     }
     auto changed = false;
     switch (e.get_key_code()) {
-    case KeyEvent::VK_F5:
-      // The menu item's accelerator column shows the same shortcut.
-      toggle_invisibles(area);
-      refresh();
-      e.consume();
-      break;
-    case KeyEvent::VK_F8:
-      toggle_column_mode(area);
-      refresh();
-      e.consume();
-      break;
     case KeyEvent::VK_F6:
       area->set_caret_form(area->get_caret_form() == TextArea::CaretForm::BLOCK ? TextArea::CaretForm::UNDERLINE : TextArea::CaretForm::BLOCK);
       changed = true;
@@ -695,22 +685,18 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
       refresh();
     }
   });
-  // Find All keyboard handling. F9 runs (or re-runs) the search from
-  // anywhere; a click or the caret keys in the results area move its caret
-  // first (this listener runs after the area's own key forwarder), so the
-  // row the caret landed on is previewed in the file view; Enter previews
-  // and closes the panel; Esc closes it from either text area.
+  // Find All keyboard handling: the panel's own navigation. F9 runs (or
+  // re-runs) the search through its menu item's accelerator; a click or the
+  // caret keys in the results area move its caret first (this listener runs
+  // after the area's own key forwarder), so the row the caret landed on is
+  // previewed in the file view; Enter previews and closes the panel; Esc
+  // closes it from either text area.
   frame->add_listener([state](KeyEvent &e) {
     if (e.id != KeyEvent::KEY_PRESSED) {
       return;
     }
     auto results = state->results_area;
     auto results_open = state->results_pane->is_visible();
-    if (e.get_key_code() == KeyEvent::VK_F9) {
-      run_find_all(*state);
-      e.consume();
-      return;
-    }
     if (not results_open) {
       return;
     }

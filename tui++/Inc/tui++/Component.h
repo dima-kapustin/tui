@@ -403,6 +403,10 @@ protected:
 
   void register_with_keyboard_manager(bool only_if_new);
 
+  // Drops every stroke this component had registered with the
+  // KeyboardManager (it is leaving the displayable tree).
+  void unregister_with_keyboard_manager();
+
   friend class Window;
   friend class KeyboardManager;
   friend class KeyboardFocusManager;
