@@ -79,7 +79,11 @@ public:
   }
 
 private:
-  Property<bool> enabled { this, "Enabled" };
+  // Swing's AbstractAction fires the property under the lower-case name
+  // "enabled" -- the name buttons and menu items listen for when they follow
+  // the enabled state of the action they were built from
+  // (AbstractButton::action_property_changed).
+  Property<bool> enabled { this, "enabled" };
   Property<std::string> name { this, NAME };
   Property<std::string> short_description { this, SHORT_DESCRIPTION };
   Property<std::string> long_description { this, LONG_DESCRIPTION };
