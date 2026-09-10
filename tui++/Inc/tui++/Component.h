@@ -1066,6 +1066,40 @@ public:
     this->component_popup_menu = popup_menu;
   }
 
+  // Swing's setInheritsPopupMenu: a component without a menu of its own
+  // offers its ancestors' menus on the popup trigger. Off by default, so a
+  // button inside a panel that has a context menu keeps the panel's menu out
+  // of itself unless the program asks for it. As in Swing, turning it on
+  // makes the component a mouse event target, or the trigger would never
+  // reach it.
+  void set_inherits_popup_menu(bool value) {
+    if (value) {
+      enable_events(MOUSE_EVENT_MASK);
+    }
+    this->flags.inherits_popup_menu = value;
+  }
+
+  bool get_inherits_popup_menu() const {
+    return this->flags.inherits_popup_menu;
+  }
+
+  // Opens the component's context menu (its own, or the nearest ancestor's
+  // when it inherits one) at the component's local (x, y) -- the mouse
+  // position for a popup trigger, the caret for the keyboard one (see
+  // get_popup_menu_location). A no-op when the component has no menu to show.
+  void show_component_popup_menu(int x, int y);
+
+  void show_component_popup_menu(const Point &p) {
+    show_component_popup_menu(p.x, p.y);
+  }
+
+  // Where the keyboard's popup trigger opens the component's context menu.
+  // Swing shows a text component's menu at its caret; everything else opens
+  // at its top-left corner.
+  virtual Point get_popup_menu_location() const {
+    return { 0, 0 };
+  }
+
   std::string const& get_tool_tip_text() const {
     return this->tool_tip_text;
   }

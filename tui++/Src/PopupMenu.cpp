@@ -52,11 +52,6 @@ std::shared_ptr<MenuItem> PopupMenu::add(std::shared_ptr<Action> const &action) 
   return menu_item;
 }
 
-std::shared_ptr<MenuItem> PopupMenu::add(std::shared_ptr<MenuItem> const &menu_item) {
-  base::add(menu_item);
-  return menu_item;
-}
-
 void PopupMenu::add_separator() {
   base::add(make_component<PopupMenuSeparator>());
 }

@@ -131,6 +131,28 @@ std::shared_ptr<MenuItem> armed_popup_item(PopupMenu const &popup) {
   return {};
 }
 
+// The component context menu that currently holds the selection path, or
+// null. A menu bar's popups are driven by the bar's own session -- their
+// invoker is the Menu that opened them -- while a context menu's invoker is
+// the component it was set on (see Component::set_component_popup_menu).
+// The component context menu that currently holds the selection path, or
+// null. A menu bar's popups are driven by the bar's own session -- their
+// invoker is the Menu that opened them -- and a widget's own dropdown, which
+// puts itself on the path just the same, is driven by its widget (the combo
+// box's arrow toggles it, its Escape cancels the edit); only a menu the popup
+// trigger opened is a context menu for the menu system.
+std::shared_ptr<PopupMenu> component_popup_menu_on_path() {
+  auto path = MenuSelectionManager::single->get_selected_path();
+  if (path.empty()) {
+    return {};
+  }
+  auto popup = std::dynamic_pointer_cast<PopupMenu>(path.front());
+  if (not popup or not popup->is_context_menu() or std::dynamic_pointer_cast<Menu>(popup->get_invoker())) {
+    return {};
+  }
+  return popup;
+}
+
 // Arms `menu` and un-arms every sibling top-level menu, so the keyboard
 // highlight never shows on two menus of the bar at once.
 void arm_top_level_menu(MenuBar const &bar, Menu const *menu) {
@@ -270,11 +292,12 @@ void switch_open_popup(std::shared_ptr<Menu> const &open, std::shared_ptr<Menu> 
 
 using PopupChain = std::vector<std::shared_ptr<PopupMenu>>;
 
-// The chain of popups open under the bar's `open` popup: every link is the
-// popup of the armed submenu row of the previous one; the deepest open popup
-// is last. A chain of one is a plain (top-level) popup session.
-PopupChain open_popup_chain(Menu const &open) {
-  auto chain = PopupChain { open.get_popup_menu() };
+// The chain of popups open under `root`: every link is the popup of the
+// armed submenu row of the previous one; the deepest open popup is last. A
+// chain of one is a plain popup session. `open` is a menu bar's open menu,
+// `root` a component's context menu.
+PopupChain open_popup_chain(std::shared_ptr<PopupMenu> const &root) {
+  auto chain = PopupChain { root };
   while (true) {
     auto armed = armed_popup_item(*chain.back());
     auto row = std::dynamic_pointer_cast<Menu>(armed);
@@ -284,6 +307,10 @@ PopupChain open_popup_chain(Menu const &open) {
     chain.push_back(row->get_popup_menu());
   }
   return chain;
+}
+
+PopupChain open_popup_chain(Menu const &open) {
+  return open_popup_chain(open.get_popup_menu());
 }
 
 // Puts `item` (a row of the deepest popup of `chain`) on the selection path.
@@ -368,7 +395,7 @@ void ascend_submenu(PopupChain const &chain) {
 // Activates `item` of the deepest popup of `chain` like a mouse release on
 // it: the chain's selection path is cleared first (each open popup hides
 // through its menu_selection_changed), then the item is clicked.
-void activate_chain_item(Menu &open, PopupChain const &chain, std::shared_ptr<MenuItem> const &item) {
+void activate_chain_item(PopupChain const &chain, std::shared_ptr<MenuItem> const &item) {
   auto do_not_close = false;
   if (is_a<CheckBoxMenuItem>(item)) {
     do_not_close = laf::LookAndFeel::get<bool>(item.get(), "CheckBoxMenuItem.DoNotCloseOnMouseClick");
@@ -387,6 +414,12 @@ void activate_chain_item(Menu &open, PopupChain const &chain, std::shared_ptr<Me
       popup->set_visible(false);
     }
   }
+}
+
+// The menu-bar flavour of the same: the bar's open menu also drops its armed
+// highlight with the session.
+void activate_chain_item(Menu &open, PopupChain const &chain, std::shared_ptr<MenuItem> const &item) {
+  activate_chain_item(chain, item);
   if (open.is_popup_menu_visible()) {
     open.set_popup_menu_visible(false);
   }
@@ -398,6 +431,20 @@ bool MenuKeyboardManager::handle_key_event(const std::shared_ptr<Window> &window
   if (e.id != KeyEvent::KEY_PRESSED and e.id != KeyEvent::KEY_TYPED) {
     return false;
   }
+
+  // A component's context menu is on the keyboard path first: while it is
+  // showing it owns the keyboard of the window it was opened over, the way an
+  // open menu bar popup does.
+  if (auto popup = component_popup_menu_on_path()) {
+    if (popup->is_popup_showing()) {
+      return handle_component_popup_key(popup, e);
+    }
+    // The popup's window went down behind the menu's back (the window it was
+    // shown over was hidden): the stale path has to go, or it would swallow
+    // every key of the window from here on.
+    MenuSelectionManager::single->clear_selected_path();
+  }
+
   auto bar = menu_bar_of(window);
   if (not bar or not bar->is_showing() or not bar->is_enabled()) {
     return false;
@@ -696,6 +743,130 @@ bool MenuKeyboardManager::handle_open_popup_key(const std::shared_ptr<Menu> &ope
   return false;
 }
 
+bool MenuKeyboardManager::handle_component_popup_key(const std::shared_ptr<PopupMenu> &popup, KeyEvent &e) {
+  auto chain = open_popup_chain(popup);
+  auto nested = chain.size() > 1;
+  auto const &active = chain.back();
+
+  if (not has_ctrl(e) and is_escape(e)) {
+    if (nested) {
+      // Escape steps out of the deepest submenu back onto its row; the next
+      // Escape closes the menu itself.
+      ascend_submenu(chain);
+    } else {
+      // Closing takes the popup off the selection path (menu_selection_changed
+      // hides it and drops the row highlights), and the keyboard belongs to
+      // the component that opened the menu again.
+      popup->set_visible(false);
+    }
+    e.consume();
+    return true;
+  }
+
+  if (e.id == KeyEvent::KEY_PRESSED) {
+    switch (e.get_key_code()) {
+    case KeyEvent::VK_UP:
+    case KeyEvent::VK_DOWN:
+      // Move through the deepest popup's rows; the popup holds the keyboard
+      // until it closes, so even modifier chords (the text area's Ctrl+arrow
+      // word moves) stay with it.
+      move_chain_selection(chain, e.get_key_code() == KeyEvent::VK_DOWN ? 1 : -1);
+      e.consume();
+      return true;
+
+    case KeyEvent::VK_RIGHT:
+      // Right walks into the submenu of the armed row (Swing's Right in a
+      // JMenu); nothing else happens on rows that open nothing.
+      if (auto row = std::dynamic_pointer_cast<Menu>(armed_popup_item(*active))) {
+        descend_submenu(chain, row);
+      }
+      e.consume();
+      return true;
+
+    case KeyEvent::VK_LEFT:
+      // Left steps out of a submenu; on a plain menu it closes it, the way
+      // Escape does.
+      if (nested) {
+        ascend_submenu(chain);
+      } else {
+        popup->set_visible(false);
+      }
+      e.consume();
+      return true;
+
+    case KeyEvent::VK_ENTER: {
+      auto armed = armed_popup_item(*active);
+      if (auto row = std::dynamic_pointer_cast<Menu>(armed)) {
+        // Enter on a submenu row opens it like Right.
+        descend_submenu(chain, row);
+      } else if (armed) {
+        // Enter activates the armed row: the popup closes and the row's
+        // action runs, as after a mouse pick.
+        activate_chain_item(chain, armed);
+      }
+      e.consume();
+      return true;
+    }
+
+    case KeyEvent::VK_F10:
+      if (not has_ctrl(e)) {
+        // F10 closes the context menu, as it closes a menu bar's popup.
+        popup->set_visible(false);
+        e.consume();
+        return true;
+      }
+      return false;
+
+    case KeyEvent::VK_BACK_SPACE:
+    case KeyEvent::VK_DELETE:
+    case KeyEvent::VK_HOME:
+    case KeyEvent::VK_END:
+    case KeyEvent::VK_PAGE_UP:
+    case KeyEvent::VK_PAGE_DOWN:
+    case KeyEvent::VK_INSERT:
+      // Editing keys would hit the text behind the open menu; the open menu
+      // is modal for them.
+      e.consume();
+      return true;
+
+    default:
+      break;
+    }
+  }
+
+  // Space activates the armed row like Enter, however the host delivered it
+  // (some send VK_SPACE as a key press, others as a typed character).
+  if (is_space(e) and not has_ctrl(e)) {
+    auto armed = armed_popup_item(*active);
+    if (auto row = std::dynamic_pointer_cast<Menu>(armed)) {
+      descend_submenu(chain, row);
+    } else if (armed) {
+      activate_chain_item(chain, armed);
+    }
+    e.consume();
+    return true;
+  }
+
+  // Mnemonic letters select the row they stand for. Letters no row claims are
+  // swallowed: the popup is modal and must not type into the component
+  // underneath. Ctrl chords pass through so the item accelerators (Ctrl+Z,
+  // ...) keep working with a context menu open.
+  if (not has_ctrl(e)) {
+    if (auto ch = key_char(e)) {
+      if (auto item = item_with_mnemonic(*active, *ch)) {
+        if (nested) {
+          select_chain_item(chain, item);
+        } else {
+          select_popup_item(popup, item);
+        }
+      }
+      e.consume();
+      return true;
+    }
+  }
+  return false;
+}
+
 bool MenuKeyboardManager::handle_menu_mode_key(const std::shared_ptr<MenuBar> &bar, KeyEvent &e) {
   if (not has_ctrl(e) and is_escape(e)) {
     // Escape (and F10 again) leave the menu bar: the armed highlight goes
@@ -879,6 +1050,17 @@ void MenuKeyboardManager::handle_mouse_pressed(const std::shared_ptr<Window> &wi
     auto size = bar->get_size();
     if (point.x < origin.x or point.x >= origin.x + size.width or point.y < origin.y or point.y >= origin.y + size.height) {
       unarm_top_level_menus(*bar);
+    }
+  }
+
+  // A press outside a component's context menu dismisses it (Swing: any click
+  // outside a JPopupMenu closes it, wherever the click lands). A press inside
+  // the popup's own window is a row pick and leaves the popup to its row; the
+  // event is reported to the window it was posted to, so a press over the
+  // frame is compared against the window the popup actually shows in.
+  if (auto popup = component_popup_menu_on_path()) {
+    if (auto popup_window = popup->get_containing_window(); popup_window and popup_window != window) {
+      popup->set_visible(false);
     }
   }
 }

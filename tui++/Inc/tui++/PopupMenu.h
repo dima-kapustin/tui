@@ -33,7 +33,21 @@ public:
   using base::add;
   std::shared_ptr<MenuItem> add(std::string const &label);
   std::shared_ptr<MenuItem> add(std::shared_ptr<Action> const &action);
-  std::shared_ptr<MenuItem> add(std::shared_ptr<MenuItem> const &menu_item);
+
+  // A row of a concrete kind -- a check box or radio row, a submenu -- keeps
+  // its own type: a shared_ptr<Derived> converts both to shared_ptr<MenuItem>
+  // (the overload a row wants) and to shared_ptr<Component> (the container's
+  // own add), and the two user-defined conversions are indistinguishable to
+  // overload resolution. Matching the derived type here, where it is still
+  // known, keeps `popup->add(row)` unambiguous -- and hands the row back with
+  // the type it was passed in.
+  template<typename T>
+  requires (std::derived_from<T, MenuItem>)
+  std::shared_ptr<T> add(std::shared_ptr<T> const &menu_item) {
+    base::add(std::static_pointer_cast<Component>(menu_item));
+    return menu_item;
+  }
+
   void add_separator();
 
   void insert(std::shared_ptr<Component> const &c, size_t index);
@@ -67,6 +81,21 @@ public:
   // the popup window's existence instead.
   bool is_popup_showing() const {
     return this->popup != nullptr;
+  }
+
+  // Whether this menu is showing as a component's context menu: the menu the
+  // popup trigger -- a right click, Shift+F10 -- opened through
+  // Component::show_component_popup_menu. The widget's own dropdowns are
+  // PopupMenus too (the combo box's list puts itself on the selection path
+  // like any popup menu), but they are not context menus: the widget drives
+  // them itself (the arrow toggles the dropdown, its Escape cancels the
+  // edit), and the menu system must keep its hands off them.
+  bool is_context_menu() const {
+    return this->shown_as_context_menu;
+  }
+
+  void set_context_menu(bool value) {
+    this->shown_as_context_menu = value;
   }
 
   using base::show;
@@ -106,6 +135,10 @@ protected:
 
 private:
   void show_popup();
+
+  // Set while the menu is showing as a component's context menu (see
+  // is_context_menu); cleared when the popup goes down.
+  bool shown_as_context_menu = false;
 };
 
 }

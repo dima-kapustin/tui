@@ -287,7 +287,10 @@ std::vector<std::shared_ptr<MenuElement>> MenuItemUI::get_path() const {
 }
 
 void MenuItemUI::mouse_released(MousePressEvent &e) {
-  if (this->menu_item->is_enabled()) {
+  // Only the left button picks a row: the right button's release is the tail
+  // of the popup trigger (a context menu over a menu, or a click on a menu
+  // row that was not meant as a pick).
+  if (this->menu_item->is_enabled() and e.button == MouseEvent::LEFT_BUTTON) {
     auto &&p = e.point;
     if (p.x >= 0 and p.x < this->menu_item->get_width() and //
         p.y >= 0 and p.y < this->menu_item->get_height()) {
