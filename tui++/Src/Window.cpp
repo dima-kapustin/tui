@@ -258,40 +258,9 @@ Rectangle Window::get_shadow_area() const {
 }
 
 void Window::paint_shadow(Graphics &g) {
-  auto shadow = get_shadow();
-  if (not shadow) {
-    return;
+  if (auto shadow = get_shadow()) {
+    shadow->paint(g, get_bounds());
   }
-
-  auto area = shadow->get_area(get_bounds()) & g.get_clip_rect();
-  if (area.empty()) {
-    return;
-  }
-
-  auto paint = [&](Rectangle const &part) {
-    if (not part.empty()) {
-      g.blend_rect(part, shadow->color, shadow->opacity);
-    }
-  };
-
-  // Only the parts of the shadow the window does not cover are visible -- and
-  // the window may leave cells of its own face unpainted (a translucent
-  // window, a panel with no colors), which must not be tinted by the shadow
-  // running underneath it. So paint the area as the bands above, right, below
-  // and left of the window's rectangle (in whatever order: they do not
-  // overlap).
-  auto window = get_bounds();
-  auto below_top = std::max(area.y, window.bottom());
-  paint({ area.x, area.y, area.width, std::min(area.bottom(), window.y) - area.y });
-
-  auto middle_top = std::max(area.y, window.y);
-  auto middle_bottom = std::min(area.bottom(), window.bottom());
-  if (middle_bottom > middle_top) {
-    paint({ area.x, middle_top, window.x - area.x, middle_bottom - middle_top });
-    paint({ window.right(), middle_top, area.right() - window.right(), middle_bottom - middle_top });
-  }
-
-  paint({ area.x, below_top, area.width, area.bottom() - below_top });
 }
 
 void Window::pack() {

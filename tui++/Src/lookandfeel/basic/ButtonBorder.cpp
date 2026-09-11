@@ -5,25 +5,56 @@
 #include <tui++/ToggleButton.h>
 #include <tui++/Component.h>
 #include <tui++/Graphics.h>
+#include <tui++/Shadow.h>
 
 namespace tui::laf {
 
-Insets ButtonBorder::get_border_insets(Component const &c) const {
-  if (this->shape == Shape::EDGES) {
-    // The bezel is the two vertical edges beside the label and takes no row
-    // of its own: the label's cell IS the button's height, so a top and a
-    // bottom edge would turn a one-row button into a three-row one and push
-    // it out of line with the text fields and combo boxes beside it.
-    return { 0, 1, 0, 1 };
-  }
+namespace {
 
-  // The BOX keeps one cell on every side, the way Swing's button border is one
-  // pixel thick. The two-pixel bevels of the platform look-and-feels have no
-  // room in a character cell.
-  return { 1, 1, 1, 1 };
+// The shadow the button casts, or nothing. Only the button family casts one
+// (see AbstractButton::get_shadow), and the border is what reserves its room
+// and paints it: the shadow is a decoration of the button's box, like the
+// bezel itself.
+std::optional<Shadow> button_shadow(Component const &c) {
+  if (auto *button = dynamic_cast<AbstractButton const *>(&c)) {
+    return button->get_shadow();
+  }
+  return std::nullopt;
+}
+
+}
+
+Insets ButtonBorder::get_border_insets(Component const &c) const {
+  auto insets = this->shape == Shape::EDGES //
+      ? Insets { 0, 1, 0, 1 } //
+      : Insets { 1, 1, 1, 1 };
+
+  // The shadow is cast by the face and falls outside it, so its room is added
+  // to the face's insets: a button that casts one is that much larger, and the
+  // layout leaves the shadow its cells the way it leaves room for a border.
+  if (auto shadow = button_shadow(c)) {
+    insets += shadow->get_insets();
+  }
+  return insets;
 }
 
 void ButtonBorder::paint_border(Component const &c, Graphics &g, int x, int y, int width, int height) const {
+  // The face is the button minus the room reserved for its shadow; the bezel
+  // is drawn on the face's own rim and the shadow in the bands outside it.
+  auto shadow = button_shadow(c);
+  auto shadow_insets = shadow ? shadow->get_insets() : Insets { };
+  auto face_x = x + shadow_insets.left;
+  auto face_y = y + shadow_insets.top;
+  auto face_width = width - shadow_insets.width();
+  auto face_height = height - shadow_insets.height();
+  if (face_width <= 0 or face_height <= 0) {
+    return; // no room to paint a face (a button squeezed into its shadow)
+  }
+
+  if (shadow) {
+    shadow->paint(g, Rectangle { face_x, face_y, face_width, face_height });
+  }
+
   auto is_pressed = false, is_default = false;
 
   if (auto *abstract_button = dynamic_cast<AbstractButton const *>(&c)) {
@@ -38,7 +69,7 @@ void ButtonBorder::paint_border(Component const &c, Graphics &g, int x, int y, i
     }
   }
 
-  paint_bezel(c, g, x, y, width, height, is_pressed, is_default);
+  paint_bezel(c, g, face_x, face_y, face_width, face_height, is_pressed, is_default);
 }
 
 // Paints the frame of a button: `leading` runs along the top row and the left

@@ -17,9 +17,12 @@
 #include <tui++/RadioButton.h>
 #include <tui++/RadioButtonMenuItem.h>
 #include <tui++/Screen.h>
+#include <tui++/Shadow.h>
 #include <tui++/TextField.h>
 #include <tui++/ToggleButton.h>
 #include <tui++/Window.h>
+
+#include <tui++/lookandfeel/LookAndFeel.h>
 
 #include <tui++/event/Event.h>
 #include <tui++/event/FocusEvent.h>
@@ -28,8 +31,11 @@
 #include <tui++/terminal/Terminal.h>
 #include <tui++/terminal/text/TextScreen.h>
 
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <iostream>
+#include <sstream>
 #include <string>
 
 using namespace tui;
@@ -866,11 +872,103 @@ static void test_combo_dropdown() {
   std::printf("PASS combo dropdowns (aligned width, one at a time, live lookup)\n");
 }
 
+// The SGR the text screen emits for a cell painted on `color`.
+static std::string background_code(Color const &color) {
+  return "\x1b[48;2;" + std::to_string(int(color.red())) + ';' + std::to_string(int(color.green())) + ';' + std::to_string(int(color.blue())) + 'm';
+}
+
+// The color a shadow leaves on a cell painted on `base`: the cell's color
+// shifted towards the shadow's, the same arithmetic the text screen applies.
+static Color shaded(Color const &base, Shadow const &shadow) {
+  auto blend = [&](uint8_t from, uint8_t to) {
+    return uint8_t(std::lround(from * (1 - shadow.opacity) + to * shadow.opacity));
+  };
+  return Color { blend(base.red(), shadow.color.red()), blend(base.green(), shadow.color.green()), blend(base.blue(), shadow.color.blue()) };
+}
+
+// Repaints one cell of the screen and hands back what the screen emitted for
+// it (see test_Shadow, which probes cells the same way): a full repaint emits
+// every cell, while the question here is what one particular cell carries.
+static std::string probe_cell(std::ostringstream &capture, int x, int y) {
+  dynamic_cast<TextScreen &>(screen).clear();
+  capture.str({ });
+  screen.add_damage(Rectangle { x, y, 1, 1 });
+  screen.repaint_damaged();
+  auto bytes = capture.str();
+  capture.str({ });
+  return bytes;
+}
+
+// The optional drop shadow of a button: the border reserves the room it takes,
+// so an enabled shadow makes the button's box (and every layout around it)
+// larger, and the bands outside the face are shaded towards the shadow's
+// color. The theme may define "<Prefix>.Shadow" for a kind; nothing is
+// installed by default.
+static void test_button_shadow() {
+  terminal.set_type("text");
+  drain();
+
+  auto plain = make_component<Button>("OK");
+  CHECK(not plain->get_shadow().has_value());
+
+  auto shadow = Shadow { BLACK_COLOR, 0.5, Point { 2, 1 } };
+  auto shadowed = make_component<Button>("OK");
+  shadowed->set_shadow(shadow);
+  CHECK(shadowed->get_shadow() == shadow);
+
+  // The room is part of the button's insets: the bezel's own one cell on the
+  // sides, plus the two columns and the row the shadow falls outside the face.
+  CHECK((plain->get_insets() == Insets { 0, 1, 0, 1 }));
+  CHECK((shadowed->get_insets() == Insets { 0, 1, 1, 3 }));
+  CHECK(shadowed->get_preferred_size().width == plain->get_preferred_size().width + 2);
+  CHECK(shadowed->get_preferred_size().height == plain->get_preferred_size().height + 1);
+
+  // The one global shadow switch turns it off, room included.
+  Shadow::set_enabled(false);
+  CHECK(not shadowed->get_shadow().has_value());
+  CHECK((shadowed->get_insets() == Insets { 0, 1, 0, 1 }));
+  CHECK(shadowed->get_preferred_size().width == plain->get_preferred_size().width);
+  Shadow::set_enabled(true);
+  CHECK(shadowed->get_shadow().has_value());
+
+  // The painting: the band between the face's edge and the button's own box
+  // carries the face color shaded towards the shadow's.
+  auto frame = make_component<Frame>();
+  frame->set_size({ 40, 6 });
+  auto content = frame->get_content_pane();
+  content->set_layout(std::make_shared<BorderLayout>());
+  content->add(shadowed, BorderLayout::NORTH);
+  frame->set_visible(true);
+  drain();
+
+  // The painting: the shadow's area is the face displaced by (2, 1), so with a
+  // one-row button it falls on the box's second row -- shifted right by the
+  // offset (the columns before it keep the face color, the box itself is part
+  // of the button).
+  auto capture = std::ostringstream { };
+  auto *old_cout = std::cout.rdbuf(capture.rdbuf());
+  auto face = shadowed->get_background_color().value_or(Color { 0xC0, 0xC0, 0xC0 });
+  auto at = shadowed->get_location_on_screen();
+  auto shadowed_color = shaded(face, shadow);
+  auto band = probe_cell(capture, at.x + shadow.offset.x + 1, at.y + shadowed->get_height() - 1);
+  CHECK(band.find(background_code(shadowed_color)) != std::string::npos);
+  auto outside = probe_cell(capture, at.x, at.y + shadowed->get_height() - 1);
+  CHECK(outside.find(background_code(face)) != std::string::npos);
+  CHECK(outside.find(background_code(shadowed_color)) == std::string::npos);
+
+  std::cout.rdbuf(old_cout);
+  frame->set_visible(false);
+  drain();
+
+  std::printf("PASS button shadows (layout room, bands and the global switch)\n");
+}
+
 void test_Widgets() {
   test_toggle_buttons();
   test_toggle_button_focus();
   test_toggle_button_mouse_clicks();
   test_button_keyboard();
+  test_button_shadow();
   test_menu_items();
   test_combo_model();
   test_combo_box();

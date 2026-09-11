@@ -5,6 +5,7 @@
 #include <tui++/Component.h>
 #include <tui++/ButtonModel.h>
 #include <tui++/MarginContainer.h>
+#include <tui++/Shadow.h>
 
 #include <tui++/VerticalAlignment.h>
 #include <tui++/HorizontalAlignment.h>
@@ -27,6 +28,12 @@ protected:
   Property<int> displayed_mnemonic_index { this, "DisplayedMnemonicIndex", -1 };
   Property<bool> focus_painted { this, "FocusPainted", true };
   Property<bool> border_painted { this, "BorderPainted", true };
+
+  // The drop shadow the button casts, if any: off unless the program sets one
+  // (or the theme defines "<Prefix>.Shadow"). The button's border reserves the
+  // room the shadow takes, so an enabled shadow widens the button's box (see
+  // ButtonBorder).
+  Property<std::optional<Shadow>> shadow { this, "Shadow" };
 
   Property<VerticalAlignment> vertical_alignment { this, "VerticalAlignment", VerticalAlignment::CENTER };
   Property<HorizontalAlignment> horizontal_alignment { this, "HorizontalAlignment", HorizontalAlignment::CENTER };
@@ -197,6 +204,25 @@ public:
 
   bool is_border_painted() const {
     return this->border_painted;
+  }
+
+  // The shadow this button casts, if any: what the program (or the theme's
+  // "<Prefix>.Shadow") set, and nothing at all while the global shadow switch
+  // is off (see Shadow::set_enabled). The room it needs is part of the
+  // button's insets, the way a border is.
+  std::optional<Shadow> get_shadow() const {
+    if (not Shadow::is_enabled() or not this->shadow.has_value()) {
+      return std::nullopt;
+    }
+    return this->shadow.value();
+  }
+
+  void set_shadow(std::optional<Shadow> const &shadow) {
+    if (this->shadow != shadow) {
+      this->shadow = shadow;
+      revalidate();
+      repaint();
+    }
   }
 
   void set_border_painted(bool value) {

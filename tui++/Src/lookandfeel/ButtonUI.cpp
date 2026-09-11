@@ -21,6 +21,7 @@
 #include <tui++/Icon.h>
 #include <tui++/Insets.h>
 #include <tui++/Screen.h>
+#include <tui++/Shadow.h>
 #include <tui++/TextMetrics.h>
 
 #include <cassert>
@@ -158,6 +159,11 @@ void ButtonUI::install_ui(std::shared_ptr<Component> const &c) {
   LookAndFeel::install(c.get(), "Margin", LookAndFeel::get<std::optional<Insets>>(prefix + ".margin"));
   LookAndFeel::install_colors(c.get(), prefix + ".BackgroundColor", prefix + ".ForegroundColor");
   LookAndFeel::install_border(c.get(), prefix + ".Border");
+
+  // The shadow the button may cast: the theme's "<Prefix>.Shadow" unless the
+  // program set one (see AbstractButton::get_shadow). The button's border
+  // reserves its room, so a shadow widens the button's box.
+  LookAndFeel::install(c.get(), "Shadow", LookAndFeel::get<std::optional<Shadow>>(prefix + ".Shadow"));
 
   install_listeners();
   install_keyboard_actions();

@@ -231,6 +231,12 @@ public:
     return not this->windows.empty();
   }
 
+  // Drops the cached layout of every window's tree (Swing's revalidate), so a
+  // screen-wide change a component's size depends on -- the shadow switch,
+  // whose room a button's border reserves -- reaches the layouts, not only the
+  // next repaint.
+  void revalidate_windows();
+
   // Converts a terminal mouse position (reported in text cells) into this
   // screen's coordinate system: identity for the text screen, whose layout is
   // measured in cells; pixels for the graphic (sixel) screen, whose layout is

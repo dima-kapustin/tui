@@ -201,6 +201,15 @@ void Screen::hide_window(const std::shared_ptr<Window> &window) {
   refresh();
 }
 
+void Screen::revalidate_windows() {
+  std::unique_lock lock(this->windows_mutex);
+  for (auto &&window : this->windows) {
+    // invalidate() (through revalidate) climbs to the top of each tree, so one
+    // call per window's root covers the whole tree it shows.
+    window->revalidate();
+  }
+}
+
 void Screen::to_front(const std::shared_ptr<Window> &window) {
   std::unique_lock lock(this->windows_mutex);
   if (not this->windows.empty()) {

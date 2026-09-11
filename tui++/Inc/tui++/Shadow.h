@@ -1,11 +1,16 @@
 #pragma once
 
 #include <tui++/Color.h>
+#include <tui++/Insets.h>
 #include <tui++/Point.h>
 #include <tui++/Rectangle.h>
 #include <tui++/Themable.h>
 
+#include <algorithm>
+
 namespace tui {
+
+class Graphics;
 
 /**
  * The drop shadow a floating window casts over the windows beneath it: a
@@ -67,6 +72,24 @@ struct Shadow: public Themable {
       bounds.width + 2 * spread, //
       bounds.height + 2 * spread };
   }
+
+  // The room the shadow needs beyond `bounds` -- the part of its area that
+  // falls outside the rectangle it is cast by, as insets. A border reserves it
+  // so the layout leaves the shadow its room (see ButtonBorder).
+  constexpr Insets get_insets() const {
+    return { // top, left, bottom, right
+      std::max(0, spread - offset.y), //
+      std::max(0, spread - offset.x), //
+      std::max(0, offset.y + spread), //
+      std::max(0, offset.x + spread) };
+  }
+
+  // Shades the cells the shadow covers outside `bounds` (the rim above, right,
+  // below and left of it) with the shadow's color at its opacity. Only the rim
+  // is painted: the rectangle the shadow is cast by covers its own middle, and
+  // whatever it leaves unpainted there (a translucent window) must not be
+  // tinted by the shadow running underneath it.
+  void paint(Graphics &g, Rectangle const &bounds) const;
 
   // The global shadow switch (the theme's "Shadow.Enabled" property, true by
   // default): while it is off no window paints a shadow, whatever the theme
