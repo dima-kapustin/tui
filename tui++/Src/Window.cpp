@@ -87,13 +87,14 @@ std::shared_ptr<Window> Window::get_modal_blocker() const {
 }
 
 void Window::paint_children(Graphics &g) {
-  int x = get_x(), y = get_y();
-  g.translate(x, y);
+  // The context is already translated to the window's origin (see
+  // Screen::paint); only the clip has to be held inside the window, so a
+  // child straddling the window's edge does not paint over the window
+  // beneath it.
   auto clip_rect = g.get_clip_rect();
   g.clip_rect(0, 0, get_width(), get_height());
   base::paint_children(g);
   g.set_clip_rect(clip_rect);
-  g.translate(-x, -y);
 }
 
 std::shared_ptr<Component> Window::get_focus_owner() const {

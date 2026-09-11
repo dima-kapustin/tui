@@ -31,7 +31,9 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <iostream>
 #include <memory>
+#include <sstream>
 #include <string>
 
 using namespace tui;
@@ -449,6 +451,69 @@ static void test_modal_event_pump() {
   drain();
 }
 
+// A window's face is painted at the window's own place: the screen used to
+// hand each window the untranslated screen context, so an opaque window that
+// does not cover the screen -- the dialog -- filled (0, 0, width, height) at
+// the screen's origin as well, leaving a second, gray copy of the dialog in
+// the upper-left corner of the frame.
+static void test_dialog_paints_at_its_own_place() {
+  terminal.set_type("text");
+  drain();
+
+  constexpr auto frame_color = Color { 0, 200, 0 };
+  constexpr auto dialog_color = Color { 0, 0, 200 };
+
+  auto frame = make_frame();
+  frame->set_background_color(frame_color);
+  pump();
+
+  auto dialog = make_component<Dialog>(frame, "Placed", Dialog::ModalityType::MODELESS);
+  dialog->set_background_color(dialog_color);
+  auto content = make_component<Panel>();
+  content->set_preferred_size(Dimension { 20, 4 });
+  dialog->add(content);
+  dialog->pack();
+  dialog->set_location(24, 5);
+  dialog->set_visible(true);
+  pump();
+
+  CHECK(dialog->is_showing());
+  auto bounds = dialog->get_bounds();
+  CHECK(bounds.x == 24 and bounds.y == 5 and bounds.width > 1 and bounds.height > 1);
+
+  // The screen emits through std::cout; probe one cell at a time and clear the
+  // buffer in between, so each probe looks at one repaint only.
+  auto capture = std::ostringstream { };
+  auto *old_cout = std::cout.rdbuf(capture.rdbuf());
+  auto background_code = [](Color const &color) {
+    return "\x1b[48;2;" + std::to_string(int(color.red())) + ';' + std::to_string(int(color.green())) + ';' + std::to_string(int(color.blue())) + 'm';
+  };
+  auto cell = [&](int x, int y) {
+    dynamic_cast<TextScreen&>(screen).clear();
+    capture.str({ });
+    screen.add_damage(Rectangle { x, y, 1, 1 });
+    screen.repaint_damaged();
+    auto bytes = capture.str();
+    capture.str({ });
+    return bytes;
+  };
+
+  // The dialog's face is where the dialog is...
+  auto inside = cell(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  CHECK(inside.find(background_code(dialog_color)) != std::string::npos);
+
+  // ... and the screen's upper-left corner belongs to the frame.
+  auto corner = cell(1, 1);
+  CHECK(corner.find(background_code(frame_color)) != std::string::npos);
+  CHECK(corner.find(background_code(dialog_color)) == std::string::npos);
+
+  std::cout.rdbuf(old_cout);
+  dialog->set_visible(false);
+  pump();
+  frame->set_visible(false);
+  drain();
+}
+
 void test_Dialog() {
   std::fprintf(stderr, "test_Dialog: dialogs, modality and the modal event pump\n");
   test_dialog_show_and_pack();
@@ -456,5 +521,6 @@ void test_Dialog() {
   test_application_modal_dialog();
   test_document_modality();
   test_modal_event_pump();
+  test_dialog_paints_at_its_own_place();
   std::fprintf(stderr, "test_Dialog: ok\n");
 }

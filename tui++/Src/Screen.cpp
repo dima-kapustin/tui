@@ -1,6 +1,7 @@
 #include <tui++/Screen.h>
 #include <tui++/Timer.h>
 #include <tui++/Window.h>
+#include <tui++/Graphics.h>
 #include <tui++/KeyboardFocusManager.h>
 
 #include <tui++/event/MouseEvent.h>
@@ -86,9 +87,20 @@ void Screen::paint(Graphics &g) {
   for (auto &&window : this->windows) {
     // The shadow first: it shades what the windows below (and the ones
     // already painted) have drawn, and the window's own content then covers
-    // the shadow's middle -- see Window::paint_shadow.
+    // the shadow's middle -- see Window::paint_shadow. It lies outside the
+    // window, so it is painted in the screen's own coordinates, before the
+    // window's context is entered.
     window->paint_shadow(g);
+
+    // A window paints in its own coordinates: its face and border fill
+    // (0, 0, width, height), the way Component::get_graphics hands a window
+    // its context (see ComponentUI::update). Painting it through the
+    // screen's untranslated context would put its face at the screen's
+    // origin -- a second, gray copy of a dialog in the upper-left corner.
+    int x = window->get_x(), y = window->get_y();
+    g.translate(x, y);
     window->paint(g);
+    g.translate(-x, -y);
   }
 }
 
