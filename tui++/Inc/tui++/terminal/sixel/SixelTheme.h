@@ -2,6 +2,13 @@
 
 #include <tui++/terminal/text/TextTheme.h>
 
+#include <tui++/border/BevelBorder.h>
+#include <tui++/border/CompoundBorder.h>
+#include <tui++/border/LineBorder.h>
+
+#include <tui++/lookandfeel/SystemColorKeys.h>
+#include <tui++/lookandfeel/basic/ButtonBorder.h>
+
 #include <tui++/Insets.h>
 #include <tui++/Shadow.h>
 
@@ -29,6 +36,36 @@ protected:
     put("PopupMenu.Shadow", popup_shadow);
     put("ComboBox.Shadow", popup_shadow);
     put("Dialog.Shadow", popup_shadow);
+
+    // The chrome is drawn in pixels here, so the button keeps its full box
+    // bezel and the dialog its raised internal-frame box: the lines are one
+    // pixel thick and cost the label no row of its own the way the text
+    // theme's cell-sized edges would (see ButtonBorder::Shape).
+    auto button_border = BorderFactory { [this] {
+      return make_shared_resource<laf::ButtonBorder>( //
+          get_color(SystemColorKeys::CONTROL_SHADOW), //
+          get_color(SystemColorKeys::CONTROL_DK_SHADOW), //
+          get_color(SystemColorKeys::CONTROL_HIGHLIGHT), //
+          get_color(SystemColorKeys::CONTROL_LT_HIGHLIGHT), //
+          laf::ButtonBorder::Shape::BOX);
+    } };
+    put("Button.Border", button_border);
+    put("ToggleButton.Border", button_border);
+
+    auto dialog_border = BorderFactory { [this] {
+      static auto border = make_shared_resource<CompoundBorder>( //
+          std::make_shared<BevelBorder>( //
+              BevelBorder::RAISED, //
+              get_color("InternalFrame.BorderLight"), //
+              get_color("InternalFrame.BorderHighlight"), //
+              get_color("InternalFrame.BorderDarkShadow"), //
+              get_color("InternalFrame.BorderShadow")), //
+          std::make_shared<LineBorder>( //
+              Stroke::LIGHT, //
+              get_color("InternalFrame.BorderColor")));
+      return border;
+    } };
+    put("Dialog.Border", dialog_border);
   }
 };
 

@@ -129,6 +129,11 @@ static void test_dialog_show_and_pack() {
   CHECK(dialog->is_showing());
   auto border_insets = dialog->get_root_pane()->get_insets();
   CHECK(border_insets.left > 0 and border_insets.top > 0);
+  // A character-cell dialog frame is one cell thick: the raised internal-frame
+  // bevel it used to wear (three cells) would swallow the face of a small
+  // dialog.
+  CHECK(border_insets.top == 1 and border_insets.bottom == 1);
+  CHECK(border_insets.left == 1 and border_insets.right == 1);
   CHECK(dialog->get_width() == 24 + border_insets.left + border_insets.right);
   CHECK(dialog->get_height() == 5 + border_insets.top + border_insets.bottom);
   CHECK(screen.get_window_at(dialog->get_location_on_screen()) == dialog);

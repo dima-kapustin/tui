@@ -108,6 +108,9 @@ static void test_toggle_buttons() {
   auto toggle = make_component<ToggleButton>("Run");
   toggle->do_click(std::chrono::milliseconds::zero());
   CHECK(toggle->is_selected());
+  // The text bezel is the two vertical edges beside the label and takes no row
+  // of its own: the label's cell is the button's whole height.
+  CHECK(toggle->get_preferred_size().height == 1);
 
   // Radio buttons are mutually exclusive inside a ButtonGroup: picking a new
   // member clears the previous selection, and re-picking the selected member

@@ -127,6 +127,14 @@ void TextTheme::init_component_defaults() {
     return make_shared_resource<LineBorder>(Stroke::LIGHT, BLACK_COLOR);
   } };
 
+  // The dialog's frame is one cell thick: a character-cell box around the
+  // dialog's face (and its shadow) is what a window reads as. The raised
+  // internal-frame bevel above, three cells in all, would swallow the content
+  // of a small dialog; the pixel backends keep it (see SixelTheme).
+  auto dialog_border = BorderFactory { [this] {
+    return make_shared_resource<LineBorder>(Stroke::LIGHT, get_color("InternalFrame.BorderColor"));
+  } };
+
   auto popup_menu_border = internal_frame_border;
 
   auto focusCellHighlightBorder = BorderFactory { [this] {
@@ -149,7 +157,11 @@ void TextTheme::init_component_defaults() {
         get_color(SystemColorKeys::CONTROL_SHADOW), //
         get_color(SystemColorKeys::CONTROL_DK_SHADOW), //
         get_color(SystemColorKeys::CONTROL_HIGHLIGHT), //
-        get_color(SystemColorKeys::CONTROL_LT_HIGHLIGHT));
+        get_color(SystemColorKeys::CONTROL_LT_HIGHLIGHT), //
+        // A character cell is one row tall: the text bezel is the two
+        // vertical edges beside the label, not a box. The pixel backends
+        // keep the box (see SixelTheme).
+        laf::ButtonBorder::Shape::EDGES);
   } };
 
   put("Button.Border", button_border);
@@ -184,7 +196,7 @@ void TextTheme::init_component_defaults() {
   // root pane empties its panes into.
   put("Dialog.BackgroundColor", control);
   put("Dialog.ForegroundColor", controlText);
-  put("Dialog.Border", internal_frame_border);
+  put("Dialog.Border", dialog_border);
 
   // Drop shadows (see Shadow): the floating windows -- a popup menu (a menu
   // bar's dropdown and every submenu), a combo box dropdown and a dialog --
