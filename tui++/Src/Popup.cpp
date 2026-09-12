@@ -50,6 +50,17 @@ Popup::Popup(std::shared_ptr<Component> const &owner, std::shared_ptr<Component>
   this->window->set_shadow(laf::LookAndFeel::get<std::optional<Shadow>>(get_shadow_key(owner, contents)));
   this->window->set_bounds(owner_x, owner_y, 1, 1);
   this->window->add(contents, BorderLayout::CENTER);
+
+  // What the popup hangs off and where it sits relative to it: a screen-wide
+  // relayout -- a translation resizes the items, the shadow switch moves the
+  // components around them -- places the popup again from these (see
+  // PopupWindow::reanchor). A popup opened without a component (at a point
+  // only) stays where it was put.
+  if (owner and owner->is_showing()) {
+    auto origin = owner->get_location_on_screen();
+    std::static_pointer_cast<PopupWindow>(this->window)->set_anchor(owner, Point { owner_x - origin.x, owner_y - origin.y });
+  }
+
   this->window->invalidate();
   this->window->validate();
   if (this->window->is_visible()) {

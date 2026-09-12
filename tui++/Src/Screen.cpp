@@ -1,4 +1,5 @@
 #include <tui++/Screen.h>
+#include <tui++/PopupWindow.h>
 #include <tui++/Timer.h>
 #include <tui++/Window.h>
 #include <tui++/Graphics.h>
@@ -219,9 +220,25 @@ void invalidate_tree(Component &component) {
 }
 
 void Screen::revalidate_windows() {
-  std::unique_lock lock(this->windows_mutex);
-  for (auto &&window : this->windows) {
-    invalidate_tree(*window);
+  // The popups are placed again once their trees are invalid: a popup hangs
+  // off a component and is sized to its contents, so a screen-wide change -- a
+  // translation, the shadow switch -- moves and resizes it too (see
+  // PopupWindow::reanchor). They are collected under the lock and placed after
+  // releasing it, since placing one lays the tree it hangs off out.
+  auto popups = std::vector<std::shared_ptr<PopupWindow>> { };
+  {
+    std::unique_lock lock(this->windows_mutex);
+    for (auto &&window : this->windows) {
+      invalidate_tree(*window);
+
+      if (auto popup = std::dynamic_pointer_cast<PopupWindow>(window); popup and popup->is_showing()) {
+        popups.emplace_back(std::move(popup));
+      }
+    }
+  }
+
+  for (auto &&popup : popups) {
+    popup->reanchor();
   }
 }
 

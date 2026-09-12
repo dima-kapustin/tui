@@ -12,6 +12,7 @@
 #include <tui++/Frame.h>
 #include <tui++/KeyboardFocusManager.h>
 #include <tui++/Menu.h>
+#include <tui++/MenuBar.h>
 #include <tui++/MenuItem.h>
 #include <tui++/Messages.h>
 #include <tui++/Panel.h>
@@ -1228,6 +1229,76 @@ static void test_widget_translation() {
   std::printf("PASS widget translations (labels, menus, layout, CJK width and the client-property opt-out)\n");
 }
 
+// An open popup menu hangs off its row and is sized to its items: a locale
+// switch while it is open moves it with the row (the translated labels around
+// it change the row's place) and packs it to the translated items, the way
+// Swing re-places an open popup whose invoker moved.
+static void test_popup_translation() {
+  terminal.set_type("text");
+  drain();
+
+  auto frame = make_component<Frame>();
+  frame->set_size({ 50, 12 });
+  auto menu_bar = make_component<MenuBar>();
+  auto file = make_component<Menu>("File");
+  file->add(make_component<MenuItem>("Open"));
+  auto view = make_component<Menu>("View");
+  view->add(make_component<MenuItem>("Zoom"));
+  menu_bar->add(file);
+  menu_bar->add(view);
+  frame->set_menu_bar(menu_bar);
+  frame->set_visible(true);
+  drain();
+
+  view->set_popup_menu_visible(true);
+  drain();
+  CHECK(view->is_popup_menu_visible());
+
+  // The popup window under `row`, wherever the theme places it.
+  auto popup_window = [&]() -> std::shared_ptr<Window> {
+    auto row = view->get_location_on_screen();
+    for (auto y = row.y; y < row.y + view->get_height() + 5; ++y) {
+      for (auto x = row.x - 4; x < row.x + 8; ++x) {
+        if (auto window = screen.get_window_at(x, y); window and window.get() != frame.get() and window->get_owner() == frame) {
+          return window;
+        }
+      }
+    }
+    return nullptr;
+  };
+
+  auto window = popup_window();
+  CHECK(window);
+  auto row_before = view->get_location_on_screen();
+  auto location_before = window->get_location();
+  auto size_before = window->get_size();
+
+  // Translating the labels moves the View row (the File row grew) and widens
+  // the popup's own item.
+  Messages::put("de", "File", "Datei");
+  Messages::put("de", "Zoom", "Vergrößern");
+  Messages::set_locale("de");
+  drain();
+
+  CHECK(view->is_popup_menu_visible());
+  auto row_after = view->get_location_on_screen();
+  CHECK(row_after.x > row_before.x);
+  CHECK(window->get_width() > size_before.width);
+
+  // The popup followed the row: its placement relative to the row is the one
+  // it was opened with.
+  CHECK(window->get_location().x - row_after.x == location_before.x - row_before.x);
+  CHECK(window->get_location().y - row_after.y == location_before.y - row_before.y);
+
+  view->set_popup_menu_visible(false);
+  frame->set_visible(false);
+  drain();
+  Messages::clear("de");
+  Messages::set_locale("");
+
+  std::printf("PASS popup translations (an open popup follows its row and its items)\n");
+}
+
 void test_Widgets() {
   test_toggle_buttons();
   test_toggle_button_focus();
@@ -1241,4 +1312,5 @@ void test_Widgets() {
   test_combo_dropdown();
   test_messages();
   test_widget_translation();
+  test_popup_translation();
 }
