@@ -1,6 +1,7 @@
 #include <tui++/lookandfeel/MenuItemUI.h>
 #include <tui++/lookandfeel/LazyActionMap.h>
 #include <tui++/lookandfeel/MenuLayout.h>
+#include <tui++/lookandfeel/Translations.h>
 #include <tui++/lookandfeel/basic/ToggleIndicator.h>
 #include <tui++/TextMetrics.h>
 #include <tui++/CharIterator.h>
@@ -53,7 +54,7 @@ std::optional<std::pair<int, Char>> mnemonic_cell(MenuItem const *item, TextMetr
     return std::nullopt;
   }
 
-  auto const &text = item->get_text();
+  auto text = displayed_text(*item, item->get_text());
   auto const wanted = fold_case(mnemonic.get_code());
   auto prefix = std::string { };
   for (auto it = to_chars(text), last = end(it); it != last; ++it) {
@@ -414,7 +415,7 @@ std::optional<Dimension> MenuItemUI::get_preferred_size(std::shared_ptr<const Co
       return menu_layout->get_preferred_size(this->menu_item);
     }
   }
-  auto &&text = this->menu_item->get_text();
+  auto text = displayed_text(*this->menu_item, this->menu_item->get_text());
   auto metrics = screen.get_text_metrics();
   auto width = text.empty() ? 0 : metrics->get_width(text);
   auto margin = LookAndFeel::get<Insets>("MenuItem.margin", Insets { 0, 1, 0, 1 });
@@ -455,6 +456,7 @@ void MenuItemUI::paint(Graphics &g, std::shared_ptr<const Component> const &c) c
 
   auto margin = LookAndFeel::get<Insets>("MenuItem.margin", Insets { 0, 1, 0, 1 });
   auto metrics = screen.get_text_metrics();
+  auto label = displayed_text(*this->menu_item, this->menu_item->get_text());
 
   // A popup that holds a check/radio item gives every row an indicator
   // column in front of the label, so all labels (and the selected check
@@ -467,7 +469,7 @@ void MenuItemUI::paint(Graphics &g, std::shared_ptr<const Component> const &c) c
     paint_indicator(g, *metrics, indicator, margin.left, margin.top, this->menu_item->is_selected());
   }
 
-  g.draw_string(this->menu_item->get_text(), label_x, margin.top);
+  g.draw_string(label, label_x, margin.top);
 
   // The mnemonic letter marks the key that selects the item once the menu
   // bar is on the keyboard: Alt+mnemonic opens a top-level menu, a plain
@@ -489,7 +491,7 @@ void MenuItemUI::paint(Graphics &g, std::shared_ptr<const Component> const &c) c
     auto x = this->menu_item->get_width() - margin.right - metrics->get_width(text);
     // Never draw the accelerator over the title (a row that narrow would
     // only happen with a manual size; the layout reserves the room).
-    auto title_width = this->menu_item->get_text().empty() ? 0 : metrics->get_width(this->menu_item->get_text());
+    auto title_width = label.empty() ? 0 : metrics->get_width(label);
     if (x >= label_x + title_width) {
       g.draw_string(text, x, margin.top);
     }
@@ -501,7 +503,7 @@ void MenuItemUI::paint(Graphics &g, std::shared_ptr<const Component> const &c) c
     auto arrow = submenu_arrow();
     auto arrow_w = metrics->get_char_width(arrow.get_code());
     auto x = this->menu_item->get_width() - margin.right - arrow_w;
-    auto title_width = this->menu_item->get_text().empty() ? 0 : metrics->get_width(this->menu_item->get_text());
+    auto title_width = label.empty() ? 0 : metrics->get_width(label);
     if (x >= label_x + title_width) {
       g.draw_char(arrow, x, margin.top);
     }

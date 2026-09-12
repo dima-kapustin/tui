@@ -1,6 +1,7 @@
 #pragma once
 
 #include <tui++/lookandfeel/MenuItemUI.h>
+#include <tui++/lookandfeel/Translations.h>
 #include <tui++/TextMetrics.h>
 
 #include <tui++/Graphics.h>
@@ -23,7 +24,7 @@ class SixelMenuItemUI: public MenuItemUI {
 public:
   virtual std::optional<Dimension> get_preferred_size(std::shared_ptr<const Component> const &c) const override {
     auto menu_item = std::static_pointer_cast<const MenuItem>(c);
-    auto &&text = menu_item->get_text();
+    auto &&text = displayed_text(*menu_item, menu_item->get_text());
     auto metrics = screen.get_text_metrics();
     auto width = text.empty() ? 0 : metrics->get_width(text);
     auto margin = LookAndFeel::get<Insets>("MenuItem.margin", Insets { 2, 2, 2, 2 });
@@ -55,6 +56,7 @@ protected:
     // label starts after it (see the text-screen MenuItemUI for the column
     // semantics).
     auto metrics = screen.get_text_metrics();
+    auto label = displayed_text(*menu_item, menu_item->get_text());
     auto label_x = margin.left;
     auto indicator = menu_item_indicator(menu_item.get());
     if (menu_check_column(menu_item.get())) {
@@ -63,7 +65,7 @@ protected:
         paint_indicator(g, *metrics, indicator, margin.left, y, menu_item->is_selected());
       }
     }
-    g.draw_string(menu_item->get_text(), label_x, y);
+    g.draw_string(label, label_x, y);
 
     // The mnemonic letter (the Alt+shortcut key, like "File" with mnemonic
     // 'F') is drawn bold with a single underline beneath the glyph, mirroring
@@ -74,7 +76,7 @@ protected:
     // text color, spanning the glyph's cell at the bottom of the glyph box.
     auto mnemonic = menu_item->get_mnemonic().get_code();
     if (mnemonic != 0) {
-      auto const &text = menu_item->get_text();
+      auto const &text = label;
       auto wanted = mnemonic >= 'A' and mnemonic <= 'Z' ? mnemonic - 'A' + 'a' : mnemonic;
       auto x = label_x;
       auto index = std::size_t { 0 };

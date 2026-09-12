@@ -1,6 +1,7 @@
 #pragma once
 
 #include <tui++/lookandfeel/MenuUI.h>
+#include <tui++/lookandfeel/Translations.h>
 #include <tui++/TextMetrics.h>
 
 #include <tui++/Graphics.h>
@@ -25,7 +26,7 @@ class SixelMenuUI: public MenuUI {
 public:
   virtual std::optional<Dimension> get_preferred_size(std::shared_ptr<const Component> const &c) const override {
     auto menu_item = std::static_pointer_cast<const MenuItem>(c);
-    auto &&text = menu_item->get_text();
+    auto &&text = displayed_text(*menu_item, menu_item->get_text());
     auto metrics = screen.get_text_metrics();
     auto width = text.empty() ? 0 : metrics->get_width(text);
     auto margin = LookAndFeel::get<Insets>("Menu.margin", Insets { 2, 2, 2, 2 });
@@ -59,20 +60,21 @@ protected:
     // A submenu row of a popup with check/radio items indents behind the
     // indicator column like every other row; a top-level menu row does not.
     auto metrics = screen.get_text_metrics();
+    auto label = displayed_text(*menu_item, menu_item->get_text());
     auto label_x = margin.left;
     auto menu = dynamic_cast<Menu const*>(menu_item.get());
     auto is_submenu = menu and not menu->is_top_level_menu();
     if (menu_check_column(menu_item.get())) {
       label_x += indicator_column_width(*metrics);
     }
-    g.draw_string(menu_item->get_text(), label_x, y);
+    g.draw_string(label, label_x, y);
 
     // The submenu arrow at the right edge.
     if (is_submenu) {
       auto arrow = Symbols::TRIANGLE_RIGHT_POINTING_BLACK;
       auto arrow_w = metrics->get_char_width(arrow.get_code());
       auto x = menu_item->get_width() - margin.right - arrow_w;
-      auto title_width = menu_item->get_text().empty() ? 0 : metrics->get_width(menu_item->get_text());
+      auto title_width = label.empty() ? 0 : metrics->get_width(label);
       if (x >= label_x + title_width) {
         g.draw_char(arrow, x, y);
       }

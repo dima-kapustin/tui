@@ -2,6 +2,7 @@
 
 #include <tui++/lookandfeel/LazyActionMap.h>
 #include <tui++/lookandfeel/LookAndFeel.h>
+#include <tui++/lookandfeel/Translations.h>
 #include <tui++/lookandfeel/basic/ToggleIndicator.h>
 
 #include <tui++/InputMap.h>
@@ -104,7 +105,19 @@ void paint_clipped_text(Graphics &g, TextMetrics const *metrics, std::string con
   if (text.empty()) {
     return;
   }
-  auto mnemonic_index = button->get_mnemonic().get_code() != 0 ? button->get_displayed_mnemonic_index() : -1;
+
+  // The mnemonic underline: the index the button tracks, while the label drawn
+  // is the program's own text; a translated label is searched for the letter
+  // instead (a translation may move it, or drop it altogether).
+  auto mnemonic_index = -1;
+  if (button->get_mnemonic().get_code() != 0) {
+    if (text == button->get_text()) {
+      mnemonic_index = button->get_displayed_mnemonic_index();
+    } else if (auto pos = text.find(button->get_mnemonic()); pos != text.npos) {
+      mnemonic_index = int(pos);
+    }
+  }
+
   auto pos = std::string::size_type { 0 };
   auto cell = x;
   for (auto it = to_chars(text), last = end(it); it != last; ++it) {
@@ -296,7 +309,7 @@ void ButtonUI::paint_content(Graphics &g, std::shared_ptr<const Component> const
   // Lay the leading visual, the icon and the label out on one line (Swing's
   // layoutCompoundLabel for the default vertical CENTER / text TRAILING),
   // measuring the line exactly as the preferred size did.
-  auto text = button->get_text();
+  auto text = displayed_text(*button, button->get_text());
   auto icon_gap = int(button->get_icon_text_gap());
   auto content = content_width(*metrics, *c);
 
@@ -349,7 +362,7 @@ int ButtonUI::content_width(TextMetrics const &metrics, Component const &c) cons
   if (icon) {
     width += icon->get_icon_width();
   }
-  if (auto const &text = button.get_text(); not text.empty()) {
+  if (auto text = displayed_text(button, button.get_text()); not text.empty()) {
     if (icon) {
       width += int(button.get_icon_text_gap());
     }

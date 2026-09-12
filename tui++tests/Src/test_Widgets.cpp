@@ -20,6 +20,7 @@
 #include <tui++/Screen.h>
 #include <tui++/Shadow.h>
 #include <tui++/Switch.h>
+#include <tui++/TextMetrics.h>
 #include <tui++/TextField.h>
 #include <tui++/ToggleButton.h>
 #include <tui++/Window.h>
@@ -1136,6 +1137,97 @@ static void test_messages() {
   std::printf("PASS translation bundles (lookup chain, locales, loading a file)\n");
 }
 
+// Translating the toolkit's own texts: the look-and-feel looks a widget's text
+// up in the bundles when it measures and paints it (see Messages), so the
+// translation is orthogonal to the components -- the widget's own text is
+// never changed and the layout follows the translation -- and a locale switch
+// reaches the widgets on screen. A widget whose text is data opts out through
+// the ordinary client property mechanism.
+static void test_widget_translation() {
+  terminal.set_type("text");
+  drain();
+
+  auto metrics = screen.get_text_metrics();
+  auto english = make_component<Button>("Open");
+  auto english_width = english->get_preferred_size().width;
+
+  Messages::put("de", "Open", "Öffnen");
+  Messages::put("de", "File", "Datei");
+  Messages::put("de", "Later", "Später");
+
+  // With no locale set the keys show: a bundle alone changes nothing, and the
+  // button measures the program's own text.
+  auto open = make_component<Button>("Open");
+  auto english_menu = make_component<Menu>("File");
+  CHECK(open->get_text() == "Open");
+  CHECK(open->get_preferred_size().width == english_width);
+  auto english_menu_width = english_menu->get_preferred_size().width;
+
+  // A Menu's title is looked up the same way (a Menu is a MenuItem).
+  Messages::set_locale("de");
+  auto menu = make_component<Menu>("File");
+  CHECK(menu->get_preferred_size().width == english_menu_width - metrics->get_width("File") + metrics->get_width("Datei"));
+
+  // The locale switch reaches the widgets of a shown window: the text the
+  // look-and-feel draws and the size it lays out follow, while the program's
+  // own text stays what it set.
+  open->set_horizontal_alignment(HorizontalAlignment::LEFT);
+  auto frame = make_component<Frame>();
+  frame->set_size({ 40, 8 });
+  auto content = frame->get_content_pane();
+  content->set_layout(std::make_shared<BorderLayout>());
+  content->add(open, BorderLayout::WEST);
+  frame->set_visible(true);
+  drain();
+
+  Messages::set_locale("");
+  CHECK(open->get_width() == english_width);
+  auto capture = std::ostringstream { };
+  auto *old_cout = std::cout.rdbuf(capture.rdbuf());
+  auto at = open->get_location_on_screen();
+  auto label = probe_cell(capture, at.x + 2, at.y); // past the bezel and the margin
+  std::cout.rdbuf(old_cout);
+  CHECK(label.find("O") != std::string::npos);
+  CHECK(label.find("Ö") == std::string::npos);
+
+  Messages::set_locale("de");
+  CHECK(open->get_text() == "Open");
+  CHECK(open->get_width() == english_width - metrics->get_width("Open") + metrics->get_width("Öffnen"));
+
+  auto capture_translated = std::ostringstream { };
+  old_cout = std::cout.rdbuf(capture_translated.rdbuf());
+  auto translated_label = probe_cell(capture_translated, at.x + 2, at.y);
+  std::cout.rdbuf(old_cout);
+  CHECK(translated_label.find("Ö") != std::string::npos);
+
+  // A widget whose text is data opts out through the client property (see
+  // Messages::TRANSLATABLE_PROPERTY): no component API is involved, and the
+  // look-and-feel measures and paints the program's own text again.
+  auto translated_later = make_component<Button>("Later");
+  auto plain_later = make_component<Button>("Later");
+  plain_later->set_client_property(Messages::TRANSLATABLE_PROPERTY, false);
+  CHECK(translated_later->get_preferred_size().width != plain_later->get_preferred_size().width);
+  CHECK(plain_later->get_preferred_size().width == metrics->get_width("Later") + (translated_later->get_preferred_size().width - metrics->get_width("Später")));
+
+  // Dropping the bundle leaves the shown widgets with their own texts again.
+  Messages::clear("de");
+  CHECK(open->get_width() == english_width);
+
+  // A wide (CJK) translation measures two cells per ideograph, so the layout
+  // leaves the room a terminal draws the label in.
+  Messages::put("zh", "Open", "打开");
+  Messages::set_locale("zh");
+  auto chinese = make_component<Button>("Open");
+  CHECK(chinese->get_preferred_size().width == english_width - metrics->get_width("Open") + 4);
+
+  frame->set_visible(false);
+  drain();
+  Messages::clear("zh");
+  Messages::set_locale("");
+
+  std::printf("PASS widget translations (labels, menus, layout, CJK width and the client-property opt-out)\n");
+}
+
 void test_Widgets() {
   test_toggle_buttons();
   test_toggle_button_focus();
@@ -1148,4 +1240,5 @@ void test_Widgets() {
   test_combo_box();
   test_combo_dropdown();
   test_messages();
+  test_widget_translation();
 }

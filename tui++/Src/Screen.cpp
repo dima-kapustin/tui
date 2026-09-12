@@ -201,12 +201,27 @@ void Screen::hide_window(const std::shared_ptr<Window> &window) {
   refresh();
 }
 
+namespace {
+
+// Drops the cached layout and preferred size of `component` and every
+// descendant: a screen-wide change -- a translation, the shadow switch --
+// changes what a widget measures, and a container only lays its children out
+// again when they are invalid (see Component::validate_tree).
+void invalidate_tree(Component &component) {
+  component.invalidate();
+  for (auto &&child : component.get_components()) {
+    if (child) {
+      invalidate_tree(*child);
+    }
+  }
+}
+
+}
+
 void Screen::revalidate_windows() {
   std::unique_lock lock(this->windows_mutex);
   for (auto &&window : this->windows) {
-    // invalidate() (through revalidate) climbs to the top of each tree, so one
-    // call per window's root covers the whole tree it shows.
-    window->revalidate();
+    invalidate_tree(*window);
   }
 }
 

@@ -233,8 +233,10 @@ public:
 
   // Drops the cached layout of every window's tree (Swing's revalidate), so a
   // screen-wide change a component's size depends on -- the shadow switch,
-  // whose room a button's border reserves -- reaches the layouts, not only the
-  // next repaint.
+  // whose room a button's border reserves, or a translation, whose texts size
+  // the widgets -- reaches the layouts, not only the next repaint. The
+  // window's own invalidate, not revalidate(): a window has no parent to carry
+  // the invalidation, and the window is the root of the tree to rebuild.
   void revalidate_windows();
 
   // Converts a terminal mouse position (reported in text cells) into this
