@@ -13,6 +13,7 @@
 #include <tui++/KeyboardFocusManager.h>
 #include <tui++/Menu.h>
 #include <tui++/MenuItem.h>
+#include <tui++/Messages.h>
 #include <tui++/Panel.h>
 #include <tui++/RadioButton.h>
 #include <tui++/RadioButtonMenuItem.h>
@@ -35,6 +36,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -1059,6 +1061,81 @@ static void test_button_shadow() {
   std::printf("PASS button shadows (layout room, bands and the global switch)\n");
 }
 
+// Translations: a widget's text is the key of the lookup (see Messages), so a
+// program installs a bundle per locale and switches the locale at run time.
+static void test_messages() {
+  terminal.set_type("text");
+  drain();
+
+  // With nothing installed a key shows as itself.
+  CHECK(Messages::get_locale().empty());
+  CHECK(Messages::get_default_locale().empty());
+  CHECK(Messages::get("Open") == "Open");
+  CHECK(not Messages::has("Open"));
+
+  // A bundle carries the translation; locales are normalized ("de-AT",
+  // "DE_at" and "de_AT" name the same locale) and the language part backs up
+  // the region one.
+  Messages::put("de_AT", "Open", "Öffnen");
+  Messages::set_locale("de-AT");
+  CHECK(Messages::get_locale() == "de_AT");
+  CHECK(Messages::size("de_at") == 1);
+  CHECK(Messages::get("Open") == "Öffnen");
+  CHECK(Messages::has("Open"));
+  CHECK(Messages::get("Door") == "Door"); // the key itself when no bundle carries it
+
+  Messages::put("de", "Door", "Tür");
+  CHECK(Messages::get("Door") == "Tür");
+
+  // The default locale backs up the current one; the base bundle backs up all.
+  Messages::put("", "Exit", "Quit");
+  Messages::put("fr", "Exit", "Quitter");
+  Messages::set_default_locale("fr");
+  CHECK(Messages::get("Exit") == "Quitter");
+  CHECK(Messages::get("Open") == "Öffnen"); // the current locale still wins
+  Messages::set_default_locale("");
+  Messages::set_locale("es");
+  CHECK(Messages::get("Exit") == "Quit");
+  CHECK(Messages::get("Open") == "Open");
+
+  // A translator's file: comments, blank lines, '=' and ':' separators, CRLF,
+  // escapes, and a key without a separator (an empty translation).
+  auto path = std::string { "test_messages_load_me.tmp" };
+  {
+    std::ofstream out(path, std::ios::binary);
+    out << "# comment\r\n"
+        << "Open = Abrir\r\n"
+        << "! other comment\r\n"
+        << "\r\n"
+        << "Exit: Salir\n"
+        << "Yes=Si\n"
+        << "No\n"
+        << "Tab\\tKey = A \\= B\n";
+  }
+  CHECK(Messages::load("es", path));
+  CHECK(Messages::get("Open") == "Abrir");
+  CHECK(Messages::get("Exit") == "Salir");
+  CHECK(Messages::get("Yes") == "Si");
+  CHECK(Messages::has("No"));
+  CHECK(Messages::get("No").empty());
+  CHECK(Messages::get("Tab\tKey") == "A = B");
+  CHECK(not Messages::load("es", "no_such_messages_file.tmp"));
+  std::remove(path.c_str());
+
+  // Clearing a bundle leaves its keys showing as themselves again.
+  Messages::clear("es");
+  Messages::clear("de_AT");
+  Messages::clear("de");
+  Messages::clear("fr");
+  Messages::clear("");
+  Messages::set_default_locale("");
+  Messages::set_locale("");
+  CHECK(Messages::get("Open") == "Open");
+  CHECK(Messages::size("de") == 0);
+
+  std::printf("PASS translation bundles (lookup chain, locales, loading a file)\n");
+}
+
 void test_Widgets() {
   test_toggle_buttons();
   test_toggle_button_focus();
@@ -1070,4 +1147,5 @@ void test_Widgets() {
   test_combo_model();
   test_combo_box();
   test_combo_dropdown();
+  test_messages();
 }
