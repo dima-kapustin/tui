@@ -194,6 +194,14 @@ public:
     return this->focus_painted;
   }
 
+  // Whether the focus the button holds came from an activating mouse event.
+  // The focus underline is a keyboard indicator, the way Swing's platform
+  // look-and-feels show the focus only for keyboard focus (FocusEvent.Cause
+  // distinguishes the two), so a click must not paint it.
+  bool is_focus_from_mouse() const {
+    return this->focus_from_mouse;
+  }
+
   void set_focus_painted(bool value) {
     if (this->focus_painted != value) {
       this->focus_painted = value;
@@ -308,6 +316,8 @@ public:
   void set_icon_text_gap(unsigned gap);
 
 private:
+  bool focus_from_mouse = false;
+
   void update_mnemonic_properties();
   void update_displayed_mnemonic_index(std::string const &text, Char const &mnemonic);
 

@@ -15,7 +15,9 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <limits>
+#include <tuple>
 
 namespace tui {
 
@@ -34,6 +36,35 @@ std::uint64_t bytes_for_cells(std::uint64_t cells) {
 bool is_column_modifier(InputEvent::Modifiers modifiers) {
   return bool(modifiers & (InputEvent::ALT_DOWN | InputEvent::META_DOWN));
 }
+
+// A word character for the occurrence highlight and the double-click gesture:
+// the same rule as TextField's word commands (underscores, digits, ASCII
+// letters, and every non-ASCII code point -- the letters of the other scripts
+// count as word content).
+bool is_word_code(char32_t code) {
+  return code == '_' //
+      or (code >= '0' and code <= '9') //
+      or (code >= 'A' and code <= 'Z') //
+      or (code >= 'a' and code <= 'z') //
+      or code >= 0x80;
+}
+
+// A UTF-8 continuation byte (10xxxxxx): walking back over these reaches the
+// lead byte of the character that contains a byte offset.
+bool is_utf8_continuation(char byte) {
+  return (std::uint8_t(byte) & 0xC0) == 0x80;
+}
+
+// The background of an occurrence under the cursor: a dim amber, deliberately
+// quieter than the search match's orange ({96, 62, 20}) so the current hit
+// still stands out among the occurrences.
+constexpr Color OCCURRENCE_BACKGROUND { 70, 56, 26 };
+
+// How far a double-click's word scan walks from the clicked character: a word
+// (or a run of separators) longer than this is not something a click means to
+// select, and the scan has to stay bounded on a file whose single line is
+// gigabytes long.
+constexpr std::uint64_t MAX_WORD_SCAN = 4096;
 
 }
 
@@ -164,6 +195,14 @@ void TextArea::init() {
     e.consume();
   });
 
+  // The classic click gestures (see TextField): a double-click selects the
+  // word under the pointer, a triple-click the whole line. The press above
+  // already placed the caret and left an anchor; the click lays the selection
+  // over it.
+  add_listener(MouseClickEvent::MOUSE_CLICKED, [this](MouseClickEvent &e) {
+    on_mouse_click(e);
+  });
+
   // The wheel is handled by the enclosing ScrollPane (see
   // ScrollPane::process_wheel): the pane scrolls by this area's unit
   // increment wherever the pointer is over it, the view's background
@@ -221,6 +260,108 @@ void TextArea::on_mouse_drag(int x, int y) {
     line = this->buffer->known_line_count() - 1;
   }
   place_caret(cell_to_offset(line, std::max(0, x)), true, this->mouse_drag_block or this->column_select_mode);
+}
+
+void TextArea::on_mouse_click(MouseClickEvent &e) {
+  if (e.click_count < 2) {
+    return;
+  }
+  auto line = std::uint64_t(std::max(0, e.y));
+  if (this->buffer->known_line_count() <= line) {
+    return;
+  }
+
+  // The gesture's range: the whole line for a triple-click, the word (or the
+  // run of separators) under the pointer for a double-click. place_caret puts
+  // the anchor at the range's start and the caret at its end, so the selection
+  // reads forwards, as TextField::select lays it out.
+  auto start = std::uint64_t { };
+  auto end = std::uint64_t { };
+  if (e.click_count >= 3) {
+    auto ranges = this->buffer->read_line_ranges(line, 1);
+    if (ranges.empty()) {
+      return;
+    }
+    start = ranges[0].start;
+    end = ranges[0].end;
+  } else {
+    std::tie(start, end) = word_bounds(line, std::max(0, e.x));
+  }
+  place_caret(start, false);
+  place_caret(end, true);
+  // The word gesture always lays a byte-range selection: extending from the
+  // collapsed caret follows the column-select mode, which would turn the
+  // word into a block, but a double-click means "this word", not "a column".
+  this->sel_block = false;
+  e.consume();
+}
+
+std::pair<std::uint64_t, std::uint64_t> TextArea::word_bounds(std::uint64_t line, int cell) const {
+  auto ranges = this->buffer->read_line_ranges(line, 1);
+  if (ranges.empty()) {
+    auto end = this->buffer->length();
+    return { end, end };
+  }
+  auto line_start = ranges[0].start;
+  auto line_end = ranges[0].end;
+  if (line_start == line_end) {
+    return { line_start, line_start }; // an empty line has no word to select
+  }
+
+  // The clicked character: cell_to_offset lands on it, or on the line's end
+  // when the click is past the text (a double-click there means the word at
+  // the line's end). The scan is capped on both sides, and the window that
+  // holds it is read a few bytes early so the cap boundary can be moved back
+  // to the lead byte of the character it cuts.
+  auto at = std::min(cell_to_offset(line, cell), line_end);
+  auto from = std::max(at > MAX_WORD_SCAN ? at - MAX_WORD_SCAN : 0, line_start);
+  auto to = std::min(at + MAX_WORD_SCAN, line_end);
+  auto read_from = from > line_start + 3 ? from - 3 : line_start;
+  auto window = this->buffer->read(read_from, to - read_from);
+  auto lo = std::size_t(from - read_from);
+  while (lo > 0 and is_utf8_continuation(window[lo])) {
+    --lo; // the cap cut a character: scan from its lead byte
+  }
+  auto hi = std::size_t(to - read_from);
+  auto at_index = std::size_t(at - read_from);
+  if (at_index >= hi) {
+    at_index = hi - 1; // past the text: the last character decides
+  }
+  while (at_index > lo and is_utf8_continuation(window[at_index])) {
+    --at_index;
+  }
+
+  // The clicked character's classification decides what the gesture selects:
+  // its word, or the run of separators around it (the rule of
+  // TextField::select_word_at). The scans follow whole characters, so the
+  // selection's edges never split a multi-byte character.
+  auto code = char32_t { };
+  util::utf8_char_decode(window.data() + at_index, window.size() - at_index, &code);
+  auto word = is_word_code(code);
+
+  auto left = at_index;
+  while (left > lo) {
+    auto start = left - 1;
+    while (start > lo and is_utf8_continuation(window[start])) {
+      --start;
+    }
+    auto before = char32_t { };
+    util::utf8_char_decode(window.data() + start, left - start, &before);
+    if (is_word_code(before) != word) {
+      break;
+    }
+    left = start;
+  }
+  auto right = at_index;
+  while (right < hi) {
+    auto next = char32_t { };
+    auto len = std::size_t(util::utf8_char_decode(window.data() + right, window.size() - right, &next));
+    if (len == 0 or is_word_code(next) != word) {
+      break;
+    }
+    right += len;
+  }
+  return { read_from + std::uint64_t(left), read_from + std::uint64_t(right) };
 }
 
 std::shared_ptr<Viewport> TextArea::get_viewport() const {
@@ -361,6 +502,11 @@ std::uint64_t TextArea::cell_to_offset(std::uint64_t line, int cell) const {
 }
 
 void TextArea::place_caret(std::uint64_t offset, bool extend, bool block) {
+  // The occurrence highlight (when on) matches the word around the caret or
+  // the selection, so this move may change the matched text -- and with it
+  // the highlight of every visible row, not only the band between the old and
+  // the new caret.
+  auto old_occurrence = get_occurrence_text();
   auto old_caret_line = this->caret_line;
   auto first = old_caret_line;
   auto last = old_caret_line;
@@ -398,10 +544,12 @@ void TextArea::place_caret(std::uint64_t offset, bool extend, bool block) {
   // selection grows or shrinks there, and the caret moves there); the rows
   // beyond it keep their state and must not be repainted.
   repaint_caret_rows(std::min(first, this->caret_line), std::max(last, this->caret_line));
+  repaint_if_occurrence_changed(old_occurrence);
   restart_caret_blink();
 }
 
 void TextArea::set_caret(std::uint64_t offset) {
+  auto old_occurrence = get_occurrence_text();
   auto old_caret_line = this->caret_line;
   auto first = old_caret_line;
   auto last = old_caret_line;
@@ -424,6 +572,7 @@ void TextArea::set_caret(std::uint64_t offset) {
   refresh_view_size();
   scroll_caret_to_visible();
   repaint_caret_rows(std::min(first, this->caret_line), std::max(last, this->caret_line));
+  repaint_if_occurrence_changed(old_occurrence);
   restart_caret_blink();
 }
 
@@ -586,6 +735,11 @@ static std::uint64_t count_buffer_newlines(TextBuffer const &buffer, std::uint64
 }
 
 void TextArea::move_caret_line(int delta, int desired_cell, bool extend, bool block) {
+  // The occurrence highlight (when on) matches the word around the caret, so
+  // a vertical move may change the matched text -- and with it the highlight
+  // of every visible row, not only the band between the old and the new
+  // caret.
+  auto old_occurrence = get_occurrence_text();
   auto old_caret_line = this->caret_line;
   auto first = old_caret_line;
   auto last = old_caret_line;
@@ -615,10 +769,12 @@ void TextArea::move_caret_line(int delta, int desired_cell, bool extend, bool bl
   refresh_caret_geometry();
   scroll_caret_to_visible();
   repaint_caret_rows(std::min(first, this->caret_line), std::max(last, this->caret_line));
+  repaint_if_occurrence_changed(old_occurrence);
   restart_caret_blink();
 }
 
 void TextArea::page(int delta, bool extend, bool block) {
+  auto old_occurrence = get_occurrence_text();
   auto viewport = get_viewport();
   auto step = std::max(1, (viewport ? viewport->get_height() : get_height()) - 1);
   auto top = std::int64_t(get_top_line());
@@ -668,6 +824,7 @@ void TextArea::page(int delta, bool extend, bool block) {
   // a page that stayed put (or was clamped at the content edge), plus the
   // erased selection band of a collapsing page move.
   repaint_caret_rows(std::min(first, this->caret_line), std::max(last, this->caret_line));
+  repaint_if_occurrence_changed(old_occurrence);
   restart_caret_blink();
 }
 
@@ -775,6 +932,11 @@ void TextArea::insert_text(std::string const &text) {
     return;
   }
 
+  // The edit may change the word the occurrence highlight is matching (and
+  // the caret moves with it), so remember the text the screen currently
+  // shows to know whether every visible row must be redrawn below.
+  auto old_occurrence = get_occurrence_text();
+
   // Typing replaces the selection; without one it inserts at the caret. A
   // column selection is replaced as a block (one undo step); a zero-width
   // column "selection" is just a caret and falls through to the plain
@@ -813,6 +975,7 @@ void TextArea::insert_text(std::string const &text) {
     // shifted, so the damage runs to the viewport's bottom.
     repaint_from_line(first_line);
   }
+  repaint_if_occurrence_changed(old_occurrence);
   restart_caret_blink();
 }
 
@@ -820,6 +983,7 @@ void TextArea::delete_backward() {
   if (this->readonly) {
     return;
   }
+  auto old_occurrence = get_occurrence_text();
   if (is_block_selection()) {
     delete_block();
     return;
@@ -851,6 +1015,7 @@ void TextArea::delete_backward() {
   } else {
     repaint_caret_rows(first_line, this->caret_line);
   }
+  repaint_if_occurrence_changed(old_occurrence);
   restart_caret_blink();
 }
 
@@ -858,6 +1023,7 @@ void TextArea::delete_forward() {
   if (this->readonly) {
     return;
   }
+  auto old_occurrence = get_occurrence_text();
   if (is_block_selection()) {
     delete_block();
     return;
@@ -890,6 +1056,7 @@ void TextArea::delete_forward() {
   } else {
     repaint_caret_rows(first_line, this->caret_line);
   }
+  repaint_if_occurrence_changed(old_occurrence);
   restart_caret_blink();
 }
 
@@ -995,6 +1162,7 @@ void TextArea::delete_block() {
     place_caret(this->caret, false);
     return;
   }
+  auto old_occurrence = get_occurrence_text();
   this->buffer->ensure_line(rect->bottom + 1);
 
   // Resolve every row's band before touching the buffer: a buffer edit
@@ -1037,6 +1205,7 @@ void TextArea::delete_block() {
   // The rows of the block lose their highlight and their text closes up;
   // nothing below them moved (no newline was touched).
   repaint_caret_rows(rect->top, rect->bottom);
+  repaint_if_occurrence_changed(old_occurrence);
   restart_caret_blink();
 }
 
@@ -1045,6 +1214,7 @@ void TextArea::replace_block(std::string const &text) {
   if (not rect or rect->right <= rect->left) {
     return;
   }
+  auto old_occurrence = get_occurrence_text();
   this->buffer->ensure_line(rect->bottom + 1);
 
   // Resolve every row's band before touching the buffer (a buffer edit
@@ -1090,6 +1260,7 @@ void TextArea::replace_block(std::string const &text) {
   } else {
     repaint_caret_rows(rect->top, std::max(rect->bottom, this->caret_line));
   }
+  repaint_if_occurrence_changed(old_occurrence);
   restart_caret_blink();
 }
 
@@ -1148,6 +1319,7 @@ void TextArea::paste() {
 }
 
 void TextArea::select_all() {
+  auto old_occurrence = get_occurrence_text();
   this->buffer->ensure_scanned_to(this->buffer->length());
   repaint_match_rows();
   this->sel_anchor = 0;
@@ -1159,6 +1331,7 @@ void TextArea::select_all() {
   scroll_caret_to_visible();
   // The whole visible band turns selected.
   repaint_from_line(0);
+  repaint_if_occurrence_changed(old_occurrence);
   restart_caret_blink();
 }
 
@@ -1166,6 +1339,7 @@ void TextArea::undo() {
   if (this->undo_stack.empty() or this->readonly) {
     return;
   }
+  auto old_occurrence = get_occurrence_text();
   auto step = std::move(this->undo_stack.back());
   this->undo_stack.pop_back();
 
@@ -1211,6 +1385,7 @@ void TextArea::undo() {
   } else {
     repaint_from_line(first_line);
   }
+  repaint_if_occurrence_changed(old_occurrence);
   restart_caret_blink();
 }
 
@@ -1218,6 +1393,7 @@ void TextArea::redo() {
   if (this->redo_stack.empty() or this->readonly) {
     return;
   }
+  auto old_occurrence = get_occurrence_text();
   auto step = std::move(this->redo_stack.back());
   this->redo_stack.pop_back();
 
@@ -1257,6 +1433,7 @@ void TextArea::redo() {
   } else {
     repaint_from_line(first_line);
   }
+  repaint_if_occurrence_changed(old_occurrence);
   restart_caret_blink();
 }
 
@@ -1517,13 +1694,16 @@ void TextArea::on_key_typed(KeyEvent &e) {
 bool TextArea::find_next(std::string const &pattern, bool regexp, bool forward) {
   auto from = this->caret;
   auto old_caret_line = this->caret_line;
+  // A hit moves the caret, so the occurrence highlight's text (the word
+  // around it, or the selection) may change with it.
+  auto old_occurrence = get_occurrence_text();
   // The previous highlight (if any) is about to be replaced: erase its rows
   // first -- it may sit anywhere, not only between the old and the new caret.
   repaint_match_rows();
   if (regexp) {
-    auto match = this->buffer->find_regex(pattern, from);
+    auto match = this->buffer->find_regex(pattern, from, this->search_options);
     if (not match and forward and from > 0) {
-      match = this->buffer->find_regex(pattern, 0);
+      match = this->buffer->find_regex(pattern, 0, this->search_options);
     }
     if (match) {
       this->match_start = match->first;
@@ -1541,13 +1721,14 @@ bool TextArea::find_next(std::string const &pattern, bool regexp, bool forward) 
       // band [old caret, new caret] covers it (a match always starts at or
       // after the old caret, where the search began).
       repaint_caret_rows(old_caret_line, this->caret_line);
+      repaint_if_occurrence_changed(old_occurrence);
       restart_caret_blink();
       return true;
     }
   } else {
-    auto offset = this->buffer->find(pattern, from);
+    auto offset = this->buffer->find(pattern, from, this->search_options);
     if (not offset and forward and from > 0) {
-      offset = this->buffer->find(pattern, 0);
+      offset = this->buffer->find(pattern, 0, this->search_options);
     }
     if (offset) {
       this->match_start = *offset;
@@ -1561,6 +1742,7 @@ bool TextArea::find_next(std::string const &pattern, bool regexp, bool forward) 
       refresh_view_size();
       scroll_caret_to_visible();
       repaint_caret_rows(old_caret_line, this->caret_line);
+      repaint_if_occurrence_changed(old_occurrence);
       restart_caret_blink();
       return true;
     }
@@ -1573,6 +1755,133 @@ void TextArea::show_message(std::string const &message) {
   this->message = message;
   // Only the message row (the bottom visible one) changes.
   repaint_message_row();
+}
+
+// ---------------------------------------------------------------------------
+// occurrence highlight
+
+void TextArea::set_occurrence_highlight(bool value) {
+  if (this->occurrence_highlight != value) {
+    this->occurrence_highlight = value;
+    // The text is computed from the live caret and selection, so turning the
+    // feature on or off changes every visible row at once.
+    repaint_visible_rows();
+  }
+}
+
+std::string TextArea::get_occurrence_text() const {
+  if (not this->occurrence_highlight) {
+    return { };
+  }
+  auto [start, end] = selection_bounds();
+  if (end > start and not is_block_selection()) {
+    // The selection is the text to match (an editor's "highlight the
+    // selection" behavior). A selection longer than the cap is ignored rather
+    // than read: Ctrl+A on a huge file must not be copied just to be
+    // highlighted.
+    if (end - start > MAX_OCCURRENCE_TEXT) {
+      return { };
+    }
+    return this->buffer->read(start, end - start);
+  }
+  return word_at_caret();
+}
+
+std::string TextArea::word_at_caret() const {
+  auto length = this->buffer->length();
+  auto caret = std::min(this->caret, length);
+  auto span = std::uint64_t(MAX_OCCURRENCE_TEXT);
+
+  // The scan limits: MAX_OCCURRENCE_TEXT bytes to each side of the caret,
+  // widened to character boundaries so a multi-byte character is never cut in
+  // half. The window read below covers the widened bytes.
+  auto limit_from = caret > span ? caret - span : 0;
+  auto limit_to = std::min(length, caret + span);
+  // Four extra bytes each way cover the longest character (4 bytes) that can
+  // straddle a limit; the limit itself is then widened to a lead byte below.
+  auto read_from = limit_from > 4 ? limit_from - 4 : 0;
+  auto read_to = std::min(length, limit_to + 4);
+  auto window = this->buffer->read(read_from, read_to - read_from);
+  while (limit_from > read_from and is_utf8_continuation(window[std::size_t(limit_from - read_from)])) {
+    --limit_from;
+  }
+  auto lo = std::size_t(limit_from - read_from);
+  auto hi = std::size_t(limit_to - read_from);
+
+  // The caret may sit inside a character (offsets are bytes): anchor the scan
+  // on that character's lead byte, so it is neither skipped nor counted
+  // twice.
+  auto at = std::size_t(caret - read_from);
+  while (at > lo and at < window.size() and is_utf8_continuation(window[at])) {
+    --at;
+  }
+
+  // The maximal run of word characters around the caret. The scans walk whole
+  // characters (a match must start on one), and stop at the limits: they never
+  // read beyond the window, so the cost does not depend on the word's length.
+  auto left = at;
+  while (left > lo) {
+    auto start = left - 1;
+    while (start > lo and is_utf8_continuation(window[start])) {
+      --start;
+    }
+    auto code = char32_t { };
+    util::utf8_char_decode(window.data() + start, left - start, &code);
+    if (not is_word_code(code)) {
+      break;
+    }
+    left = start;
+  }
+  auto right = at;
+  while (right < hi) {
+    auto code = char32_t { };
+    auto len = std::size_t(util::utf8_char_decode(window.data() + right, window.size() - right, &code));
+    if (len == 0 or not is_word_code(code)) {
+      break;
+    }
+    right += len;
+  }
+
+  // A scan that ran into its limit is a run longer than the cap -- unless the
+  // character just past the limit is not word content, in which case the word
+  // simply ended there and is complete.
+  if (left == lo and limit_from > 0) {
+    auto start = lo - 1;
+    while (start > 0 and is_utf8_continuation(window[start])) {
+      --start;
+    }
+    auto code = char32_t { };
+    util::utf8_char_decode(window.data() + start, lo - start, &code);
+    if (is_word_code(code)) {
+      return { };
+    }
+  }
+  if (right >= hi and limit_to < length) {
+    auto code = char32_t { };
+    auto len = std::size_t(util::utf8_char_decode(window.data() + right, window.size() - right, &code));
+    if (len > 0 and is_word_code(code)) {
+      return { };
+    }
+  }
+  if (right <= left) {
+    return { }; // the caret is not on (or next to) a word character
+  }
+  return window.substr(left, right - left);
+}
+
+void TextArea::repaint_if_occurrence_changed(std::string const &old_text) {
+  if (this->occurrence_highlight and get_occurrence_text() != old_text) {
+    repaint_visible_rows();
+  }
+}
+
+void TextArea::repaint_visible_rows() {
+  auto top = std::max(0, get_top_line());
+  auto last = std::uint64_t(last_visible_line());
+  if (last < std::uint64_t(top)) {
+    return;
+  }
+  repaint(0, top, get_width(), int(last) - top + 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -1752,6 +2061,29 @@ void TextArea::paint(Graphics &g) {
   // highlights by byte offset instead.
   auto block = this->sel_block and this->sel_anchor != this->caret ? block_rect() : std::optional<BlockRect> { };
 
+  // The occurrence highlight's text: the current word or selection, read
+  // anew for every frame (one bounded read around the caret). Nothing has to
+  // invalidate a cache, so the highlight follows typing and even buffer
+  // edits made behind the area's back, and a frame that paints rows the text
+  // does not occur in pays nothing beyond that one small read.
+  auto occurrence = get_occurrence_text();
+  auto occurrence_on = not occurrence.empty();
+
+  // Whether the occurrence text matches the row bytes at `pos` of `window`
+  // (`here` is the global byte offset of `pos`). A match near a window's end
+  // is completed by a short read past it, so an occurrence is never missed at
+  // a window boundary; only windows that reach the row's end can need that.
+  auto matches_at = [&](std::string const &window, std::size_t pos, std::uint64_t here) {
+    if (window[pos] != occurrence[0]) {
+      return false;
+    }
+    if (occurrence.size() <= window.size() - pos) {
+      return std::memcmp(window.data() + pos, occurrence.data(), occurrence.size()) == 0;
+    }
+    auto probe = this->buffer->read(here, occurrence.size());
+    return probe.size() == occurrence.size() and std::memcmp(probe.data(), occurrence.data(), occurrence.size()) == 0;
+  };
+
   for (auto row = 0; row < data_rows; ++row) {
     if (std::size_t(row) >= ranges.size()) {
       break;
@@ -1772,6 +2104,11 @@ void TextArea::paint(Graphics &g) {
     // advance the cursor), so UTF-8 boundaries are never cut.
     auto offset = range.start;
     auto cell = 0;
+    // The end of the occurrence whose cells are being painted, as a byte
+    // offset: occurrences (non-overlapping) are found in order, so one cursor
+    // carries the highlight across the characters of a match. Reset per row
+    // -- a match never spans a line break.
+    auto occurrence_end = std::uint64_t { 0 };
     while (offset < range.end and cell < right) {
       auto want = bytes_for_cells(std::uint64_t(right) - std::uint64_t(cell));
       auto window = this->buffer->read(offset, std::min(want, range.end - offset));
@@ -1815,6 +2152,22 @@ void TextArea::paint(Graphics &g) {
           glyph_width = 1;
         }
 
+        // The occurrence highlight: the text is whole characters, so a
+        // match starts only on a character boundary, and one byte compare at
+        // the character's first byte rules out the common case. Cells of a
+        // match already found keep the highlight, so a match is highlighted
+        // whole even though it is only detected at its first character.
+        auto here = base + pos;
+        auto in_occurrence = false;
+        if (occurrence_on) {
+          if (here < occurrence_end) {
+            in_occurrence = true;
+          } else if (here + occurrence.size() <= range.end and matches_at(window, pos, here)) {
+            occurrence_end = here + occurrence.size();
+            in_occurrence = true;
+          }
+        }
+
         if (cell + glyph_width > right) {
           // A wide character would straddle the right edge; leave the last
           // cell blank instead of splitting the glyph, and stop the row.
@@ -1843,6 +2196,8 @@ void TextArea::paint(Graphics &g) {
           g.set_background_color(Color { 44, 62, 102 });
         } else if (in_match) {
           g.set_background_color(Color { 96, 62, 20 });
+        } else if (in_occurrence) {
+          g.set_background_color(OCCURRENCE_BACKGROUND);
         } else {
           g.set_background_color(bg);
         }

@@ -3,6 +3,7 @@
 #include <tui++/Icon.h>
 #include <tui++/ButtonGroup.h>
 #include <tui++/OverlayLayout.h>
+#include <tui++/event/FocusEvent.h>
 
 namespace tui {
 
@@ -10,6 +11,16 @@ void AbstractButton::init() {
   base::init();
   set_alignment_x(LEFT_ALIGNMENT);
   set_alignment_y(CENTER_ALIGNMENT);
+
+  // Remember whether the focus came from a click (see is_focus_from_mouse),
+  // and repaint as the underline comes and goes: focus events do not repaint
+  // by themselves.
+  add_listener([this](FocusEvent &e) {
+    if (e.id == FocusEvent::FOCUS_GAINED) {
+      this->focus_from_mouse = e.cause == FocusEvent::Cause::MOUSE_EVENT;
+    }
+    repaint();
+  });
 }
 
 std::string AbstractButton::to_string() const {

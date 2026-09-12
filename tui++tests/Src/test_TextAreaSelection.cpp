@@ -151,6 +151,19 @@ struct Harness {
     this->frame->dispatch_event(*screen.get_event_queue().pop());
     drain_events();
   }
+
+  // A full click gesture: the press/release pair the terminal reports, then
+  // the MOUSE_CLICKED that carries the click count. The press comes first on
+  // purpose -- the dispatcher only delivers a click to the component that
+  // received the accompanying press.
+  void click(Point const &at, unsigned click_count) {
+    press(at, InputEvent::NO_MODIFIERS);
+    release(at);
+    drain_events();
+    screen.post<MouseClickEvent>(this->frame, MouseEvent::LEFT_BUTTON, InputEvent::NO_MODIFIERS, at.x, at.y, click_count, false);
+    this->frame->dispatch_event(*screen.get_event_queue().pop());
+    drain_events();
+  }
 };
 
 void test_keyboard_column_block() {
@@ -317,6 +330,64 @@ void test_ctrl_arrow_navigation() {
   (void)up_col;
 }
 
+void test_double_click_word() {
+  // The classic click gestures of a text component: a double-click selects
+  // the word (or the separator run) under the pointer, a triple-click the
+  // line (see TextField::on_mouse_click).
+  auto harness = Harness { "one two-three  four\nabc\n" };
+  auto area = harness.area;
+  auto dim = screen.get_size();
+  assert(dim.width >= 24 and dim.height >= 6);
+
+  // Inside "two" (row 0, cell 5).
+  harness.click(harness.point_of(5, 0), 2);
+  assert(area->has_selection());
+  assert(not area->is_block_selection());
+  area->copy();
+  assert(Clipboard::get_text() == "two");
+
+  // On a single separator and on a run of them: the run is selected.
+  harness.click(harness.point_of(7, 0), 2);
+  area->copy();
+  assert(Clipboard::get_text() == "-");
+  harness.click(harness.point_of(14, 0), 2);
+  area->copy();
+  assert(Clipboard::get_text() == "  " && "both spaces of the run");
+
+  // Past the end of a line's text: the line's last word. (The view is one
+  // cell wider than its widest line -- the end-of-line caret's cell -- so
+  // cell 19 is the last one a click can land on here.)
+  assert(area->get_width() == 20);
+  harness.click(harness.point_of(19, 0), 2);
+  area->copy();
+  assert(Clipboard::get_text() == "four");
+
+  // The word never reaches across the line break.
+  harness.click(harness.point_of(1, 1), 2);
+  area->copy();
+  assert(Clipboard::get_text() == "abc");
+
+  // A triple-click takes the whole line.
+  harness.click(harness.point_of(3, 0), 3);
+  area->copy();
+  assert(Clipboard::get_text() == "one two-three  four");
+
+  // A single click stays a caret placement.
+  harness.click(harness.point_of(2, 0), 1);
+  assert(not area->has_selection());
+  assert(area->get_caret() == 2);
+
+  // The word gesture is a text gesture, not a column one: the column-select
+  // mode does not turn the double-click into a block.
+  area->set_column_select_mode(true);
+  harness.click(harness.point_of(5, 0), 2);
+  assert(area->has_selection());
+  assert(not area->is_block_selection());
+  area->copy();
+  assert(Clipboard::get_text() == "two");
+  area->set_column_select_mode(false);
+}
+
 } // namespace
 
 void test_TextArea_selection() {
@@ -324,5 +395,6 @@ void test_TextArea_selection() {
   test_column_select_mode();
   test_mouse_drag_selection();
   test_ctrl_arrow_navigation();
+  test_double_click_word();
   std::fprintf(stderr, "test_TextArea_selection: ok\n");
 }

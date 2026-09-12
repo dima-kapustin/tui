@@ -501,9 +501,84 @@ std::size_t swar_find(std::string_view hay, std::string_view needle, std::size_t
   return std::string::npos;
 }
 
+// Whether `byte` is word content for the whole-word search option: the same
+// rule as the text components' word commands (letters, digits, underscores,
+// and every byte of a non-ASCII character -- its continuation bytes included,
+// so a multi-byte character is never split by a boundary test).
+bool is_word_byte(char byte) {
+  auto code = static_cast<unsigned char>(byte);
+  return code == '_' //
+      or (code >= '0' and code <= '9') //
+      or (code >= 'A' and code <= 'Z') //
+      or (code >= 'a' and code <= 'z') //
+      or code >= 0x80;
 }
 
-std::optional<std::uint64_t> TextBuffer::find(std::string_view needle, std::uint64_t from) const {
+// The ASCII lowercase of `byte`: the case folding of the case-insensitive
+// search. The other scripts' case pairs are beyond a byte-wise scan.
+char ascii_lower(char byte) {
+  return byte >= 'A' and byte <= 'Z' ? char(byte - 'A' + 'a') : byte;
+}
+
+// Whether `needle` matches `hay` at `at`, ignoring ASCII case.
+bool matches_folded(std::string_view hay, std::size_t at, std::string_view needle) {
+  if (at + needle.size() > hay.size()) {
+    return false;
+  }
+  for (auto i = std::size_t { 0 }; i < needle.size(); ++i) {
+    if (ascii_lower(hay[at + i]) != ascii_lower(needle[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// The first match of `needle` in `hay` at or after `from`, for either case
+// rule: the case-sensitive scan uses the SWAR scanner above, the folded one a
+// byte-wise walk (folding cannot be done lane by lane).
+std::size_t find_in(std::string_view hay, std::string_view needle, std::size_t from, bool case_insensitive) {
+  if (not case_insensitive) {
+    return swar_find(hay, needle, from);
+  }
+  if (needle.empty()) {
+    return std::min(from, hay.size());
+  }
+  if (from > hay.size() or needle.size() > hay.size() - from) {
+    return std::string::npos;
+  }
+  for (auto at = from; at + needle.size() <= hay.size(); ++at) {
+    if (matches_folded(hay, at, needle)) {
+      return at;
+    }
+  }
+  return std::string::npos;
+}
+
+// The std::regex flags of a search: ECMAScript, plus the icase flag the
+// case-insensitive option asks for.
+std::regex_constants::syntax_option_type regex_flags(SearchOptions const &options) {
+  return options.case_insensitive ? std::regex::ECMAScript | std::regex::icase : std::regex::ECMAScript;
+}
+
+}
+
+bool TextBuffer::is_whole_word(std::uint64_t start, std::uint64_t end) const {
+  if (start > 0) {
+    auto before = read(start - 1, 1);
+    if (before.size() == 1 and is_word_byte(before[0])) {
+      return false;
+    }
+  }
+  if (end < length()) {
+    auto after = read(end, 1);
+    if (after.size() == 1 and is_word_byte(after[0])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+std::optional<std::uint64_t> TextBuffer::find(std::string_view needle, std::uint64_t from, SearchOptions const &options) const {
   if (needle.empty()) {
     return std::min(from, this->length());
   }
@@ -514,9 +589,19 @@ std::optional<std::uint64_t> TextBuffer::find(std::string_view needle, std::uint
   while (pos < this->length()) {
     auto take = std::min<std::uint64_t>(window_size + needle.size() - 1, this->length() - pos);
     auto window = read(pos, take);
-    auto hit = swar_find(window, needle, 0);
-    if (hit != std::string::npos) {
-      return pos + std::uint64_t(hit);
+    auto const core = std::min<std::uint64_t>(window_size, take);
+    auto cursor = std::size_t { 0 };
+    while (true) {
+      auto hit = find_in(window, needle, cursor, options.case_insensitive);
+      if (hit == std::string::npos or hit >= core) {
+        break; // only the overlap tail is left; the next window owns it
+      }
+      if (not options.whole_word or is_whole_word(pos + std::uint64_t(hit), pos + std::uint64_t(hit) + needle.size())) {
+        return pos + std::uint64_t(hit);
+      }
+      // A candidate the whole-word rule rejects can hide the match the caller
+      // wants (a whole word inside a longer one): resume one byte past it.
+      cursor = hit + 1;
     }
     if (take <= window_size) {
       break;
@@ -526,7 +611,7 @@ std::optional<std::uint64_t> TextBuffer::find(std::string_view needle, std::uint
   return std::nullopt;
 }
 
-std::vector<std::uint64_t> TextBuffer::find_all(std::string_view needle, std::uint64_t from, std::size_t limit) const {
+std::vector<std::uint64_t> TextBuffer::find_all(std::string_view needle, std::uint64_t from, std::size_t limit, SearchOptions const &options) const {
   if (limit == 0) {
     return {};
   }
@@ -549,12 +634,16 @@ std::vector<std::uint64_t> TextBuffer::find_all(std::string_view needle, std::ui
     auto const core = std::min<std::uint64_t>(window_size, take);
     auto cursor = std::size_t { 0 };
     while (results.size() < limit) {
-      auto hit = swar_find(window, needle, cursor);
+      auto hit = find_in(window, needle, cursor, options.case_insensitive);
       if (hit == std::string::npos or hit >= core) {
         break; // only the overlap tail is left; the next window owns it
       }
-      results.emplace_back(pos + std::uint64_t(hit));
-      cursor = hit + needle.size();
+      if (not options.whole_word or is_whole_word(pos + std::uint64_t(hit), pos + std::uint64_t(hit) + needle.size())) {
+        results.emplace_back(pos + std::uint64_t(hit));
+        cursor = hit + needle.size(); // non-overlapping results
+      } else {
+        cursor = hit + 1; // a rejected candidate may hide a whole word
+      }
     }
     if (take <= window_size) {
       break;
@@ -564,10 +653,10 @@ std::vector<std::uint64_t> TextBuffer::find_all(std::string_view needle, std::ui
   return results;
 }
 
-std::optional<std::pair<std::uint64_t, std::uint64_t>> TextBuffer::find_regex(std::string const &pattern, std::uint64_t from) const {
+std::optional<std::pair<std::uint64_t, std::uint64_t>> TextBuffer::find_regex(std::string const &pattern, std::uint64_t from, SearchOptions const &options) const {
   std::regex re;
   try {
-    re = std::regex(pattern, std::regex::ECMAScript);
+    re = std::regex(pattern, regex_flags(options));
   } catch (std::regex_error const &) {
     return std::nullopt;
   }
@@ -580,9 +669,21 @@ std::optional<std::pair<std::uint64_t, std::uint64_t>> TextBuffer::find_regex(st
   while (pos < this->length()) {
     auto take = std::min<std::uint64_t>(window_size, this->length() - pos);
     auto window = read(pos, take);
-    std::smatch match;
-    if (std::regex_search(window, match, re)) {
-      return std::pair { pos + std::uint64_t(match.position()), pos + std::uint64_t(match.position() + match.length()) };
+    auto cursor = std::size_t { 0 };
+    while (cursor <= window.size()) {
+      std::smatch match;
+      if (not std::regex_search(window.cbegin() + std::ptrdiff_t(cursor), window.cend(), match, re)) {
+        break;
+      }
+      auto start = pos + std::uint64_t(cursor + std::size_t(match.position()));
+      auto end = start + std::uint64_t(match.length());
+      if (not options.whole_word or is_whole_word(start, end)) {
+        return std::pair { start, end };
+      }
+      // A candidate the whole-word rule rejects may hide the match the caller
+      // wants: resume one byte past its start (never past its end, so nested
+      // matches survive).
+      cursor += std::size_t(match.position()) + 1;
     }
     if (take < window_size) {
       break;
@@ -590,6 +691,61 @@ std::optional<std::pair<std::uint64_t, std::uint64_t>> TextBuffer::find_regex(st
     pos += window_size - overlap;
   }
   return std::nullopt;
+}
+
+std::vector<std::pair<std::uint64_t, std::uint64_t>> TextBuffer::find_all_regex(std::string const &pattern, std::uint64_t from, std::size_t limit, SearchOptions const &options) const {
+  auto results = std::vector<std::pair<std::uint64_t, std::uint64_t>> { };
+  if (limit == 0) {
+    return results;
+  }
+  std::regex re;
+  try {
+    re = std::regex(pattern, regex_flags(options));
+  } catch (std::regex_error const &) {
+    return results;
+  }
+
+  // The same overlapping windows find_regex uses. A window owns the matches
+  // that start inside its core (the region no later window re-reads) unless it
+  // is the last one: a match in the overlap tail is reported by the window
+  // whose core it starts in, so straddling a boundary costs nothing twice.
+  auto const window_size = std::uint64_t(8) << 20; // 8 MiB
+  auto const overlap = std::uint64_t(64) << 10;    // 64 KiB
+  auto const core = window_size - overlap;
+  auto pos = std::min(from, this->length());
+  results.reserve(std::min<std::size_t>(limit, 64));
+  while (pos < this->length() and results.size() < limit) {
+    auto take = std::min<std::uint64_t>(window_size, this->length() - pos);
+    auto window = read(pos, take);
+    auto const last_window = take < window_size;
+    auto window_core = last_window ? take : core;
+    auto cursor = std::size_t { 0 };
+    while (results.size() < limit and cursor <= window.size()) {
+      std::smatch match;
+      if (not std::regex_search(window.cbegin() + std::ptrdiff_t(cursor), window.cend(), match, re)) {
+        break;
+      }
+      auto at = cursor + std::size_t(match.position());
+      if (std::uint64_t(at) >= window_core) {
+        break; // the next window owns it
+      }
+      auto start = pos + std::uint64_t(at);
+      auto end = start + std::uint64_t(match.length());
+      if (options.whole_word and not is_whole_word(start, end)) {
+        cursor = at + 1; // a rejected candidate may hide a whole word
+        continue;
+      }
+      results.emplace_back(start, end);
+      // Non-overlapping results: the scan resumes past the match; an empty
+      // match advances one byte, so the call always terminates.
+      cursor = at + std::max<std::size_t>(std::size_t(match.length()), 1);
+    }
+    if (last_window) {
+      break;
+    }
+    pos += core;
+  }
+  return results;
 }
 
 std::optional<std::uint64_t> TextBuffer::find_byte(char byte, std::uint64_t from, std::uint64_t limit) const {

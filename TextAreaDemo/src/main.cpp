@@ -31,21 +31,29 @@
 // F6 caret form (block/underline), F7 caret blink (blink/steady/hidden),
 // F8 column select mode. The status line mirrors the buffer and caret state.
 //
-// Find All (F9, or Edit > Find All) lists every non-overlapping occurrence
-// of the area's current search pattern (the one its F3 search entry holds)
-// in a results pane between the file view and the status line. Each hit is
-// one row, "line:column  <text of the source line>"; clicking a row or
-// moving the caret in the list (arrows, PageUp/Down, Home/End) previews the
-// hit in the file view, Enter previews and closes the panel, Esc closes it,
-// F9 re-runs the search. The scan is byte-accurate and safe for UTF-8 (it
-// never decodes), windowed (bounded memory on huge files) and capped at
-// FIND_ALL_LIMIT hits; regexp find-all is not built yet, so the list is
-// always plain-substring.
+// The Find sidebar floats inside the text view's upper right corner: it is a
+// child of the viewport, pinned there by CornerLayout, so it overlaps the text
+// instead of taking layout space from it. It stays hidden until a search asks
+// for it (Ctrl+F, or F9 / the Find All button, which also fills the list), and
+// Close hides it again. It holds the search pane -- the pattern field with the
+// match options (case-insensitive, whole word and regexp) and the Find All and
+// Close buttons -- over the Find All results list. Enter in the field runs the
+// next match in the file view with those options; Find All lists every
+// non-overlapping hit, each as a row "line:column  <text of the source line>";
+// clicking a row or moving the caret in the list (arrows, PageUp/Down,
+// Home/End) previews the hit in the file view, Enter previews and closes the
+// sidebar, Esc closes it, F9 re-runs the search. The scans are byte-accurate
+// and safe for UTF-8 (they never decode), windowed (bounded memory on huge
+// files) and capped at FIND_ALL_LIMIT hits.
 //
 // Quit with Ctrl+C or the File menu.
 
 #include <tui++/BorderLayout.h>
+#include <tui++/BoxLayout.h>
+#include <tui++/Button.h>
+#include <tui++/CheckBox.h>
 #include <tui++/Component.h>
+#include <tui++/FlowLayout.h>
 #include <tui++/Frame.h>
 #include <tui++/Graphics.h>
 #include <tui++/KeyStroke.h>
@@ -56,8 +64,12 @@
 #include <tui++/ScrollPane.h>
 #include <tui++/TextArea.h>
 #include <tui++/TextBuffer.h>
+#include <tui++/TextField.h>
 #include <tui++/Viewport.h>
+#include <tui++/border/EmptyBorder.h>
+#include <tui++/border/LineBorder.h>
 #include <tui++/KeyboardFocusManager.h>
+#include <tui++/Layout.h>
 #include <tui++/event/KeyEvent.h>
 #include <tui++/event/MouseEvent.h>
 #include <tui++/terminal/Terminal.h>
@@ -67,6 +79,7 @@
 #include <tui++/util/utf-8.h>
 
 #include <cstdio>
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <functional>
@@ -87,6 +100,14 @@ namespace {
 // the cap cut the list short.
 constexpr std::size_t FIND_ALL_LIMIT = 2000;
 constexpr std::size_t FIND_ALL_PREVIEW_BYTES = 200;
+
+// The size of the Find sidebar in cells: the width the search pane's rows (the
+// pattern field, the three options and the two buttons) need, and the height of
+// the three control rows plus a dozen result rows. The sidebar is pinned inside
+// the text view's upper right corner (see CornerLayout), so it overlaps the
+// text instead of shrinking the text view.
+constexpr int FIND_PANEL_WIDTH = 40;
+constexpr int FIND_PANEL_HEIGHT = 16;
 
 // A small in-memory demo document used when no file argument is given: it has
 // enough lines to make scrolling, paging and search worth trying, and its
@@ -160,6 +181,67 @@ public:
   }
 };
 
+// A one-line static caption. The toolkit has no Label widget, and the search
+// pane needs a prompt for its pattern field; this is the status line's painting
+// without the refresh bookkeeping.
+class Caption: public Component {
+  std::string caption;
+
+public:
+  explicit Caption(std::string caption) :
+      caption(std::move(caption)) {
+    set_name("caption");
+  }
+
+protected:
+  void paint(Graphics &g) override {
+    g.set_foreground_color(get_foreground_color());
+    g.draw_string(this->caption, 0, 0);
+  }
+};
+
+// Pins a child of the container it is installed on to that container's upper
+// right corner, at the child's preferred size (clamped to a smaller
+// container). The Find sidebar is a child of the text view's viewport -- which
+// has no layout of its own, it places its view directly -- so this only
+// positions the sidebar; running with every layout pass is what re-pins it when
+// the window resizes or a scroll bar appears.
+class CornerLayout final: public AbstractLayout {
+  std::shared_ptr<Component> child;
+
+public:
+  explicit CornerLayout(std::shared_ptr<Component> child) :
+      child(std::move(child)) {
+  }
+
+  // Places the child at the target's upper right corner. The layout pass calls
+  // it; the demo also calls it directly when the sidebar is shown, so the
+  // sidebar is in place before the next paint instead of one pass later.
+  void pin(std::shared_ptr<Component> const &target) {
+    if (not this->child or not this->child->is_visible() or target->get_width() <= 0 or target->get_height() <= 0) {
+      return;
+    }
+    auto preferred = this->child->get_preferred_size();
+    auto width = std::clamp(preferred.width, 0, target->get_width());
+    auto height = std::clamp(preferred.height, 0, target->get_height());
+    this->child->set_bounds(target->get_width() - width, 0, width, height);
+  }
+
+  std::optional<Dimension> get_preferred_layout_size(std::shared_ptr<const Component> const &target) override {
+    // The viewport's own size is its parent's decision (ScrollPaneLayout);
+    // this layout only places the sidebar inside it.
+    return Dimension { target->get_width(), target->get_height() };
+  }
+
+  std::optional<Dimension> get_minimum_layout_size(std::shared_ptr<const Component> const &target) override {
+    return get_preferred_layout_size(target);
+  }
+
+  void layout(std::shared_ptr<Component> const &target) override {
+    pin(target);
+  }
+};
+
 struct FindHit {
   std::uint64_t offset;  // where the hit starts in the source buffer
   std::uint64_t line;    // its line, and the byte column of `offset` on it
@@ -171,9 +253,16 @@ struct DemoState {
   std::shared_ptr<TextArea> area;
   std::shared_ptr<StatusLine> status;
 
-  // Find All state: the results pane between the file view and the status
-  // line, and the read-only TextArea listing one hit per row (buffer row r
-  // corresponds to hits[r]; see run_find_all).
+  // The Find sidebar at the text view's upper right: the search pane (the
+  // pattern field, the match options and the buttons) and the read-only
+  // results list under it, one hit per row (buffer row r corresponds to
+  // hits[r]; see run_find_all).
+  std::shared_ptr<Panel> find_panel;
+  std::shared_ptr<CornerLayout> corner_layout;
+  std::shared_ptr<TextField> search_field;
+  std::shared_ptr<CheckBox> case_option;
+  std::shared_ptr<CheckBox> word_option;
+  std::shared_ptr<CheckBox> regex_option;
   std::shared_ptr<ScrollPane> results_pane;
   std::shared_ptr<TextArea> results_area;
   std::vector<FindHit> hits;
@@ -256,41 +345,9 @@ void wire_menu_popup_toggle(const std::shared_ptr<Menu> &menu, const std::initia
   });
 }
 
-std::string status_text(DemoState const &state) {
-  auto area = state.area;
-  auto buffer = area->get_buffer();
-  auto viewport = state.pane->get_viewport();
-  auto position = viewport->get_view_position();
-  auto v_model = state.pane->get_vertical_scroll_bar()->get_model();
-  auto caret = area->get_caret();
-  auto length = buffer->length();
-  auto [line, column] = buffer->offset_to_line(caret);
-  char buffer_text[320];
-  std::snprintf(buffer_text, sizeof buffer_text,
-                "row=%d  lines=%llu%s  caret=%llu (%llu:%llu)  bytes=%llu  ws=%s  regexp=%s%s%s",
-                position.y,
-                static_cast<unsigned long long>(buffer->known_line_count()),
-                buffer->is_fully_scanned() ? " (scanned)" : "",
-                static_cast<unsigned long long>(caret),
-                static_cast<unsigned long long>(line),
-                static_cast<unsigned long long>(column),
-                static_cast<unsigned long long>(length),
-                area->is_show_whitespace() ? "on" : "off",
-                area->is_search_regexp() ? "on" : "off",
-                area->is_column_select_mode() ? "  colmode=on" : "",
-                area->is_block_selection() ? "  block" : "");
-  if (state.results_pane and state.results_pane->is_visible()) {
-    auto used = std::strlen(buffer_text);
-    std::snprintf(buffer_text + used, sizeof buffer_text - used, "  hits=%llu%s",
-                  static_cast<unsigned long long>(state.hits.size()),
-                  state.find_capped ? " (capped)" : "");
-  }
-  return buffer_text;
-}
-
 // The longest prefix of `text` of at most `max_bytes` bytes that ends on a
 // UTF-8 character boundary, so a preview cut mid-sequence never lets a
-// partial multi-byte character into the results list.
+// partial multi-byte character into the results list or the status line.
 std::string_view utf8_capped(std::string_view text, std::size_t max_bytes) {
   auto cap = std::min(max_bytes, text.size());
   if (cap == 0) {
@@ -307,6 +364,54 @@ std::string_view utf8_capped(std::string_view text, std::size_t max_bytes) {
   }
   auto const head_len = std::size_t(util::utf8_sequence_length(std::uint8_t(text[start])));
   return head_len <= cap - start ? text.substr(0, cap) : text.substr(0, start);
+}
+
+std::string status_text(DemoState const &state) {
+  auto area = state.area;
+  auto buffer = area->get_buffer();
+  auto viewport = state.pane->get_viewport();
+  auto position = viewport->get_view_position();
+  auto v_model = state.pane->get_vertical_scroll_bar()->get_model();
+  auto caret = area->get_caret();
+  auto length = buffer->length();
+  auto [line, column] = buffer->offset_to_line(caret);
+
+  // The occurrence highlight: off, on, or on with a short preview of the text
+  // it currently matches (a selection can be a whole phrase; the preview is
+  // capped and UTF-8 safe, so the line stays one row and valid text).
+  auto highlight = std::string { "off" };
+  if (area->is_occurrence_highlight()) {
+    auto text = area->get_occurrence_text();
+    auto head = utf8_capped(text, 16);
+    highlight = head.empty()
+        ? std::string("on (no match)")
+        : "on \"" + std::string(head) + (head.size() < text.size() ? "..." : "") + "\"";
+  }
+
+  char buffer_text[400];
+  std::snprintf(buffer_text, sizeof buffer_text,
+                "row=%d  lines=%llu%s  caret=%llu (%llu:%llu)  bytes=%llu  ws=%s  regexp=%s  hl=%s%s%s",
+                position.y,
+                static_cast<unsigned long long>(buffer->known_line_count()),
+                buffer->is_fully_scanned() ? " (scanned)" : "",
+                static_cast<unsigned long long>(caret),
+                static_cast<unsigned long long>(line),
+                static_cast<unsigned long long>(column),
+                static_cast<unsigned long long>(length),
+                area->is_show_whitespace() ? "on" : "off",
+                area->is_search_regexp() ? "on" : "off",
+                highlight.c_str(),
+                area->is_column_select_mode() ? "  colmode=on" : "",
+                area->is_block_selection() ? "  block" : "");
+  // The hit count, once a search has filled the list (the results area's
+  // buffer is empty before the first Find All).
+  if (state.find_panel and state.find_panel->is_visible() and state.results_area->get_buffer()->length() > 0) {
+    auto used = std::strlen(buffer_text);
+    std::snprintf(buffer_text + used, sizeof buffer_text - used, "  hits=%llu%s",
+                  static_cast<unsigned long long>(state.hits.size()),
+                  state.find_capped ? " (capped)" : "");
+  }
+  return buffer_text;
 }
 
 // Jumps the file view's caret to hit `index` of the results list (no-op for
@@ -329,58 +434,95 @@ std::size_t results_caret_row(DemoState const &state) {
   return std::size_t(results->get_buffer()->offset_to_line(results->get_caret()).first);
 }
 
-// Hides the results pane and returns the keyboard focus to the file view.
-void close_results(DemoState &state) {
-  if (state.results_pane->is_visible()) {
-    state.results_pane->set_visible(false);
-    state.results_pane->revalidate();
+// Hides the Find sidebar and returns the keyboard focus to the file view.
+void close_find_panel(DemoState &state) {
+  if (state.find_panel and state.find_panel->is_visible()) {
+    state.find_panel->set_visible(false);
+    state.find_panel->revalidate();
   }
   state.area->request_input_focus();
   state.status->refresh();
 }
 
-// Runs the find-all search and (re)opens the results pane. The pattern is
-// the file area's current search pattern (see TextArea::get_search_pattern):
-// what its F3 entry holds, which survives the entry closing, so F9 repeats
-// the last search. Every hit becomes one row of a fresh in-memory buffer
-// shown by the read-only results area; the row text is the source line's
-// first bytes (capped at a character boundary), so a log line tens of
-// megabytes long cannot bloat the results buffer.
+// Shows the Find sidebar -- it floats inside the text view and stays hidden
+// until a search asks for it -- and pins it into the viewport's upper right
+// corner right away; the viewport's CornerLayout keeps it pinned from then on.
+void show_find_panel(DemoState &state) {
+  state.find_panel->set_visible(true);
+  if (auto viewport = state.pane->get_viewport(); viewport and state.corner_layout) {
+    state.corner_layout->pin(viewport);
+  }
+}
+
+// The pattern the Find All search uses: the sidebar's field, or the file area's
+// F3 entry -- whose pattern survives the entry closing, so F9 keeps repeating
+// the last typed search -- when the field is empty.
+std::string find_pattern(DemoState const &state) {
+  if (state.search_field and not state.search_field->get_text().empty()) {
+    return state.search_field->get_text();
+  }
+  return state.area->get_search_pattern();
+}
+
+// Runs the find-all search and shows the sidebar. Every hit becomes one row of
+// a fresh in-memory buffer shown by the read-only results area; the row text is
+// the source line's first bytes (capped at a character boundary), so a log line
+// tens of megabytes long cannot bloat the results buffer. The search honors the
+// sidebar's options: case-insensitive and whole-word matching, and a regexp
+// pattern (find_all_regex) instead of the plain substring scan.
 void run_find_all(DemoState &state) {
   auto area = state.area;
-  auto pattern = area->get_search_pattern();
+  auto pattern = find_pattern(state);
   if (pattern.empty()) {
-    // While the F3 entry is open the message row shows the entry, so only
-    // nag when there is no entry to type in.
+    // While the F3 entry is open the message row shows the entry, so only nag
+    // when there is no entry to type in.
     if (not area->is_search_mode()) {
-      area->show_message("no pattern yet: F3, type a search, then F9 for Find All");
+      area->show_message("no pattern yet: type one in the Find pane (Ctrl+F), or F3 in the view");
     }
     return;
   }
   if (area->is_search_mode()) {
-    // Commit the entry: F9 finds all occurrences of the pattern typed so
+    // Commit the entry: Find All finds all occurrences of the pattern typed so
     // far (the pattern stays, so the entry opens clean the next time).
     area->close_search_entry();
   }
+  if (state.search_field and state.search_field->get_text().empty()) {
+    // The search came from the F3 entry: show what it searched in the pane.
+    state.search_field->set_text(pattern);
+  }
+
+  auto options = SearchOptions {
+      .case_insensitive = state.case_option and state.case_option->is_selected(),
+      .whole_word = state.word_option and state.word_option->is_selected() };
+  auto regexp = state.regex_option and state.regex_option->is_selected();
   auto source = area->get_buffer();
   // Ask for one hit more than the cap so "capped" is exact (the list holds
   // FIND_ALL_LIMIT hits either way).
-  auto offsets = source->find_all(pattern, 0, FIND_ALL_LIMIT + 1);
-  state.find_capped = offsets.size() > FIND_ALL_LIMIT;
+  auto matches = std::vector<std::pair<std::uint64_t, std::uint64_t>> { };
+  if (regexp) {
+    matches = source->find_all_regex(pattern, 0, FIND_ALL_LIMIT + 1, options);
+  } else {
+    auto offsets = source->find_all(pattern, 0, FIND_ALL_LIMIT + 1, options);
+    matches.reserve(offsets.size());
+    for (auto offset : offsets) {
+      matches.emplace_back(offset, offset + pattern.size());
+    }
+  }
+  state.find_capped = matches.size() > FIND_ALL_LIMIT;
   if (state.find_capped) {
-    offsets.resize(FIND_ALL_LIMIT);
+    matches.resize(FIND_ALL_LIMIT);
   }
 
   state.hits.clear();
-  state.hits.reserve(offsets.size());
+  state.hits.reserve(matches.size());
   auto rows = std::string();
-  rows.reserve(offsets.size() * 96);
-  for (auto offset : offsets) {
+  rows.reserve(matches.size() * 96);
+  for (auto const &match : matches) {
     // The hits come sorted; the per-hit ensure_scanned_to is one forward
     // pass, and each hit's line then resolves without rescanning.
-    source->ensure_scanned_to(offset);
-    auto [line, column] = source->offset_to_line(offset);
-    state.hits.push_back({ offset, line, column });
+    source->ensure_scanned_to(match.first);
+    auto [line, column] = source->offset_to_line(match.first);
+    state.hits.push_back({ match.first, line, column });
     char head[32];
     std::snprintf(head, sizeof head, "%10llu:%-6llu ",
                   static_cast<unsigned long long>(line),
@@ -402,8 +544,8 @@ void run_find_all(DemoState &state) {
     }
     rows += '\n';
   }
-  if (offsets.empty()) {
-    rows += "(no matches for \"" + pattern + "\")\n";
+  if (matches.empty()) {
+    rows += std::string("(no ") + (regexp ? "regexp " : "") + "matches for \"" + pattern + "\")\n";
   } else if (state.find_capped) {
     rows += "(more hits than FIND_ALL_LIMIT: refine the pattern)\n";
   }
@@ -412,12 +554,8 @@ void run_find_all(DemoState &state) {
   results_buffer->replace(0, 0, rows);
   state.results_area->set_buffer(results_buffer);
   state.previewed = SIZE_MAX;
-  auto results_pane = state.results_pane;
-  if (not results_pane->is_visible()) {
-    results_pane->set_visible(true);
-  }
-  results_pane->revalidate();
-  results_pane->get_viewport()->set_view_position(0, 0);
+  show_find_panel(state);
+  state.results_pane->get_viewport()->set_view_position(0, 0);
   state.results_area->request_input_focus();
   state.status->refresh();
 }
@@ -446,6 +584,22 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
         : "column select mode off (Alt+drag still selects a column)");
   };
 
+  // The occurrence-highlight toggle, shared by the F2 key and the Edit menu's
+  // "Highlight Occurrences" item: every occurrence of the word under the
+  // caret (or of the selection) that is visible on screen is highlighted.
+  // The message reports the text the highlight is actually matching.
+  auto toggle_occurrence_highlight = [](std::shared_ptr<TextArea> const &area) {
+    area->set_occurrence_highlight(not area->is_occurrence_highlight());
+    if (not area->is_occurrence_highlight()) {
+      area->show_message("occurrence highlight off");
+      return;
+    }
+    auto text = area->get_occurrence_text();
+    area->show_message(text.empty()
+        ? "occurrence highlight on: no word at the caret (move the caret onto a word, or select text)"
+        : "occurrence highlight on: matching \"" + text + "\"");
+  };
+
   auto frame = make_component<Frame>();
   frame->set_background_color(Color { 14, 16, 24 });
   frame->set_size(screen.get_size());
@@ -455,19 +609,14 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
   state->pane = pane;
   pane->set_name("text scroll pane");
   pane->set_background_color(Color { 10, 12, 18 });
-  frame->add(pane);
 
   auto area = make_component<TextArea>();
   state->area = area;
   area->set_buffer(buffer);
   pane->set_viewport_view(area);
 
-  // The status line below the pane. Refreshed when the scroll bar models
-  // move and after every key/mouse event that reaches the window. It sits in
-  // the bottom strip under the find-all results pane (which is hidden until
-  // the first F9), so the strip is one row tall without results and grows to
-  // the results pane's 10 rows plus 1 with them; the file pane above shrinks
-  // accordingly.
+  // The status line below the text view. Refreshed when the scroll bar models
+  // move and after every key/mouse event that reaches the window.
   auto status = make_component<StatusLine>();
   state->status = status;
   status->set_preferred_size(Dimension { 0, 1 });
@@ -483,15 +632,94 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
   pane->get_vertical_scroll_bar()->get_model()->add_change_listener(refresh);
   pane->get_horizontal_scroll_bar()->get_model()->add_change_listener(refresh);
 
-  // The find-all results pane: a read-only TextArea listing one hit per row
-  // (see run_find_all). It is created hidden; Find All (F9) shows it between
-  // the file view and the status line, Esc (or Enter after a jump) hides it.
+  // The Find sidebar: the search pane (the pattern field with the match
+  // options, and the Find All and Close buttons) over the results list. It
+  // floats inside the text component -- a child of the text view's viewport,
+  // pinned to the viewport's upper right corner (see CornerLayout) -- rather
+  // than taking layout space from it, and it starts hidden: Ctrl+F and F9 show
+  // it, Close hides it again. The line border frames it as a rectangle of its
+  // own, and its one-cell insets are what every row starts from, so all of
+  // them (the pattern row, the options, the buttons and the results) line up
+  // on the same column.
+  auto find_panel = make_component<Panel>();
+  state->find_panel = find_panel;
+  find_panel->set_name("find panel");
+  find_panel->set_layout(std::make_shared<BorderLayout>());
+  find_panel->set_preferred_size(Dimension { FIND_PANEL_WIDTH, FIND_PANEL_HEIGHT });
+  // The sidebar's face, shared with the widgets that blend into it.
+  auto const find_face = Color { 14, 18, 28 };
+  find_panel->set_background_color(find_face);
+  find_panel->set_border(std::make_shared<LineBorder>(Stroke::LIGHT, Color { 70, 84, 110 }));
+  find_panel->set_visible(false);
+
+  // Row 1: the prompt and the pattern field (the field takes the rest of the
+  // row).
+  auto pattern_row = make_component<Panel>();
+  pattern_row->set_name("find pattern row");
+  pattern_row->set_layout(std::make_shared<BorderLayout>());
+  // The prompt starts one cell in, the column the FlowLayout rows below start
+  // their first widget at (their hgap), so the three control rows align.
+  pattern_row->set_border(std::make_shared<EmptyBorder>(0, 1, 0, 1));
+  auto prompt = make_component<Caption>("Find:");
+  prompt->set_name("find prompt");
+  prompt->set_foreground_color(Color { 170, 180, 200 });
+  prompt->set_preferred_size(Dimension { 6, 1 });
+  pattern_row->add(prompt, BorderLayout::WEST);
+  auto search_field = make_component<TextField>();
+  state->search_field = search_field;
+  search_field->set_name("find pattern");
+  pattern_row->add(search_field, BorderLayout::CENTER);
+
+  // Row 2: the match options (SearchOptions plus the regexp mode).
+  auto options_row = make_component<Panel>();
+  options_row->set_name("find options");
+  options_row->set_layout(std::make_shared<FlowLayout>(FlowLayout::LEFT, 1, 0));
+  auto add_option = [&options_row, find_face](std::string const &text) {
+    auto box = make_component<CheckBox>(text);
+    // The theme gives a check box the system control face (light); on the
+    // sidebar's dark panel that face would wash out the light label, so the
+    // box blends with the panel, as the buttons below do.
+    box->set_background_color(find_face);
+    box->set_foreground_color(Color { 190, 196, 205 });
+    options_row->add(box);
+    return box;
+  };
+  state->case_option = add_option("Case");
+  state->word_option = add_option("Whole word");
+  state->regex_option = add_option("Regex");
+
+  // Row 3: the actions.
+  auto buttons_row = make_component<Panel>();
+  buttons_row->set_name("find buttons");
+  buttons_row->set_layout(std::make_shared<FlowLayout>(FlowLayout::LEFT, 1, 0));
+  auto find_all_button = make_component<Button>("Find All");
+  auto close_button = make_component<Button>("Close");
+  for (auto button : { find_all_button, close_button }) {
+    button->set_background_color(Color { 44, 54, 74 });
+    button->set_foreground_color(Color { 214, 222, 236 });
+    buttons_row->add(button);
+  }
+
+  // The three control rows, stacked by a vertical box: its preferred height
+  // is their sum, so each row keeps its own height (a BorderLayout sizes the
+  // panel to the tallest row and lets the others overlap) and every row is
+  // stretched to the panel's width, which is what keeps them left-aligned.
+  auto controls = make_component<Panel>();
+  controls->set_name("find controls");
+  controls->set_layout(std::make_shared<BoxLayout>(controls.get(), BoxLayout::Y));
+  controls->add(pattern_row);
+  controls->add(options_row);
+  controls->add(buttons_row);
+
+  // The results list: a read-only TextArea, one hit per row (see run_find_all,
+  // whose rows carry the line, the column and a preview of the source line).
   auto results_pane = make_component<ScrollPane>();
   state->results_pane = results_pane;
   results_pane->set_name("find all results");
-  results_pane->set_preferred_size(Dimension { 0, 10 });
   results_pane->set_background_color(Color { 10, 12, 18 });
-  results_pane->set_visible(false);
+  // The results text starts on the same column as the control rows above it
+  // (the ScrollPane lays its viewport out inside these insets).
+  results_pane->set_border(std::make_shared<EmptyBorder>(0, 1, 0, 1));
   auto results_area = make_component<TextArea>();
   state->results_area = results_area;
   results_area->set_name("results list");
@@ -512,13 +740,66 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
     }
   });
 
-  auto bottom = make_component<Panel>();
-  bottom->set_name("results and status");
-  bottom->set_layout(std::make_shared<BorderLayout>());
-  bottom->add(results_pane);
-  bottom->add(status, BorderLayout::SOUTH);
-  frame->add(bottom, BorderLayout::SOUTH);
+  find_panel->add(controls, BorderLayout::NORTH);
+  find_panel->add(results_pane, BorderLayout::CENTER);
+
+  // The sidebar is opaque to the mouse: a press on its background (or on the
+  // controls' gaps) must not reach the text behind it and move the file view's
+  // caret. The viewport's hit-testing skips components that accept no mouse
+  // events, so this listener is what claims the presses.
+  find_panel->add_listener([](MousePressEvent &e) {
+    e.consume();
+  });
+
+  // The text view fills the content; the sidebar floats inside its viewport,
+  // above the text, and the status line sits under both.
+  frame->add(pane, BorderLayout::CENTER);
+  frame->add(status, BorderLayout::SOUTH);
+  if (auto viewport = pane->get_viewport()) {
+    auto corner = std::make_shared<CornerLayout>(find_panel);
+    state->corner_layout = corner;
+    viewport->set_layout(corner);
+    // Index 0 is the top of the stack: the sidebar paints over the text view.
+    viewport->add(find_panel, 0);
+  }
   refresh();
+
+  // The search pane's wiring. The two option boxes map to the area's
+  // SearchOptions, so the area's own F3 search (find_next) honors them as
+  // well; the regexp box is the mode the field's Enter and Find All pass
+  // along.
+  auto apply_options = [state] {
+    state->area->set_search_options(SearchOptions {
+        .case_insensitive = state->case_option and state->case_option->is_selected(),
+        .whole_word = state->word_option and state->word_option->is_selected() });
+  };
+  for (auto option : { state->case_option, state->word_option }) {
+    option->add_listener([apply_options](ActionEvent &) {
+      apply_options();
+    });
+  }
+
+  // Enter in the pattern field runs the next match in the file view (the F3
+  // search's forward step) with the options; the field keeps the keyboard
+  // focus, so the pattern can be refined without leaving it.
+  search_field->add_listener([state, apply_options, refresh](ActionEvent &) {
+    apply_options();
+    auto pattern = state->search_field->get_text();
+    if (pattern.empty()) {
+      state->area->show_message("type a pattern to find");
+      return;
+    }
+    auto regexp = state->regex_option and state->regex_option->is_selected();
+    state->area->find_next(pattern, regexp, true);
+    refresh();
+  });
+
+  find_all_button->add_listener([state](ActionEvent &) {
+    run_find_all(*state);
+  });
+  close_button->add_listener([state](ActionEvent &) {
+    close_find_panel(*state);
+  });
 
   // The menu bar: File (exit) and Edit (the editing operations of the text
   // area). Picking an Edit item gives the focus back to the area so typing
@@ -543,9 +824,17 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
 
   auto edit_menu = make_component<Menu>("Edit");
   edit_menu->set_mnemonic('E');
-  // Find All opens the results pane for the area's current search pattern
-  // (the F3 entry's). The F9 shortcut is handled by the window key handler
-  // below, the way F5/F8 accelerators are.
+  // The Find sidebar's toggle: Ctrl+F shows the pane and puts the keyboard
+  // focus in the pattern field, as an editor's find chord does.
+  auto search_pane_item = add_item(edit_menu, "Search Pane", 'S', KeyStroke { KeyEvent::VK_F, InputEvent::CTRL_DOWN }, [state, refresh] {
+    show_find_panel(*state);
+    state->search_field->request_input_focus();
+    refresh();
+  });
+  // Find All opens the sidebar for the sidebar's pattern -- or the area's own
+  // search pattern (the F3 entry's) when the field is empty. The F9 shortcut
+  // is handled by the window key handler below, the way F5/F8 accelerators
+  // are.
   auto find_all_item = add_item(edit_menu, "Find All", 'F', KeyStroke { KeyEvent::VK_F9, InputEvent::NO_MODIFIERS }, [state] {
     run_find_all(*state);
   });
@@ -583,8 +872,12 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
     toggle_column_mode(area);
   }));
   edit_menu->add_separator();
-  // The view toggle (Swing leaves this to the application, so the shortcut
-  // is the item's accelerator rather than a key handler inside TextArea).
+  // The view toggles (Swing leaves these to the application, so the
+  // shortcuts are the items' accelerators rather than key handlers inside
+  // TextArea).
+  auto occurrences_item = add_item(edit_menu, "Highlight Occurrences", 'H', KeyStroke { KeyEvent::VK_F2, InputEvent::NO_MODIFIERS }, edit_action([toggle_occurrence_highlight](auto const &area) {
+    toggle_occurrence_highlight(area);
+  }));
   auto invisibles_item = add_item(edit_menu, "Show Invisibles", 'I', KeyStroke { KeyEvent::VK_F5, InputEvent::NO_MODIFIERS }, edit_action([toggle_invisibles](auto const &area) {
     toggle_invisibles(area);
   }));
@@ -596,6 +889,8 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
   (void)delete_item;
   (void)select_all_item;
   (void)column_mode_item;
+  (void)occurrences_item;
+  (void)search_pane_item;
   (void)invisibles_item;
   (void)find_all_item;
 
@@ -635,8 +930,9 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
   // The caret's look is configurable, as a Swing text component's caret is:
   // F6 cycles the form (block/underline) and F7 the blink mode
   // (blinking/steady/hidden), reported on the message row. The keys the menu
-  // items already carry as accelerators (F5 for Show Invisibles, F8 for
-  // Column Select Mode, F9 for Find All) are left to them.
+  // items already carry as accelerators (F2 for Highlight Occurrences, F5 for
+  // Show Invisibles, F8 for Column Select Mode, F9 for Find All, Ctrl+F for
+  // the Search Pane) are left to them.
   frame->add_listener([area, refresh](KeyEvent &e) {
     if (e.id != KeyEvent::KEY_PRESSED) {
       return;
@@ -685,26 +981,27 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
       refresh();
     }
   });
-  // Find All keyboard handling: the panel's own navigation. F9 runs (or
+  // Find All keyboard handling: the sidebar's own navigation. F9 runs (or
   // re-runs) the search through its menu item's accelerator; a click or the
   // caret keys in the results area move its caret first (this listener runs
   // after the area's own key forwarder), so the row the caret landed on is
-  // previewed in the file view; Enter previews and closes the panel; Esc
-  // closes it from either text area.
+  // previewed in the file view; Enter previews and closes the sidebar; Esc
+  // closes it from either text area. The sidebar's pattern field owns its
+  // keys instead (Enter searches, the arrows move within the pattern).
   frame->add_listener([state](KeyEvent &e) {
     if (e.id != KeyEvent::KEY_PRESSED) {
       return;
     }
     auto results = state->results_area;
-    auto results_open = state->results_pane->is_visible();
+    auto results_open = state->find_panel and state->find_panel->is_visible();
     if (not results_open) {
       return;
     }
     auto row = results_caret_row(*state);
     if (not results->is_focus_owner()) {
-      // The file area (or nothing) owns the focus: Esc dismisses the panel.
+      // The file area (or nothing) owns the focus: Esc dismisses the sidebar.
       if (e.get_key_code() == KeyEvent::VK_ESCAPE) {
-        close_results(*state);
+        close_find_panel(*state);
       }
       return;
     }
@@ -722,10 +1019,10 @@ std::shared_ptr<Frame> build_text_area_demo(std::shared_ptr<TextBuffer> const &b
       break;
     case KeyEvent::VK_ENTER:
       preview_result(*state, row);
-      close_results(*state);
+      close_find_panel(*state);
       break;
     case KeyEvent::VK_ESCAPE:
-      close_results(*state);
+      close_find_panel(*state);
       break;
     default:
       break;
@@ -753,15 +1050,24 @@ int usage(const char *program) {
                "Caret navigation: arrows move by character/row, Ctrl+Left/Right\n"
                "jump to the line's start/end, Ctrl+Up/Down page up/down,\n"
                "Home/End to the line's edges, Ctrl+Home/End to the document's.\n"
-               "F3 search (Enter jumps, F3 repeats), F4 regexp search, F5 Show\n"
-               "Invisibles (the Edit menu's whitespace toggle), F6 caret form\n"
-               "(block/underline), F7 caret blink (blinking/steady/hidden), F8\n"
-               "column select mode. F9 Find All (Edit > Find All) lists every\n"
-               "hit of the last search pattern in a results pane: click a row or\n"
-               "use the caret keys to preview the hit in the file view, Enter\n"
-               "previews and closes the pane, Esc closes it, F9 re-runs the\n"
-               "search (the list is plain-substring, UTF-8 safe and capped).\n"
-               "--log-events writes the event/resize/graphics history to stderr.\n",
+               "F2 occurrence highlight: every visible occurrence of the word\n"
+               "at the caret -- or of the selection, when there is one -- is\n"
+               "highlighted. F3 search (Enter jumps, F3 repeats), F4 regexp\n"
+               "search, F5 Show Invisibles (the Edit menu's whitespace toggle),\n"
+               "F6 caret form (block/underline), F7 caret blink\n"
+               "(blinking/steady/hidden), F8 column select mode. The Find sidebar\n"
+               "floats inside the text view's upper right corner (Ctrl+F, or\n"
+               "Edit > Search Pane, shows it and focuses the field): the pattern\n"
+               "field with the Case (case-insensitive), Whole word and Regex\n"
+               "options over the results list. Enter in the field runs the next\n"
+               "match with the options; Find All (the button, F9, or Edit > Find\n"
+               "All) lists every hit of the pattern as \"line:column  <source\n"
+               "line>\": click a row or use the caret keys to preview the hit in\n"
+               "the file view, Enter previews and closes the sidebar, Esc closes\n"
+               "it, Close hides it (the scans are UTF-8 safe, windowed and capped\n"
+               "at FIND_ALL_LIMIT hits). Double-clicking a word in the file view\n"
+               "selects it (a triple-click takes the line). --log-events writes\n"
+               "the event/resize/graphics history to stderr.\n",
                program);
   return 1;
 }

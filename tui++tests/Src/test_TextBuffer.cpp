@@ -224,6 +224,109 @@ void test_search() {
   assert(tail);
 }
 
+// The search options: case-insensitive and whole-word matching, for the plain
+// and the regexp searches, and their find-all counterparts.
+void test_search_options() {
+  // The document is laid out so the three rules differ on every line: a
+  // capitalized whole word, a whole word plus the head of "needles", a
+  // longer upper-case word, a word glued to a letter and to a digit, and a
+  // whole word at the very end of the content.
+  auto text = std::string {
+      "Needle in a haystack\n"
+      "a needle, and needles\n"
+      "NEEDLES everywhere\n"
+      "xneedle and needle2\n"
+      "tail needle" };
+  auto buffer = TextBuffer::create_empty();
+  buffer->replace(0, 0, text);
+
+  auto ci = SearchOptions { .case_insensitive = true };
+  auto ww = SearchOptions { .whole_word = true };
+  auto ci_ww = SearchOptions { .case_insensitive = true, .whole_word = true };
+
+  auto line0 = std::uint64_t(text.find("Needle"));
+  auto word1 = std::uint64_t(text.find("needle"));
+  auto head = std::uint64_t(text.find("needles"));
+  auto upper = std::uint64_t(text.find("NEEDLES"));
+  auto glued_left = std::uint64_t(text.find("needle", head + 7));
+  auto glued_right = std::uint64_t(text.find("needle", glued_left + 6));
+  auto tail = std::uint64_t(text.rfind("needle"));
+
+  // Case-insensitive find reaches the capitalized occurrence the plain one
+  // skips (ASCII folding, the only one a byte-wise scan can do).
+  assert(buffer->find("needle", 0) == word1);
+  assert(buffer->find("Needle", 0) == line0);
+  assert(buffer->find("needle", 0, ci) == line0);
+  assert(buffer->find("needles", 0, ci) == head && "the lower-case plural");
+  assert(buffer->find("NEEDLES", 0, ci) == head && "the folded scan reaches the plural before the upper-case line");
+  assert(buffer->find("NEEDLES EVERYWHERE", 0, ci) == upper);
+  assert(buffer->find("NEEDLES", 0) == upper && "the plain scan still finds the upper-case word");
+
+  // find_all honors the options: the plain pass finds every lower-case
+  // occurrence, the whole-word one drops the glued "xneedle", the "needle2"
+  // and the head of "needles", and the case-insensitive whole-word pass adds
+  // the capitalized line-0 one.
+  auto plain = buffer->find_all("needle", 0, 32);
+  assert(plain.size() == 5);
+  assert(plain == std::vector<std::uint64_t>({ word1, head, glued_left, glued_right, tail }));
+
+  auto all_ci = buffer->find_all("needle", 0, 32, ci);
+  assert(all_ci.size() == 7 and std::is_sorted(all_ci.begin(), all_ci.end()));
+  assert(all_ci.front() == line0 and all_ci.back() == tail);
+
+  auto all_ww = buffer->find_all("needle", 0, 32, ww);
+  assert(all_ww.size() == 2 && "the glued ones and the head of \"needles\" are skipped");
+  assert(all_ww[0] == word1 and all_ww[1] == tail);
+
+  auto all_ci_ww = buffer->find_all("needle", 0, 32, ci_ww);
+  assert(all_ci_ww.size() == 3);
+  assert(all_ci_ww[0] == line0 and all_ci_ww[1] == word1 and all_ci_ww[2] == tail);
+
+  // A whole word with no byte on one side (the content's start or end) is
+  // still a word.
+  auto edges = TextBuffer::create_empty();
+  edges->replace(0, 0, "needle");
+  assert(edges->find("needle", 0, ww) == 0);
+  assert(edges->find("needle", 0, ci_ww) == 0);
+
+  // The regexp searches take the same options: icase reaches the capitalized
+  // occurrences, the whole-word rule still skips the glued ones.
+  auto re_ci = buffer->find_regex("n[ae]edle", 0, ci);
+  assert(re_ci and re_ci->first == line0);
+  auto re_ww = buffer->find_regex("needle[0-9]?", 0, ww);
+  assert(re_ww and re_ww->first == word1 && "not the glued xneedle");
+  assert(buffer->read(re_ww->first, re_ww->second - re_ww->first) == "needle");
+
+  auto re_all = buffer->find_all_regex("n[ae]edle[s]?", 0, 32, ci);
+  assert(re_all.size() == 7);
+  assert(std::is_sorted(re_all.begin(), re_all.end(), [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  }));
+  assert(re_all.front().first == line0 and re_all.back().first == tail);
+  assert(re_all[2].first == head and re_all[2].second - re_all[2].first == 7 && "the greedy [s]? takes the plural");
+
+  // A pattern matching the empty string terminates (the scan advances a byte)
+  // and yields the limited number of zero-length matches; an invalid pattern
+  // yields none.
+  auto empty = buffer->find_all_regex("x*", 0, 5);
+  assert(empty.size() == 5);
+  for (auto const &[start, end] : empty) {
+    assert(start == end);
+  }
+  assert(buffer->find_all_regex("nope (", 0, 8).empty() && "an invalid pattern yields no matches");
+
+  // A match that starts exactly on the 1 MiB window core boundary is judged
+  // with the byte before it, which lives in the previous window.
+  auto boundary = TextBuffer::create_empty();
+  auto filler = std::string(std::size_t(1) << 20, 'a');
+  boundary->replace(0, 0, filler + "needle needle\n");
+  auto after_core = boundary->find_all("needle", 0, 8, ww);
+  assert(after_core.size() == 1 && "the first is glued to the filler, the second is a word");
+  assert(after_core[0] == (std::size_t(1) << 20) + 7);
+  assert(boundary->find("needle", 0, ci_ww) == after_core[0]);
+  assert(boundary->find("needle", 0, ww) == after_core[0]);
+}
+
 // Opening a real file maps it (read-only) and still allows in-memory edits.
 // The SWAR substring scanner must agree with a brute-force reading on
 // windows that straddle the 1 MiB scan boundaries, from arbitrary start
@@ -349,6 +452,7 @@ void test_TextBuffer() {
   test_edit_across_pages();
   test_read_line_ranges();
   test_search();
+  test_search_options();
   test_find_all();
   test_open_file();
   test_large_document();

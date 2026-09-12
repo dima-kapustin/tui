@@ -28,6 +28,22 @@
 
 namespace tui {
 
+// The options of a text search, as the search pane of a program offers them:
+// whether case differences are ignored, and whether a match must be a whole
+// word (surrounded by non-word bytes). Case folding is the ASCII one; a word
+// byte is a letter, a digit, an underscore, or any byte of a non-ASCII
+// character (the rule the text components' word commands use, so a multi-byte
+// character is never split by a boundary test). The text searches of
+// TextBuffer and the TextArea take the same struct.
+//
+// It lives outside TextBuffer because a nested aggregate with default member
+// initializers cannot be a default argument of its own class's members (GCC
+// rejects the nested-class-name lookup in that complete-class context).
+struct SearchOptions {
+  bool case_insensitive = false;
+  bool whole_word = false;
+};
+
 class TextBuffer {
 public:
   // A page of content: either a window over the memory-mapped file, or a
@@ -134,22 +150,30 @@ public:
 
   // --- search ---------------------------------------------------------------
 
-  // Finds the first occurrence of `needle` at or after `from`. The scan is
-  // windowed (memory stays bounded); matches may span page boundaries.
-  std::optional<std::uint64_t> find(std::string_view needle, std::uint64_t from) const;
+  // Finds the first occurrence of `needle` at or after `from` that matches
+  // `options`. The scan is windowed (memory stays bounded); matches may span
+  // page boundaries.
+  std::optional<std::uint64_t> find(std::string_view needle, std::uint64_t from, SearchOptions const &options = { }) const;
 
-  // Every non-overlapping occurrence of `needle` at or after `from`, in
-  // order, capped at `limit` results -- one single forward pass with the same
-  // window semantics and SWAR scanner as find(). An empty needle yields the
-  // single offset `from` (like find()).
-  std::vector<std::uint64_t> find_all(std::string_view needle, std::uint64_t from, std::size_t limit) const;
+  // Every non-overlapping occurrence of `needle` at or after `from` that
+  // matches `options`, in order, capped at `limit` results -- one single
+  // forward pass with the same window semantics and scanner as find(). An
+  // empty needle yields the single offset `from` (like find()).
+  std::vector<std::uint64_t> find_all(std::string_view needle, std::uint64_t from, std::size_t limit, SearchOptions const &options = { }) const;
 
-  // Finds the first ECMAScript-regexp match at or after `from`, running the
-  // regex over overlapping windows of REGEX_WINDOW bytes. Returns (start,
-  // end) of the match; matches longer than the window overlap may straddle a
-  // boundary and go unnoticed, and pathological patterns are bounded by the
-  // window size. Invalid patterns yield nullopt.
-  std::optional<std::pair<std::uint64_t, std::uint64_t>> find_regex(std::string const &pattern, std::uint64_t from) const;
+  // Finds the first ECMAScript-regexp match at or after `from` that matches
+  // `options`, running the regex over overlapping windows of REGEX_WINDOW
+  // bytes. Returns (start, end) of the match; matches longer than the window
+  // overlap may straddle a boundary and go unnoticed, and pathological
+  // patterns are bounded by the window size. Invalid patterns yield nullopt.
+  std::optional<std::pair<std::uint64_t, std::uint64_t>> find_regex(std::string const &pattern, std::uint64_t from, SearchOptions const &options = { }) const;
+
+  // Every non-overlapping regexp match at or after `from` that matches
+  // `options`, in order, capped at `limit`: the find_all counterpart of
+  // find_regex, with the same window and overlap semantics. An empty match
+  // (a pattern like "x*") advances the scan by one byte, so the call always
+  // terminates.
+  std::vector<std::pair<std::uint64_t, std::uint64_t>> find_all_regex(std::string const &pattern, std::uint64_t from, std::size_t limit, SearchOptions const &options = { }) const;
 
   // The byte offset of the first `byte` at or after `from`, scanning in
   // bounded windows; nullopt when the content ends without one. `limit`
@@ -164,6 +188,12 @@ private:
 
   char const *page_bytes(std::size_t page_index) const;
   int page_index_of(std::uint64_t offset) const;
+
+  // Whether the bytes around [start, end) are not word content, i.e. the
+  // match is a whole word (the whole_word search option). The bytes just
+  // outside the match are read from the buffer, so a match at a window's edge
+  // is judged the same as one in the middle.
+  bool is_whole_word(std::uint64_t start, std::uint64_t end) const;
 
   // Drops line anchors at/after `offset` and rewinds the scan frontier to the
   // last surviving anchor (an edit before them invalidates every line count).

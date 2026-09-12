@@ -346,7 +346,11 @@ void ButtonUI::paint_content(Graphics &g, std::shared_ptr<const Component> const
     if (icon) {
       cursor += icon_gap;
     }
-    auto focus_underline = button->is_focus_owner() and button->is_focus_painted() and not button->get_model()->is_selected();
+    // The focus underline is a keyboard focus indicator: a button focused by
+    // an activating mouse event must not paint it (Swing's platform
+    // look-and-feels show the focus only for keyboard focus). A selected
+    // toggle already looks "on", so it keeps no underline either.
+    auto focus_underline = button->is_focus_owner() and button->is_focus_painted() and not button->is_focus_from_mouse() and not button->get_model()->is_selected();
     paint_clipped_text(g, metrics.get(), text, cursor, y, area.right(), button, focus_underline);
   }
 }

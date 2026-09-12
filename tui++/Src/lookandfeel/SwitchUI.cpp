@@ -68,8 +68,9 @@ int SwitchUI::paint_leading(Graphics &g, TextMetrics const &metrics, Component c
 
   // A switch with the focus underlines its track: the focus marker of a widget
   // that has no label of its own (a labelled one also gets its label
-  // underlined by the shared label painting).
-  auto focus = button.is_focus_owner() and button.is_focus_painted();
+  // underlined by the shared label painting). The marker is a keyboard
+  // indicator, so a switch focused by a click must not show it.
+  auto focus = button.is_focus_owner() and button.is_focus_painted() and not button.is_focus_from_mouse();
   auto attributes = focus ? std::optional<Attributes> { Attribute::UNDERLINE } : std::nullopt;
 
   // The rounded ends...

@@ -59,13 +59,16 @@ bool KeyboardFocusManager::request_focus(const std::shared_ptr<Component> &compo
     return true;
   }
 
+  // The cause travels with both events: a component deciding whether to show
+  // its focus indicator distinguishes an activating mouse event from a
+  // keyboard traversal through it (Swing's FocusEvent.Cause).
   if (current_focus_owner) {
-    auto current_focus_owner_event = make_event<FocusEvent>(current_focus_owner, FocusEvent::FOCUS_LOST, temporary, component);
+    auto current_focus_owner_event = make_event<FocusEvent>(current_focus_owner, FocusEvent::FOCUS_LOST, cause, temporary, component);
     current_focus_owner_event.is_posted = true;
     current_focus_owner->dispatch_event(current_focus_owner_event);
   }
 
-  auto new_focus_owner_event = make_event<FocusEvent>(component, FocusEvent::FOCUS_GAINED, temporary, current_focus_owner);
+  auto new_focus_owner_event = make_event<FocusEvent>(component, FocusEvent::FOCUS_GAINED, cause, temporary, current_focus_owner);
   new_focus_owner_event.is_posted = true;
   component->dispatch_event(new_focus_owner_event);
   return true;

@@ -22,6 +22,10 @@
 //   * optional visible whitespace (space -> middle dot, tab -> arrow)
 //   * incremental string and regexp search (F3), F4 toggles regexp,
 //     F5 toggles whitespace
+//   * an optional occurrence highlight (set_occurrence_highlight): every
+//     occurrence of the word at the caret -- or of the selection -- that is
+//     visible on screen is highlighted; only the visible rows are scanned, so
+//     the cost is bounded by the screen, not by the file
 //   * keyboard input is received while the area is the focus owner; keys are
 //     delivered through a listener on the owning window, because the
 //     framework dispatches keys to windows, not to the focus owner.
@@ -32,6 +36,7 @@
 #include <tui++/TextComponent.h>
 #include <tui++/Timer.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -124,6 +129,38 @@ public:
   bool is_line_wrap() const {
     return this->line_wrap;
   }
+
+  // Occurrence highlight (an optional view feature) -------------------------
+
+  // Whether the area highlights, as a pure view effect, every occurrence of
+  // the word under the caret -- or of the selection, when there is one --
+  // that is visible on screen. Swing has no such feature; the "occurrence
+  // highlight" of VS Code and other editors is the model. The caret does not
+  // move and the search state (F3's match) is not touched.
+  //
+  // The cost of the feature is bounded by the screen, never by the file: only
+  // the rows the viewport shows are scanned, and only the bytes the paint
+  // pass reads anyway, so a 10 GiB file highlights exactly as fast as a 10
+  // byte one. A change of the matched text (the caret entered another word,
+  // the selection changed, an edit rewrote the caret's word) damages the
+  // visible rows, because every one of them may gain or lose a highlight.
+  void set_occurrence_highlight(bool value);
+
+  bool is_occurrence_highlight() const {
+    return this->occurrence_highlight;
+  }
+
+  // The longest text the highlight matches: a longer one -- a selection
+  // spanning a paragraph, Ctrl+A on a huge file -- is not a pattern worth
+  // chasing through every visible row, so the highlight stays off.
+  static constexpr std::size_t MAX_OCCURRENCE_TEXT = 128;
+
+  // The text the highlight currently matches: the selection's bytes, or the
+  // word around the caret when there is no selection (a column selection has
+  // no single byte text and falls back to the caret's word too). Empty when
+  // the feature is off, the caret is not on a word, or the text is longer
+  // than MAX_OCCURRENCE_TEXT. A status line can show it.
+  std::string get_occurrence_text() const;
 
   // Caret as a byte offset into the buffer.
   void set_caret(std::uint64_t offset);
@@ -291,7 +328,19 @@ public:
   // Runs a plain string (regexp=false) or regexp search for `pattern`,
   // starting at the caret when `from_caret`, wrapping at the end.
   // Returns true when a match was found and the caret moved to it.
+  // The search honors get_search_options().
   bool find_next(std::string const &pattern, bool regexp, bool forward = true);
+
+  // The options of the searches the area runs (find_next): whether case
+  // differences are ignored and whether a match must be a whole word (see
+  // SearchOptions). The regexp mode is per search (is_search_regexp).
+  void set_search_options(SearchOptions const &options) {
+    this->search_options = options;
+  }
+
+  SearchOptions const& get_search_options() const {
+    return this->search_options;
+  }
 
   // Whether the next search runs as an ECMAScript regexp (F4 toggles).
   bool is_search_regexp() const {
@@ -383,6 +432,25 @@ private:
 
   void on_key_pressed(KeyEvent &e);
   void on_key_typed(KeyEvent &e);
+
+  // --- click gestures -------------------------------------------------------
+
+  // The classic click gestures of a text component (see TextField): a
+  // double-click selects the word under the pointer -- or the run of
+  // separators, when the click lands on one -- and a triple-click the whole
+  // line. The press that precedes the click already placed the caret and left
+  // a fresh selection anchor; the click lays the selection over it. A word
+  // gesture always selects a byte range, even in the column-select mode: a
+  // column is the shape of drags and Shift gestures, not of a word click.
+  void on_mouse_click(MouseClickEvent &e);
+
+  // The byte range of the word (or of the run of separators the clicked
+  // character belongs to) around cell `cell` of `line`. A click past the
+  // line's text lands on its last character, and an empty line yields an
+  // empty range at its start. The scan stops MAX_WORD_SCAN bytes away from
+  // the clicked character, so a line of gigabytes cannot make a double-click
+  // walk the file.
+  std::pair<std::uint64_t, std::uint64_t> word_bounds(std::uint64_t line, int cell) const;
 
   void move_caret_left(std::uint64_t &offset) const;
   void move_caret_right(std::uint64_t &offset) const;
@@ -559,6 +627,27 @@ private:
 
   void notify_window();
 
+  // --- occurrence highlight -------------------------------------------------
+
+  // The word around the caret: the maximal run of word characters (the rule
+  // TextField's word commands use), read from a bounded window around the
+  // caret. Empty when the caret is not on or next to a word, or when the run
+  // is longer than MAX_OCCURRENCE_TEXT bytes -- the cap that keeps the matched
+  // text small enough for the per-row scan.
+  std::string word_at_caret() const;
+
+  // Called after a caret, selection or content change: when the highlight is
+  // on and the text it would match now differs from `old_text`, the whole
+  // visible band is damaged -- every row may have gained or lost highlights,
+  // and the rows the change itself damaged do not cover them.
+  void repaint_if_occurrence_changed(std::string const &old_text);
+
+  // Damages the rows the viewport shows: the band the occurrence highlight
+  // can ever change.
+  void repaint_visible_rows();
+
+  bool occurrence_highlight = false;
+
   std::shared_ptr<TextBuffer> buffer = TextBuffer::create_empty();
   std::uint64_t caret = 0;
   std::uint64_t caret_line = 0;
@@ -616,6 +705,7 @@ private:
   std::uint64_t match_end = UINT64_MAX;
   std::string message;
   std::string search_pattern;
+  SearchOptions search_options;
   bool search_mode = false;
   bool search_regexp = false;
 
