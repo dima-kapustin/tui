@@ -1,11 +1,12 @@
 cmake_minimum_required(VERSION 3.20)
 
-# WidgetDemo - the widgets, context menus and dialogs demo for tui++.
+# WidgetDemo - the widgets, context menus, dialogs and translations demo for
+# tui++.
 #
-# Builds ONE component tree (a Frame with a File/View/Dialogs MenuBar over a
-# panel of ToggleButtons/CheckBoxes/RadioButtons, a Switch, a shadowed Button
-# and ComboBoxes, plus the comment TextField and its standard context menu) and
-# runs it on either terminal backend:
+# Builds ONE component tree (a Frame with a File/View/Dialogs/Language MenuBar
+# over a panel of ToggleButtons/CheckBoxes/RadioButtons, a Switch, a shadowed
+# Button and ComboBoxes, plus the comment TextField and its standard context
+# menu) and runs it on either terminal backend:
 #
 #     WidgetDemo            text screen  (cell-based escape sequences)
 #     WidgetDemo text       same as the default
@@ -15,7 +16,8 @@ cmake_minimum_required(VERSION 3.20)
 # operated with the arrow keys (dropdown), Enter (pick) and typing (lookup;
 # editable combo); the right button (or Shift+F10) opens the context menus,
 # the panel's and the standard text menu of the fields; the Dialogs menu opens
-# a modal and a modeless dialog.
+# a modal and a modeless dialog; the Language menu switches the locale of every
+# live widget -- English, Deutsch, Français, Русский and 中文 (see Messages).
 project(WidgetDemo)
 
 set(CMAKE_CXX_STANDARD 26)

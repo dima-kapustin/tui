@@ -1,5 +1,5 @@
 // Widget demo for tui++: the Swing-style toggleable widgets, the switch, the
-// combo box, the context menus and the dialogs on one frame.
+// combo box, the context menus, the dialogs and the translations on one frame.
 //
 //     WidgetDemo            text screen  (cell-based escape sequences)
 //     WidgetDemo text       same as the default
@@ -34,7 +34,15 @@
 //     return while it is up, so the status line is updated by the code after
 //     the call -- with OK (or Enter: it is the dialog's default button),
 //     Cancel and Escape. "Modeless Dialog..." stays up while the frame keeps
-//     working, and the two "Show guides" check boxes drive the same state.
+//     working, and the two "Show guides" check boxes drive the same state,
+//   - the Language menu: English, Deutsch, Français, Русский and 中文 switch the
+//     locale of every live widget. A widget's own text is the key of the lookup
+//     (see Messages), and the look-and-feel does the lookup when it measures and
+//     paints, so the bundles installed at the top of main turn "Bold" into
+//     "Fett" and "File" into "Datei" on the spot -- texts and layouts both,
+//     with no translation API on the components. The language names themselves
+//     opt out through a client property, and the demo's own headings show how a
+//     program translates its own strings (WidgetDemoTextLine::paint).
 //
 // The bottom status line summarizes every control after each change.
 
@@ -50,6 +58,7 @@
 #include <tui++/Menu.h>
 #include <tui++/MenuBar.h>
 #include <tui++/MenuItem.h>
+#include <tui++/Messages.h>
 #include <tui++/Panel.h>
 #include <tui++/PopupMenu.h>
 #include <tui++/RadioButton.h>
@@ -66,12 +75,18 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 
 using namespace tui;
 
 namespace tui {
 
 // A one-line panel that paints its text (a heading or the status line).
+//
+// The text belongs to the program, and the class shows how a program
+// translates its own strings: paint asks Messages for the current locale (the
+// toolkit's own labels are looked up the same way, inside their look-and-feel)
+// and the language menu's repaint refreshes every line.
 class WidgetDemoTextLine: public Panel {
   std::string text;
 
@@ -84,8 +99,8 @@ public:
   }
 
   void paint(Graphics &g) override {
-    if (not this->text.empty()) {
-      g.draw_string(this->text, 0, 0);
+    if (auto translated = Messages::get(this->text); not translated.empty()) {
+      g.draw_string(translated, 0, 0);
     }
   }
 
@@ -115,7 +130,9 @@ std::string widget_on_off(bool value) {
 }
 
 std::string widget_selected_text(std::shared_ptr<AbstractButton> const &button) {
-  return button->is_selected() ? button->get_text() : std::string { };
+  // The text the widget shows in the current locale, so the status line names
+  // the state the way the buttons do.
+  return button->is_selected() ? Messages::get(button->get_text()) : std::string { };
 }
 
 }
@@ -125,6 +142,117 @@ using namespace tui;
 int main(int argc, char *argv[]) {
   auto type = argc > 1 ? std::string(argv[1]) : std::string { "text" };
   terminal.set_type(type);
+
+  // ---- the translation bundles ----
+  //
+  // A widget's text is the key of the lookup (see Messages), so every entry
+  // names the original phrase: the buttons and menu rows below read "Bold",
+  // "File" and so on, and the Language menu shows them in the locale it picks.
+  // The demo installs its bundles with put(); a translator's properties file
+  // would be loaded with Messages::load instead. Only the toolkit's own texts
+  // are translated -- the headings and the status line are the program's own
+  // strings, looked up by hand in WidgetDemoTextLine.
+  struct Translation {
+    std::string_view key;
+    std::string_view de;
+    std::string_view fr;
+    std::string_view ru;
+    std::string_view zh; // Simplified Chinese
+  };
+
+  static constexpr Translation translations[] = {
+    // The menu bar and its rows.
+    { "File", "Datei", "Fichier", "Файл", "文件" },
+    { "View", "Ansicht", "Affichage", "Вид", "视图" },
+    { "Dialogs", "Dialoge", "Dialogues", "Диалоги", "对话框" },
+    { "Language", "Sprache", "Langue", "Язык", "语言" },
+    { "Quit", "Beenden", "Quitter", "Выход", "退出" },
+    { "Word wrap", "Zeilenumbruch", "Retour à la ligne", "Перенос по словам", "自动换行" },
+    { "Density", "Dichte", "Densité", "Плотность", "密度" },
+    { "Compact", "Kompakt", "Compact", "Компактный", "紧凑" },
+    { "Comfortable", "Komfortabel", "Confortable", "Удобный", "舒适" },
+    { "Roomier", "Geräumig", "Spacieux", "Просторный", "宽松" },
+    { "Modal Dialog...", "Modaler Dialog...", "Dialogue modal...", "Модальный диалог...", "模态对话框..." },
+    { "Modeless Dialog...", "Nichtmodaler Dialog...", "Dialogue non modal...", "Немодальный диалог...", "非模态对话框..." },
+
+    // The controls on the panel.
+    { "Bold", "Fett", "Gras", "Полужирный", "粗体" },
+    { "Italic", "Kursiv", "Italique", "Курсив", "斜体" },
+    { "Underline", "Unterstrichen", "Souligné", "Подчёркнутый", "下划线" },
+    { "Align Left", "Linksbündig", "Aligné à gauche", "По левому краю", "左对齐" },
+    { "Align Center", "Zentriert", "Centré", "По центру", "居中" },
+    { "Align Right", "Rechtsbündig", "Aligné à droite", "По правому краю", "右对齐" },
+    { "Snap to grid", "Am Raster ausrichten", "Aimantation à la grille", "Привязать к сетке", "对齐网格" },
+    { "Show guides", "Hilfslinien anzeigen", "Afficher les repères", "Показывать направляющие", "显示参考线" },
+    { "Reset", "Zurücksetzen", "Réinitialiser", "Сбросить", "重置" },
+
+    // The standard text menu every text component carries (see TextPopupMenu):
+    // its rows are ordinary menu items, so a program may translate them too.
+    { "Undo", "Rückgängig", "Annuler", "Отменить", "撤销" },
+    { "Redo", "Wiederholen", "Rétablir", "Повторить", "重做" },
+    { "Cut", "Ausschneiden", "Couper", "Вырезать", "剪切" },
+    { "Copy", "Kopieren", "Copier", "Копировать", "复制" },
+    { "Paste", "Einfügen", "Coller", "Вставить", "粘贴" },
+    { "Delete", "Löschen", "Supprimer", "Удалить", "删除" },
+    { "Select All", "Alles auswählen", "Tout sélectionner", "Выделить всё", "全选" },
+
+    // The dialog contents (a window's own title is the program's string, not a
+    // toolkit-drawn label, and stays as it is).
+    { "The comment line:", "Die Kommentarzeile:", "La ligne de commentaire :", "Строка комментария:", "注释行：" },
+    { "OK", "OK", "OK", "ОК", "确定" },
+    { "Cancel", "Abbrechen", "Annuler", "Отмена", "取消" },
+    { "The dialog and the frame stay live:",
+      "Der Dialog und das Hauptfenster bleiben aktiv:",
+      "Le dialogue et la fenêtre restent actifs :",
+      "Диалог и главное окно остаются активными:",
+      "对话框与主窗口保持活动：" },
+    { "Close", "Schließen", "Fermer", "Закрыть", "关闭" },
+
+    // The rows of the demo's context menu ("Alignment" and its radio rows share
+    // the translations of the frame's own controls above).
+    { "Select All in Comment", "Alles im Kommentar auswählen", "Tout sélectionner dans le commentaire", "Выделить всё в комментарии", "全选注释" },
+    { "Clear Comment", "Kommentar löschen", "Effacer le commentaire", "Очистить комментарий", "清除注释" },
+    { "Alignment", "Ausrichtung", "Alignement", "Выравнивание", "对齐" },
+
+    // The headings, the program's own strings (WidgetDemoTextLine looks them up).
+    { "Text style (toggle button, check boxes):",
+      "Textstil (Umschalter, Kontrollkästchen):",
+      "Style du texte (bouton bascule, cases à cocher) :",
+      "Стиль текста (кнопка-переключатель, флажки):",
+      "文本样式（切换按钮、复选框）：" },
+    { "Alignment (radio buttons in one group):",
+      "Ausrichtung (Optionsfelder einer Gruppe):",
+      "Alignement (boutons radio d'un groupe) :",
+      "Выравнивание (переключатели в одной группе):",
+      "对齐（同组单选按钮）：" },
+    { "Snapping (grouped check boxes):",
+      "Einrasten (gruppierte Kontrollkästchen):",
+      "Aimantation (cases à cocher groupées) :",
+      "Привязка (сгруппированные флажки):",
+      "吸附（分组复选框）：" },
+    { "Combo boxes (editable lookup / dropdown):",
+      "Kombinationsfelder (editierbare Suche / Dropdown):",
+      "Listes déroulantes (recherche éditable / menu) :",
+      "Комбинированные списки (поиск с вводом / раскрытие):",
+      "组合框（可编辑查找 / 下拉）：" },
+    { "Text field (caret, selection, clipboard, context menu):",
+      "Textfeld (Cursor, Auswahl, Zwischenablage, Kontextmenü):",
+      "Champ de texte (curseur, sélection, presse-papiers, menu contextuel) :",
+      "Текстовое поле (курсор, выделение, буфер обмена, контекстное меню):",
+      "文本框（光标、选择、剪贴板、上下文菜单）：" },
+    { "Switch (rounded track) and a shadowed button:",
+      "Schalter (runde Spur) und ein schattierter Knopf:",
+      "Interrupteur (piste arrondie) et un bouton ombré :",
+      "Переключатель (округлая дорожка) и кнопка с тенью:",
+      "开关（圆角轨道）与带阴影的按钮：" },
+  };
+
+  for (auto &&translation : translations) {
+    Messages::put("de", translation.key, translation.de);
+    Messages::put("fr", translation.key, translation.fr);
+    Messages::put("ru", translation.key, translation.ru);
+    Messages::put("zh", translation.key, translation.zh);
+  }
 
   auto frame = make_component<Frame>();
   frame->set_size({ 80, 24 });
@@ -184,6 +312,8 @@ int main(int argc, char *argv[]) {
     text += " | snap=" + widget_on_off(snap->is_selected()) + " guides=" + widget_on_off(guides->is_selected());
     text += " | city=" + city->get_field_text() + " size=" + size->get_selected_item();
     text += " | text=\"" + comment->get_text() + "\"";
+    auto locale = Messages::get_locale();
+    text += " | lang=" + (locale.empty() ? std::string { "en" } : locale);
     status->set_text(text);
   };
   auto notify_all = [refresh_status](auto const &component) {
@@ -347,16 +477,46 @@ int main(int argc, char *argv[]) {
   });
   dialogs_menu->add(modeless_item);
 
+  // ---- the language menu ----
+  //
+  // The toolkit translates the texts it draws (see Messages): a widget's own
+  // text IS the key of the lookup, so every row above already reads "File",
+  // "Bold" and so on in whatever locale is current. The look-and-feel does the
+  // lookup when it measures and paints, so switching the locale drops the
+  // layouts of the live windows and repaints them -- labels and sizes follow.
+  // The language names are proper nouns and stay as they are: the client
+  // property opts them out of the lookup.
+  auto language_menu = make_component<Menu>("Language");
+  language_menu->set_mnemonic('L');
+  auto language_group = std::make_shared<ButtonGroup>();
+  auto add_language = [&](std::string const &name, std::string const &locale) {
+    auto item = make_component<RadioButtonMenuItem>(name);
+    item->set_client_property(Messages::TRANSLATABLE_PROPERTY, false);
+    item->add_listener([locale, refresh_status](ActionEvent &) {
+      Messages::set_locale(locale);
+      refresh_status();
+    });
+    item->set_selected(Messages::get_locale() == locale);
+    language_group->add(item);
+    language_menu->add(item);
+  };
+  add_language("English", "");
+  add_language("Deutsch", "de");
+  add_language("Français", "fr");
+  add_language("Русский", "ru");
+  add_language("中文", "zh");
+
   auto menu_bar = make_component<MenuBar>();
   menu_bar->add(file_menu);
   menu_bar->add(view_menu);
   menu_bar->add(dialogs_menu);
+  menu_bar->add(language_menu);
   frame->set_menu_bar(menu_bar);
 
   // Demo-style popup wiring (see the MenuBar demo): a click on a top-level
   // menu opens its popup and closes the others; a click on the content area
   // dismisses an open popup.
-  auto menus = std::vector<std::shared_ptr<Menu>> { file_menu, view_menu, dialogs_menu };
+  auto menus = std::vector<std::shared_ptr<Menu>> { file_menu, view_menu, dialogs_menu, language_menu };
   for (auto &&menu : menus) {
     auto weak_self = std::weak_ptr<Menu> { menu };
     auto weak_others = std::vector<std::weak_ptr<Menu>> { };
