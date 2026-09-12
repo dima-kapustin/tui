@@ -179,7 +179,7 @@ void TextTheme::init_component_defaults() {
   // program can restyle one kind ("CheckBox.BackgroundColor") without
   // touching the others; the defaults all share the system control colors.
   put("ToggleButton.Border", button_border);
-  for (auto &&prefix : { "Button", "ToggleButton", "CheckBox", "RadioButton", "ComboBox" }) {
+  for (auto &&prefix : { "Button", "ToggleButton", "CheckBox", "RadioButton", "ComboBox", "Switch" }) {
     put(std::string(prefix) + ".BackgroundColor", control);
     put(std::string(prefix) + ".ForegroundColor", controlText);
   }
@@ -187,6 +187,16 @@ void TextTheme::init_component_defaults() {
   // The combo box reserves one cell around its field; the check box and radio
   // button labels sit directly next to their indicator.
   put("ComboBox.margin", make_resource<Insets>(0, 1, 0, 1));
+
+  // The switch (see Switch): the track the thumb slides along. The track is a
+  // mid gray while the switch is off and takes the text selection color when
+  // it is on, so the state reads at a glance; the thumb stays light against
+  // either. The track spans three cells between its two rounded ends.
+  put("Switch.TrackColor", controlShadow.value_or(Color { 0xA0, 0xA0, 0xA0 }));
+  put("Switch.TrackSelectedColor", textHighlight.value_or(Color { 0, 0, 0x80 }));
+  put("Switch.ThumbColor", controlLtHighlight.value_or(WHITE_COLOR));
+  put("Switch.TrackWidth", 3);
+  put("Switch.margin", make_resource<Insets>(0, 1, 0, 1));
 
   // The dialogs (Swing's JDialog chrome): an opaque face on the system
   // control colors and the raised box the popup menus draw, so a dialog

@@ -49,7 +49,7 @@ public:
 
 public:
   template<typename T>
-  std::enable_if_t<not util::is_optional_v<T>, T> get(std::string_view const &key, T &&default_value = { }) const {
+  std::enable_if_t<not util::is_optional_v<T>, T> get(std::string_view const &key, T const &default_value = { }) const {
     if (auto pos = this->properties.find(key); pos != this->properties.end()) {
       if (auto *value = std::any_cast<T>(&pos->second)) {
         return *value;
@@ -59,7 +59,7 @@ public:
   }
 
   template<typename T>
-  std::enable_if_t<util::is_optional_v<T>, T> get(std::string_view const &key, T &&default_value = std::nullopt) const {
+  std::enable_if_t<util::is_optional_v<T>, T> get(std::string_view const &key, T const &default_value = std::nullopt) const {
     if (auto pos = this->properties.find(key); pos != this->properties.end()) {
       // A theme property may hold the optional itself: the component defaults
       // are built from get_color() results, which are optionals. Reading the

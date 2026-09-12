@@ -2,6 +2,9 @@
 
 #include <tui++/lookandfeel/ComponentUI.h>
 
+#include <tui++/Rectangle.h>
+#include <tui++/TextMetrics.h>
+
 #include <tui++/event/MouseEvent.h>
 
 #include <functional>
@@ -44,6 +47,32 @@ public:
 
 protected:
   virtual void paint(Graphics &g, std::shared_ptr<const Component> const &c) const override;
+
+  // The content painting: the leading visual, the icon and the label, laid out
+  // and aligned inside the content area (inside the border and the margin).
+  // The face fill and the border are the component's own (see
+  // ComponentUI::update and Component::paint_border). A subclass whose kind
+  // paints no "pressed" face (the switch) overrides paint and calls this.
+  virtual void paint_content(Graphics &g, std::shared_ptr<const Component> const &c) const;
+
+  // The width of the whole content line: the leading visual, the icon, the
+  // icon-text gap and the label. The preferred size and the paint both measure
+  // through it, so a laid-out button always has room for what it paints.
+  virtual int content_width(TextMetrics const &metrics, Component const &c) const;
+
+  // The leading visual: the check/radio indicator of the toggle button family,
+  // nothing for the other kinds. A subclass replaces it with a visual of its
+  // own (the switch's track). `leading_width` measures it, `paint_leading`
+  // draws it at (x, y) -- the content area's top-left -- and returns the space
+  // it used. A leading visual may paint in a palette of its own; the caller
+  // sets the icon's and the label's colors after it, so the label keeps the
+  // button's own.
+  virtual int leading_width(TextMetrics const &metrics, Component const &c) const;
+  virtual int paint_leading(Graphics &g, TextMetrics const &metrics, Component const &c, int x, int y) const;
+
+  // The content area of `c`: the component inside its border and its margin,
+  // or an empty rectangle when there is no room for content.
+  Rectangle get_content_area(std::shared_ptr<const Component> const &c) const;
 
   virtual void install_listeners();
   virtual void uninstall_listeners();

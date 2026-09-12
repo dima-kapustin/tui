@@ -101,6 +101,12 @@ constexpr Char CHECK_BOX_CHECKED = BALLOT_BOX_WITH_X;
 constexpr Char RADIO_BUTTON = CIRCLE_WHITE;
 constexpr Char RADIO_BUTTON_CHECKED = CIRCLE_BLACK;
 
+// The switch's horizontal track: the two rounded ends (the parens every font
+// draws curved) and the round thumb that slides between them (see Switch).
+constexpr Char SWITCH_TRACK_LEFT = L'(';
+constexpr Char SWITCH_TRACK_RIGHT = L')';
+constexpr Char SWITCH_THUMB = CIRCLE_BLACK;
+
 constexpr Char SQUARE_SOLID = L'■';
 constexpr Char SQUARE_SOLID_SMALL = L'▪';
 constexpr Char SQUARE_OUTLINED = L'□';

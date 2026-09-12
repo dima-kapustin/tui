@@ -10,6 +10,7 @@
 
 #include <tui++/AbstractButton.h>
 #include <tui++/Button.h>
+#include <tui++/Switch.h>
 #include <tui++/ToggleButton.h>
 #include <tui++/CheckBox.h>
 #include <tui++/RadioButton.h>
@@ -53,13 +54,15 @@ IndicatorKind indicator_kind(Component const *c) {
 }
 
 // The theme property prefix of the button kind: "Button", "ToggleButton",
-// "CheckBox" or "RadioButton" (the way Swing's BasicButtonUI uses the
-// getPropertyPrefix() of the button's UI class).
+// "CheckBox", "RadioButton" or "Switch" (the way Swing's BasicButtonUI uses
+// the getPropertyPrefix() of the button's UI class).
 std::string property_prefix(Component const *c) {
   if (is_a<CheckBox>(c)) {
     return "CheckBox";
   } else if (is_a<RadioButton>(c)) {
     return "RadioButton";
+  } else if (is_a<Switch>(c)) {
+    return "Switch";
   } else if (is_a<ToggleButton>(c)) {
     return "ToggleButton";
   }
@@ -91,31 +94,6 @@ Color pressed_color(AbstractButton const *button) {
 // install_ui, so this fallback only fires before that or without a theme).
 Color text_color(AbstractButton const *button) {
   return button->get_foreground_color().value_or(Color { 0, 0, 0 });
-}
-
-// The width of the button's content: the indicator, the icon and the label on
-// one line. The indicator column already ends with its own gap (Swing's check
-// icon text gap); the button's icon-text gap separates the icon and the label
-// when both are present. The preferred size and the paint share this helper,
-// so a laid-out button always has room for the label it paints (measuring the
-// gap on one side only used to lay the label out wider than the size the
-// layout had given the button, clipping its tail away).
-int content_width(TextMetrics const &metrics, AbstractButton const *button) {
-  auto width = 0;
-  if (auto kind = indicator_kind(button); kind != IndicatorKind::NONE) {
-    width += indicator_column_width(metrics);
-  }
-  auto const &icon = button->get_icon();
-  if (icon) {
-    width += icon->get_icon_width();
-  }
-  if (auto const &text = button->get_text(); not text.empty()) {
-    if (icon) {
-      width += int(button->get_icon_text_gap());
-    }
-    width += metrics.get_width(text);
-  }
-  return width;
 }
 
 // Draws `text` starting at (x, y), clipping at the content area's right edge
@@ -273,7 +251,7 @@ std::optional<Dimension> ButtonUI::get_preferred_size(std::shared_ptr<const Comp
   auto metrics = screen.get_text_metrics();
   auto margin = button->get_margin().value_or(Insets { 0, 0, 0, 0 });
 
-  auto width = content_width(*metrics, button);
+  auto width = content_width(*metrics, *c);
 
   auto insets = c->get_insets();
   auto height = metrics->get_line_height();
@@ -283,65 +261,69 @@ std::optional<Dimension> ButtonUI::get_preferred_size(std::shared_ptr<const Comp
 
 void ButtonUI::paint(Graphics &g, std::shared_ptr<const Component> const &c) const {
   auto const *button = static_cast<const AbstractButton*>(c.get());
-  auto metrics = screen.get_text_metrics();
-
-  // The content area: the component inside its border (insets) and the
-  // button's margin. The border itself was painted by the component (see
-  // Component::paint_border); like Swing's BasicButtonUI this delegate
-  // paints the content area only.
-  auto insets = c->get_insets();
-  auto margin = button->get_margin().value_or(Insets { 0, 0, 0, 0 });
-  auto x0 = insets.left + margin.left;
-  auto y0 = insets.top + margin.top;
-  auto x1 = c->get_width() - insets.right - margin.right;
-  auto y1 = c->get_height() - insets.bottom - margin.bottom;
-  if (x1 <= x0 or y1 <= y0) {
+  auto area = get_content_area(c);
+  if (area.empty()) {
     return;
   }
 
   // The "down" state of a pressed button and of a selected toggle fills the
-  // content area with the darkened face color (the raised bezel of the
-  // border is painted separately and turns sunken while pressed).
+  // content area with the darkened face color (the raised bezel of the border
+  // is painted separately and turns sunken while pressed).
   auto const &model = button->get_model();
   if (paints_pressed(button) and model->is_enabled()) {
     g.set_background_color(pressed_color(button));
-    g.fill_rect(x0, y0, x1 - x0, y1 - y0);
+    g.fill_rect(area);
   }
 
+  paint_content(g, c);
+}
+
+void ButtonUI::paint_content(Graphics &g, std::shared_ptr<const Component> const &c) const {
+  auto area = get_content_area(c);
+  if (area.empty()) {
+    return;
+  }
+
+  auto const *button = static_cast<const AbstractButton*>(c.get());
+  auto metrics = screen.get_text_metrics();
+
+  // The leading visual is drawn in the button's own foreground (see below).
   g.set_foreground_color(text_color(button));
 
   // Vertically center the single label line in the content area.
-  auto y = y0 + std::max(0, (y1 - y0 - metrics->get_line_height()) / 2);
+  auto y = area.y + std::max(0, (area.height - metrics->get_line_height()) / 2);
 
-  // Lay the indicator, the icon and the label out on one line (Swing's
+  // Lay the leading visual, the icon and the label out on one line (Swing's
   // layoutCompoundLabel for the default vertical CENTER / text TRAILING),
   // measuring the line exactly as the preferred size did.
-  auto kind = indicator_kind(c.get());
   auto text = button->get_text();
   auto icon_gap = int(button->get_icon_text_gap());
-  auto content = content_width(*metrics, button);
+  auto content = content_width(*metrics, *c);
 
   // Horizontal alignment within the content area.
-  auto available = x1 - x0;
-  auto x = x0;
+  auto x = area.x;
   switch (button->get_horizontal_alignment()) {
   case HorizontalAlignment::CENTER:
-    x = x0 + std::max(0, (available - content) / 2);
+    x = area.x + std::max(0, (area.width - content) / 2);
     break;
   case HorizontalAlignment::RIGHT:
   case HorizontalAlignment::TRAILING:
-    x = x0 + std::max(0, available - content);
+    x = area.x + std::max(0, area.width - content);
     break;
   case HorizontalAlignment::LEFT:
   case HorizontalAlignment::LEADING:
     break;
   }
 
-  auto cursor = x;
-  if (kind != IndicatorKind::NONE) {
-    paint_indicator(g, *metrics, kind, cursor, y, model->is_selected());
-    cursor += indicator_column_width(*metrics);
-  }
+  // The leading visual comes first (the indicator, the switch track) and the
+  // label follows the space it used. The icon and the label take the button's
+  // own colors back: a leading visual may paint in a palette of its own (the
+  // switch's track and thumb are not the button's colors), and the label must
+  // not come out in the track's color or on the track's background.
+  auto cursor = x + paint_leading(g, *metrics, *c, x, y);
+  g.set_foreground_color(text_color(button));
+  g.set_background_color(c->get_background_color());
+
   auto const &icon = button->get_icon();
   if (icon) {
     icon->paint_icon(c.get(), g, cursor, y);
@@ -351,9 +333,56 @@ void ButtonUI::paint(Graphics &g, std::shared_ptr<const Component> const &c) con
     if (icon) {
       cursor += icon_gap;
     }
-    auto focus_underline = button->is_focus_owner() and button->is_focus_painted() and not model->is_selected();
-    paint_clipped_text(g, metrics.get(), text, cursor, y, x1, button, focus_underline);
+    auto focus_underline = button->is_focus_owner() and button->is_focus_painted() and not button->get_model()->is_selected();
+    paint_clipped_text(g, metrics.get(), text, cursor, y, area.right(), button, focus_underline);
   }
+}
+
+int ButtonUI::content_width(TextMetrics const &metrics, Component const &c) const {
+  auto const &button = static_cast<AbstractButton const &>(c);
+
+  // The leading visual (the indicator, the switch track) already ends with its
+  // own gap; the button's icon-text gap separates the icon and the label when
+  // both are present.
+  auto width = leading_width(metrics, c);
+  auto const &icon = button.get_icon();
+  if (icon) {
+    width += icon->get_icon_width();
+  }
+  if (auto const &text = button.get_text(); not text.empty()) {
+    if (icon) {
+      width += int(button.get_icon_text_gap());
+    }
+    width += metrics.get_width(text);
+  }
+  return width;
+}
+
+int ButtonUI::leading_width(TextMetrics const &metrics, Component const &c) const {
+  auto kind = indicator_kind(&c);
+  return kind == IndicatorKind::NONE ? 0 : indicator_column_width(metrics);
+}
+
+int ButtonUI::paint_leading(Graphics &g, TextMetrics const &metrics, Component const &c, int x, int y) const {
+  auto kind = indicator_kind(&c);
+  if (kind != IndicatorKind::NONE) {
+    paint_indicator(g, metrics, kind, x, y, static_cast<AbstractButton const &>(c).get_model()->is_selected());
+  }
+  return leading_width(metrics, c);
+}
+
+Rectangle ButtonUI::get_content_area(std::shared_ptr<const Component> const &c) const {
+  auto const *button = static_cast<const AbstractButton*>(c.get());
+  auto insets = c->get_insets();
+  auto margin = button->get_margin().value_or(Insets { 0, 0, 0, 0 });
+  auto x0 = insets.left + margin.left;
+  auto y0 = insets.top + margin.top;
+  auto x1 = c->get_width() - insets.right - margin.right;
+  auto y1 = c->get_height() - insets.bottom - margin.bottom;
+  if (x1 <= x0 or y1 <= y0) {
+    return { };
+  }
+  return { x0, y0, x1 - x0, y1 - y0 };
 }
 
 }

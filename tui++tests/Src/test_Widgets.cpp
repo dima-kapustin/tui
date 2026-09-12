@@ -18,6 +18,7 @@
 #include <tui++/RadioButtonMenuItem.h>
 #include <tui++/Screen.h>
 #include <tui++/Shadow.h>
+#include <tui++/Switch.h>
 #include <tui++/TextField.h>
 #include <tui++/ToggleButton.h>
 #include <tui++/Window.h>
@@ -877,6 +878,11 @@ static std::string background_code(Color const &color) {
   return "\x1b[48;2;" + std::to_string(int(color.red())) + ';' + std::to_string(int(color.green())) + ';' + std::to_string(int(color.blue())) + 'm';
 }
 
+// The SGR the text screen emits for text painted in `color`.
+static std::string foreground_code(Color const &color) {
+  return "\x1b[38;2;" + std::to_string(int(color.red())) + ';' + std::to_string(int(color.green())) + ';' + std::to_string(int(color.blue())) + 'm';
+}
+
 // The color a shadow leaves on a cell painted on `base`: the cell's color
 // shifted towards the shadow's, the same arithmetic the text screen applies.
 static Color shaded(Color const &base, Shadow const &shadow) {
@@ -897,6 +903,96 @@ static std::string probe_cell(std::ostringstream &capture, int x, int y) {
   auto bytes = capture.str();
   capture.str({ });
   return bytes;
+}
+
+// The switch: a horizontal track with rounded ends and a round thumb that
+// slides between them. It is a toggle button (a click flips it, a group can
+// make a set of switches exclusive) whose track is the leading visual: the
+// label trails it, the track's width is part of the preferred size, and the
+// end the thumb sits at shows the state.
+static void test_switch() {
+  terminal.set_type("text");
+  drain();
+
+  // The box: a one-cell margin, the five track cells (two rounded ends and the
+  // three between them) and the gap to the label the switch would carry.
+  auto bare = make_component<Switch>();
+  CHECK(not bare->is_selected());
+  CHECK((bare->get_preferred_size() == Dimension { 3 + 5, 1 }));
+  CHECK((make_component<Switch>("Wrap")->get_preferred_size() == Dimension { 8 + 4, 1 }));
+
+  // A click flips it like any toggle button.
+  auto sw = make_component<Switch>("Wrap");
+  sw->do_click(std::chrono::milliseconds::zero());
+  CHECK(sw->is_selected());
+  sw->do_click(std::chrono::milliseconds::zero());
+  CHECK(not sw->is_selected());
+
+  // Inside a group the switches behave as radios: picking one clears the other.
+  auto group = std::make_shared<ButtonGroup>();
+  auto a = make_component<Switch>("A");
+  auto b = make_component<Switch>("B");
+  group->add(a);
+  group->add(b);
+  a->do_click(std::chrono::milliseconds::zero());
+  CHECK(a->is_selected() and not b->is_selected());
+  b->do_click(std::chrono::milliseconds::zero());
+  CHECK(not a->is_selected() and b->is_selected());
+
+  // The rendering: the track cells take the track's color (its own in the on
+  // state) and the thumb ever sits in the first or the last cell between the
+  // ends.
+  auto frame = make_component<Frame>();
+  frame->set_size({ 40, 6 });
+  auto content = frame->get_content_pane();
+  content->set_layout(std::make_shared<BorderLayout>());
+  content->add(sw, BorderLayout::NORTH);
+  frame->set_visible(true);
+  drain();
+
+  auto track_color = laf::LookAndFeel::get<std::optional<Color>>("Switch.TrackColor");
+  auto selected_track_color = laf::LookAndFeel::get<std::optional<Color>>("Switch.TrackSelectedColor");
+  CHECK(track_color.has_value());
+  CHECK(selected_track_color.has_value());
+  auto capture = std::ostringstream { };
+  auto *old_cout = std::cout.rdbuf(capture.rdbuf());
+
+  // After the one-cell margin: cell 0 is the left end and cells 1..3 are the
+  // track's own, so the off thumb sits in cell 1 and the on one in cell 3.
+  auto at = sw->get_location_on_screen();
+  auto off_thumb = probe_cell(capture, at.x + 2, at.y);
+  CHECK(off_thumb.find("\u25cf") != std::string::npos);
+  CHECK(off_thumb.find(background_code(*track_color)) != std::string::npos);
+  auto off_far = probe_cell(capture, at.x + 4, at.y);
+  CHECK(off_far.find("\u25cf") == std::string::npos);
+  CHECK(off_far.find(background_code(*track_color)) != std::string::npos);
+
+  sw->set_selected(true);
+  drain();
+  auto on_thumb = probe_cell(capture, at.x + 4, at.y);
+  CHECK(on_thumb.find("\u25cf") != std::string::npos);
+  CHECK(on_thumb.find(background_code(*selected_track_color)) != std::string::npos);
+  auto on_near = probe_cell(capture, at.x + 2, at.y);
+  CHECK(on_near.find("\u25cf") == std::string::npos);
+  CHECK(on_near.find(background_code(*selected_track_color)) != std::string::npos);
+
+  // The label keeps the switch's own colors: the track's palette (its
+  // background in either state, the thumb's color) stays on the track, and the
+  // label is painted in the button's foreground on the button's background.
+  auto thumb_color = laf::LookAndFeel::get<std::optional<Color>>("Switch.ThumbColor");
+  CHECK(thumb_color.has_value());
+  auto label = probe_cell(capture, at.x + 7, at.y); // after the margin, the track and the gap
+  CHECK(label.find(background_code(sw->get_background_color().value_or(BLACK_COLOR))) != std::string::npos);
+  CHECK(label.find(background_code(*selected_track_color)) == std::string::npos);
+  CHECK(label.find(foreground_code(sw->get_foreground_color().value_or(BLACK_COLOR))) != std::string::npos);
+  CHECK(label.find(foreground_code(*thumb_color)) == std::string::npos);
+  CHECK(label.find("\u25cf") == std::string::npos);
+
+  std::cout.rdbuf(old_cout);
+  frame->set_visible(false);
+  drain();
+
+  std::printf("PASS the switch (track, thumb, state colors and layout)\n");
 }
 
 // The optional drop shadow of a button: the border reserves the room it takes,
@@ -968,6 +1064,7 @@ void test_Widgets() {
   test_toggle_button_focus();
   test_toggle_button_mouse_clicks();
   test_button_keyboard();
+  test_switch();
   test_button_shadow();
   test_menu_items();
   test_combo_model();

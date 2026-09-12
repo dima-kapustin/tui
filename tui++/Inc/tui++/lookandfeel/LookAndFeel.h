@@ -21,6 +21,7 @@ class PopupMenu;
 class PopupMenuSeparator;
 class Separator;
 class ToggleButton;
+class Switch;
 
 class InputMap;
 }
@@ -39,6 +40,7 @@ class PopupMenuSeparatorUI;
 class SeparatorUI;
 class ToggleButtonUI;
 class DialogUI;
+class SwitchUI;
 
 // Interface for a look-and-feel. The concrete instance is created by (and
 // retrieved through) the screen, which is global and always instantiated.
@@ -60,6 +62,7 @@ public:
   virtual std::shared_ptr<SeparatorUI> create_separator_ui(Separator *c) = 0;
   virtual std::shared_ptr<ToggleButtonUI> create_toggle_button_ui(ToggleButton *c) = 0;
   virtual std::shared_ptr<DialogUI> create_dialog_ui(Dialog *c) = 0;
+  virtual std::shared_ptr<SwitchUI> create_switch_ui(Switch *c) = 0;
 
 protected:
   void init_theme(std::shared_ptr<Theme> const &theme) {
@@ -78,16 +81,16 @@ public:
   }
 
   template<typename T>
-  static T get(std::string_view const &key, T &&default_value = { }) {
-    return get_current_theme()->get<T>(key, std::forward<T>(default_value));
+  static T get(std::string_view const &key, T const &default_value = { }) {
+    return get_current_theme()->get<T>(key, default_value);
   }
 
   template<typename T>
-  static T get(Component const *c, std::string_view const &key, T &&default_value = { }) {
+  static T get(Component const *c, std::string_view const &key, T const &default_value = { }) {
     if (auto *value = c->get_client_property<T>(key)) {
       return *value;
     } else {
-      return get<T>(key, std::forward<T>(default_value));
+      return get<T>(key, default_value);
     }
   }
 
@@ -180,6 +183,9 @@ public:
   }
   static std::shared_ptr<DialogUI> create_ui(Dialog *c) {
     return get_current()->create_dialog_ui(c);
+  }
+  static std::shared_ptr<SwitchUI> create_ui(Switch *c) {
+    return get_current()->create_switch_ui(c);
   }
 };
 
