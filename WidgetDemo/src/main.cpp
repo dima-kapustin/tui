@@ -1,5 +1,5 @@
-// Widget demo for tui++: the Swing-style toggleable widgets, the combo box,
-// the context menus and the dialogs on one frame.
+// Widget demo for tui++: the Swing-style toggleable widgets, the switch, the
+// combo box, the context menus and the dialogs on one frame.
 //
 //     WidgetDemo            text screen  (cell-based escape sequences)
 //     WidgetDemo text       same as the default
@@ -8,6 +8,12 @@
 // What to try:
 //   - click the check boxes, radio buttons and the toggle button; radio
 //     buttons and the grouped check boxes are exclusive per group,
+//   - the switch: a toggle button drawn as a horizontal track with rounded
+//     ends and a round thumb. It drives the same "guides" state as the check
+//     boxes (and the dialog's), so all three stay in step,
+//   - the shadowed "Reset" button casts a drop shadow: the room it takes is
+//     part of the button's box, so the layout places the widgets after it
+//     accordingly (a program sets a button shadow where it wants one),
 //   - the View menu holds a check box menu item and a Density submenu whose
 //     radio items are grouped,
 //   - the two combo boxes: arrow keys open the dropdown, Up/Down/Home/End
@@ -49,6 +55,8 @@
 #include <tui++/RadioButton.h>
 #include <tui++/RadioButtonMenuItem.h>
 #include <tui++/RootPane.h>
+#include <tui++/Shadow.h>
+#include <tui++/Switch.h>
 #include <tui++/TextField.h>
 #include <tui++/ToggleButton.h>
 
@@ -142,6 +150,18 @@ int main(int argc, char *argv[]) {
   toggles_group->add(snap);
   toggles_group->add(guides);
 
+  // A switch: a toggle button drawn as a horizontal track with a round thumb.
+  // It drives the same "guides" state as the check box (and the modeless
+  // dialog's), so the three stay in sync -- a toolbar switch and a menu check
+  // that follow one command.
+  auto switch_guides = make_component<Switch>("Show guides");
+  switch_guides->add_listener([guides](ActionEvent &e) {
+    guides->set_selected(std::static_pointer_cast<AbstractButton>(e.source)->is_selected());
+  });
+  guides->add_listener([guides, switch_guides](ActionEvent &) {
+    switch_guides->set_selected(guides->is_selected());
+  });
+
   auto city = make_component<ComboBox>(std::vector<std::string> { "Paris", "London", "Rome", "Berlin", "Madrid", "Amsterdam", "Prague", "Vienna" });
   city->set_editable(true);
   city->set_selected_index(0);
@@ -179,6 +199,7 @@ int main(int argc, char *argv[]) {
   notify_all(align_right);
   notify_all(snap);
   notify_all(guides);
+  notify_all(switch_guides);
   notify_all(city);
   notify_all(size);
   notify_all(comment);
@@ -409,6 +430,29 @@ int main(int argc, char *argv[]) {
   row5->add(comment);
   panel->add(heading5);
   panel->add(row5);
+
+  // The switch and a button with the optional drop shadow. The shadow's room
+  // is part of the button's box (see ButtonBorder), so the layout leaves it
+  // the cells it takes; the theme defines no button shadow, a program sets one
+  // where it wants it.
+  auto reset = make_component<Button>("Reset");
+  reset->set_shadow(Shadow { BLACK_COLOR, 0.5, Point { 2, 1 } });
+  reset->add_listener([=](ActionEvent &) {
+    bold->set_selected(false);
+    italic->set_selected(false);
+    underline->set_selected(false);
+    snap->set_selected(false);
+    guides->set_selected(false);
+    switch_guides->set_selected(false);
+    refresh_status();
+  });
+
+  auto heading6 = make_component<WidgetDemoTextLine>("Switch (rounded track) and a shadowed button:");
+  auto row6 = make_component<WidgetDemoRow>();
+  row6->add(switch_guides);
+  row6->add(reset);
+  panel->add(heading6);
+  panel->add(row6);
 
   // ---- the demo's own context menu ----
   //

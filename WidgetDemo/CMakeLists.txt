@@ -3,9 +3,9 @@ cmake_minimum_required(VERSION 3.20)
 # WidgetDemo - the widgets, context menus and dialogs demo for tui++.
 #
 # Builds ONE component tree (a Frame with a File/View/Dialogs MenuBar over a
-# panel of ToggleButtons/CheckBoxes/RadioButtons and ComboBoxes, plus the
-# comment TextField and its standard context menu) and runs it on either
-# terminal backend:
+# panel of ToggleButtons/CheckBoxes/RadioButtons, a Switch, a shadowed Button
+# and ComboBoxes, plus the comment TextField and its standard context menu) and
+# runs it on either terminal backend:
 #
 #     WidgetDemo            text screen  (cell-based escape sequences)
 #     WidgetDemo text       same as the default
